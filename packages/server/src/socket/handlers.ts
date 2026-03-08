@@ -10,6 +10,7 @@ import {
 import type { AppConfig } from '@ieom/shared'
 import type { SceneMachine } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
+import { getConfig } from '../routes/config.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -45,7 +46,27 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
 
     socket.on('scene:change', (target, callback) => {
       scheduler?.resetIdleTimer()
-      const result = machine.transition(target)
+
+      // Look up per-app transition overrides from config
+      const cfg = getConfig()
+      const fromState = machine.currentState
+      let transitionOverride: string | undefined
+
+      // Find an app whose scene matches: introTransition (entering app) or exitTransition (leaving app back to desktop)
+      for (const app of cfg.applications) {
+        // Going INTO an app scene
+        if (app.targetSceneId === target && app.introTransition) {
+          transitionOverride = app.introTransition
+          break
+        }
+        // Going BACK to desktop FROM an app scene
+        if (app.targetSceneId === fromState && target === STATE.DESKTOP && app.exitTransition) {
+          transitionOverride = app.exitTransition
+          break
+        }
+      }
+
+      const result = machine.transition(target, transitionOverride)
       if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
     })
 

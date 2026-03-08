@@ -11,6 +11,9 @@ import {
   Stars,
 } from '@react-three/drei'
 import * as THREE from 'three'
+import { STATE } from '@ieom/shared'
+import type { LobbyConfig } from '@ieom/shared'
+import { useAppStore } from '../store/useAppStore'
 
 // ── Room dimensions ────────────────────────────────────────────────────────
 const ROOM_W = 12
@@ -18,7 +21,7 @@ const ROOM_H = 5
 const ROOM_D = 10
 
 // ── CRT Monitor ──────────────────────────────────────────────────────────
-function CRTMonitor({ position }: { position: [number, number, number] }) {
+function CRTMonitor({ position, glowColor = '#00c8e0' }: { position: [number, number, number]; glowColor?: string }) {
   const screenRef = useRef<THREE.Mesh>(null!)
   const glowRef   = useRef<THREE.PointLight>(null!)
 
@@ -67,7 +70,7 @@ function CRTMonitor({ position }: { position: [number, number, number] }) {
         <meshStandardMaterial color="#1e1a16" roughness={0.9} />
       </Cylinder>
       {/* CRT glow light */}
-      <pointLight ref={glowRef} color="#00c8e0" intensity={0.6} distance={2.5} decay={2} position={[0, 0.375, 0.5]} />
+      <pointLight ref={glowRef} color={glowColor} intensity={0.6} distance={2.5} decay={2} position={[0, 0.375, 0.5]} />
     </group>
   )
 }
@@ -96,7 +99,7 @@ function Keyboard({ position }: { position: [number, number, number] }) {
 }
 
 // ── Desk ─────────────────────────────────────────────────────────────────
-function Desk({ position }: { position: [number, number, number] }) {
+function Desk({ position, glowColor }: { position: [number, number, number]; glowColor: string }) {
   return (
     <group position={position}>
       {/* Desk surface */}
@@ -112,7 +115,7 @@ function Desk({ position }: { position: [number, number, number] }) {
         ))
       )}
       {/* Monitor on desk */}
-      <CRTMonitor position={[0, 0.03, -0.22]} />
+      <CRTMonitor position={[0, 0.03, -0.22]} glowColor={glowColor} />
       {/* Keyboard */}
       <Keyboard position={[0, 0.03, 0.22]} />
       {/* Mouse */}
@@ -169,7 +172,7 @@ function Bookshelf({ position }: { position: [number, number, number] }) {
 }
 
 // ── Room geometry (floor, walls, ceiling) ────────────────────────────────
-function Room() {
+function Room({ wallColor, floorColor, floorReflectivity }: { wallColor: string; floorColor: string; floorReflectivity: number }) {
   return (
     <group>
       {/* Floor — reflective */}
@@ -179,12 +182,12 @@ function Room() {
           resolution={512}
           mixBlur={1}
           mixStrength={60}
-          roughness={0.9}
+          roughness={1 - floorReflectivity}
           depthScale={1.2}
           minDepthThreshold={0.4}
           maxDepthThreshold={1.4}
-          color="#0d0d14"
-          metalness={0.6}
+          color={floorColor}
+          metalness={floorReflectivity}
           mirror={0}
         />
       </Plane>
@@ -195,11 +198,11 @@ function Room() {
       </Plane>
       {/* Left wall */}
       <Plane args={[ROOM_D, ROOM_H]} rotation={[0, Math.PI / 2, 0]} position={[-ROOM_W / 2, 0, 0]}>
-        <meshStandardMaterial color="#0f0f16" roughness={0.95} side={THREE.FrontSide} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} side={THREE.FrontSide} />
       </Plane>
       {/* Right wall */}
       <Plane args={[ROOM_D, ROOM_H]} rotation={[0, -Math.PI / 2, 0]} position={[ROOM_W / 2, 0, 0]}>
-        <meshStandardMaterial color="#0f0f16" roughness={0.95} side={THREE.FrontSide} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} side={THREE.FrontSide} />
       </Plane>
       {/* Ceiling */}
       <Plane args={[ROOM_W, ROOM_D]} rotation={[Math.PI / 2, 0, 0]} position={[0, ROOM_H / 2, 0]}>
@@ -232,7 +235,7 @@ function DustMotes() {
 }
 
 // ── Slow auto-panning camera ───────────────────────────────────────────────
-function AutoCamera() {
+function AutoCamera({ fov }: { fov: number }) {
   const camRef = useRef<THREE.PerspectiveCamera>(null!)
 
   useFrame((state) => {
@@ -248,7 +251,7 @@ function AutoCamera() {
     }
   })
 
-  return <PerspectiveCamera ref={camRef} makeDefault fov={62} near={0.1} far={50} />
+  return <PerspectiveCamera ref={camRef} makeDefault fov={fov} near={0.1} far={50} />
 }
 
 // ── Neon accent strips on back wall ──────────────────────────────────────
@@ -271,13 +274,31 @@ function NeonStrip({ y, color }: { y: number; color: string }) {
 
 // ── Scene root ──────────────────────────────────────────────────────────
 function Scene() {
+  const config = useAppStore((s) => s.config)
+  const env = config.scenes[STATE.LOBBY]?.lobbyConfig
+
+  const fogColor         = env?.fogColor         ?? '#080810'
+  const fogNear          = env?.fogNear           ?? 6
+  const fogFar           = env?.fogFar            ?? 22
+  const ambientColor     = env?.ambientColor      ?? '#1e1a3a'
+  const ambientIntensity = env?.ambientIntensity  ?? 0.28
+  const wallColor        = env?.wallColor         ?? '#0f0f16'
+  const floorColor       = env?.floorColor        ?? '#0d0d14'
+  const floorRefl        = env?.floorReflectivity ?? 0.6
+  const crtGlow          = env?.crtGlowColor      ?? '#00c8e0'
+  const neonStrips       = env?.neonStrips        ?? true
+  const neonColors       = env?.neonColors        ?? (['#00c8ff', '#8000ff'] as [string, string])
+  const showDust         = env?.dustMotes         ?? true
+  const cameraFov        = env?.cameraFov         ?? 62
+  const starsCount       = env?.starsCount        ?? 400
+
   return (
     <>
-      <AutoCamera />
-      <fog attach="fog" args={['#080810', 6, 22]} />
+      <AutoCamera fov={cameraFov} />
+      <fog attach="fog" args={[fogColor, fogNear, fogFar]} />
 
       {/* Ambient — soft purple-blue fill */}
-      <ambientLight intensity={0.28} color="#1e1a3a" />
+      <ambientLight intensity={ambientIntensity} color={ambientColor} />
 
       {/* Overhead ceiling — cool blue-white main fill */}
       <pointLight color="#4060d0" intensity={1.8} distance={14} decay={2} position={[0, ROOM_H / 2 - 0.4, -1]} />
@@ -288,22 +309,26 @@ function Scene() {
       {/* Right-side rim light — cold blue-grey edge separation */}
       <pointLight color="#203080" intensity={0.9} distance={8} decay={2} position={[ROOM_W / 2 - 0.8, 0.5, -1]} />
 
-      <Room />
+      <Room wallColor={wallColor} floorColor={floorColor} floorReflectivity={floorRefl} />
 
       {/* Desk centred slightly back */}
-      <Desk position={[0, -ROOM_H / 2 + 0.81, -0.6]} />
+      <Desk position={[0, -ROOM_H / 2 + 0.81, -0.6]} glowColor={crtGlow} />
       {/* Bookshelf on the right wall */}
       <Bookshelf position={[ROOM_W / 2 - 0.9, -ROOM_H / 2 + 0.9, -2.5]} />
 
       {/* Neon accent strips */}
-      <NeonStrip y={0.4}  color="#00c8ff" />
-      <NeonStrip y={-0.3} color="#8000ff" />
+      {neonStrips && (
+        <>
+          <NeonStrip y={0.4}  color={neonColors[0]} />
+          <NeonStrip y={-0.3} color={neonColors[1]} />
+        </>
+      )}
 
       {/* Floating dust */}
-      <DustMotes />
+      {showDust && <DustMotes />}
 
       {/* Stars visible through "window" atmosphere */}
-      <Stars radius={30} depth={8} count={400} factor={1.5} saturation={0.5} fade speed={0.3} />
+      <Stars radius={30} depth={8} count={starsCount} factor={1.5} saturation={0.5} fade speed={0.3} />
     </>
   )
 }

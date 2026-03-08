@@ -9,8 +9,23 @@ export const DEFAULT_CONFIG: AppConfig = {
       backgroundOpaque: true,
       // Lobby = 3D room (R3F ThreeBackground plugin — NOT the Win98 desktop).
       // The desktop layer is hidden in LOBBY state; only the 3D room renders here.
-      // ThreeBackground plugin will be wired here once the R3F plugin is built.
       sources: [],
+      lobbyConfig: {
+        ambientColor: '#1e1a3a',
+        ambientIntensity: 0.28,
+        fogColor: '#080810',
+        fogNear: 6,
+        fogFar: 22,
+        wallColor: '#0f0f16',
+        floorColor: '#0d0d14',
+        floorReflectivity: 0.6,
+        crtGlowColor: '#00c8e0',
+        neonStrips: true,
+        neonColors: ['#00c8ff', '#8000ff'],
+        dustMotes: true,
+        cameraFov: 62,
+        starsCount: 400,
+      },
     },
 
     DESKTOP: {
@@ -20,6 +35,37 @@ export const DEFAULT_CONFIG: AppConfig = {
       // Desktop = Win98 OS layer (shown via #desktop-layer CSS, not a source plugin).
       // Sources layer is empty — the desktop canvas owns this state visually.
       sources: [],
+      style: {
+        background: {
+          type: 'gradient',
+          color: '#000000',
+          gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
+          imageUrl: '',
+          videoUrl: '',
+          pattern: 'none',
+          opacity: 1,
+          blur: 0,
+        },
+        effects: {
+          crt: true,
+          noise: false,
+          vignette: true,
+          flicker: false,
+          chromatic: false,
+          scanlineOpacity: 0.18,
+          noiseOpacity: 0.06,
+          vignetteStrength: 0.65,
+        },
+        particles: {
+          enabled: false,
+          preset: 'none',
+          density: 0.5,
+          speed: 0.4,
+        },
+        fontFamily: 'default',
+        accentColor: '#00ff41',
+        textColor: '#ffffff',
+      },
     },
     GAMEPLAY: {
       id: 'GAMEPLAY',

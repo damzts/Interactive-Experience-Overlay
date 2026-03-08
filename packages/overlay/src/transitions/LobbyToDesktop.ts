@@ -1,4 +1,5 @@
 import gsap from 'gsap'
+import { playBootSequence } from './BootSequence'
 
 /** LOBBY → DESKTOP
  *  Pure CSS optical illusion: GSAP scales the #lobby-layer div outward from
@@ -28,10 +29,12 @@ export function lobbyToDesktop(onComplete: () => void): gsap.core.Timeline {
     })
     // ── White-out flash hides the hard cut ───────────────────────────────
     .to(flash, { opacity: 1, duration: 0.06, ease: 'none' })
-    // ── Desktop is now loaded — tell the server the transition is done ───
-    .call(onComplete)
-    // ── Fade flash back out (Desktop is already showing) ─────────────────
-    .to(flash, { opacity: 0, duration: 0.35, delay: 0.08, ease: 'power2.out' })
+    // ── Desktop is loaded — now play boot sequence, THEN tell server done ───
+    .call(() => {
+      playBootSequence(onComplete)
+    })
+    // ── Fade flash over the boot screen (boot screen is now showing) ─────
+    .to(flash, { opacity: 0, duration: 0.3, delay: 0.05, ease: 'power2.out' })
     // ── Reset lobby layer so it's ready for next time ─────────────────────
     .call(() => {
       gsap.set(lobbyLayer, { clearProps: 'all' })

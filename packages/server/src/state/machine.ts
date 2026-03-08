@@ -33,8 +33,9 @@ export class SceneMachine extends EventEmitter {
     return this.snap.isTransitioning
   }
 
-  /** Attempt a transition. Returns error string on failure. */
-  transition(target: STATE): { ok: boolean; error?: string; transitionType?: string } {
+  /** Attempt a transition. Returns error string on failure.
+   *  @param transitionTypeOverride  When provided, overrides the TRANSITION_TYPE map. */
+  transition(target: STATE, transitionTypeOverride?: string): { ok: boolean; error?: string; transitionType?: string } {
     if (this.snap.isTransitioning) {
       return { ok: false, error: 'Already transitioning' }
     }
@@ -47,7 +48,9 @@ export class SceneMachine extends EventEmitter {
     }
 
     const transitionType =
-      TRANSITION_TYPE[`${this.snap.current}->${target}`] ?? 'default'
+      transitionTypeOverride ??
+      TRANSITION_TYPE[`${this.snap.current}->${target}`] ??
+      'default'
 
     this.snap.isTransitioning = true
     this.snap.previous = this.snap.current

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { STATE, OVERLAY_EVENT } from '@ieom/shared'
-import type { OverlayStyle, BackgroundType, PatternPreset, ParticlePreset } from '@ieom/shared'
+import type { OverlayStyle, BackgroundType, PatternPreset, ParticlePreset, Application, LobbyConfig } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn, Toggle, Slider } from './ui'
+import { Panel, Toggle, Slider } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
@@ -128,13 +128,28 @@ const GOOGLE_FONTS: { name: string; css: string }[] = [
 
 const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', '#eab308', '#ef4444', '#ffffff']
 
+const TRANSITION_OPTIONS: { id: string; label: string; desc: string }[] = [
+  { id: 'instant',             label: 'Instant',           desc: 'Immediate cut, no animation' },
+  { id: 'fade',                label: 'Fade',              desc: 'Cross-fade through black' },
+  { id: 'lobby-to-desktop',    label: 'Boot Rush',         desc: 'Camera rushes into CRT + boot sequence' },
+  { id: 'desktop-to-gameplay', label: 'Win98 Loading',     desc: 'Windows 98 progress dialog' },
+  { id: 'gameplay-to-desktop', label: 'CRT Dissolve',      desc: 'Static wipe back to desktop' },
+  { id: 'desktop-to-tv',       label: 'Channel Sweep → TV',   desc: 'TV channel-change effect' },
+  { id: 'tv-to-desktop',       label: 'Channel Back',      desc: 'TV channel-change effect' },
+  { id: 'glitch-burst',        label: 'Glitch Burst',      desc: 'Digital glitch explosion' },
+  { id: 'static-burst',        label: 'Static Burst',      desc: 'Full TV static then clear' },
+  { id: 'wipe-left',           label: 'Wipe Left',         desc: 'Black panel sweeps from right' },
+  { id: 'wipe-right',          label: 'Wipe Right',        desc: 'Black panel sweeps from left' },
+]
+
 // ── Scene / Overlay controls ───────────────────────────────────────
 
 // ── Inspector view ────────────────────────────────────────────────
 type InspectorView =
-  | 'overlay-style'
   | 'scene'
-  | 'events'
+  | 'application'
+  | 'event-detail'
+  | 'auto-events'
   | 'audio'
   | 'archive'
   | 'keybinds'
@@ -143,17 +158,21 @@ type InspectorView =
 // ── Concept definitions displayed in the Inspector panel header ───
 /** Each key maps to a title + one-sentence definition shown to the admin */
 const INSPECTOR_DEFS: Record<string, { title: string; desc: string }> = {
-  'overlay-style': {
-    title: 'Overlay Style',
-    desc:  'Visual appearance of the 1920×1080 browser source loaded in OBS. Background, effects, particles, and typography — applied globally across all broadcast states.',
-  },
   'scene': {
     title: 'Scene',
-    desc:  'A broadcast state — the full visual context shown to viewers at a given moment. Each scene owns its plugin sources, layout, and overlay appearance.',
+    desc:  'A broadcast state — the full visual context shown to viewers at a given moment. Each scene owns its plugin sources, layout, and transition.',
   },
-  'events': {
+  'application': {
+    title: 'Application',
+    desc:  'A Win98 .exe shortcut on the desktop. Launching it switches the active scene or stacks on top of it.',
+  },
+  'event-detail': {
+    title: 'Event',
+    desc:  'An overlay animation that plays on top of the current scene without changing it.',
+  },
+  'auto-events': {
     title: 'Auto-Events',
-    desc:  'Condition-based overlay animations that fire automatically during stream — death flash, victory screen, network glitch, etc.',
+    desc:  'Condition-based overlay animations that fire automatically — idle detection, random glitch, system messages.',
   },
   'audio': {
     title: 'Audio',
@@ -185,12 +204,8 @@ function SectionHeader({ label, desc }: { label: string; desc?: string }) {
 
 // ── Scene + event definitions ─────────────────────────────────
 const SCENE_DEFS: { label: string; state: STATE; icon: string }[] = [
-  { label: 'LOBBY',    state: STATE.LOBBY,    icon: '🖥' },
-  { label: 'DESKTOP',  state: STATE.DESKTOP,  icon: '💾' },
-  { label: 'GAMEPLAY', state: STATE.GAMEPLAY, icon: '🎮' },
-  { label: 'TV MODE',  state: STATE.TV,       icon: '📺' },
-  { label: 'MUSIC',    state: STATE.MUSIC,    icon: '♫' },
-  { label: 'ARCHIVE',  state: STATE.ARCHIVE,  icon: '◈' },
+  { label: 'LOBBY',   state: STATE.LOBBY,   icon: '🖥' },
+  { label: 'DESKTOP', state: STATE.DESKTOP, icon: '💾' },
 ]
 
 const EVENT_DEFS: { label: string; event: OVERLAY_EVENT; icon: string; color: string }[] = [
@@ -224,24 +239,26 @@ function StyleEditor() {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const [tab,   setTab]   = useState<StyleTab>('background')
-  const [style, setStyle] = useState<OverlayStyle>(() => structuredClone(config.overlayStyle))
+  const [style, setStyle] = useState<OverlayStyle>(() =>
+    structuredClone((config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle)
+  )
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    setStyle(structuredClone(config.overlayStyle))
-  }, [config.overlayStyle])
+    setStyle(structuredClone((config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle))
+  }, [config.scenes, config.overlayStyle])
 
   const update = useCallback((updater: (draft: OverlayStyle) => void) => {
     setStyle((prev) => {
       const next = structuredClone(prev)
       updater(next)
-      // Auto-apply after 600 ms idle — use next not prev
       if (saveTimer.current) clearTimeout(saveTimer.current)
       saveTimer.current = setTimeout(async () => {
         setSaving(true)
-        await saveConfig({ overlayStyle: next })
+        const desktopScene = config.scenes[STATE.DESKTOP]
+        await saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...desktopScene, style: next } } })
         setSaving(false)
         setSaved(true)
         setTimeout(() => setSaved(false), 1500)
@@ -249,12 +266,13 @@ function StyleEditor() {
       return next
     })
     setSaved(false)
-  }, [saveConfig])
+  }, [saveConfig, config.scenes])
 
   const save = async () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaving(true)
-    await saveConfig({ overlayStyle: style })
+    const desktopScene = config.scenes[STATE.DESKTOP]
+    await saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...desktopScene, style } } })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
@@ -554,93 +572,345 @@ function StyleEditor() {
         )}
       </div>
 
-      {/* Apply bar */}
-      <div className="p-2 border-t border-zinc-700 shrink-0">
-        <Btn variant="primary" className="w-full justify-center" onClick={save} disabled={saving}>
-          {saving ? 'Applying…' : saved ? '✔ Applied' : '▶ Apply to Overlay'}
-        </Btn>
+    </div>
+  )
+}
+
+// -- LobbyConfigEditor --------------------------------------------------
+function LobbyConfigEditor() {
+  const config     = useAdminStore((s) => s.config)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const DEFAULT_LOBBY_ENV: LobbyConfig = {
+    ambientColor: '#1e1a3a', ambientIntensity: 0.28,
+    fogColor: '#080810', fogNear: 6, fogFar: 22,
+    wallColor: '#0f0f16', floorColor: '#0d0d14', floorReflectivity: 0.6,
+    crtGlowColor: '#00c8e0',
+    neonStrips: true, neonColors: ['#00c8ff', '#8000ff'],
+    dustMotes: true, cameraFov: 62, starsCount: 400,
+  }
+  const [form, setForm] = useState<LobbyConfig>(() =>
+    structuredClone((config.scenes[STATE.LOBBY] as { lobbyConfig?: LobbyConfig } | undefined)?.lobbyConfig ?? DEFAULT_LOBBY_ENV)
+  )
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const lc = (config.scenes[STATE.LOBBY] as { lobbyConfig?: LobbyConfig } | undefined)?.lobbyConfig
+    if (lc) setForm(structuredClone(lc))
+  }, [config.scenes])
+
+  const update = useCallback((updater: (d: LobbyConfig) => void) => {
+    setForm((prev) => {
+      const next = structuredClone(prev)
+      updater(next)
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(async () => {
+        setSaving(true)
+        const lobbyScene = { ...config.scenes[STATE.LOBBY], lobbyConfig: next }
+        await saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: lobbyScene } })
+        setSaving(false); setSaved(true)
+        setTimeout(() => setSaved(false), 1500)
+      }, 600)
+      return next
+    })
+    setSaved(false)
+  }, [saveConfig, config.scenes])
+
+  const ColorRow = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+    <div className="flex items-center gap-2 mb-2">
+      {label && <label className="text-[11px] text-zinc-400 w-16 shrink-0">{label}</label>}
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="w-8 h-7 shrink-0" />
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="font-mono flex-1" />
+    </div>
+  )
+
+  return (
+    <div className="p-3 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] text-zinc-500 uppercase tracking-wider">3D Room Environment</div>
+        <div className="flex gap-1.5 text-[10px]">
+          {saving && <span className="text-zinc-600">saving…</span>}
+          {saved  && <span className="text-emerald-400">✔ saved</span>}
+        </div>
+      </div>
+
+      <Panel title="Ambient Light">
+        <ColorRow label="" value={form.ambientColor} onChange={(v) => update((d) => { d.ambientColor = v })} />
+        <Slider label="Intensity" value={form.ambientIntensity} min={0} max={2} step={0.01}
+          onChange={(v) => update((d) => { d.ambientIntensity = v })} />
+      </Panel>
+
+      <Panel title="Fog">
+        <ColorRow label="" value={form.fogColor} onChange={(v) => update((d) => { d.fogColor = v })} />
+        <Slider label="Near" value={form.fogNear} min={1} max={20} step={0.5}
+          onChange={(v) => update((d) => { d.fogNear = v })} />
+        <Slider label="Far" value={form.fogFar} min={5} max={60} step={1}
+          onChange={(v) => update((d) => { d.fogFar = v })} />
+      </Panel>
+
+      <Panel title="Room Surfaces">
+        <ColorRow label="Walls" value={form.wallColor} onChange={(v) => update((d) => { d.wallColor = v })} />
+        <ColorRow label="Floor" value={form.floorColor} onChange={(v) => update((d) => { d.floorColor = v })} />
+        <Slider label="Floor reflectivity" value={form.floorReflectivity} min={0} max={1} step={0.05}
+          onChange={(v) => update((d) => { d.floorReflectivity = v })} />
+      </Panel>
+
+      <Panel title="CRT Monitor Glow">
+        <ColorRow label="" value={form.crtGlowColor} onChange={(v) => update((d) => { d.crtGlowColor = v })} />
+      </Panel>
+
+      <Panel title="Neon Strips">
+        <Toggle checked={form.neonStrips} onChange={(v) => update((d) => { d.neonStrips = v })} label="Enabled" />
+        {form.neonStrips && (
+          <div className="mt-2 space-y-1">
+            <ColorRow label="Strip 1" value={form.neonColors[0]}
+              onChange={(v) => update((d) => { d.neonColors = [v, d.neonColors[1]] })} />
+            <ColorRow label="Strip 2" value={form.neonColors[1]}
+              onChange={(v) => update((d) => { d.neonColors = [d.neonColors[0], v] })} />
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Atmosphere">
+        <Toggle checked={form.dustMotes} onChange={(v) => update((d) => { d.dustMotes = v })} label="Floating dust motes" />
+        <div className="mt-2 space-y-1">
+          <Slider label="Camera FOV" value={form.cameraFov} min={30} max={120} step={1}
+            onChange={(v) => update((d) => { d.cameraFov = v })} />
+          <Slider label="Star count" value={form.starsCount} min={0} max={2000} step={50}
+            onChange={(v) => update((d) => { d.starsCount = v })} />
+        </div>
+      </Panel>
+    </div>
+  )
+}
+
+// -- AppInspector --------------------------------------------------------
+function AppInspector({ app }: { app: Application | null }) {
+  const config     = useAdminStore((s) => s.config)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const [form, setForm] = useState<Application | null>(app)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => { setForm(app) }, [app])
+
+  if (!form) return (
+    <div className="p-4 text-zinc-500 text-sm italic">Click an application to inspect it.</div>
+  )
+
+  const autoSave = (updated: Application) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      const apps = [...config.applications]
+      const idx  = apps.findIndex((a) => a.id === updated.id)
+      if (idx !== -1) apps[idx] = updated; else apps.push(updated)
+      saveConfig({ applications: apps })
+    }, 400)
+  }
+
+  const update = (updater: (d: Application) => void) => {
+    const next = { ...form }
+    updater(next)
+    setForm(next)
+    autoSave(next)
+  }
+
+  return (
+    <div className="p-3 space-y-3">
+      <div>
+        <div className="text-xs text-zinc-400 mb-1 uppercase tracking-wider">Name</div>
+        <input type="text" value={form.label}
+          onChange={(e) => update((d) => { d.label = e.target.value })}
+          className="w-full" />
+      </div>
+      <div>
+        <div className="text-xs text-zinc-400 mb-1 uppercase tracking-wider">Icon (emoji or URL)</div>
+        <input type="text" value={form.icon}
+          onChange={(e) => update((d) => { d.icon = e.target.value })}
+          className="w-full font-mono" />
+      </div>
+      <div>
+        <div className="text-xs text-zinc-400 mb-1 uppercase tracking-wider">Target Scene</div>
+        <select value={form.targetSceneId}
+          onChange={(e) => update((d) => { d.targetSceneId = e.target.value })}
+          className="w-full">
+          {[STATE.GAMEPLAY, STATE.TV, STATE.MUSIC, STATE.ARCHIVE].map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="text-xs text-zinc-400 mb-1 uppercase tracking-wider">Intro Transition</div>
+        <div className="text-[10px] text-zinc-600 mb-1.5">Desktop → this app (entering)</div>
+        <select value={form.introTransition ?? ''}
+          onChange={(e) => update((d) => { d.introTransition = e.target.value || undefined })}
+          className="w-full">
+          <option value="">— Use default —</option>
+          {TRANSITION_OPTIONS.map((t) => (
+            <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="text-xs text-zinc-400 mb-1 uppercase tracking-wider">Exit Transition</div>
+        <div className="text-[10px] text-zinc-600 mb-1.5">This app → Desktop (leaving)</div>
+        <select value={form.exitTransition ?? ''}
+          onChange={(e) => update((d) => { d.exitTransition = e.target.value || undefined })}
+          className="w-full">
+          <option value="">— Use default —</option>
+          {TRANSITION_OPTIONS.map((t) => (
+            <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>
+          ))}
+        </select>
+      </div>
+      <div className="pt-2 border-t border-zinc-800">
+        <button
+          onClick={() => {
+            const apps = config.applications.filter((a) => a.id !== form.id)
+            saveConfig({ applications: apps })
+          }}
+          className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-900/50 hover:border-red-700"
+        >
+          Remove Application
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// -- EventInspector -------------------------------------------------------
+function EventInspector({ event }: { event: OVERLAY_EVENT | null }) {
+  if (!event) return (
+    <div className="p-4 text-zinc-500 text-sm italic">Click an event to inspect it.</div>
+  )
+  const def = EVENT_DEFS.find((e) => e.event === event)
+  return (
+    <div className="p-3 space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">{def?.icon}</span>
+        <div>
+          <div className="text-sm font-bold text-zinc-100">{def?.label}</div>
+          <div className="text-xs text-zinc-500 font-mono">{event}</div>
+        </div>
+      </div>
+      <button
+        onClick={() => socket.emit('overlay:trigger', event)}
+        className="w-full px-3 py-2 rounded bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 text-xs font-mono tracking-wider text-zinc-100 transition-colors"
+      >
+        ▶ Fire Now
+      </button>
+      <div className="border-t border-zinc-800 pt-3 space-y-1">
+        <div className="text-xs text-zinc-400 uppercase tracking-wider">Trigger Type</div>
+        <div className="text-sm text-zinc-300">Manual / Hotkey</div>
+        <div className="text-xs text-zinc-600 italic pt-1">
+          Full event configuration (animation, SFX, text overrides) coming soon.
+        </div>
       </div>
     </div>
   )
 }
 
 // -- SceneInspector -------------------------------------------------------
+type SceneTab = 'sources' | 'style' | 'env-3d'
+
 function SceneInspector({ scene }: { scene: STATE | null }) {
   const config = useAdminStore((s) => s.config)
+  const [tab, setTab] = useState<SceneTab>(() =>
+    scene === STATE.LOBBY ? 'env-3d' : 'sources'
+  )
+
+  useEffect(() => {
+    setTab(scene === STATE.LOBBY ? 'env-3d' : 'sources')
+  }, [scene])
+
   if (!scene) return (
     <div className="p-4 text-zinc-500 text-sm italic">Select a scene from the left panel.</div>
   )
   const sceneConfig = (config.scenes as Record<string, { sources?: { id: string; pluginType: string; visible: boolean }[]; backgroundOpaque?: boolean }>)[scene]
   if (!sceneConfig) return <div className="p-4 text-zinc-500 text-sm">Scene not configured.</div>
   const sources = sceneConfig.sources ?? []
+
+  const tabDefs: { id: SceneTab; label: string }[] =
+    scene === STATE.LOBBY
+      ? [{ id: 'env-3d', label: '3D Environment' }, { id: 'sources', label: 'Sources' }]
+      : scene === STATE.DESKTOP
+        ? [{ id: 'sources', label: 'Sources' }, { id: 'style', label: 'Style' }]
+        : [{ id: 'sources', label: 'Sources' }]
+
   return (
-    <div>
-      {/* Sources */}
-      <div className="px-3 pt-3 pb-2">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Sources</span>
-          <span className="text-[10px] text-zinc-600 font-mono">{sources.length} plugin{sources.length !== 1 ? 's' : ''}</span>
-        </div>
-        <p className="text-[10px] text-zinc-600 leading-snug mb-2">
-          Plugin instances rendered on this scene — text widgets, image slideshows, CRT effects, etc.
-        </p>
-        {sources.length === 0 ? (
-          <div className="text-[10px] text-zinc-700 italic p-2.5 bg-zinc-800/40 rounded border border-zinc-800">
-            No sources added yet. Use the Source Library to add plugins to this scene.
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {sources.map((src) => (
-              <div key={src.id} className="flex items-center gap-2 px-2.5 py-2 rounded bg-zinc-800/60 border border-zinc-700/60 text-xs">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${src.visible ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
-                <span className="text-zinc-300 flex-1 font-mono text-[11px] truncate">{src.id}</span>
-                <span className="text-[10px] text-zinc-600 shrink-0 px-1.5 py-0.5 bg-zinc-900 rounded font-mono">{src.pluginType}</span>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Tab bar */}
+      <div className="flex gap-0.5 px-2 pt-2 pb-0 border-b border-zinc-700 bg-zinc-900 shrink-0">
+        {tabDefs.map(({ id, label }) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`px-3 py-1.5 text-[11px] rounded-t transition-colors border-b-2 -mb-px ${
+              id === tab
+                ? 'text-cyan-300 border-cyan-500 bg-zinc-800/60'
+                : 'text-zinc-500 border-transparent hover:text-zinc-200 hover:bg-zinc-800/40'
+            }`}
+          >{label}</button>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {tab === 'sources' && (
+          <div className="px-3 pt-3 pb-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Sources</span>
+              <span className="text-[10px] text-zinc-600 font-mono">{sources.length} plugin{sources.length !== 1 ? 's' : ''}</span>
+            </div>
+            <p className="text-[10px] text-zinc-600 leading-snug mb-2">
+              Plugin instances rendered on this scene — text widgets, image slideshows, CRT effects, etc.
+            </p>
+            {sources.length === 0 ? (
+              <div className="text-[10px] text-zinc-700 italic p-2.5 bg-zinc-800/40 rounded border border-zinc-800">
+                No sources added yet. Use the Source Library to add plugins to this scene.
               </div>
-            ))}
+            ) : (
+              <div className="space-y-1">
+                {sources.map((src) => (
+                  <div key={src.id} className="flex items-center gap-2 px-2.5 py-2 rounded bg-zinc-800/60 border border-zinc-700/60 text-xs">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${src.visible ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                    <span className="text-zinc-300 flex-1 font-mono text-[11px] truncate">{src.id}</span>
+                    <span className="text-[10px] text-zinc-600 shrink-0 px-1.5 py-0.5 bg-zinc-900 rounded font-mono">{src.pluginType}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
-      </div>
-      {/* Appearance */}
-      <div className="border-t border-zinc-800">
-        <div className="px-3 pt-2 pb-1">
-          <div className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Overlay Appearance</div>
-          <div className="text-[10px] text-zinc-600 leading-snug mt-0.5">
-            Background, effects, and particles rendered behind all sources on this scene.
-          </div>
-        </div>
-        <StyleEditor />
+        {tab === 'style'  && <StyleEditor />}
+        {tab === 'env-3d' && <LobbyConfigEditor />}
       </div>
     </div>
   )
 }
 
 // -- Inspector ------------------------------------------------------------
-function Inspector({ view, selectedScene, onViewChange }: {
+function Inspector({ view, selectedScene, selectedApp, selectedEvent, onViewChange }: {
   view: InspectorView
   selectedScene: STATE | null
+  selectedApp: Application | null
+  selectedEvent: OVERLAY_EVENT | null
   onViewChange: (v: InspectorView) => void
 }) {
   const def   = INSPECTOR_DEFS[view] ?? { title: view, desc: '' }
-  const title = view === 'scene' && selectedScene ? `${def.title} · ${selectedScene}` : def.title
+  const title = view === 'scene'       && selectedScene ? `${def.title} · ${selectedScene}`
+              : view === 'application' && selectedApp   ? `${def.title} · ${selectedApp.label}`
+              : def.title
   return (
     <div className="w-80 shrink-0 bg-zinc-900 border-l border-zinc-800 flex flex-col overflow-hidden">
       <div className="px-3 pt-2.5 pb-2 border-b border-zinc-800 shrink-0">
         <div className="flex items-start justify-between gap-2 mb-1">
           <span className="text-[11px] text-zinc-200 uppercase tracking-widest font-bold leading-snug">{title}</span>
-          {view !== 'overlay-style' && (
-            <button
-              onClick={() => onViewChange('overlay-style')}
-              className="text-[10px] text-zinc-600 hover:text-zinc-200 transition-colors px-1.5 py-0.5 rounded border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 shrink-0 leading-none"
-              title="Back to Overlay Style"
-            >✕ back</button>
-          )}
         </div>
         {def.desc && <p className="text-[10px] text-zinc-600 leading-snug">{def.desc}</p>}
       </div>
       <div className="flex-1 overflow-y-auto">
-        {view === 'overlay-style' && <StyleEditor />}
         {view === 'scene'         && <SceneInspector scene={selectedScene} />}
-        {view === 'events'        && <EventsPanel />}
+        {view === 'application'   && <AppInspector app={selectedApp} />}
+        {view === 'event-detail'  && <EventInspector event={selectedEvent} />}
+        {view === 'auto-events'   && <EventsPanel />}
         {view === 'audio'         && <AudioPanel />}
         {view === 'archive'       && <ArchivePanel />}
         {view === 'keybinds'      && <KeybindEditor />}
@@ -701,14 +971,19 @@ function PreviewColumn() {
 }
 
 // -- ControlPanel ---------------------------------------------------------
-function ControlPanel({ view, selectedScene, onViewChange, onSceneSelect }: {
+function ControlPanel({ view, selectedScene, selectedApp, selectedEvent, onViewChange, onSceneSelect, onAppSelect, onEventSelect }: {
   view: InspectorView
   selectedScene: STATE | null
+  selectedApp: Application | null
+  selectedEvent: OVERLAY_EVENT | null
   onViewChange: (v: InspectorView) => void
   onSceneSelect: (s: STATE) => void
+  onAppSelect: (app: Application) => void
+  onEventSelect: (event: OVERLAY_EVENT) => void
 }) {
   const currentState = useAdminStore((s) => s.currentState)
   const setLastError = useAdminStore((s) => s.setLastError)
+  const saveConfig   = useAdminStore((s) => s.saveConfig)
   const applications = useAdminStore((s) => s.config.applications)
 
   const triggerScene = (state: STATE) => {
@@ -721,16 +996,16 @@ function ControlPanel({ view, selectedScene, onViewChange, onSceneSelect }: {
 
       {/* ── Scenes ───────────────────────────────── */}
       <div className="p-2 pt-3">
-        <SectionHeader label="Scenes" desc="Broadcast states — the full visual context shown to viewers on stream" />
+        <SectionHeader label="Scenes" desc="Hardcoded broadcast states — click to switch and inspect" />
         {SCENE_DEFS.map(({ label, state, icon }) => {
           const isActive   = currentState === state
           const isSelected = selectedScene === state && view === 'scene'
           return (
             <div
               key={state}
-              onClick={() => { onSceneSelect(state); onViewChange('scene') }}
-              title={`Configure ${label}`}
-              className={`group flex items-center gap-2 px-2.5 py-2 rounded cursor-pointer transition-colors mb-0.5 border ${
+              onClick={() => { triggerScene(state); onSceneSelect(state) }}
+              title={`Switch to ${label} and inspect`}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded cursor-pointer transition-colors mb-0.5 border ${
                 isSelected
                   ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25'
                   : isActive
@@ -743,15 +1018,6 @@ function ControlPanel({ view, selectedScene, onViewChange, onSceneSelect }: {
               {isActive && (
                 <span className="text-[9px] text-emerald-400 font-bold tracking-widest shrink-0">LIVE</span>
               )}
-              <button
-                onClick={(e) => { e.stopPropagation(); triggerScene(state) }}
-                title={`Go live on ${label}`}
-                className={`text-xs px-1.5 py-0.5 rounded border transition-colors shrink-0 ${
-                  isActive
-                    ? 'text-emerald-300 border-emerald-700/60 bg-emerald-950/50'
-                    : 'text-zinc-500 border-zinc-700 hover:text-cyan-300 hover:border-cyan-600/60 hover:bg-zinc-800'
-                }`}
-              >▶</button>
             </div>
           )
         })}
@@ -760,77 +1026,103 @@ function ControlPanel({ view, selectedScene, onViewChange, onSceneSelect }: {
       <div className="mx-2 border-t border-zinc-800/80" />
 
       {/* ── Applications ─────────────────────────── */}
-      {applications.length > 0 && (
-        <>
-          <div className="p-2 pt-2.5">
-            <SectionHeader
-              label="Applications"
-              desc="Win98 desktop .exe shortcuts — each icon triggers a scene transition when clicked on the Desktop"
-            />
-            <div className="space-y-0.5">
-              {applications.map((app) => (
-                <div
-                  key={app.id}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs"
-                  title={`Opens ${app.targetSceneId} via ${app.transitionType}`}
-                >
-                  <span className="text-base shrink-0">{app.icon}</span>
-                  <span className="flex-1 font-mono text-zinc-500 truncate">{app.label}</span>
-                  <span className="text-[9px] text-zinc-700 font-mono shrink-0">→ {app.targetSceneId}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="mx-2 border-t border-zinc-800/80" />
-        </>
-      )}
-
-      {/* ── Events ───────────────────────────────── */}
       <div className="p-2 pt-2.5">
-        <SectionHeader label="Events" desc="Fire instant overlay animations during stream" />
-        <div className="grid grid-cols-2 gap-1">
-          {EVENT_DEFS.map(({ label, event, icon, color }) => (
-            <button
-              key={event}
-              onClick={() => socket.emit('overlay:trigger', event)}
-              className={`py-2 px-1.5 rounded border border-zinc-700/80 bg-zinc-800/80 hover:bg-zinc-700 transition-colors flex flex-col items-center gap-0.5 ${color}`}
-            >
-              <span className="text-base leading-none">{icon}</span>
-              <span className="text-[10px] font-mono tracking-wider">{label}</span>
-            </button>
-          ))}
+        <SectionHeader
+          label="Applications"
+          desc="Win98 .exe shortcuts — click to launch and inspect"
+        />
+        <div className="space-y-0.5">
+          {applications.map((app) => {
+            const isActive     = currentState === app.targetSceneId
+            const isSelected   = selectedApp?.id === app.id && view === 'application'
+            const needsDesktop = !isActive && currentState !== STATE.DESKTOP
+            return (
+              <div
+                key={app.id}
+                onClick={() => { socket.emit('scene:change', app.targetSceneId); onAppSelect(app) }}
+                title={`Launch ${app.label} → ${app.targetSceneId}`}
+                className={`flex items-center gap-2 px-2.5 py-2 rounded cursor-pointer transition-colors mb-0.5 border ${
+                  isSelected
+                    ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25'
+                    : isActive
+                      ? 'text-emerald-200 bg-emerald-950/20 border-emerald-900/40'
+                      : 'text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-transparent'
+                }`}
+              >
+                <span className="text-sm shrink-0">{app.icon}</span>
+                <span className="flex-1 font-mono text-xs font-semibold tracking-wide truncate">{app.label}</span>
+                {isActive    && <span className="text-[9px] text-emerald-400 font-bold tracking-widest shrink-0">LIVE</span>}
+                {needsDesktop && <span className="text-[8px] text-amber-500 font-bold tracking-wider shrink-0">DESKTOP</span>}
+              </div>
+            )
+          })}
         </div>
+        <button
+          onClick={() => {
+            const newApp: Application = {
+              id: `app-${Date.now()}`,
+              label: 'New App',
+              icon: '📁',
+              targetSceneId: STATE.GAMEPLAY,
+              transitionType: 'desktop-to-gameplay',
+            }
+            saveConfig({ applications: [...applications, newApp] })
+            onAppSelect(newApp)
+          }}
+          className="w-full mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 border border-dashed border-zinc-700/60 hover:border-zinc-500 transition-colors"
+        >
+          <span>+</span>
+          <span>New Application</span>
+        </button>
       </div>
 
       <div className="mx-2 border-t border-zinc-800/80" />
 
-      {/* ── Overlay Style shortcut ───────────────── */}
-      <div className="px-2 py-1.5">
+      {/* ── Events ───────────────────────────────── */}
+      <div className="p-2 pt-2.5">
+        <SectionHeader label="Events" desc="Click to fire and inspect" />
+        <div className="space-y-0.5">
+          {EVENT_DEFS.map(({ label, event, icon, color }) => {
+            const isSelected = selectedEvent === event && view === 'event-detail'
+            return (
+              <div
+                key={event}
+                onClick={() => { socket.emit('overlay:trigger', event); onEventSelect(event) }}
+                className={`flex items-center gap-2 px-2.5 py-2 rounded cursor-pointer transition-colors border ${
+                  isSelected
+                    ? 'bg-cyan-500/15 border-cyan-500/25'
+                    : 'hover:bg-zinc-800 border-transparent'
+                } ${color}`}
+              >
+                <span className="text-sm shrink-0">{icon}</span>
+                <span className="flex-1 font-mono text-xs font-semibold tracking-wide">{label}</span>
+                <span className="text-[9px] text-zinc-600">▶</span>
+              </div>
+            )
+          })}
+        </div>
         <button
-          onClick={() => onViewChange('overlay-style')}
-          className={`w-full flex items-center gap-2 px-2.5 py-2 rounded text-xs transition-colors border font-mono ${
-            view === 'overlay-style'
-              ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25'
-              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border-transparent'
-          }`}
+          disabled
+          className="w-full mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-zinc-700 border border-dashed border-zinc-800 cursor-not-allowed"
         >
-          <span>🎨</span>
-          <span className="tracking-wider">OVERLAY STYLE</span>
-          <span className="flex-1 text-right text-zinc-600 text-[10px]">→</span>
+          <span>+</span>
+          <span>New Event</span>
         </button>
       </div>
 
+      <div className="mx-2 border-t border-zinc-800/80" />
+
       <div className="flex-1" />
 
-      {/* ── Config nav ───────────────────────────── */}
+      {/* ── Studio ───────────────────────────────── */}
       <div className="border-t border-zinc-800 px-2 py-2">
-        <div className="text-[9px] text-zinc-700 uppercase tracking-wider px-1 mb-1.5 font-semibold">Config</div>
+        <div className="text-[9px] text-zinc-700 uppercase tracking-wider px-1 mb-1.5 font-semibold">Studio</div>
         {([
-          { id: 'audio'    as InspectorView, icon: '♪', label: 'Audio'    },
-          { id: 'events'   as InspectorView, icon: '⚡', label: 'Events'   },
-          { id: 'keybinds' as InspectorView, icon: '⌨', label: 'Keybinds' },
-          { id: 'archive'  as InspectorView, icon: '◈', label: 'Archive'  },
-          { id: 'settings' as InspectorView, icon: '⚙', label: 'Settings' },
+          { id: 'audio'       as InspectorView, icon: '🔊', label: 'Audio'       },
+          { id: 'auto-events' as InspectorView, icon: '⚡', label: 'Auto-Events' },
+          { id: 'keybinds'    as InspectorView, icon: '⌨', label: 'Keybinds'    },
+          { id: 'archive'     as InspectorView, icon: '📁', label: 'Archive'     },
+          { id: 'settings'    as InspectorView, icon: '⚙', label: 'Settings'    },
         ] as { id: InspectorView; icon: string; label: string }[]).map(({ id, icon, label }) => (
           <button
             key={id}
@@ -875,8 +1167,10 @@ function TopBar() {
 
 // -- Dashboard (Studio root) ----------------------------------------------
 export function Dashboard() {
-  const [view, setView]                   = useState<InspectorView>('overlay-style')
+  const [view, setView]                   = useState<InspectorView>('audio')
   const [selectedScene, setSelectedScene] = useState<STATE | null>(null)
+  const [selectedApp, setSelectedApp]     = useState<Application | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<OVERLAY_EVENT | null>(null)
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
@@ -885,13 +1179,19 @@ export function Dashboard() {
         <ControlPanel
           view={view}
           selectedScene={selectedScene}
+          selectedApp={selectedApp}
+          selectedEvent={selectedEvent}
           onViewChange={setView}
           onSceneSelect={(s) => { setSelectedScene(s); setView('scene') }}
+          onAppSelect={(app) => { setSelectedApp(app); setView('application') }}
+          onEventSelect={(event) => { setSelectedEvent(event); setView('event-detail') }}
         />
         <PreviewColumn />
         <Inspector
           view={view}
           selectedScene={selectedScene}
+          selectedApp={selectedApp}
+          selectedEvent={selectedEvent}
           onViewChange={setView}
         />
       </div>

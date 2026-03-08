@@ -29,22 +29,15 @@ export default function App() {
       setConfig(config)
     })
 
-    const KEYBINDS: Record<string, STATE> = {
-      F1: STATE.LOBBY,
-      F2: STATE.GAMEPLAY,
-      F3: STATE.TV,
-      F4: STATE.MUSIC,
-      F5: STATE.ARCHIVE,
-    }
-
     const handleKey = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as Element)?.tagName)) return
       if (e.key === 'Escape') { socket.emit('panic'); return }
-      const target = KEYBINDS[e.key]
-      if (target) { e.preventDefault(); socket.emit('scene:change', target) }
-      if (e.key === 'd') socket.emit('overlay:trigger', OVERLAY_EVENT.DEATH)
-      if (e.key === 'v') socket.emit('overlay:trigger', OVERLAY_EVENT.VICTORY)
-      if (e.key === 'r') socket.emit('overlay:trigger', OVERLAY_EVENT.REVIVE)
+      if (e.key === 'F1') { e.preventDefault(); socket.emit('scene:change', STATE.GAMEPLAY); return }
+      if (e.key === 'F2') { e.preventDefault(); socket.emit('overlay:trigger', OVERLAY_EVENT.DEATH); return }
+      if (e.key === 'F3') { e.preventDefault(); socket.emit('overlay:trigger', OVERLAY_EVENT.REVIVE); return }
+      if (e.key === 'F4') { e.preventDefault(); socket.emit('overlay:trigger', OVERLAY_EVENT.VICTORY); return }
+      if (e.key === 'F5') { e.preventDefault(); socket.emit('scene:change', STATE.TV); return }
+      if (e.key === 'F6') { e.preventDefault(); socket.emit('scene:change', STATE.LOBBY); return }
     }
 
     window.addEventListener('keydown', handleKey)

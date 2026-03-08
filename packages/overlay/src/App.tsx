@@ -33,17 +33,19 @@ export default function App() {
 
   const currentScene = config.scenes[visualState] ?? config.scenes[STATE.DESKTOP]
   const visibleSources = currentScene?.sources.filter((s) => s.visible) ?? []
+  // Desktop scene owns the visual style; fall back to root overlayStyle for compat
+  const overlayStyle = config.scenes[STATE.DESKTOP]?.style ?? config.overlayStyle
 
   return (
     <div id="overlay-root" className={`state-${visualState.toLowerCase()}`}>
       {/* Configurable background (gradient / image / video / pattern) */}
       <div id="background-layer">
-        <BackgroundLayer style={config.overlayStyle} />
+        <BackgroundLayer style={overlayStyle} />
       </div>
 
       {/* Particle system on top of background */}
       <div id="particles-layer">
-        <ParticlesLayer {...config.overlayStyle.particles} />
+        <ParticlesLayer {...overlayStyle.particles} />
       </div>
 
       {/* All plugin sources (backgrounds, effects, overlays) */}
@@ -63,7 +65,7 @@ export default function App() {
 
       {/* Global CSS effects — CRT, vignette, grain, flicker, chromatic */}
       <div id="effects-layer">
-        <CSSEffectsLayer effects={config.overlayStyle.effects} />
+        <CSSEffectsLayer effects={overlayStyle.effects} />
       </div>
 
       {/* GSAP transition effect elements (loading window, flash, static, etc.) */}

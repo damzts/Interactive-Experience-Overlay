@@ -8,13 +8,36 @@ export interface SourceInstance {
   visible: boolean
 }
 
+/** Configurable 3D environment for the Lobby scene */
+export interface LobbyConfig {
+  ambientColor: string
+  ambientIntensity: number
+  fogColor: string
+  fogNear: number
+  fogFar: number
+  wallColor: string
+  floorColor: string
+  floorReflectivity: number
+  crtGlowColor: string
+  neonStrips: boolean
+  neonColors: [string, string]
+  dustMotes: boolean
+  cameraFov: number
+  starsCount: number
+}
+
 /** A desktop application icon that launches a scene */
 export interface Application {
   id: string
   label: string
   icon: string
   targetSceneId: string
+  /** @deprecated Use introTransition / exitTransition */
   transitionType: string
+  /** Transition played when entering this app (desktop \u2192 app). Overrides TRANSITION_TYPE map. */
+  introTransition?: string
+  /** Transition played when leaving this app back to desktop (app \u2192 desktop). */
+  exitTransition?: string
 }
 
 /** A scene is an ordered list of source instances */
@@ -23,6 +46,10 @@ export interface Scene {
   label: string
   backgroundOpaque: boolean
   sources: SourceInstance[]
+  /** Visual style: background, effects, particles, typography. Used by DESKTOP scene. */
+  style?: OverlayStyle
+  /** 3D room configuration. Used by LOBBY scene. */
+  lobbyConfig?: LobbyConfig
 }
 
 /** ── Overlay style system ─────────────────────────────────────── */

@@ -7,6 +7,11 @@ import { lobbyToGameplay } from '../transitions/LobbyToGameplay'
 import { gameplayToLobby } from '../transitions/GameplayToLobby'
 import { lobbyToTV } from '../transitions/LobbyToTV'
 import { tvToLobby } from '../transitions/TVToLobby'
+import { fadeTransition } from '../transitions/Fade'
+import { glitchBurst } from '../transitions/GlitchBurst'
+import { staticBurst } from '../transitions/StaticBurst'
+import { wipeLeft } from '../transitions/WipeLeft'
+import { wipeRight } from '../transitions/WipeRight'
 
 type TransitionFn = (onComplete: () => void) => gsap.core.Timeline
 
@@ -16,6 +21,11 @@ const TRANSITION_MAP: Record<string, TransitionFn> = {
   'gameplay-to-desktop': gameplayToLobby,  // CRT static wipe
   'desktop-to-tv':       lobbyToTV,        // channel-change sweep
   'tv-to-desktop':       tvToLobby,        // channel-change sweep
+  'fade':                fadeTransition,
+  'glitch-burst':        glitchBurst,
+  'static-burst':        staticBurst,
+  'wipe-left':           wipeLeft,
+  'wipe-right':          wipeRight,
 }
 
 /** Invisible component — watches pendingTransition and runs GSAP timelines */

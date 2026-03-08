@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { STATE, OVERLAY_EVENT } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import { socket } from './client'
@@ -7,6 +7,7 @@ import { runDeathOverlay } from '../transitions/DeathOverlay'
 import { runVictoryOverlay } from '../transitions/VictoryOverlay'
 import { runReviveOverlay } from '../transitions/ReviveOverlay'
 import { runNetworkGlitch } from '../transitions/NetworkGlitch'
+import { audioEngine } from '../engine/AudioEngine'
 
 /** Connects socket events to the app store. Mount once — inside App. */
 export function useSocket() {
@@ -15,6 +16,7 @@ export function useSocket() {
   const clearPendingTransition = useAppStore((s) => s.clearPendingTransition)
   const setConfig = useAppStore((s) => s.setConfig)
   const setObsConnected = useAppStore((s) => s.setObsConnected)
+  const audioUnlocked = useRef(false)
 
   useEffect(() => {
     // Request current state on connect
@@ -25,6 +27,11 @@ export function useSocket() {
     })
 
     const onStateUpdate = (payload: { state: STATE; previousState: STATE }) => {
+      // Unlock AudioContext on first server event (OBS Browser Source needs no gesture)
+      if (!audioUnlocked.current) {
+        audioUnlocked.current = true
+        audioEngine.unlockContext()
+      }
       if (payload.state !== STATE.TRANSITIONING) {
         setVisualState(payload.state as Exclude<STATE, typeof STATE.TRANSITIONING>)
         clearPendingTransition()

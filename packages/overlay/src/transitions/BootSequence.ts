@@ -30,8 +30,10 @@ export function playBootSequence(onComplete: () => void): gsap.core.Timeline {
     return tl
   }
 
-  // Boot screen starts opaque (CSS), make sure content is clean
-  gsap.set(screen, { opacity: 1 })
+  // Reset boot screen so it can replay (first run: already visible; subsequent: restore)
+  gsap.set(screen, { display: 'flex', opacity: 1 })
+  gsap.set(barWrap, { opacity: 0 })
+  gsap.set(barFill, { width: '0%' })
   text.textContent = ''
 
   // Type out BIOS lines
