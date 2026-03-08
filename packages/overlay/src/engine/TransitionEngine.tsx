@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { socket } from '../socket/client'
-import gsap from 'gsap'
+import type gsap from 'gsap'
+import { lobbyToDesktop } from '../transitions/LobbyToDesktop'
 import { lobbyToGameplay } from '../transitions/LobbyToGameplay'
 import { gameplayToLobby } from '../transitions/GameplayToLobby'
 import { lobbyToTV } from '../transitions/LobbyToTV'
@@ -10,10 +11,11 @@ import { tvToLobby } from '../transitions/TVToLobby'
 type TransitionFn = (onComplete: () => void) => gsap.core.Timeline
 
 const TRANSITION_MAP: Record<string, TransitionFn> = {
-  'lobby-to-gameplay': lobbyToGameplay,
-  'gameplay-to-lobby': gameplayToLobby,
-  'lobby-to-tv': lobbyToTV,
-  'tv-to-lobby': tvToLobby,
+  'lobby-to-desktop':    lobbyToDesktop,
+  'desktop-to-gameplay': lobbyToGameplay,  // loading-dialog animation
+  'gameplay-to-desktop': gameplayToLobby,  // CRT static wipe
+  'desktop-to-tv':       lobbyToTV,        // channel-change sweep
+  'tv-to-desktop':       tvToLobby,        // channel-change sweep
 }
 
 /** Invisible component — watches pendingTransition and runs GSAP timelines */

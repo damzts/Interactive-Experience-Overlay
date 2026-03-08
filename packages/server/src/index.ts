@@ -11,6 +11,7 @@ import { configRoute } from './routes/config.js'
 import { mediaRoute } from './routes/media.js'
 import { archiveRoute } from './routes/archive.js'
 import { ObsBridge } from './obs/bridge.js'
+import { EventScheduler } from './events/scheduler.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -86,7 +87,11 @@ const io = new SocketIO(app.server, {
   transports: ['websocket', 'polling'],
 })
 
-setupSocketHandlers(io, machine)
+// Auto-event scheduler — created before socket handlers so it can be passed in
+const scheduler = new EventScheduler(io, machine)
+
+// Socket handlers receive scheduler reference so scene:change resets idle timer
+setupSocketHandlers(io, machine, scheduler)
 
 // REST routes
 await app.register(configRoute, { machine })
@@ -96,6 +101,9 @@ await app.register(archiveRoute)
 // OBS WebSocket bridge (graceful — server works without OBS)
 const obsBridge = new ObsBridge(io, machine)
 obsBridge.connect()
+
+// Start scheduler after all handlers are wired
+scheduler.start()
 
 await app.listen({ port: PORT, host: '0.0.0.0' })
 

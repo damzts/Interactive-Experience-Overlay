@@ -3,6 +3,14 @@
 export function TransitionLayer() {
   return (
     <>
+      {/* Boot screen — covers everything on first load, BootSequence.ts fades it out */}
+      <div id="tl-boot-screen">
+        <pre id="tl-boot-text" />
+        <div id="tl-boot-bar">
+          <div id="tl-boot-bar-fill" />
+        </div>
+      </div>
+
       {/* Win98 loading dialog (lobby-to-gameplay) */}
       <div id="tl-loading-window">
         <div className="window" style={{ width: 420, boxShadow: '4px 4px 0 #000' }}>
@@ -58,6 +66,37 @@ export function TransitionLayer() {
       {/* Death overlay */}
       <div id="tl-death-overlay">
         <div id="tl-death-text">YOU DIED</div>
+      </div>
+
+      {/* Victory overlay — Win98 dialog */}
+      <div id="tl-victory-overlay" className="window" style={{ width: 380, position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 200, boxShadow: '4px 4px 0 #000' }}>
+        <div className="title-bar">
+          <div id="tl-victory-title" className="title-bar-text">MISSION.LOG — Write successful</div>
+          <div className="title-bar-controls">
+            <button aria-label="Close" />
+          </div>
+        </div>
+        <div id="tl-victory-body" className="window-body" style={{ padding: 16 }}>
+          <p style={{ fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 13, marginBottom: 8 }}>Session data saved to MISSION.LOG</p>
+          <p style={{ fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 13, color: '#000080' }}>\u25ba VICTORY RECORDED</p>
+        </div>
+      </div>
+
+      {/* Revive overlay — terminal boot sequence */}
+      <div id="tl-revive-overlay" style={{ position: 'fixed', bottom: 80, left: 60, zIndex: 200, background: '#000', border: '1px solid #0f0', padding: '12px 20px', fontFamily: 'VT323, monospace', fontSize: 18, color: '#0f0', minWidth: 320 }}>
+        <div id="tl-revive-line1" style={{ marginBottom: 8 }}>[ SYS ] Restarting process...</div>
+        <div style={{ width: '100%', height: 10, background: '#111', border: '1px solid #0f0', overflow: 'hidden' }}>
+          <div id="tl-revive-bar-fill" style={{ height: '100%', background: '#0f0', width: '0%' }} />
+        </div>
+        <div id="tl-revive-line2" style={{ marginTop: 8 }}>[ SYS ] Process restored</div>
+      </div>
+
+      {/* Network glitch overlay */}
+      <div id="tl-glitch-overlay" style={{ position: 'fixed', inset: 0, zIndex: 190, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }}>
+        <div id="tl-glitch-message" style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translateX(-50%)', fontFamily: 'VT323, monospace', fontSize: 32, color: '#f00', textShadow: '2px 0 #0ff, -2px 0 #f0f', letterSpacing: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>
+          [ NETWORK INTERRUPTION ]<br />
+          <span style={{ fontSize: 18, color: '#aaa', letterSpacing: 2 }}>[ MODEM ] reconnecting...</span>
+        </div>
       </div>
     </>
   )

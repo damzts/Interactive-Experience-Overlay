@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import {
   STATE,
   OVERLAY_EVENT,
-  VALID_TRANSITIONS,
+  NAVIGABLE_STATES,
   TRANSITION_TYPE,
 } from '@ieom/shared'
 
@@ -16,8 +16,8 @@ interface MachineSnapshot {
 
 export class SceneMachine extends EventEmitter {
   private snap: MachineSnapshot = {
-    current: STATE.LOBBY,
-    previous: STATE.LOBBY,
+    current: STATE.DESKTOP,
+    previous: STATE.DESKTOP,
     pendingTarget: null,
     isTransitioning: false,
     activeOverlays: [],
@@ -39,12 +39,11 @@ export class SceneMachine extends EventEmitter {
       return { ok: false, error: 'Already transitioning' }
     }
 
-    const valid = VALID_TRANSITIONS[this.snap.current]
-    if (!valid?.includes(target)) {
-      return {
-        ok: false,
-        error: `Cannot go from ${this.snap.current} to ${target}`,
-      }
+    if (!NAVIGABLE_STATES.includes(target)) {
+      return { ok: false, error: `${target} is not a navigable state` }
+    }
+    if (this.snap.current === target) {
+      return { ok: false, error: `Already in ${target}` }
     }
 
     const transitionType =
@@ -79,7 +78,7 @@ export class SceneMachine extends EventEmitter {
     })
   }
 
-  /** PANIC — force LOBBY immediately, bypass locks */
+  /** Force a state immediately, bypassing all transition locks. PANIC → STATE.DESKTOP. */
   forceState(target: STATE) {
     const previous = this.snap.current
     this.snap.current = target

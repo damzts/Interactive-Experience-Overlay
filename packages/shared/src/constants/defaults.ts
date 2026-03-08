@@ -7,24 +7,19 @@ export const DEFAULT_CONFIG: AppConfig = {
       id: 'LOBBY',
       label: 'LOBBY',
       backgroundOpaque: true,
-      sources: [
-        {
-          id: 'lobby-bg',
-          pluginType: 'image-slideshow',
-          config: { source: 'scraped-games', interval: 8, transition: 'crossfade' },
-          position: { x: 0, y: 0, width: 1920, height: 1080 },
-          zIndex: 0,
-          visible: true,
-        },
-        {
-          id: 'lobby-crt',
-          pluginType: 'crt-effect',
-          config: { scanlineIntensity: 0.25, flickerRate: 0.015, vignetteStrength: 0.5 },
-          position: { x: 0, y: 0, width: 1920, height: 1080 },
-          zIndex: 5,
-          visible: true,
-        },
-      ],
+      // Lobby = 3D room (R3F ThreeBackground plugin — NOT the Win98 desktop).
+      // The desktop layer is hidden in LOBBY state; only the 3D room renders here.
+      // ThreeBackground plugin will be wired here once the R3F plugin is built.
+      sources: [],
+    },
+
+    DESKTOP: {
+      id: 'DESKTOP',
+      label: 'DESKTOP',
+      backgroundOpaque: true,
+      // Desktop = Win98 OS layer (shown via #desktop-layer CSS, not a source plugin).
+      // Sources layer is empty — the desktop canvas owns this state visually.
+      sources: [],
     },
     GAMEPLAY: {
       id: 'GAMEPLAY',
@@ -144,14 +139,14 @@ export const DEFAULT_CONFIG: AppConfig = {
       label: 'GAME.exe',
       icon: '🎮',
       targetSceneId: STATE.GAMEPLAY,
-      transitionType: 'lobby-to-gameplay',
+      transitionType: 'desktop-to-gameplay',
     },
     {
       id: 'tv',
       label: 'TV.exe',
       icon: '📺',
       targetSceneId: STATE.TV,
-      transitionType: 'lobby-to-tv',
+      transitionType: 'desktop-to-tv',
     },
     {
       id: 'music',
@@ -176,7 +171,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       F3: 'overlay:revive',
       F4: 'overlay:victory',
       F5: 'scene:tv',
-      F6: 'scene:lobby',
+      F6: 'scene:desktop',
+      F7: 'scene:lobby',
       Escape: 'panic',
     },
     admin: {
@@ -185,7 +181,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       F3: 'overlay:revive',
       F4: 'overlay:victory',
       F5: 'scene:tv',
-      F6: 'scene:lobby',
+      F6: 'scene:desktop',
+      F7: 'scene:lobby',
       Escape: 'panic',
     },
   },

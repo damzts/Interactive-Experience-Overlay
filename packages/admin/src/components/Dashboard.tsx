@@ -4,6 +4,11 @@ import type { OverlayStyle, BackgroundType, PatternPreset, ParticlePreset } from
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
 import { Panel, Btn, Toggle, Slider } from './ui'
+import { SettingsPage } from '../pages/SettingsPage'
+import { ArchivePanel } from '../pages/ArchivePanel'
+import { KeybindEditor } from '../pages/KeybindEditor'
+import { AudioPanel }    from '../pages/AudioPanel'
+import { EventsPanel }   from '../pages/EventsPanel'
 
 // ── Curated presets ────────────────────────────────────────────────
 
@@ -125,61 +130,86 @@ const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', 
 
 // ── Scene / Overlay controls ───────────────────────────────────────
 
-const SCENE_BTNS: { label: string; state: STATE }[] = [
-  { label: 'Lobby',    state: STATE.LOBBY },
-  { label: 'Gameplay', state: STATE.GAMEPLAY },
-  { label: 'TV Mode',  state: STATE.TV },
-  { label: 'Music',    state: STATE.MUSIC },
-  { label: 'Archive',  state: STATE.ARCHIVE },
-]
+// ── Inspector view ────────────────────────────────────────────────
+type InspectorView =
+  | 'overlay-style'
+  | 'scene'
+  | 'events'
+  | 'audio'
+  | 'archive'
+  | 'keybinds'
+  | 'settings'
 
-const OVERLAY_BTNS: { label: string; event: OVERLAY_EVENT }[] = [
-  { label: '💀 Death',   event: OVERLAY_EVENT.DEATH },
-  { label: '🏆 Victory', event: OVERLAY_EVENT.VICTORY },
-  { label: '❤ Revive',  event: OVERLAY_EVENT.REVIVE },
-  { label: '📡 Glitch',  event: OVERLAY_EVENT.NETWORK_GLITCH },
-]
+// ── Concept definitions displayed in the Inspector panel header ───
+/** Each key maps to a title + one-sentence definition shown to the admin */
+const INSPECTOR_DEFS: Record<string, { title: string; desc: string }> = {
+  'overlay-style': {
+    title: 'Overlay Style',
+    desc:  'Visual appearance of the 1920×1080 browser source loaded in OBS. Background, effects, particles, and typography — applied globally across all broadcast states.',
+  },
+  'scene': {
+    title: 'Scene',
+    desc:  'A broadcast state — the full visual context shown to viewers at a given moment. Each scene owns its plugin sources, layout, and overlay appearance.',
+  },
+  'events': {
+    title: 'Auto-Events',
+    desc:  'Condition-based overlay animations that fire automatically during stream — death flash, victory screen, network glitch, etc.',
+  },
+  'audio': {
+    title: 'Audio',
+    desc:  'Master, SFX, and music volume levels for all overlay audio layers.',
+  },
+  'archive': {
+    title: 'Archive',
+    desc:  'Recorded stream sessions and event logs captured server-side.',
+  },
+  'keybinds': {
+    title: 'Keybinds',
+    desc:  'Keyboard shortcuts for instant scene switches and event triggers during live gameplay.',
+  },
+  'settings': {
+    title: 'Settings',
+    desc:  'OBS WebSocket connection URL, password, and server-side configuration.',
+  },
+}
 
-// ── PreviewPanel ───────────────────────────────────────────────────
-
-function PreviewPanel() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const frameRef     = useRef<HTMLIFrameElement>(null)
-
-  useEffect(() => {
-    const scale = () => {
-      const c = containerRef.current
-      const f = frameRef.current
-      if (!c || !f) return
-      const s = Math.min(c.clientWidth / 1920, c.clientHeight / 1080)
-      f.style.transform = `scale(${s})`
-      f.style.transformOrigin = 'top left'
-      f.style.marginLeft = `${(c.clientWidth  - 1920 * s) / 2}px`
-      f.style.marginTop  = `${(c.clientHeight - 1080 * s) / 2}px`
-    }
-    scale()
-    const ro = new ResizeObserver(scale)
-    if (containerRef.current) ro.observe(containerRef.current)
-    return () => ro.disconnect()
-  }, [])
-
+/** Left-sidebar section header with an optional one-line description */
+function SectionHeader({ label, desc }: { label: string; desc?: string }) {
   return (
-    <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden rounded-lg border border-zinc-700">
-      <iframe
-        ref={frameRef}
-        src="http://localhost:3001/"
-        width={1920}
-        height={1080}
-        style={{ position: 'absolute', border: 'none', display: 'block' }}
-        title="Overlay Preview"
-      />
+    <div className="px-1 mb-1.5 mt-0.5">
+      <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold leading-none">{label}</div>
+      {desc && <div className="text-[9px] text-zinc-700 leading-tight mt-0.5">{desc}</div>}
     </div>
   )
 }
 
+// ── Scene + event definitions ─────────────────────────────────
+const SCENE_DEFS: { label: string; state: STATE; icon: string }[] = [
+  { label: 'LOBBY',    state: STATE.LOBBY,    icon: '🖥' },
+  { label: 'DESKTOP',  state: STATE.DESKTOP,  icon: '💾' },
+  { label: 'GAMEPLAY', state: STATE.GAMEPLAY, icon: '🎮' },
+  { label: 'TV MODE',  state: STATE.TV,       icon: '📺' },
+  { label: 'MUSIC',    state: STATE.MUSIC,    icon: '♫' },
+  { label: 'ARCHIVE',  state: STATE.ARCHIVE,  icon: '◈' },
+]
+
+const EVENT_DEFS: { label: string; event: OVERLAY_EVENT; icon: string; color: string }[] = [
+  { label: 'DEATH',   event: OVERLAY_EVENT.DEATH,          icon: '💀', color: 'text-red-400'     },
+  { label: 'VICTORY', event: OVERLAY_EVENT.VICTORY,        icon: '🏆', color: 'text-yellow-400'  },
+  { label: 'REVIVE',  event: OVERLAY_EVENT.REVIVE,         icon: '❤',  color: 'text-emerald-400' },
+  { label: 'GLITCH',  event: OVERLAY_EVENT.NETWORK_GLITCH, icon: '📡', color: 'text-purple-400'  },
+]
+
 // ── StyleEditor ────────────────────────────────────────────────────
 
 type StyleTab = 'background' | 'effects' | 'particles' | 'typography'
+
+const STYLE_TABS: { id: StyleTab; icon: string; label: string; desc: string }[] = [
+  { id: 'background', icon: '▣', label: 'Background', desc: 'Gradient, solid color, image, video, or CSS pattern behind all sources' },
+  { id: 'effects',    icon: '⊡', label: 'Effects',    desc: 'CRT scanlines, film grain, vignette, flicker, chromatic aberration' },
+  { id: 'particles',  icon: '✦', label: 'Particles',  desc: 'Ambient particle system — stars, snow, matrix rain, fireflies, ash' },
+  { id: 'typography', icon: 'T', label: 'Type',        desc: 'Font family, accent color, and text color applied to all overlay text' },
+]
 
 const BG_TYPES: { id: BackgroundType; label: string }[] = [
   { id: 'none',      label: 'None' },
@@ -237,23 +267,25 @@ function StyleEditor() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
-      <div className="flex gap-1 p-2 border-b border-zinc-700 bg-zinc-900 shrink-0">
-        {(['background', 'effects', 'particles', 'typography'] as StyleTab[]).map((t) => (
+      <div className="flex gap-0.5 px-2 pt-2 pb-0 border-b border-zinc-700 bg-zinc-900 shrink-0">
+        {STYLE_TABS.map(({ id, icon, label, desc }) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-2.5 py-1 text-xs rounded capitalize transition-colors ${
-              t === tab
-                ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/40'
-                : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border border-transparent'
+            key={id}
+            onClick={() => setTab(id)}
+            title={desc}
+            className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-t transition-colors border-b-2 -mb-px ${
+              id === tab
+                ? 'text-cyan-300 border-cyan-500 bg-zinc-800/60'
+                : 'text-zinc-500 border-transparent hover:text-zinc-200 hover:bg-zinc-800/40'
             }`}
           >
-            {t}
+            <span className="opacity-60 text-[10px]">{icon}</span>
+            <span>{label}</span>
           </button>
         ))}
         <div className="flex-1" />
-        {saving && <span className="text-xs text-zinc-500 self-center">saving…</span>}
-        {saved  && <span className="text-xs text-emerald-400 self-center">✔</span>}
+        {saving && <span className="text-[10px] text-zinc-600 self-center pb-1.5">saving…</span>}
+        {saved  && <span className="text-[10px] text-emerald-400 self-center pb-1.5">✔ saved</span>}
       </div>
 
       {/* Tab content */}
@@ -532,95 +564,337 @@ function StyleEditor() {
   )
 }
 
-// ── Main Dashboard ─────────────────────────────────────────────────
-
-export function Dashboard() {
-  const currentState = useAdminStore((s) => s.currentState)
-  const obsConnected = useAdminStore((s) => s.obsConnected)
-  const lastError    = useAdminStore((s) => s.lastError)
-  const setLastError = useAdminStore((s) => s.setLastError)
-
-  const changeScene = (target: STATE) => {
-    setLastError(null)
-    socket.emit('scene:change', target, (err: string | null) => {
-      if (err) setLastError(err)
-    })
-  }
-
+// -- SceneInspector -------------------------------------------------------
+function SceneInspector({ scene }: { scene: STATE | null }) {
+  const config = useAdminStore((s) => s.config)
+  if (!scene) return (
+    <div className="p-4 text-zinc-500 text-sm italic">Select a scene from the left panel.</div>
+  )
+  const sceneConfig = (config.scenes as Record<string, { sources?: { id: string; pluginType: string; visible: boolean }[]; backgroundOpaque?: boolean }>)[scene]
+  if (!sceneConfig) return <div className="p-4 text-zinc-500 text-sm">Scene not configured.</div>
+  const sources = sceneConfig.sources ?? []
   return (
-    <div className="flex gap-3" style={{ height: 'calc(100vh - 2rem)' }}>
-
-      {/* Left — controls */}
-      <div className="flex flex-col gap-3 w-52 shrink-0">
-        <Panel title="System Status">
-          <div className="text-sm">Scene: <span className="text-cyan-400 font-mono font-bold">{currentState}</span></div>
-          <div className="text-sm mt-1.5">
-            OBS: <span className={obsConnected ? 'text-emerald-400' : 'text-red-500'}>
-              {obsConnected ? '● Connected' : '○ Disconnected'}
-            </span>
-          </div>
-          {lastError && <div className="mt-2 text-xs text-red-400 bg-red-950/40 rounded px-2 py-1">⚠ {lastError}</div>}
-        </Panel>
-
-        <Panel title="Scene Switcher">
-          <div className="flex flex-col gap-1">
-            {SCENE_BTNS.map(({ label, state }) => (
-              <button key={state} onClick={() => changeScene(state)}
-                className={`px-3 py-1.5 rounded text-sm text-left transition-colors font-medium ${
-                  currentState === state
-                    ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/40'
-                    : 'bg-zinc-700/60 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel title="Overlay Events">
-          <div className="grid grid-cols-2 gap-1">
-            {OVERLAY_BTNS.map(({ label, event }) => (
-              <button key={event} onClick={() => socket.emit('overlay:trigger', event)}
-                className="px-2 py-1.5 rounded text-xs bg-zinc-700/60 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 transition-colors"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </Panel>
-
-        <button onClick={() => socket.emit('panic')}
-          className="py-3 rounded bg-red-900 hover:bg-red-700 border border-red-800 text-white font-bold text-sm tracking-widest transition-colors">
-          ⚠ PANIC (Esc)
-        </button>
-
-        <Panel title="Hotkeys">
-          <div className="text-xs text-zinc-400 space-y-0.5 font-mono">
-            <div>F1 Lobby · F2 Gameplay</div>
-            <div>F3 TV · F4 Music · F5 Archive</div>
-            <div>D Death · V Victory · R Revive</div>
-          </div>
-        </Panel>
-      </div>
-
-      {/* Center — Live preview */}
-      <div className="flex flex-col flex-1 min-w-0 gap-2">
-        <div className="text-xs text-zinc-500 font-mono">
-          LIVE PREVIEW <span className="text-zinc-400">localhost:3001</span> · 1920×1080
+    <div>
+      {/* Sources */}
+      <div className="px-3 pt-3 pb-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Sources</span>
+          <span className="text-[10px] text-zinc-600 font-mono">{sources.length} plugin{sources.length !== 1 ? 's' : ''}</span>
         </div>
-        <PreviewPanel />
+        <p className="text-[10px] text-zinc-600 leading-snug mb-2">
+          Plugin instances rendered on this scene — text widgets, image slideshows, CRT effects, etc.
+        </p>
+        {sources.length === 0 ? (
+          <div className="text-[10px] text-zinc-700 italic p-2.5 bg-zinc-800/40 rounded border border-zinc-800">
+            No sources added yet. Use the Source Library to add plugins to this scene.
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {sources.map((src) => (
+              <div key={src.id} className="flex items-center gap-2 px-2.5 py-2 rounded bg-zinc-800/60 border border-zinc-700/60 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${src.visible ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                <span className="text-zinc-300 flex-1 font-mono text-[11px] truncate">{src.id}</span>
+                <span className="text-[10px] text-zinc-600 shrink-0 px-1.5 py-0.5 bg-zinc-900 rounded font-mono">{src.pluginType}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Right — Style editor */}
-      <div className="flex flex-col w-72 shrink-0 rounded-lg bg-zinc-900 border border-zinc-700 overflow-hidden">
-        <div className="px-3 py-2 bg-zinc-800 border-b border-zinc-700 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-          Overlay Style
+      {/* Appearance */}
+      <div className="border-t border-zinc-800">
+        <div className="px-3 pt-2 pb-1">
+          <div className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Overlay Appearance</div>
+          <div className="text-[10px] text-zinc-600 leading-snug mt-0.5">
+            Background, effects, and particles rendered behind all sources on this scene.
+          </div>
         </div>
         <StyleEditor />
       </div>
-
     </div>
   )
 }
 
+// -- Inspector ------------------------------------------------------------
+function Inspector({ view, selectedScene, onViewChange }: {
+  view: InspectorView
+  selectedScene: STATE | null
+  onViewChange: (v: InspectorView) => void
+}) {
+  const def   = INSPECTOR_DEFS[view] ?? { title: view, desc: '' }
+  const title = view === 'scene' && selectedScene ? `${def.title} · ${selectedScene}` : def.title
+  return (
+    <div className="w-80 shrink-0 bg-zinc-900 border-l border-zinc-800 flex flex-col overflow-hidden">
+      <div className="px-3 pt-2.5 pb-2 border-b border-zinc-800 shrink-0">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <span className="text-[11px] text-zinc-200 uppercase tracking-widest font-bold leading-snug">{title}</span>
+          {view !== 'overlay-style' && (
+            <button
+              onClick={() => onViewChange('overlay-style')}
+              className="text-[10px] text-zinc-600 hover:text-zinc-200 transition-colors px-1.5 py-0.5 rounded border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 shrink-0 leading-none"
+              title="Back to Overlay Style"
+            >✕ back</button>
+          )}
+        </div>
+        {def.desc && <p className="text-[10px] text-zinc-600 leading-snug">{def.desc}</p>}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {view === 'overlay-style' && <StyleEditor />}
+        {view === 'scene'         && <SceneInspector scene={selectedScene} />}
+        {view === 'events'        && <EventsPanel />}
+        {view === 'audio'         && <AudioPanel />}
+        {view === 'archive'       && <ArchivePanel />}
+        {view === 'keybinds'      && <KeybindEditor />}
+        {view === 'settings'      && <SettingsPage />}
+      </div>
+    </div>
+  )
+}
+
+// -- PreviewColumn --------------------------------------------------------
+function PreviewColumn() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const frameRef     = useRef<HTMLIFrameElement>(null)
+  const obsConnected = useAdminStore((s) => s.obsConnected)
+  const currentState = useAdminStore((s) => s.currentState)
+  const lastError    = useAdminStore((s) => s.lastError)
+
+  useEffect(() => {
+    const scale = () => {
+      const c = containerRef.current
+      const f = frameRef.current
+      if (!c || !f) return
+      const s = Math.min(c.clientWidth / 1920, c.clientHeight / 1080)
+      f.style.transform       = `scale(${s})`
+      f.style.transformOrigin = 'top left'
+      f.style.marginLeft      = `${(c.clientWidth  - 1920 * s) / 2}px`
+      f.style.marginTop       = `${(c.clientHeight - 1080 * s) / 2}px`
+    }
+    scale()
+    const ro = new ResizeObserver(scale)
+    if (containerRef.current) ro.observe(containerRef.current)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden">
+        <iframe
+          ref={frameRef}
+          src="http://localhost:3001/"
+          width={1920}
+          height={1080}
+          style={{ position: 'absolute', border: 'none', display: 'block' }}
+          title="Overlay Preview"
+        />
+      </div>
+      <div className="flex items-center gap-4 px-3 py-1.5 bg-zinc-900 border-t border-zinc-800 text-xs shrink-0">
+        <span className={obsConnected ? 'text-emerald-400' : 'text-zinc-600'}>
+          {obsConnected ? '\u25cf OBS Connected' : '\u25cb OBS Disconnected'}
+        </span>
+        <span className="text-cyan-400 font-mono">{currentState}</span>
+        {lastError && <span className="text-red-400 truncate">{lastError}</span>}
+        <span className="flex-1" />
+        <span className="text-zinc-600 font-mono text-[10px]">localhost:3001 &middot; 1920x1080</span>
+      </div>
+    </div>
+  )
+}
+
+// -- ControlPanel ---------------------------------------------------------
+function ControlPanel({ view, selectedScene, onViewChange, onSceneSelect }: {
+  view: InspectorView
+  selectedScene: STATE | null
+  onViewChange: (v: InspectorView) => void
+  onSceneSelect: (s: STATE) => void
+}) {
+  const currentState = useAdminStore((s) => s.currentState)
+  const setLastError = useAdminStore((s) => s.setLastError)
+  const applications = useAdminStore((s) => s.config.applications)
+
+  const triggerScene = (state: STATE) => {
+    setLastError(null)
+    socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
+  }
+
+  return (
+    <div className="flex flex-col w-60 shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto">
+
+      {/* ── Scenes ───────────────────────────────── */}
+      <div className="p-2 pt-3">
+        <SectionHeader label="Scenes" desc="Broadcast states — the full visual context shown to viewers on stream" />
+        {SCENE_DEFS.map(({ label, state, icon }) => {
+          const isActive   = currentState === state
+          const isSelected = selectedScene === state && view === 'scene'
+          return (
+            <div
+              key={state}
+              onClick={() => { onSceneSelect(state); onViewChange('scene') }}
+              title={`Configure ${label}`}
+              className={`group flex items-center gap-2 px-2.5 py-2 rounded cursor-pointer transition-colors mb-0.5 border ${
+                isSelected
+                  ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25'
+                  : isActive
+                    ? 'text-emerald-200 bg-emerald-950/20 border-emerald-900/40'
+                    : 'text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 border-transparent'
+              }`}
+            >
+              <span className="text-sm shrink-0">{icon}</span>
+              <span className="flex-1 font-mono text-xs font-semibold tracking-wide">{label}</span>
+              {isActive && (
+                <span className="text-[9px] text-emerald-400 font-bold tracking-widest shrink-0">LIVE</span>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerScene(state) }}
+                title={`Go live on ${label}`}
+                className={`text-xs px-1.5 py-0.5 rounded border transition-colors shrink-0 ${
+                  isActive
+                    ? 'text-emerald-300 border-emerald-700/60 bg-emerald-950/50'
+                    : 'text-zinc-500 border-zinc-700 hover:text-cyan-300 hover:border-cyan-600/60 hover:bg-zinc-800'
+                }`}
+              >▶</button>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mx-2 border-t border-zinc-800/80" />
+
+      {/* ── Applications ─────────────────────────── */}
+      {applications.length > 0 && (
+        <>
+          <div className="p-2 pt-2.5">
+            <SectionHeader
+              label="Applications"
+              desc="Win98 desktop .exe shortcuts — each icon triggers a scene transition when clicked on the Desktop"
+            />
+            <div className="space-y-0.5">
+              {applications.map((app) => (
+                <div
+                  key={app.id}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs"
+                  title={`Opens ${app.targetSceneId} via ${app.transitionType}`}
+                >
+                  <span className="text-base shrink-0">{app.icon}</span>
+                  <span className="flex-1 font-mono text-zinc-500 truncate">{app.label}</span>
+                  <span className="text-[9px] text-zinc-700 font-mono shrink-0">→ {app.targetSceneId}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mx-2 border-t border-zinc-800/80" />
+        </>
+      )}
+
+      {/* ── Events ───────────────────────────────── */}
+      <div className="p-2 pt-2.5">
+        <SectionHeader label="Events" desc="Fire instant overlay animations during stream" />
+        <div className="grid grid-cols-2 gap-1">
+          {EVENT_DEFS.map(({ label, event, icon, color }) => (
+            <button
+              key={event}
+              onClick={() => socket.emit('overlay:trigger', event)}
+              className={`py-2 px-1.5 rounded border border-zinc-700/80 bg-zinc-800/80 hover:bg-zinc-700 transition-colors flex flex-col items-center gap-0.5 ${color}`}
+            >
+              <span className="text-base leading-none">{icon}</span>
+              <span className="text-[10px] font-mono tracking-wider">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mx-2 border-t border-zinc-800/80" />
+
+      {/* ── Overlay Style shortcut ───────────────── */}
+      <div className="px-2 py-1.5">
+        <button
+          onClick={() => onViewChange('overlay-style')}
+          className={`w-full flex items-center gap-2 px-2.5 py-2 rounded text-xs transition-colors border font-mono ${
+            view === 'overlay-style'
+              ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border-transparent'
+          }`}
+        >
+          <span>🎨</span>
+          <span className="tracking-wider">OVERLAY STYLE</span>
+          <span className="flex-1 text-right text-zinc-600 text-[10px]">→</span>
+        </button>
+      </div>
+
+      <div className="flex-1" />
+
+      {/* ── Config nav ───────────────────────────── */}
+      <div className="border-t border-zinc-800 px-2 py-2">
+        <div className="text-[9px] text-zinc-700 uppercase tracking-wider px-1 mb-1.5 font-semibold">Config</div>
+        {([
+          { id: 'audio'    as InspectorView, icon: '♪', label: 'Audio'    },
+          { id: 'events'   as InspectorView, icon: '⚡', label: 'Events'   },
+          { id: 'keybinds' as InspectorView, icon: '⌨', label: 'Keybinds' },
+          { id: 'archive'  as InspectorView, icon: '◈', label: 'Archive'  },
+          { id: 'settings' as InspectorView, icon: '⚙', label: 'Settings' },
+        ] as { id: InspectorView; icon: string; label: string }[]).map(({ id, icon, label }) => (
+          <button
+            key={id}
+            onClick={() => onViewChange(id)}
+            className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded text-xs transition-colors border mb-0.5 ${
+              view === id
+                ? 'bg-zinc-700/80 text-zinc-100 border-zinc-600'
+                : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 border-transparent'
+            }`}
+          >
+            <span className="text-sm leading-none w-4 text-center">{icon}</span>
+            <span className="font-medium">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// -- TopBar ---------------------------------------------------------------
+function TopBar() {
+  const obsConnected = useAdminStore((s) => s.obsConnected)
+  const currentState = useAdminStore((s) => s.currentState)
+  return (
+    <div className="flex items-center gap-3 px-3 h-10 bg-zinc-900 border-b border-zinc-800 shrink-0">
+      <span className="text-cyan-400 font-bold font-mono text-sm tracking-widest">IEOM</span>
+      <div className="w-px h-4 bg-zinc-700" />
+      <span className={`text-xs font-mono ${obsConnected ? 'text-emerald-400' : 'text-zinc-600'}`}>
+        {obsConnected ? '\u25cf OBS' : '\u25cb OBS'}
+      </span>
+      <span className="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded">{currentState}</span>
+      <div className="flex-1" />
+      <button
+        onClick={() => socket.emit('panic')}
+        className="px-3 py-1 rounded bg-red-900 hover:bg-red-700 border border-red-800 text-white text-xs font-bold tracking-widest transition-colors"
+      >
+        PANIC
+      </button>
+    </div>
+  )
+}
+
+// -- Dashboard (Studio root) ----------------------------------------------
+export function Dashboard() {
+  const [view, setView]                   = useState<InspectorView>('overlay-style')
+  const [selectedScene, setSelectedScene] = useState<STATE | null>(null)
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+      <TopBar />
+      <div className="flex flex-1 overflow-hidden">
+        <ControlPanel
+          view={view}
+          selectedScene={selectedScene}
+          onViewChange={setView}
+          onSceneSelect={(s) => { setSelectedScene(s); setView('scene') }}
+        />
+        <PreviewColumn />
+        <Inspector
+          view={view}
+          selectedScene={selectedScene}
+          onViewChange={setView}
+        />
+      </div>
+    </div>
+  )
+}

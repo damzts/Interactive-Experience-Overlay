@@ -12,6 +12,6 @@
     "concurrently": "^8.2.2"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["esbuild", "better-sqlite3"]
   }
 }

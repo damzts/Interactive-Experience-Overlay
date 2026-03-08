@@ -4,6 +4,9 @@ import type { AppConfig } from '@ieom/shared'
 import { socket } from './client'
 import { useAppStore, type PendingTransition } from '../store/useAppStore'
 import { runDeathOverlay } from '../transitions/DeathOverlay'
+import { runVictoryOverlay } from '../transitions/VictoryOverlay'
+import { runReviveOverlay } from '../transitions/ReviveOverlay'
+import { runNetworkGlitch } from '../transitions/NetworkGlitch'
 
 /** Connects socket events to the app store. Mount once — inside App. */
 export function useSocket() {
@@ -37,9 +40,10 @@ export function useSocket() {
     }
 
     const onOverlayShow = (payload: { event: OVERLAY_EVENT }) => {
-      if (payload.event === OVERLAY_EVENT.DEATH) {
-        runDeathOverlay()
-      }
+      if (payload.event === OVERLAY_EVENT.DEATH)          runDeathOverlay()
+      if (payload.event === OVERLAY_EVENT.VICTORY)        runVictoryOverlay()
+      if (payload.event === OVERLAY_EVENT.REVIVE)         runReviveOverlay()
+      if (payload.event === OVERLAY_EVENT.NETWORK_GLITCH) runNetworkGlitch()
     }
 
     const onConfigUpdate = (config: AppConfig) => {

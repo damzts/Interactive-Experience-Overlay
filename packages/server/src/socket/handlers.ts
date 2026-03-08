@@ -9,11 +9,12 @@ import {
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import type { SceneMachine } from '../state/machine.js'
+import type { EventScheduler } from '../events/scheduler.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 
-export function setupSocketHandlers(io: IO, machine: SceneMachine) {
+export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: EventScheduler) {
   // Broadcast machine state events to all clients
   machine.on('state:change', (payload: { state: STATE; previousState: STATE }) => {
     io.emit('state:update', payload)
@@ -43,6 +44,7 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine) {
     })
 
     socket.on('scene:change', (target, callback) => {
+      scheduler?.resetIdleTimer()
       const result = machine.transition(target)
       if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
     })
@@ -56,7 +58,8 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine) {
     })
 
     socket.on('panic', () => {
-      machine.forceState(STATE.LOBBY)
+      scheduler?.resetIdleTimer()
+      machine.forceState(STATE.DESKTOP)
     })
 
     socket.on('disconnect', () => {

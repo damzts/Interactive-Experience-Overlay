@@ -25,7 +25,7 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  visualState: STATE.LOBBY as VisualState,
+  visualState: STATE.DESKTOP as VisualState,
   pendingTransition: null,
   config: DEFAULT_CONFIG,
   obsConnected: false,

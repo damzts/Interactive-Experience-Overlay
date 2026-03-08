@@ -20,7 +20,7 @@ interface AdminStore {
 }
 
 export const useAdminStore = create<AdminStore>((set, get) => ({
-  currentState: STATE.LOBBY,
+  currentState: STATE.DESKTOP,
   obsConnected: false,
   clientCount: 0,
   lastError: null,

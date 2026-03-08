@@ -17,6 +17,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 #background-layer,
 #particles-layer,
 #sources-layer,
+#lobby-layer,
 #desktop-layer,
 #effects-layer,
 #transition-layer {
@@ -41,6 +42,17 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 /* Sources layer: z=5 */
 #sources-layer { z-index: 5; }
 
+/* Lobby 3D canvas: z=10, hidden by default, only mounted in LOBBY state */
+#lobby-layer {
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+}
+.state-lobby #lobby-layer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Desktop: z=20, hidden by default */
 #desktop-layer {
   z-index: 20;
@@ -61,17 +73,18 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 }
 
 /* ── State-controlled desktop visibility ───────────────────────── */
-.state-lobby #desktop-layer,
-.state-tv #desktop-layer,
+/* LOBBY = 3D room — background darkens to deep space */
+.state-lobby {
+  background: #05050f;
+}
+
+/* Desktop (Win98 2D layer) is visible in DESKTOP state and any stacking apps
+   that layer on top of it (MUSIC, ARCHIVE). LOBBY uses the 3D room instead. */
+.state-desktop #desktop-layer,
 .state-music #desktop-layer,
 .state-archive #desktop-layer {
   opacity: 1;
   pointer-events: auto;
-}
-
-.state-gameplay #desktop-layer {
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* ── Transition layer elements (all invisible by default) ───────── */
@@ -173,7 +186,8 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  /* Win98 teal — this IS the lobby visual, blocks everything beneath */
+  background: #008080;
 }
 
 .desktop-icons {
@@ -278,6 +292,17 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   line-height: 1.2;
 }
 
+.app-icon--selected {
+  background: rgba(0, 0, 128, 0.7);
+  border: 1px solid #ffffff !important;
+}
+
+.app-icon--selected .app-icon-label {
+  background: #000080;
+  color: #ffffff;
+  text-shadow: none;
+}
+
 /* ── Text widget ───────────────────────────────────────────────── */
 .text-widget {
   position: absolute;
@@ -307,4 +332,50 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   95%  { opacity: 0.9; }
   96%  { opacity: 1; }
   100% { opacity: 1; }
+}
+
+/* ── Boot screen (one-time stream start, faded by BootSequence.ts) ── */
+#tl-boot-screen {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 60px;
+  /* Starts visible — overrides the default opacity:0 of other tl elements */
+  opacity: 1;
+  pointer-events: none;
+}
+
+#tl-boot-text {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #aaaaaa;
+  line-height: 1.6;
+  white-space: pre;
+  margin: 0;
+  flex: 1;
+}
+
+#tl-boot-bar {
+  width: 220px;
+  height: 14px;
+  border: 1px solid #444444;
+  margin-top: 20px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+#tl-boot-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #003f8a, #0078d7);
+}
+
+/* Fix: overlay event elements must be hidden by default */
+#tl-victory-overlay,
+#tl-revive-overlay,
+#tl-glitch-overlay {
+  opacity: 0;
+  pointer-events: none;
 }
