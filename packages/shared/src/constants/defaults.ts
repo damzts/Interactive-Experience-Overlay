@@ -1,5 +1,5 @@
-import type { AppConfig } from '../types/scene'
-import { STATE } from '../types/state'
+import type { AppConfig } from '../types/scene.js'
+import { STATE } from '../types/state.js'
 
 export const DEFAULT_CONFIG: AppConfig = {
   scenes: {
@@ -199,5 +199,37 @@ export const DEFAULT_CONFIG: AppConfig = {
     masterVolume: 0.8,
     sfxVolume: 0.7,
     musicVolume: 0.4,
+  },
+
+  overlayStyle: {
+    background: {
+      type: 'gradient',
+      color: '#000000',
+      gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
+      imageUrl: '',
+      videoUrl: '',
+      pattern: 'none',
+      opacity: 1,
+      blur: 0,
+    },
+    effects: {
+      crt: true,
+      noise: false,
+      vignette: true,
+      flicker: false,
+      chromatic: false,
+      scanlineOpacity: 0.18,
+      noiseOpacity: 0.06,
+      vignetteStrength: 0.65,
+    },
+    particles: {
+      enabled: false,
+      preset: 'none',
+      density: 0.5,
+      speed: 0.4,
+    },
+    fontFamily: 'default',
+    accentColor: '#00ff41',
+    textColor: '#ffffff',
   },
 }

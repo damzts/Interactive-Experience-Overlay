@@ -5,7 +5,9 @@ import { useSocket } from './socket/useSocket'
 import { audioEngine } from './engine/AudioEngine'
 import { TransitionEngine } from './engine/TransitionEngine'
 import { LayerStack } from './layers/LayerStack'
-import { EffectsLayer } from './layers/EffectsLayer'
+import { BackgroundLayer } from './layers/BackgroundLayer'
+import { ParticlesLayer } from './layers/ParticlesLayer'
+import { CSSEffectsLayer } from './layers/CSSEffectsLayer'
 import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
 
@@ -26,6 +28,16 @@ export default function App() {
 
   return (
     <div id="overlay-root" className={`state-${visualState.toLowerCase()}`}>
+      {/* Configurable background (gradient / image / video / pattern) */}
+      <div id="background-layer">
+        <BackgroundLayer style={config.overlayStyle} />
+      </div>
+
+      {/* Particle system on top of background */}
+      <div id="particles-layer">
+        <ParticlesLayer {...config.overlayStyle.particles} />
+      </div>
+
       {/* All plugin sources (backgrounds, effects, overlays) */}
       <div id="sources-layer">
         <LayerStack sources={visibleSources} />
@@ -36,9 +48,9 @@ export default function App() {
         <Desktop apps={config.applications} />
       </div>
 
-      {/* Global effects (reserved — scene-level effects use LayerStack) */}
+      {/* Global CSS effects — CRT, vignette, grain, flicker, chromatic */}
       <div id="effects-layer">
-        <EffectsLayer />
+        <CSSEffectsLayer effects={config.overlayStyle.effects} />
       </div>
 
       {/* GSAP transition effect elements (loading window, flash, static, etc.) */}

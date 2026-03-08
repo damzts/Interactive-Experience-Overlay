@@ -25,6 +25,55 @@ export interface Scene {
   sources: SourceInstance[]
 }
 
+/** ── Overlay style system ─────────────────────────────────────── */
+
+export type BackgroundType = 'none' | 'color' | 'gradient' | 'image-url' | 'video-url' | 'pattern'
+export type PatternPreset  = 'none' | 'grid' | 'dots' | 'diagonal' | 'honeycomb' | 'circuit' | 'topography'
+export type ParticlePreset = 'none' | 'stars' | 'snow' | 'matrix' | 'fireflies' | 'ash'
+
+export interface OverlayBackground {
+  type: BackgroundType
+  color: string
+  gradient: string
+  imageUrl: string
+  videoUrl: string
+  pattern: PatternPreset
+  /** 0–1 */
+  opacity: number
+  /** px */
+  blur: number
+}
+
+export interface OverlayEffects {
+  crt: boolean
+  noise: boolean
+  vignette: boolean
+  flicker: boolean
+  chromatic: boolean
+  scanlineOpacity: number
+  noiseOpacity: number
+  vignetteStrength: number
+}
+
+export interface OverlayParticles {
+  enabled: boolean
+  preset: ParticlePreset
+  /** 0–1 */
+  density: number
+  /** 0–1 */
+  speed: number
+}
+
+export interface OverlayStyle {
+  background: OverlayBackground
+  effects: OverlayEffects
+  particles: OverlayParticles
+  /** Google Font name, or 'default' */
+  fontFamily: string
+  accentColor: string
+  textColor: string
+}
+
 /** Root application config — stored in server memory (v1) */
 export interface AppConfig {
   scenes: Record<string, Scene>
@@ -42,4 +91,6 @@ export interface AppConfig {
     sfxVolume: number
     musicVolume: number
   }
+  overlayStyle: OverlayStyle
 }
+

@@ -9,6 +9,7 @@ import { SceneMachine } from './state/machine.js'
 import { setupSocketHandlers } from './socket/handlers.js'
 import { configRoute } from './routes/config.js'
 import { mediaRoute } from './routes/media.js'
+import { archiveRoute } from './routes/archive.js'
 import { ObsBridge } from './obs/bridge.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -30,10 +31,6 @@ if (existsSync(overlayDist)) {
     root: overlayDist,
     prefix: '/',
     wildcard: false,
-  })
-  // SPA fallback for overlay
-  app.get('/', async (_req, reply) => {
-    return reply.sendFile('index.html', overlayDist)
   })
 } else {
   app.get('/', async (_req, reply) => {
@@ -94,6 +91,7 @@ setupSocketHandlers(io, machine)
 // REST routes
 await app.register(configRoute, { machine })
 await app.register(mediaRoute)
+await app.register(archiveRoute)
 
 // OBS WebSocket bridge (graceful — server works without OBS)
 const obsBridge = new ObsBridge(io, machine)

@@ -1,5 +1,5 @@
-import type { STATE, OVERLAY_EVENT } from './state'
-import type { AppConfig } from './scene'
+import type { STATE, OVERLAY_EVENT } from './state.js'
+import type { AppConfig } from './scene.js'
 
 /** Events the server sends to clients */
 export interface ServerToClientEvents {

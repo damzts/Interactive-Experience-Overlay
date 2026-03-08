@@ -15,7 +15,7 @@ export function useSocket() {
 
   useEffect(() => {
     // Request current state on connect
-    socket.emit('state:request', (serverState) => {
+    socket.emit('state:request', (serverState: STATE) => {
       if (serverState !== STATE.TRANSITIONING) {
         setVisualState(serverState as Exclude<STATE, typeof STATE.TRANSITIONING>)
       }
