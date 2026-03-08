@@ -1,0 +1,33 @@
+/* Admin panel — Win98 teal desktop theme */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #008080;
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 13px;
+}
+
+/* Override 98.css body background */
+body {
+  background: #008080 !important;
+}
+
+/* Window fills naturally */
+.window {
+  width: 100%;
+}
+
+/* Tighter window body defaults */
+.window .window-body {
+  margin: 4px;
+}
+
+/* Make buttons full-width by default in column layouts */
+.window-body button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 8px;
+}

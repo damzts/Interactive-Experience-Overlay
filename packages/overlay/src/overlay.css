@@ -1,0 +1,271 @@
+/* ── Reset ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+
+/* ── Overlay root ──────────────────────────────────────────────── */
+#overlay-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  /* Transparent so game capture shows through in GAMEPLAY */
+  background: transparent;
+}
+
+/* ── Layer base styles ─────────────────────────────────────────── */
+#sources-layer,
+#desktop-layer,
+#effects-layer,
+#transition-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Sources layer: z=1. Transparent by default (contains its own z-indexes) */
+#sources-layer { z-index: 1; }
+
+/* Desktop: z=20, hidden by default */
+#desktop-layer {
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Effects: z=30 */
+#effects-layer {
+  z-index: 30;
+  pointer-events: none;
+}
+
+/* Transitions: z=100 */
+#transition-layer {
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* ── State-controlled desktop visibility ───────────────────────── */
+.state-lobby #desktop-layer,
+.state-tv #desktop-layer,
+.state-music #desktop-layer,
+.state-archive #desktop-layer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.state-gameplay #desktop-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Transition layer elements (all invisible by default) ───────── */
+#tl-loading-window,
+#tl-flash,
+#tl-static-overlay,
+#tl-bsod,
+#tl-death-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Loading window — centered overlay */
+#tl-loading-window {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 128, 0.55);
+  z-index: 101;
+}
+
+/* Full-screen white flash */
+#tl-flash {
+  background: #ffffff;
+  z-index: 104;
+}
+
+/* TV static / noise */
+#tl-static-overlay {
+  z-index: 103;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent, transparent 2px,
+      rgba(255,255,255,0.04) 2px, rgba(255,255,255,0.04) 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent, transparent 4px,
+      rgba(0,0,0,0.03) 4px, rgba(0,0,0,0.03) 8px
+    );
+  background-color: #111;
+  transform-origin: center;
+}
+
+/* BSOD */
+#tl-bsod {
+  background: #000077;
+  color: #ffffff;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  padding: 60px;
+  z-index: 102;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Death vignette */
+#tl-death-overlay {
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(160, 0, 0, 0.75) 100%);
+  z-index: 105;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#tl-death-text {
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-size: 72px;
+  color: #cc0000;
+  text-shadow: 0 0 20px #ff0000, 0 0 40px #880000;
+  letter-spacing: 8px;
+  opacity: 0;
+}
+
+/* ── CRT effect animation ───────────────────────────────────────── */
+@keyframes crt-flicker {
+  0%   { opacity: 1; }
+  88%  { opacity: 1; }
+  90%  { opacity: 0.94; }
+  91%  { opacity: 1; }
+  95%  { opacity: 0.97; }
+  96%  { opacity: 0.92; }
+  100% { opacity: 1; }
+}
+
+.crt-flicker {
+  animation: crt-flicker 7s infinite;
+}
+
+/* ── Desktop ───────────────────────────────────────────────────── */
+.desktop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.desktop-icons {
+  flex: 1;
+  position: relative;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.taskbar {
+  height: 40px;
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-bottom: 1px solid #808080;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.taskbar-start-btn {
+  height: 32px;
+  padding: 0 10px;
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.taskbar-start-btn:active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-bottom: 2px solid #ffffff;
+  border-right: 2px solid #ffffff;
+}
+
+.taskbar-state-indicator {
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px inset #888;
+  background: #c0c0c0;
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+}
+
+.taskbar-tray {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px 6px;
+  border: 1px inset #888;
+  background: #c0c0c0;
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+}
+
+.taskbar-time {
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 12px;
+}
+
+/* ── App icons ─────────────────────────────────────────────────── */
+.app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 68px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px;
+  border: 1px solid transparent;
+}
+.app-icon:hover {
+  background: rgba(0, 0, 128, 0.5);
+  border: 1px dashed #ffffff;
+}
+
+.app-icon-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.app-icon-label {
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 11px;
+  color: #ffffff;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+  text-align: center;
+  word-break: break-word;
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+/* ── Text widget ───────────────────────────────────────────────── */
+.text-widget {
+  position: absolute;
+  inset: 0;
+}
