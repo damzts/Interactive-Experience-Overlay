@@ -1,5 +1,5 @@
 import type { AppConfig } from '../types/scene.js'
-import { STATE } from '../types/state.js'
+import { STATE, OVERLAY_EVENT } from '../types/state.js'
 
 export const DEFAULT_CONFIG: AppConfig = {
   scenes: {
@@ -328,4 +328,12 @@ export const DEFAULT_CONFIG: AppConfig = {
       close: '',
     },
   },
+
+  events: [
+    { id: OVERLAY_EVENT.DEATH,          label: 'DEATH',    icon: '💀', color: 'text-red-400',     desc: 'Red vignette + YOU DIED',           effects: [{ type: 'death-overlay',   cfg: {} }],                                                                                             auto: { enabled: false, mode: 'interval', intervalMin: 20, idleMin: 5 } },
+    { id: OVERLAY_EVENT.VICTORY,        label: 'VICTORY',  icon: '🏆', color: 'text-yellow-400',  desc: 'Win98 dialog: MISSION.LOG saved',   effects: [{ type: 'victory-overlay', cfg: {} }],                                                                                             auto: { enabled: false, mode: 'interval', intervalMin: 30, idleMin: 5 } },
+    { id: OVERLAY_EVENT.REVIVE,         label: 'REVIVE',   icon: '❤',  color: 'text-emerald-400', desc: 'Terminal: Restarting process...',   effects: [{ type: 'revive-overlay',  cfg: {} }],                                                                                             auto: { enabled: false, mode: 'interval', intervalMin: 25, idleMin: 5 } },
+    { id: OVERLAY_EVENT.NETWORK_GLITCH, label: 'GLITCH',   icon: '📡', color: 'text-purple-400',  desc: 'Full-screen artifact burst',        effects: [{ type: 'network-glitch',  cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }],                                          auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } },
+    { id: 'idle-floaties',              label: 'FLOATIES', icon: '✨',  color: 'text-cyan-400',    desc: 'Glowing symbols drift over screen', effects: [{ type: 'floaties',         cfg: { count: 10, duration: 10, speed: 1.0 } }],                                                     auto: { enabled: false, mode: 'idle',     intervalMin: 15, idleMin: 5 } },
+  ],
 }

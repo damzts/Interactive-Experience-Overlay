@@ -1,11 +1,11 @@
 import type { Server, Socket } from 'socket.io'
 import {
   STATE,
-  OVERLAY_EVENT,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type InterServerEvents,
   type SocketData,
+  type OverlayTriggerPayload,
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import type { SceneMachine } from '../state/machine.js'
@@ -27,12 +27,12 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
 
   machine.on(
     'transition:start',
-    (payload: { from: STATE; to: STATE; transitionType: string }) => {
+    (payload: { from: STATE; to: STATE; transitionType: string; exitTransition?: string; introTransition?: string }) => {
       io.emit('transition:play', payload)
     },
   )
 
-  machine.on('overlay:trigger', (payload: { event: OVERLAY_EVENT }) => {
+  machine.on('overlay:trigger', (payload: OverlayTriggerPayload) => {
     io.emit('overlay:show', payload)
   })
 
@@ -47,31 +47,36 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
     socket.on('scene:change', (target, callback) => {
       scheduler?.resetIdleTimer()
 
-      // Look up per-app transition overrides from config
+      // Look up exit + intro transitions independently so they can be chained client-side
       const cfg = getConfig()
       const fromState = machine.currentState
-      let transitionOverride: string | undefined
 
-      // Find an app whose scene matches: introTransition (entering app) or exitTransition (leaving app back to desktop)
+      // Collect exit and intro transitions independently so they can be chained
+      let exitTransition: string | undefined
+      let introTransition: string | undefined
+
+      // App-level overrides (application scenes)
       for (const app of cfg.applications) {
-        // Going INTO an app scene
-        if (app.targetSceneId === target && app.introTransition) {
-          transitionOverride = app.introTransition
-          break
-        }
-        // Going BACK to desktop FROM an app scene
-        if (app.targetSceneId === fromState && target === STATE.DESKTOP && app.exitTransition) {
-          transitionOverride = app.exitTransition
-          break
-        }
+        if (app.targetSceneId === target && app.introTransition) introTransition = app.introTransition
+        if (app.targetSceneId === fromState && app.exitTransition) exitTransition = app.exitTransition
       }
 
-      const result = machine.transition(target, transitionOverride)
+      // Scene-level overrides (built-in environments: LOBBY, DESKTOP, etc.)
+      if (!introTransition) {
+        const targetScene = cfg.scenes[target]
+        if (targetScene?.introTransition) introTransition = targetScene.introTransition
+      }
+      if (!exitTransition) {
+        const fromScene = cfg.scenes[fromState]
+        if (fromScene?.exitTransition) exitTransition = fromScene.exitTransition
+      }
+
+      const result = machine.transition(target, { exitTransition, introTransition })
       if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
     })
 
-    socket.on('overlay:trigger', (event) => {
-      machine.triggerOverlay(event)
+    socket.on('overlay:trigger', (payload: OverlayTriggerPayload) => {
+      machine.triggerOverlay(payload)
     })
 
     socket.on('transition:complete', () => {

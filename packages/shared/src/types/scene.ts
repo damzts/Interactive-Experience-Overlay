@@ -59,6 +59,10 @@ export interface Scene {
   style?: OverlayStyle
   /** 3D room configuration. Used by LOBBY scene. */
   lobbyConfig?: LobbyConfig
+  /** Transition effect played when entering this scene/environment. */
+  introTransition?: string
+  /** Transition effect played when leaving this scene/environment. */
+  exitTransition?: string
 }
 
 /** ── Overlay style system ─────────────────────────────────────── */
@@ -116,6 +120,8 @@ export interface DesktopConfig {
   defaultIconSize: 'small' | 'normal' | 'large'
   /** When true: icons snap to auto-column; when false: icons use absolute iconPosition */
   autoArrangeIcons: boolean
+  /** Persisted widget window positions, keyed by widget id (e.g. 'music', 'archive') */
+  widgetPositions?: Record<string, { x: number; y: number }>
   /** Screen saver settings */
   screenSaver: {
     enabled: boolean
@@ -133,6 +139,35 @@ export interface DesktopConfig {
     close: string
   }
 }
+
+// ── Event config ────────────────────────────────────────────────
+// Imported by: admin Dashboard.tsx, shared defaults, server (auto-trigger future)
+import type { EffectConfig } from './effects.js'
+
+/** Auto-trigger configuration for an event */
+export interface AutoTrigger {
+  enabled: boolean
+  mode: 'interval' | 'idle'
+  /** Fire roughly every N minutes (mode: interval) */
+  intervalMin: number
+  /** Fire after N minutes of idle (mode: idle) */
+  idleMin: number
+}
+
+/** A saved event definition — persisted in AppConfig.events */
+export interface EventConfig {
+  id: string
+  label: string
+  icon: string
+  /** Tailwind text color class, e.g. 'text-red-400' */
+  color: string
+  desc: string
+  /** Ordered stack of effects to fire. Empty = no visual. */
+  effects: EffectConfig[]
+  auto: AutoTrigger
+}
+
+// ── Root config ─────────────────────────────────────────────────
 
 /** Root application config — stored in server memory (v1) */
 export interface AppConfig {
@@ -153,4 +188,6 @@ export interface AppConfig {
   }
   overlayStyle: OverlayStyle
   desktopConfig?: DesktopConfig
+  /** Saved event definitions. Falls back to DEFAULT_CONFIG.events if absent. */
+  events?: EventConfig[]
 }

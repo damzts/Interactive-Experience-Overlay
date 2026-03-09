@@ -649,10 +649,9 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   position: absolute;
   inset: 0;
   background: #000000;
-  display: flex;
+  display: none;
   flex-direction: column;
   padding: 48px 60px;
-  /* Starts visible — overrides the default opacity:0 of other tl elements */
   opacity: 1;
   pointer-events: none;
 }

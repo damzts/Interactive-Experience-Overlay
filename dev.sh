@@ -4,7 +4,7 @@
 set -e
 
 export PATH="/home/damzts/.local/share/pnpm:$PATH"
-PORTS=(3000 3001 3002)
+PORTS=(3000 3002)
 
 do_stop() {
   echo "→ Stopping processes on ports ${PORTS[*]}..."
@@ -21,7 +21,7 @@ do_stop() {
 
 do_start() {
   cd "$(dirname "$0")"
-  echo "→ Starting IEOM dev (server :3000 | overlay :3001 | admin :3002)..."
+  echo "→ Starting IEOM dev (server :3000 | app :3002)..."
   exec pnpm dev
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { socket } from '../socket/client'
 import { STATE } from '@ieom/shared'
+import { useAppStore } from '../store/useAppStore'
 
 /** Animated VU bar — 8 vertical bars that bounce independently */
 function VUBar() {
@@ -58,11 +59,34 @@ function TrackMarquee({ text }: { text: string }) {
   )
 }
 
+function saveWidgetPosition(key: string, pos: { x: number; y: number }) {
+  const cfg = useAppStore.getState().config
+  const next = {
+    ...cfg,
+    desktopConfig: {
+      ...cfg.desktopConfig,
+      widgetPositions: { ...cfg.desktopConfig?.widgetPositions, [key]: pos },
+    },
+  }
+  fetch('/api/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(next),
+  })
+}
+
 export function MusicWidget() {
   const dragRef     = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ x: 60, y: 120 })
+  const configPos   = useAppStore((s) => s.config.desktopConfig?.widgetPositions?.['music'])
+  const [pos, setPos] = useState(() => configPos ?? { x: 60, y: 120 })
   const dragging    = useRef(false)
   const offset      = useRef({ x: 0, y: 0 })
+  const posRef      = useRef(pos)
+
+  // Sync position when another client (or OBS) receives a config:update
+  useEffect(() => {
+    if (!dragging.current && configPos) setPos(configPos)
+  }, [configPos])
 
   const [elapsed, setElapsed] = useState(0)
 
@@ -86,9 +110,16 @@ export function MusicWidget() {
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return
-      setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
+      const next = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y }
+      posRef.current = next
+      setPos(next)
     }
-    const onUp = () => { dragging.current = false }
+    const onUp = () => {
+      if (dragging.current) {
+        dragging.current = false
+        saveWidgetPosition('music', posRef.current)
+      }
+    }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {

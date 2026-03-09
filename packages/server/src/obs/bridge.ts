@@ -8,9 +8,9 @@ const OBS_ACTION_MAP: Record<string, (machine: SceneMachine) => void> = {
   'scene:gameplay': (m) => m.transition(STATE.GAMEPLAY),
   'scene:lobby': (m) => m.forceState(STATE.LOBBY),
   'scene:tv': (m) => m.transition(STATE.TV),
-  'overlay:death': (m) => m.triggerOverlay(OVERLAY_EVENT.DEATH),
-  'overlay:revive': (m) => m.triggerOverlay(OVERLAY_EVENT.REVIVE),
-  'overlay:victory': (m) => m.triggerOverlay(OVERLAY_EVENT.VICTORY),
+  'overlay:death':   (m) => m.triggerOverlay({ id: OVERLAY_EVENT.DEATH,   effects: [{ type: 'death-overlay',   cfg: {} }] }),
+  'overlay:revive':  (m) => m.triggerOverlay({ id: OVERLAY_EVENT.REVIVE,  effects: [{ type: 'revive-overlay',  cfg: {} }] }),
+  'overlay:victory': (m) => m.triggerOverlay({ id: OVERLAY_EVENT.VICTORY, effects: [{ type: 'victory-overlay', cfg: {} }] }),
   'panic': (m) => m.forceState(STATE.LOBBY),
 }
 

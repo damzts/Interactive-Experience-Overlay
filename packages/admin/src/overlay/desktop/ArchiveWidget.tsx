@@ -17,11 +17,18 @@ function useSessionTimer() {
 
 export function ArchiveWidget() {
   const visualState = useAppStore((st) => st.visualState)
+  const configPos   = useAppStore((s) => s.config.desktopConfig?.widgetPositions?.['archive'])
   const dragRef     = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ x: 900, y: 120 })
+  const [pos, setPos] = useState(() => configPos ?? { x: 900, y: 120 })
   const dragging    = useRef(false)
   const offset      = useRef({ x: 0, y: 0 })
+  const posRef      = useRef(pos)
   const sessionTime = useSessionTimer()
+
+  // Sync position when another client (or OBS) receives a config:update
+  useEffect(() => {
+    if (!dragging.current && configPos) setPos(configPos)
+  }, [configPos])
 
   // Track last 8 state transitions
   const [log, setLog] = useState<{ state: string; time: string }[]>([
@@ -41,9 +48,28 @@ export function ArchiveWidget() {
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return
-      setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
+      const next = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y }
+      posRef.current = next
+      setPos(next)
     }
-    const onUp = () => { dragging.current = false }
+    const onUp = () => {
+      if (dragging.current) {
+        dragging.current = false
+        const cfg = useAppStore.getState().config
+        const next = {
+          ...cfg,
+          desktopConfig: {
+            ...cfg.desktopConfig,
+            widgetPositions: { ...cfg.desktopConfig?.widgetPositions, archive: posRef.current },
+          },
+        }
+        fetch('/api/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(next),
+        })
+      }
+    }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {

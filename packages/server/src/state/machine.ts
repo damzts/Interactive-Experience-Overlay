@@ -4,6 +4,7 @@ import {
   OVERLAY_EVENT,
   NAVIGABLE_STATES,
   TRANSITION_TYPE,
+  type OverlayTriggerPayload,
 } from '@ieom/shared'
 
 interface MachineSnapshot {
@@ -22,6 +23,7 @@ export class SceneMachine extends EventEmitter {
     isTransitioning: false,
     activeOverlays: [],
   }
+  private safetyTimer: ReturnType<typeof setTimeout> | null = null
 
   get currentState() {
     return this.snap.current
@@ -33,9 +35,8 @@ export class SceneMachine extends EventEmitter {
     return this.snap.isTransitioning
   }
 
-  /** Attempt a transition. Returns error string on failure.
-   *  @param transitionTypeOverride  When provided, overrides the TRANSITION_TYPE map. */
-  transition(target: STATE, transitionTypeOverride?: string): { ok: boolean; error?: string; transitionType?: string } {
+  /** Attempt a transition. Returns error string on failure. */
+  transition(target: STATE, options?: { transitionType?: string; exitTransition?: string; introTransition?: string }): { ok: boolean; error?: string; transitionType?: string } {
     if (this.snap.isTransitioning) {
       return { ok: false, error: 'Already transitioning' }
     }
@@ -48,7 +49,7 @@ export class SceneMachine extends EventEmitter {
     }
 
     const transitionType =
-      transitionTypeOverride ??
+      options?.transitionType ??
       TRANSITION_TYPE[`${this.snap.current}->${target}`] ??
       'default'
 
@@ -61,7 +62,18 @@ export class SceneMachine extends EventEmitter {
       from: this.snap.previous,
       to: target,
       transitionType,
+      exitTransition: options?.exitTransition,
+      introTransition: options?.introTransition,
     })
+
+    // Safety net: auto-complete if transition:complete never arrives within 10s
+    if (this.safetyTimer) clearTimeout(this.safetyTimer)
+    this.safetyTimer = setTimeout(() => {
+      if (this.snap.isTransitioning) {
+        console.warn('[machine] transition timed out — auto-completing to', target)
+        this.completeTransition()
+      }
+    }, 10_000)
 
     return { ok: true, transitionType }
   }
@@ -70,6 +82,8 @@ export class SceneMachine extends EventEmitter {
   completeTransition() {
     const target = this.snap.pendingTarget
     if (!target) return
+
+    if (this.safetyTimer) { clearTimeout(this.safetyTimer); this.safetyTimer = null }
 
     this.snap.current = target
     this.snap.pendingTarget = null
@@ -93,12 +107,11 @@ export class SceneMachine extends EventEmitter {
     this.emit('state:change', { state: target, previousState: previous })
   }
 
-  triggerOverlay(event: OVERLAY_EVENT) {
-    this.snap.activeOverlays.push(event)
-    this.emit('overlay:trigger', { event })
+  triggerOverlay(payload: OverlayTriggerPayload) {
+    this.emit('overlay:trigger', payload)
   }
 
-  clearOverlay(event: OVERLAY_EVENT) {
-    this.snap.activeOverlays = this.snap.activeOverlays.filter((e) => e !== event)
+  clearOverlay(id: string) {
+    this.snap.activeOverlays = this.snap.activeOverlays.filter((e) => e !== id as unknown as OVERLAY_EVENT)
   }
 }

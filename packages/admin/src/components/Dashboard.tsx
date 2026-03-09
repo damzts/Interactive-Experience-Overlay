@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { STATE, OVERLAY_EVENT } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
-  Application, LobbyConfig, DesktopConfig, ApplicationType,
+  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -99,22 +99,18 @@ const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; label: 
 
 // ── Events def ─────────────────────────────────────────────────────
 
-const EVENT_DEFS: { label: string; event: OVERLAY_EVENT; icon: string; color: string; desc: string }[] = [
-  { label: 'DEATH',   event: OVERLAY_EVENT.DEATH,          icon: '💀', color: 'text-red-400',     desc: 'Red vignette + YOU DIED overlay' },
-  { label: 'VICTORY', event: OVERLAY_EVENT.VICTORY,        icon: '🏆', color: 'text-yellow-400',  desc: 'Win98 dialog: MISSION.LOG saved' },
-  { label: 'REVIVE',  event: OVERLAY_EVENT.REVIVE,         icon: '❤',  color: 'text-emerald-400', desc: 'Terminal: Restarting process...' },
-  { label: 'GLITCH',  event: OVERLAY_EVENT.NETWORK_GLITCH, icon: '📡', color: 'text-purple-400',  desc: 'Full-screen artifact burst' },
-]
+type AutoTrigger = { enabled: boolean; mode: 'interval' | 'idle'; intervalMin: number; idleMin: number }
+type EventDef    = { id: string; label: string; icon: string; color: string; desc: string; builtIn?: boolean; auto: AutoTrigger }
 
+const DEFAULT_EVENT_DEFS: EventDef[] = []
 // ── Selected item union ────────────────────────────────────────────
 
 type SelectedItem =
   | { kind: 'env';   envState: STATE }
-  | { kind: 'scene'; sceneState: STATE }
+  | { kind: 'scene'; sceneState: string }
   | { kind: 'app';   appId: string }
-  | { kind: 'event'; event: OVERLAY_EVENT }
+  | { kind: 'event'; id: string }
   | { kind: 'audio' }
-  | { kind: 'auto-events' }
   | { kind: 'keybinds' }
   | { kind: 'archive' }
   | { kind: 'settings' }
@@ -123,7 +119,7 @@ function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState
   if (item.kind === 'scene') return 'scene-' + item.sceneState
   if (item.kind === 'app')   return 'app-' + item.appId
-  if (item.kind === 'event') return 'event-' + item.event
+  if (item.kind === 'event') return 'event-' + item.id
   return item.kind
 }
 
@@ -137,7 +133,7 @@ const STYLE_TABS: { id: StyleTab; label: string }[] = [
   { id: 'typography', label: 'Type'       },
 ]
 
-function StyleEditor({ sceneId }: { sceneId: STATE }) {
+function StyleEditor({ sceneId }: { sceneId: string }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const [tab,   setTab]   = useState<StyleTab>('background')
@@ -401,6 +397,28 @@ function LobbyConfigEditor() {
         {saving && <span className="text-zinc-500">saving…</span>}
         {saved  && <span className="text-emerald-400">✔</span>}
       </div>
+      <Panel title="Transitions">
+        <div className="space-y-2">
+          {([
+            { field: 'introTransition' as const, label: 'Intro (entering)' },
+            { field: 'exitTransition'  as const, label: 'Exit (leaving)' },
+          ]).map(({ field, label }) => (
+            <div key={field}>
+              <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
+              <select
+                value={(config.scenes[STATE.LOBBY] as Record<string, string> | undefined)?.[field] ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value || undefined
+                  saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: { ...config.scenes[STATE.LOBBY], [field]: val } } })
+                }}
+                className="w-full text-xs">
+                <option value="">— None —</option>
+                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      </Panel>
       <Panel title="Ambient Light">
         <ColorRow label="" value={form.ambientColor} onChange={(v) => update((d) => { d.ambientColor = v })} />
         <Slider label="Intensity" value={form.ambientIntensity} min={0} max={2} step={0.01} onChange={(v) => update((d) => { d.ambientIntensity = v })} />
@@ -476,6 +494,28 @@ function DesktopConfigEditor() {
         <span className="text-zinc-500 uppercase tracking-wider">Win98 Desktop</span>
         {saved && <span className="text-emerald-400">✔</span>}
       </div>
+      <Panel title="Transitions">
+        <div className="space-y-2">
+          {([
+            { field: 'introTransition' as const, label: 'Intro (entering)' },
+            { field: 'exitTransition'  as const, label: 'Exit (leaving)' },
+          ]).map(({ field, label }) => (
+            <div key={field}>
+              <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
+              <select
+                value={(config.scenes[STATE.DESKTOP] as Record<string, string> | undefined)?.[field] ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value || undefined
+                  saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], [field]: val } } })
+                }}
+                className="w-full text-xs">
+                <option value="">— None —</option>
+                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      </Panel>
       <Panel title="Icons">
         <div className="mb-3">
           <div className="text-[10px] text-zinc-500 mb-1.5">Default size</div>
@@ -540,7 +580,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       const apps = [...config.applications]
       const idx  = apps.findIndex((a) => a.id === updated.id)
       if (idx !== -1) apps[idx] = updated; else apps.push(updated)
-      saveConfig({ applications: apps })
+      // Keep the scene label in sync with the application label
+      const scene = config.scenes[updated.targetSceneId]
+      if (scene) {
+        const updatedScene = { ...scene, label: updated.label }
+        saveConfig({ applications: apps, scenes: { ...config.scenes, [updated.targetSceneId]: updatedScene } })
+      } else {
+        saveConfig({ applications: apps })
+      }
     }, 400)
   }
 
@@ -578,29 +625,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         </div>
       </Panel>
 
-      <Panel title="Type & Target">
-        <div className="space-y-2">
-          <div className="flex flex-col gap-1">
-            {(['scene', 'widget'] as ApplicationType[]).map((t) => (
-              <button key={t} onClick={() => update((d) => { d.appType = t })}
-                className={'px-2.5 py-2 text-[11px] rounded border transition-colors text-left ' +
-                  (form.appType === t ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
-                {t === 'scene' ? '🖥  Scene — fullscreen' : '▣  Widget — stacking window'}
-              </button>
-            ))}
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Target state</div>
-            <select value={form.targetSceneId} onChange={(e) => update((d) => { d.targetSceneId = e.target.value })} className="w-full text-xs">
-              {[STATE.GAMEPLAY, STATE.TV, STATE.MUSIC, STATE.ARCHIVE, STATE.DESKTOP].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </Panel>
-
-      {form.appType === 'scene' && <Panel title="Transitions">
+      <Panel title="Transitions">
         <div className="space-y-2">
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
@@ -621,7 +646,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
             </select>
           </div>
         </div>
-      </Panel>}
+      </Panel>
 
       <Panel title="Position">
         <div className="text-[10px] text-zinc-600 mb-2">1920×1080 canvas, pixels from top-left.</div>
@@ -652,35 +677,100 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
 // ── EventForm ──────────────────────────────────────────────────────
 
-function EventForm({ event }: { event: OVERLAY_EVENT }) {
-  const def = EVENT_DEFS.find((e) => e.event === event)
+function EventForm({ def, onUpdate, onDelete }: {
+  def: EventDef
+  onUpdate: (d: EventDef) => void
+  onDelete?: () => void
+}) {
+  const update = (fn: (d: EventDef) => void) => {
+    const next = { ...def, auto: { ...def.auto } }
+    fn(next)
+    onUpdate(next)
+  }
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/60">
-        <span className="text-3xl">{def?.icon}</span>
-        <div>
-          <div className="text-sm font-bold text-zinc-100">{def?.label}</div>
-          <div className="text-[11px] text-zinc-500 font-mono">{event}</div>
-          <div className="text-[11px] text-zinc-400 mt-0.5">{def?.desc}</div>
+        <span className="text-3xl">{def.icon}</span>
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-zinc-100">{def.label}</div>
+          <div className="text-[11px] text-zinc-500 font-mono">{def.id}</div>
+          <div className="text-[11px] text-zinc-400 mt-0.5">{def.desc}</div>
         </div>
       </div>
-      <Panel title="Trigger Sources">
-        <div className="space-y-1.5 text-[11px] text-zinc-400">
-          <div>⌨  Manual — Fire Now button above (in panel header)</div>
-          <div>⌨  Hotkey — Studio › Keybinds</div>
-          <div>⚡  Auto — Studio › Auto-Events</div>
-        </div>
+
+      {!def.builtIn && (
+        <Panel title="Edit">
+          <div className="space-y-2">
+            <div>
+              <div className="text-[10px] text-zinc-400 mb-1">Label</div>
+              <input type="text" value={def.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full" />
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-400 mb-1">Icon</div>
+              <input type="text" value={def.icon} onChange={(e) => update((d) => { d.icon = e.target.value })} className="w-full" placeholder="⚡" />
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-400 mb-1">Description</div>
+              <input type="text" value={def.desc} onChange={(e) => update((d) => { d.desc = e.target.value })} className="w-full" />
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      <Panel title="Auto-Trigger">
+        <Toggle checked={def.auto.enabled} onChange={(v) => update((d) => { d.auto.enabled = v })} label="Enable auto-trigger" />
+        {def.auto.enabled && (
+          <div className="mt-3 space-y-2">
+            <div>
+              <div className="text-[10px] text-zinc-400 mb-1">Mode</div>
+              <div className="flex gap-1">
+                {(['interval', 'idle'] as const).map((m) => (
+                  <button key={m} onClick={() => update((d) => { d.auto.mode = m })}
+                    className={'flex-1 px-2 py-1 text-xs rounded border capitalize transition-colors ' + (
+                      def.auto.mode === m
+                        ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40'
+                        : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100'
+                    )}>{m}</button>
+                ))}
+              </div>
+            </div>
+            {def.auto.mode === 'interval' && (
+              <Slider label="Avg every" value={def.auto.intervalMin} min={1} max={60} step={1} unit="min"
+                onChange={(v) => update((d) => { d.auto.intervalMin = v })} />
+            )}
+            {def.auto.mode === 'idle' && (
+              <Slider label="After idle" value={def.auto.idleMin} min={1} max={30} step={1} unit="min"
+                onChange={(v) => update((d) => { d.auto.idleMin = v })} />
+            )}
+          </div>
+        )}
       </Panel>
+
+      {!def.builtIn && onDelete && (
+        <div className="pt-1">
+          <Btn variant="danger" onClick={onDelete} className="w-full text-xs">Delete Event</Btn>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── SceneConfig ────────────────────────────────────────────────────
 
-function SceneConfig({ sceneId }: { sceneId: STATE }) {
-  const config = useAdminStore((s) => s.config)
-  const sceneEntry = (config.scenes as Record<string, { sources?: { id: string; pluginType: string; visible: boolean }[] } | undefined>)[sceneId]
-  const sources = sceneEntry?.sources ?? []
+function SceneConfig({ sceneId }: { sceneId: string }) {
+  const config      = useAdminStore((s) => s.config)
+  const saveConfig  = useAdminStore((s) => s.saveConfig)
+  const linkedApp   = config.applications.find((a) => a.targetSceneId === sceneId)
+  const sceneEntry  = (config.scenes as Record<string, { sources?: { id: string; pluginType: string; visible: boolean }[] } | undefined>)[sceneId]
+  const sources     = sceneEntry?.sources ?? []
+
+  const updateAppTransition = (key: 'introTransition' | 'exitTransition', val: string) => {
+    if (!linkedApp) return
+    const apps = config.applications.map((a) =>
+      a.id === linkedApp.id ? { ...a, [key]: val || undefined } : a
+    )
+    saveConfig({ applications: apps })
+  }
 
   return (
     <div className="space-y-3">
@@ -699,81 +789,32 @@ function SceneConfig({ sceneId }: { sceneId: STATE }) {
           </div>
         )}
       </Panel>
+      {linkedApp && (
+        <Panel title="Transitions">
+          <div className="space-y-2">
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Intro (entering)</div>
+              <select value={linkedApp.introTransition ?? ''}
+                onChange={(e) => updateAppTransition('introTransition', e.target.value)}
+                className="w-full text-xs">
+                <option value="">— Default —</option>
+                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Exit (leaving)</div>
+              <select value={linkedApp.exitTransition ?? ''}
+                onChange={(e) => updateAppTransition('exitTransition', e.target.value)}
+                className="w-full text-xs">
+                <option value="">— Default —</option>
+                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
+              </select>
+            </div>
+          </div>
+        </Panel>
+      )}
       <div className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1 mb-1">Visual Style</div>
       <StyleEditor sceneId={sceneId} />
-    </div>
-  )
-}
-
-// ── AutoEventsConfig ───────────────────────────────────────────────
-
-function AutoEventRow({ icon, label, desc, enabled, onToggle, children }: {
-  icon: string; label: string; desc: string; enabled: boolean
-  onToggle: (v: boolean) => void; children?: React.ReactNode
-}) {
-  return (
-    <div className="rounded-lg bg-zinc-800/60 border border-zinc-700/60 overflow-hidden mb-2">
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
-        <span className="text-base shrink-0">{icon}</span>
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-zinc-200">{label}</div>
-          <div className="text-[10px] text-zinc-500 leading-snug">{desc}</div>
-        </div>
-        <Toggle checked={enabled} onChange={onToggle} />
-      </div>
-      {enabled && children && (
-        <div className="px-3 pb-3 pt-2 border-t border-zinc-700/60 space-y-2">
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AutoEventsConfig() {
-  const [idleTv,      setIdleTv]      = useState(false)
-  const [idleMin,     setIdleMin]     = useState(5)
-  const [glitch,      setGlitch]      = useState(false)
-  const [glitchFreq,  setGlitchFreq]  = useState(15)
-  const [sysMsgs,     setSysMsgs]     = useState(false)
-  const [msgFreq,     setMsgFreq]     = useState(10)
-  const [messages,    setMessages]    = useState([
-    '[SERVER]: connection unstable',
-    '[SERVER]: packet loss detected',
-    '[SYSTEM]: low memory warning',
-  ])
-  const [newMsg,      setNewMsg]      = useState('')
-  const [corruption,  setCorruption]  = useState(false)
-
-  return (
-    <div>
-      <AutoEventRow icon="📺" label="Idle → TV" desc="Switch to TV after being idle" enabled={idleTv} onToggle={setIdleTv}>
-        <Slider label="Idle timeout" value={idleMin} min={1} max={30} step={1} unit="min" onChange={setIdleMin} />
-      </AutoEventRow>
-      <AutoEventRow icon="📡" label="Random Glitch" desc="Fire network glitch at random intervals" enabled={glitch} onToggle={setGlitch}>
-        <Slider label="Avg frequency" value={glitchFreq} min={5} max={60} step={5} unit="min" onChange={setGlitchFreq} />
-      </AutoEventRow>
-      <AutoEventRow icon="💬" label="System Messages" desc="Broadcast [SERVER]: messages periodically" enabled={sysMsgs} onToggle={setSysMsgs}>
-        <Slider label="Avg frequency" value={msgFreq} min={2} max={30} step={1} unit="min" onChange={setMsgFreq} />
-        <div className="text-[10px] text-zinc-500">Message pool:</div>
-        <div className="bg-zinc-900 rounded border border-zinc-700 max-h-20 overflow-y-auto p-1.5 space-y-1">
-          {messages.map((m, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <span className="font-mono text-[10px] text-zinc-300 flex-1 truncate">{m}</span>
-              <button onClick={() => setMessages((ms) => ms.filter((_, j) => j !== i))}
-                className="text-zinc-600 hover:text-red-400 text-xs px-1 shrink-0">✕</button>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-1">
-          <input type="text" value={newMsg} onChange={(e) => setNewMsg(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && newMsg.trim()) { setMessages((ms) => [...ms, newMsg.trim()]); setNewMsg('') }}}
-            placeholder="Add message… Enter" className="flex-1 text-xs" />
-          <Btn variant="ghost" className="text-xs px-2 py-1"
-            onClick={() => { if (newMsg.trim()) { setMessages((ms) => [...ms, newMsg.trim()]); setNewMsg('') }}}>+</Btn>
-        </div>
-      </AutoEventRow>
-      <AutoEventRow icon="🗄" label="Archive Corruption" desc="Occasional glitch when Archive is open" enabled={corruption} onToggle={setCorruption} />
     </div>
   )
 }
@@ -805,7 +846,7 @@ function LivePreview() {
     <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden min-w-0">
       <iframe
         ref={frameRef}
-        src="http://localhost:3001/"
+        src="/overlay"
         width={1920}
         height={1080}
         style={{ position: 'absolute', border: 'none', display: 'block' }}
@@ -817,7 +858,10 @@ function LivePreview() {
 
 // ── RightPane ──────────────────────────────────────────────────────
 
-function RightPaneContent({ selected, onDeleted }: { selected: SelectedItem; onDeleted: () => void }) {
+function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDeleteEvent }: {
+  selected: SelectedItem; onDeleted: () => void
+  eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
+}) {
   const saveConfig   = useAdminStore((s) => s.saveConfig)
   const applications = useAdminStore((s) => s.config.applications)
 
@@ -834,7 +878,7 @@ function RightPaneContent({ selected, onDeleted }: { selected: SelectedItem; onD
     )
   }
 
-  if (selected.kind === 'scene') return <SceneConfig sceneId={selected.sceneState} />
+  if (selected.kind === 'scene') return <SceneConfig sceneId={selected.sceneState as STATE} />
 
   if (selected.kind === 'app') {
     const app = applications.find((a) => a.id === selected.appId)
@@ -847,9 +891,12 @@ function RightPaneContent({ selected, onDeleted }: { selected: SelectedItem; onD
     )
   }
 
-  if (selected.kind === 'event') return <EventForm event={selected.event} />
+  if (selected.kind === 'event') {
+    const def = eventDefs.find((e) => e.id === selected.id)
+    if (!def) return <div className="text-zinc-600 text-xs italic p-4">Event not found.</div>
+    return <EventForm def={def} onUpdate={onUpdateEvent} onDelete={() => onDeleteEvent(def.id)} />
+  }
   if (selected.kind === 'audio')       return <AudioPanel />
-  if (selected.kind === 'auto-events') return <AutoEventsConfig />
   if (selected.kind === 'keybinds')    return <KeybindEditor />
   if (selected.kind === 'archive')     return <ArchivePanel />
   if (selected.kind === 'settings')    return <SettingsPage />
@@ -857,12 +904,15 @@ function RightPaneContent({ selected, onDeleted }: { selected: SelectedItem; onD
   return null
 }
 
-function RightPane({ selected, onClose }: { selected: SelectedItem | null; onClose: () => void }) {
+function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent }: {
+  selected: SelectedItem | null; onClose: () => void
+  eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
+}) {
   const currentState = useAdminStore((s) => s.currentState)
   const setLastError = useAdminStore((s) => s.setLastError)
   const applications = useAdminStore((s) => s.config.applications)
 
-  const triggerScene = (state: STATE) => {
+  const triggerScene = (state: string) => {
     setLastError(null)
     socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
   }
@@ -907,13 +957,13 @@ function RightPane({ selected, onClose }: { selected: SelectedItem | null; onClo
     actionLabel = app?.appType === 'widget' ? '▶ Open' : '▶ Launch'
     actionFn    = app ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
   } else if (selected.kind === 'event') {
-    const def   = EVENT_DEFS.find((e) => e.event === selected.event)
+    const def   = eventDefs.find((e) => e.id === selected.id)
     headerIcon  = def?.icon  ?? '⚡'
     headerLabel = def?.label ?? 'Event'
+    isLive      = def?.auto.enabled ?? false
     actionLabel = '▶ Fire Now'
-    actionFn    = () => socket.emit('overlay:trigger', selected.event)
+    actionFn    = () => socket.emit('overlay:trigger', selected.id)
   } else if (selected.kind === 'audio')       { headerIcon = '🔊'; headerLabel = 'Audio' }
-  else if (selected.kind === 'auto-events') { headerIcon = '⚡'; headerLabel = 'Auto-Events' }
   else if (selected.kind === 'keybinds')    { headerIcon = '⌨';  headerLabel = 'Keybinds' }
   else if (selected.kind === 'archive')     { headerIcon = '📁'; headerLabel = 'Archive' }
   else if (selected.kind === 'settings')    { headerIcon = '⚙';  headerLabel = 'Settings' }
@@ -936,7 +986,7 @@ function RightPane({ selected, onClose }: { selected: SelectedItem | null; onClo
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        <RightPaneContent selected={selected} onDeleted={onClose} />
+        <RightPaneContent selected={selected} onDeleted={onClose} eventDefs={eventDefs} onUpdateEvent={onUpdateEvent} onDeleteEvent={onDeleteEvent} />
       </div>
     </div>
   )
@@ -976,10 +1026,14 @@ function SectionLabel({ children }: { children: string }) {
   )
 }
 
-function LeftSidebar({ selected, onSelect }: { selected: SelectedItem | null; onSelect: (item: SelectedItem) => void }) {
+function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
+  selected: SelectedItem | null; onSelect: (item: SelectedItem) => void
+  eventDefs: EventDef[]; onAddEvent: () => void
+}) {
   const currentState = useAdminStore((s) => s.currentState)
   const saveConfig   = useAdminStore((s) => s.saveConfig)
   const applications = useAdminStore((s) => s.config.applications)
+  const scenes       = useAdminStore((s) => s.config.scenes)
 
   const sceneApps  = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
   const widgetApps = applications.filter((a) => a.appType === 'widget')
@@ -996,8 +1050,16 @@ function LeftSidebar({ selected, onSelect }: { selected: SelectedItem | null; on
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
       <SectionLabel>Scenes</SectionLabel>
-      <SidebarBtn icon="🎮" label="Gameplay" live={currentState === STATE.GAMEPLAY} active={isActive({ kind: 'scene', sceneState: STATE.GAMEPLAY })} onClick={() => onSelect({ kind: 'scene', sceneState: STATE.GAMEPLAY })} />
-      <SidebarBtn icon="📺" label="TV"       live={currentState === STATE.TV}       active={isActive({ kind: 'scene', sceneState: STATE.TV })}       onClick={() => onSelect({ kind: 'scene', sceneState: STATE.TV })} />
+      {sceneApps.map((app) => {
+        const sc = scenes[app.targetSceneId]
+        if (!sc) return null
+        return (
+          <SidebarBtn key={sc.id} icon={app.icon} label={sc.label}
+            live={currentState === sc.id}
+            active={isActive({ kind: 'scene', sceneState: sc.id })}
+            onClick={() => onSelect({ kind: 'scene', sceneState: sc.id })} />
+        )
+      })}
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
@@ -1008,9 +1070,11 @@ function LeftSidebar({ selected, onSelect }: { selected: SelectedItem | null; on
           active={isActive({ kind: 'app', appId: app.id })}
           onClick={() => onSelect({ kind: 'app', appId: app.id })} />
       ))}
-      <AddBtn label="New Scene App" onClick={() => {
-        const a: Application = { id: 'app-' + Date.now(), label: 'New App', icon: '🎮', appType: 'scene', targetSceneId: STATE.GAMEPLAY, transitionType: 'desktop-to-gameplay', introTransition: 'desktop-to-gameplay', exitTransition: 'gameplay-to-desktop' }
-        saveConfig({ applications: [...applications, a] })
+      <AddBtn label="New Application" onClick={() => {
+        const sceneId = 'SCENE_' + Date.now()
+        const a: Application = { id: 'app-' + Date.now(), label: 'New App', icon: '🎮', appType: 'scene', targetSceneId: sceneId, transitionType: 'desktop-to-gameplay', introTransition: 'desktop-to-gameplay', exitTransition: 'gameplay-to-desktop' }
+        const newScene: Scene = { id: sceneId, label: 'New App', backgroundOpaque: false, sources: [] }
+        saveConfig({ applications: [...applications, a], scenes: { ...scenes, [sceneId]: newScene } })
         onSelect({ kind: 'app', appId: a.id })
       }} />
 
@@ -1032,18 +1096,19 @@ function LeftSidebar({ selected, onSelect }: { selected: SelectedItem | null; on
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
       <SectionLabel>Events</SectionLabel>
-      {EVENT_DEFS.map(({ label, event, icon, color }) => (
-        <SidebarBtn key={event} icon={icon} label={label}
-          active={isActive({ kind: 'event', event })}
-          onClick={() => onSelect({ kind: 'event', event })} />
+      {eventDefs.map((def) => (
+        <SidebarBtn key={def.id} icon={def.icon} label={def.label}
+          live={def.auto.enabled}
+          active={isActive({ kind: 'event', id: def.id })}
+          onClick={() => onSelect({ kind: 'event', id: def.id })} />
       ))}
+      <AddBtn label="New Event" onClick={onAddEvent} />
 
       <div className="flex-1" />
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
       <SectionLabel>Studio</SectionLabel>
       <SidebarBtn icon="🔊" label="Audio"       active={isActive({ kind: 'audio' })}       onClick={() => onSelect({ kind: 'audio' })} />
-      <SidebarBtn icon="⚡" label="Auto-Events" active={isActive({ kind: 'auto-events' })} onClick={() => onSelect({ kind: 'auto-events' })} />
       <SidebarBtn icon="⌨"  label="Keybinds"    active={isActive({ kind: 'keybinds' })}    onClick={() => onSelect({ kind: 'keybinds' })} />
       <SidebarBtn icon="📁" label="Archive"     active={isActive({ kind: 'archive' })}     onClick={() => onSelect({ kind: 'archive' })} />
     </div>
@@ -1100,7 +1165,8 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
 // ── Dashboard ──────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const [selected, setSelected] = useState<SelectedItem | null>(null)
+  const [selected,   setSelected]   = useState<SelectedItem | null>(null)
+  const [eventDefs,  setEventDefs]  = useState<EventDef[]>(DEFAULT_EVENT_DEFS)
   const applications = useAdminStore((s) => s.config.applications)
 
   // Clear selection when selected app is removed
@@ -1111,7 +1177,6 @@ export function Dashboard() {
   }, [applications, selected])
 
   const handleSelect = (item: SelectedItem) => {
-    // Toggle off if clicking the already-selected item
     if (selected && itemKey(item) === itemKey(selected)) {
       setSelected(null)
     } else {
@@ -1119,13 +1184,33 @@ export function Dashboard() {
     }
   }
 
+  const handleAddEvent = () => {
+    const id  = 'custom-' + Date.now()
+    const def: EventDef = { id, label: 'New Event', icon: '⚡', color: 'text-cyan-400', desc: '', auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } }
+    setEventDefs((prev) => [...prev, def])
+    setSelected({ kind: 'event', id })
+  }
+
+  const handleUpdateEvent = (updated: EventDef) => {
+    setEventDefs((prev) => prev.map((e) => e.id === updated.id ? updated : e))
+    // Keep selected up to date (label/icon may have changed)
+    if (selected?.kind === 'event' && selected.id === updated.id) {
+      setSelected({ kind: 'event', id: updated.id })
+    }
+  }
+
+  const handleDeleteEvent = (id: string) => {
+    setEventDefs((prev) => prev.filter((e) => e.id !== id))
+    if (selected?.kind === 'event' && selected.id === id) setSelected(null)
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
       <TopBar onSettings={() => handleSelect({ kind: 'settings' })} />
       <div className="flex flex-1 overflow-hidden">
-        <LeftSidebar selected={selected} onSelect={handleSelect} />
+        <LeftSidebar selected={selected} onSelect={handleSelect} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
         <LivePreview />
-        <RightPane selected={selected} onClose={() => setSelected(null)} />
+        <RightPane selected={selected} onClose={() => setSelected(null)} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />
       </div>
     </div>
   )

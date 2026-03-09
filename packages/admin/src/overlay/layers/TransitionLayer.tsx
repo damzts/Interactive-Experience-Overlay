@@ -98,6 +98,28 @@ export function TransitionLayer() {
           <span style={{ fontSize: 18, color: '#aaa', letterSpacing: 2 }}>[ MODEM ] reconnecting...</span>
         </div>
       </div>
+
+      {/* Idle overlay — floating terminal floaties (shimeji-like) */}
+      <div id="tl-idle-container" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Sys message — terminal toast, repositioned per cfg */}
+      <div id="tl-sysmsg-container" style={{ position: 'fixed', bottom: 60, left: 48, zIndex: 200, opacity: 0, fontFamily: 'VT323, monospace', fontSize: 20, color: '#0f0', textShadow: '0 0 6px #0f0', lineHeight: 1.4, pointerEvents: 'none', background: 'rgba(0,0,0,0.7)', border: '1px solid #0f04', padding: '10px 16px', minWidth: 280 }} />
+
+      {/* Archive corruption — glitch rect container + scanline */}
+      <div id="tl-corruption-overlay" style={{ position: 'fixed', inset: 0, zIndex: 215, pointerEvents: 'none', overflow: 'hidden' }} />
+      <div id="tl-corruption-scanline" style={{ position: 'fixed', left: 0, top: 0, width: '100%', height: 6, zIndex: 216, background: 'linear-gradient(180deg,rgba(255,255,255,0.6) 0%,rgba(0,255,200,0.3) 100%)', opacity: 0, pointerEvents: 'none', boxShadow: '0 0 12px rgba(0,255,200,0.8)' }} />
+
+      {/* Notification box stack — flex column, appended dynamically, cascades top-left */}
+      <div id="tl-notification-stack" style={{ position: 'fixed', top: 48, left: 48, zIndex: 220, display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: 'none' }} />
+
+      {/* Vignette pulse — color vignette, optional text */}
+      <div id="tl-vignette-overlay" style={{ position: 'fixed', inset: 0, zIndex: 195, opacity: 0, pointerEvents: 'none' }} />
+
+      {/* Typewriter — text appears at configured position */}
+      <div id="tl-typewriter-container" style={{ position: 'fixed', inset: 0, zIndex: 210, pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Media overlay container — image/video sources (ImageOverlay.ts, VideoOverlay.ts) */}
+      <div id="tl-media-container" style={{ position: 'fixed', inset: 0, zIndex: 218, pointerEvents: 'none', overflow: 'hidden' }} />
     </>
   )
 }

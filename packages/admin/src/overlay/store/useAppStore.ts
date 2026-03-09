@@ -9,12 +9,15 @@ export interface PendingTransition {
   from: STATE
   to: STATE
   transitionType: string
+  exitTransition?: string
+  introTransition?: string
 }
 
 interface AppStore {
   visualState: VisualState
   pendingTransition: PendingTransition | null
   config: AppConfig
+  configLoaded: boolean
   obsConnected: boolean
 
   setVisualState: (s: VisualState) => void
@@ -28,11 +31,12 @@ export const useAppStore = create<AppStore>((set) => ({
   visualState: STATE.DESKTOP as VisualState,
   pendingTransition: null,
   config: DEFAULT_CONFIG,
+  configLoaded: false,
   obsConnected: false,
 
   setVisualState: (s) => set({ visualState: s }),
   setPendingTransition: (t) => set({ pendingTransition: t }),
   clearPendingTransition: () => set({ pendingTransition: null }),
-  setConfig: (c) => set({ config: c }),
+  setConfig: (c) => set({ config: c, configLoaded: true }),
   setObsConnected: (b) => set({ obsConnected: b }),
 }))

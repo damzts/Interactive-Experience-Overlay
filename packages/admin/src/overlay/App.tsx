@@ -16,21 +16,23 @@ import { LobbyScene } from './lobby/LobbyScene'
 import { playBootSequence } from './transitions/BootSequence'
 
 export default function App() {
-  const visualState = useAppStore((s) => s.visualState)
-  const config = useAppStore((s) => s.config)
-  const hasBooted = useRef(false)
+  const visualState   = useAppStore((s) => s.visualState)
+  const config        = useAppStore((s) => s.config)
+  const hasBooted     = useRef(false)
 
   // Wire socket events to the store
   useSocket()
 
+  useEffect(() => { audioEngine.init() }, [])
+
+  // Play boot sequence once per browser session.
+  // sessionStorage key is cleared when the browser tab closes.
   useEffect(() => {
-    audioEngine.init()
-    if (!hasBooted.current) {
-      hasBooted.current = true
-      playBootSequence(() => {
-        audioEngine.play('startup')
-      })
-    }
+    if (hasBooted.current) return
+    if (sessionStorage.getItem('ieom-booted')) return
+    hasBooted.current = true
+    sessionStorage.setItem('ieom-booted', '1')
+    playBootSequence(() => audioEngine.play('startup'))
   }, [])
 
   const currentScene = config.scenes[visualState] ?? config.scenes[STATE.DESKTOP]

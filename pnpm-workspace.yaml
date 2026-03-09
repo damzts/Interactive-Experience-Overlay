@@ -1,2 +1,4 @@
 packages:
-  - 'packages/*'
+  - 'packages/shared'
+  - 'packages/server'
+  - 'packages/admin'

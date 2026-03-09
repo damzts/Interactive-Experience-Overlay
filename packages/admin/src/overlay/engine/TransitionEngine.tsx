@@ -41,19 +41,26 @@ export function TransitionEngine() {
     // Kill any currently running timeline
     activeTimeline.current?.kill()
 
-    const fn = TRANSITION_MAP[pendingTransition.transitionType]
+    const complete = () => socket.emit('transition:complete')
 
-    if (!fn) {
-      // No GSAP animation defined for this pair → complete immediately
-      socket.emit('transition:complete')
-      return
+    const exitFn  = pendingTransition.exitTransition  ? TRANSITION_MAP[pendingTransition.exitTransition]  : undefined
+    const introFn = pendingTransition.introTransition ? TRANSITION_MAP[pendingTransition.introTransition] : undefined
+    const singleFn = TRANSITION_MAP[pendingTransition.transitionType]
+
+    if (exitFn && introFn) {
+      // Chain: exit plays fully, then intro plays, then complete
+      activeTimeline.current = exitFn(() => {
+        activeTimeline.current = introFn(complete)
+      })
+    } else if (exitFn) {
+      activeTimeline.current = exitFn(complete)
+    } else if (introFn) {
+      activeTimeline.current = introFn(complete)
+    } else if (singleFn) {
+      activeTimeline.current = singleFn(complete)
+    } else {
+      complete()
     }
-
-    const tl = fn(() => {
-      socket.emit('transition:complete')
-    })
-
-    activeTimeline.current = tl
   }, [pendingTransition])
 
   return null

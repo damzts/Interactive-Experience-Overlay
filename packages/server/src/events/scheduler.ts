@@ -90,7 +90,7 @@ export class EventScheduler {
       if (!this.machine.isTransitioning) {
         console.log('[scheduler] auto network glitch')
         appendLog('auto-event', 'network_glitch')
-        this.machine.triggerOverlay(OVERLAY_EVENT.NETWORK_GLITCH)
+        this.machine.triggerOverlay({ id: OVERLAY_EVENT.NETWORK_GLITCH, effects: [{ type: 'network-glitch', cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }] })
       }
       this.scheduleNextGlitch()
     }, delayMs)
