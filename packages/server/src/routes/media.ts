@@ -1,66 +1,90 @@
 import type { FastifyInstance } from 'fastify'
-import { readFileSync, existsSync } from 'fs'
-import { join, dirname } from 'path'
+import { readdirSync, existsSync, statSync } from 'fs'
+import { join, dirname, extname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const MANIFEST_PATH = join(__dirname, '../../../../../imagescrap/output/manifest.csv')
 
-interface MediaEntry {
-  gameName: string
-  localPath: string
+// Canonical location served at /assets/images/games — symlinked or real copy
+// Fallback: original imagescrap/output location
+const MONO_ROOT    = join(__dirname, '../../../..')
+const GAMES_ASSETS = join(MONO_ROOT, 'assets/images/games')
+const GAMES_LEGACY = join(MONO_ROOT, '../imagescrap/output')
+
+const GAMES_DIR = existsSync(GAMES_ASSETS) && readdirSync(GAMES_ASSETS).length > 0
+  ? GAMES_ASSETS
+  : GAMES_LEGACY
+
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp'])
+
+interface MediaCache {
+  games: Record<string, string[]>
+  total: number
 }
 
-let mediaCache: MediaEntry[] | null = null
+let mediaCache: MediaCache | null = null
 
-function loadMedia(): MediaEntry[] {
+function scanGames(): MediaCache {
   if (mediaCache) return mediaCache
-  if (!existsSync(MANIFEST_PATH)) {
-    console.warn('[media] manifest.csv not found at', MANIFEST_PATH)
-    return (mediaCache = [])
+
+  if (!existsSync(GAMES_DIR)) {
+    console.warn('[media] games directory not found at', GAMES_DIR)
+    return (mediaCache = { games: {}, total: 0 })
   }
 
-  const csv = readFileSync(MANIFEST_PATH, 'utf-8')
-  const lines = csv.split('\n').slice(1) // skip header: game_name,game_url,image_url,local_path,status,error
+  const games: Record<string, string[]> = {}
+  let total = 0
 
-  mediaCache = lines
-    .map((line) => {
-      const parts = line.split(',')
-      return { gameName: parts[0]?.trim() ?? '', localPath: parts[3]?.trim() ?? '' }
-    })
-    .filter((e) => e.gameName && e.localPath && e.localPath.includes('imagescrap/output/'))
+  const isCanonical = GAMES_DIR === GAMES_ASSETS
+  const urlBase = isCanonical ? '/assets/images/games' : '/media/games'
 
-  console.log(`[media] indexed ${mediaCache.length} images across games`)
-  return mediaCache
-}
+  for (const gameName of readdirSync(GAMES_DIR).sort()) {
+    const gameDir = join(GAMES_DIR, gameName)
+    try {
+      if (!statSync(gameDir).isDirectory()) continue
+    } catch {
+      continue
+    }
 
-function pathToUrl(localPath: string): string {
-  // "imagescrap/output/0001_Game/001.png" → "/media/games/0001_Game/001.png"
-  const rel = localPath.replace(/^imagescrap\/output\//, '')
-  return `/media/games/${rel}`
+    const images: string[] = []
+    for (const file of readdirSync(gameDir).sort()) {
+      if (!IMAGE_EXTS.has(extname(file).toLowerCase())) continue
+      images.push(`${urlBase}/${encodeURIComponent(gameName)}/${encodeURIComponent(file)}`)
+    }
+
+    if (images.length > 0) {
+      games[gameName] = images
+      total += images.length
+    }
+  }
+
+  console.log(`[media] scanned ${Object.keys(games).length} games, ${total} images from ${GAMES_DIR}`)
+  return (mediaCache = { games, total })
 }
 
 export async function mediaRoute(app: FastifyInstance) {
   /** Return all games with their image URL lists */
   app.get('/api/media/list', async (_req, _reply) => {
-    const entries = loadMedia()
-    const games: Record<string, string[]> = {}
-    for (const e of entries) {
-      if (!games[e.gameName]) games[e.gameName] = []
-      games[e.gameName].push(pathToUrl(e.localPath))
-    }
+    const cache = scanGames()
     return {
-      games,
-      gameNames: Object.keys(games),
-      total: entries.length,
+      games: cache.games,
+      gameNames: Object.keys(cache.games),
+      total: cache.total,
     }
   })
 
   /** Return a random single image URL */
   app.get('/api/media/random', async (_req, _reply) => {
-    const entries = loadMedia()
-    if (entries.length === 0) return { url: null }
-    const e = entries[Math.floor(Math.random() * entries.length)]
-    return { url: pathToUrl(e.localPath) }
+    const cache = scanGames()
+    const all = Object.values(cache.games).flat()
+    if (all.length === 0) return { url: null }
+    return { url: all[Math.floor(Math.random() * all.length)] }
+  })
+
+  /** Invalidate the scan cache (call after adding new game images) */
+  app.post('/api/media/refresh', async (_req, _reply) => {
+    mediaCache = null
+    const cache = scanGames()
+    return { ok: true, total: cache.total }
   })
 }

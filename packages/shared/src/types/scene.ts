@@ -26,18 +26,27 @@ export interface LobbyConfig {
   starsCount: number
 }
 
-/** A desktop application icon that launches a scene */
+/** Whether an application launches a fullscreen Scene or a stacking Widget window */
+export type ApplicationType = 'scene' | 'widget'
+
+/** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
   label: string
   icon: string
+  /** 'scene' = fullscreen (replaces display), 'widget' = stacking Win98 window on Desktop */
+  appType: ApplicationType
   targetSceneId: string
   /** @deprecated Use introTransition / exitTransition */
   transitionType: string
-  /** Transition played when entering this app (desktop \u2192 app). Overrides TRANSITION_TYPE map. */
+  /** Transition played when entering this app (desktop → app). Overrides TRANSITION_TYPE map. */
   introTransition?: string
-  /** Transition played when leaving this app back to desktop (app \u2192 desktop). */
+  /** Transition played when leaving this app back to desktop (app → desktop). */
   exitTransition?: string
+  /** Absolute pixel position of the icon on the 1920×1080 desktop canvas */
+  iconPosition?: { x: number; y: number }
+  /** Visual size of the desktop icon */
+  iconSize?: 'small' | 'normal' | 'large'
 }
 
 /** A scene is an ordered list of source instances */
@@ -101,6 +110,30 @@ export interface OverlayStyle {
   textColor: string
 }
 
+/** Win98-specific desktop OS configuration */
+export interface DesktopConfig {
+  /** Icon size applied to all icons when no per-app iconSize is set */
+  defaultIconSize: 'small' | 'normal' | 'large'
+  /** When true: icons snap to auto-column; when false: icons use absolute iconPosition */
+  autoArrangeIcons: boolean
+  /** Screen saver settings */
+  screenSaver: {
+    enabled: boolean
+    /** Minutes of idle before activating */
+    timeoutMinutes: number
+    /** Animation preset */
+    preset: 'flying-windows' | 'starfield' | 'marquee' | 'pipes' | 'blank'
+  }
+  /** System sound SFX file paths (relative to ieom/assets/sfx/system/) */
+  systemSounds: {
+    startup: string
+    error: string
+    notify: string
+    click: string
+    close: string
+  }
+}
+
 /** Root application config — stored in server memory (v1) */
 export interface AppConfig {
   scenes: Record<string, Scene>
@@ -119,5 +152,5 @@ export interface AppConfig {
     musicVolume: number
   }
   overlayStyle: OverlayStyle
+  desktopConfig?: DesktopConfig
 }
-

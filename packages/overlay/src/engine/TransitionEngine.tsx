@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import { socket } from '../socket/client'
 import type gsap from 'gsap'
 import { lobbyToDesktop } from '../transitions/LobbyToDesktop'
+import { desktopToLobby } from '../transitions/DesktopToLobby'
 import { lobbyToGameplay } from '../transitions/LobbyToGameplay'
 import { gameplayToLobby } from '../transitions/GameplayToLobby'
 import { lobbyToTV } from '../transitions/LobbyToTV'
@@ -17,6 +18,7 @@ type TransitionFn = (onComplete: () => void) => gsap.core.Timeline
 
 const TRANSITION_MAP: Record<string, TransitionFn> = {
   'lobby-to-desktop':    lobbyToDesktop,
+  'desktop-to-lobby':    desktopToLobby,
   'desktop-to-gameplay': lobbyToGameplay,  // loading-dialog animation
   'gameplay-to-desktop': gameplayToLobby,  // CRT static wipe
   'desktop-to-tv':       lobbyToTV,        // channel-change sweep

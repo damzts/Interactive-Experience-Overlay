@@ -10,6 +10,8 @@ import { ParticlesLayer } from './layers/ParticlesLayer'
 import { CSSEffectsLayer } from './layers/CSSEffectsLayer'
 import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
+import { MusicWidget } from './desktop/MusicWidget'
+import { ArchiveWidget } from './desktop/ArchiveWidget'
 import { LobbyScene } from './lobby/LobbyScene'
 import { playBootSequence } from './transitions/BootSequence'
 
@@ -61,6 +63,12 @@ export default function App() {
       {/* Win98 OS desktop */}
       <div id="desktop-layer">
         <Desktop apps={config.applications} />
+      </div>
+
+      {/* Stacking widget windows (MUSIC, ARCHIVE) — above desktop */}
+      <div id="widget-layer">
+        {visualState === STATE.MUSIC   && <MusicWidget />}
+        {visualState === STATE.ARCHIVE && <ArchiveWidget />}
       </div>
 
       {/* Global CSS effects — CRT, vignette, grain, flicker, chromatic */}

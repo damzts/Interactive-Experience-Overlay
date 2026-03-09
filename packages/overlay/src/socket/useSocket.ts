@@ -43,14 +43,15 @@ export function useSocket() {
       to: STATE
       transitionType: string
     }) => {
+      audioEngine.play('transition')
       setPendingTransition(payload as PendingTransition)
     }
 
     const onOverlayShow = (payload: { event: OVERLAY_EVENT }) => {
-      if (payload.event === OVERLAY_EVENT.DEATH)          runDeathOverlay()
-      if (payload.event === OVERLAY_EVENT.VICTORY)        runVictoryOverlay()
-      if (payload.event === OVERLAY_EVENT.REVIVE)         runReviveOverlay()
-      if (payload.event === OVERLAY_EVENT.NETWORK_GLITCH) runNetworkGlitch()
+      if (payload.event === OVERLAY_EVENT.DEATH)          { runDeathOverlay();    audioEngine.play('death')    }
+      if (payload.event === OVERLAY_EVENT.VICTORY)        { runVictoryOverlay();  audioEngine.play('victory')  }
+      if (payload.event === OVERLAY_EVENT.REVIVE)         { runReviveOverlay();   audioEngine.play('revive')   }
+      if (payload.event === OVERLAY_EVENT.NETWORK_GLITCH) { runNetworkGlitch();   audioEngine.play('glitch')  }
     }
 
     const onConfigUpdate = (config: AppConfig) => {

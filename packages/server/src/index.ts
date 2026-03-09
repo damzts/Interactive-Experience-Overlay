@@ -2,7 +2,7 @@ import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
 import { Server as SocketIO } from 'socket.io'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { SceneMachine } from './state/machine.js'
@@ -65,9 +65,17 @@ if (existsSync(assetsDir)) {
   })
 }
 
-// Serve scraped game images
-const scrapedDir = join(PROJECT_ROOT, 'imagescrap/output')
-if (existsSync(scrapedDir)) {
+// Serve scraped game images at the canonical /assets/images/games path.
+// Only registers if the assets/images/games folder is empty or missing
+// (i.e. not yet symlinked) — avoids prefix collision with the /assets route.
+const gamesAssetsDir = join(MONO_ROOT, 'assets/images/games')
+const scrapedDir     = join(PROJECT_ROOT, 'imagescrap/output')
+const gamesAssetsHasContent = existsSync(gamesAssetsDir)
+  && readdirSync(gamesAssetsDir).length > 0
+
+if (!gamesAssetsHasContent && existsSync(scrapedDir)) {
+  // assets/images/games is empty or missing — serve scraped images under a
+  // separate prefix so the API can reference /media/games URLs.
   await app.register(fastifyStatic, {
     root: scrapedDir,
     prefix: '/media/games',
