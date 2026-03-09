@@ -62,7 +62,7 @@ export default function App() {
         {visualState === STATE.LOBBY && <LobbyScene />}
       </div>
 
-      {/* Win98 OS desktop */}
+      {/* Win98 OS desktop — CSS controls visibility via .state-desktop / .state-music / .state-archive */}
       <div id="desktop-layer">
         <Desktop apps={config.applications} />
       </div>

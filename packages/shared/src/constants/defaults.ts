@@ -71,6 +71,18 @@ export const DEFAULT_CONFIG: AppConfig = {
       id: 'GAMEPLAY',
       label: 'GAMEPLAY',
       backgroundOpaque: false,
+      sources: [],
+    },
+    TV: {
+      id: 'TV',
+      label: 'TV',
+      backgroundOpaque: true,
+      sources: [],
+    },
+    'scene-battlefield6': {
+      id: 'scene-battlefield6',
+      label: 'Battlefield6.exe',
+      backgroundOpaque: false,
       sources: [
         {
           id: 'gameplay-crt',
@@ -82,9 +94,9 @@ export const DEFAULT_CONFIG: AppConfig = {
         },
       ],
     },
-    TV: {
-      id: 'TV',
-      label: 'TV MODE',
+    'scene-tv': {
+      id: 'scene-tv',
+      label: 'TV.exe',
       backgroundOpaque: true,
       sources: [
         {
@@ -185,7 +197,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       label: 'Battlefield6.exe',
       icon: '🎮',
       appType: 'scene' as const,
-      targetSceneId: STATE.GAMEPLAY,
+      targetSceneId: 'scene-battlefield6',
       transitionType: 'desktop-to-gameplay',
       introTransition: 'desktop-to-gameplay',
       exitTransition: 'gameplay-to-desktop',
@@ -197,7 +209,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       label: 'TV.exe',
       icon: '📺',
       appType: 'scene' as const,
-      targetSceneId: STATE.TV,
+      targetSceneId: 'scene-tv',
       transitionType: 'desktop-to-tv',
       introTransition: 'desktop-to-tv',
       exitTransition: 'tv-to-desktop',

@@ -41,8 +41,8 @@ export class SceneMachine extends EventEmitter {
       return { ok: false, error: 'Already transitioning' }
     }
 
-    if (!NAVIGABLE_STATES.includes(target)) {
-      return { ok: false, error: `${target} is not a navigable state` }
+    if (target === STATE.TRANSITIONING) {
+      return { ok: false, error: 'Cannot navigate to TRANSITIONING state' }
     }
     if (this.snap.current === target) {
       return { ok: false, error: `Already in ${target}` }

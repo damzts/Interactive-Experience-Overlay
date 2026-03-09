@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { STATE, OVERLAY_EVENT } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
-  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene,
+  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -79,6 +79,258 @@ const TRANSITION_OPTIONS = [
   { id: 'wipe-left',           label: 'Wipe Left',     desc: 'Panel sweeps from right' },
   { id: 'wipe-right',          label: 'Wipe Right',    desc: 'Panel sweeps from left' },
 ]
+
+// ── Source catalog ────────────────────────────────────────────────
+interface FieldDef {
+  key: string; label: string
+  type: 'text' | 'number' | 'color' | 'boolean' | 'select'
+  options?: string[]; min?: number; max?: number; step?: number; placeholder?: string
+}
+interface CatalogEntry {
+  type: string; label: string; icon: string; desc: string
+  defaultConfig: Record<string, unknown>
+  fields: FieldDef[]
+  defaultPosition?: { x: number; y: number; width: number; height: number }
+}
+const SOURCE_CATALOG: CatalogEntry[] = [
+  {
+    type: 'image-slideshow', label: 'Game Slideshow', icon: '🎞', desc: 'Auto-cycling scraped game screenshots',
+    defaultConfig: { interval: 6, shuffle: true },
+    fields: [
+      { key: 'interval', label: 'Interval (s)', type: 'number', min: 1, max: 60, step: 1 },
+      { key: 'shuffle',  label: 'Shuffle',      type: 'boolean' },
+    ],
+  },
+  {
+    type: 'image-static', label: 'Static Image', icon: '🖼', desc: 'Single image — local path or URL',
+    defaultConfig: { url: '', objectFit: 'cover', opacity: 1 },
+    fields: [
+      { key: 'url',       label: 'URL / Path', type: 'text', placeholder: '/assets/backgrounds/name.jpg' },
+      { key: 'objectFit', label: 'Fit',        type: 'select', options: ['cover', 'contain', 'fill'] },
+      { key: 'opacity',   label: 'Opacity',    type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    type: 'video-loop', label: 'Video Loop', icon: '🎬', desc: 'Muted looping video — local path or URL',
+    defaultConfig: { url: '', opacity: 1 },
+    fields: [
+      { key: 'url',     label: 'URL / Path', type: 'text', placeholder: '/assets/video/name.mp4' },
+      { key: 'opacity', label: 'Opacity',    type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    type: 'solid-color', label: 'Solid Color', icon: '⬛', desc: 'Flat opaque color fill',
+    defaultConfig: { color: '#000000' },
+    fields: [
+      { key: 'color', label: 'Color', type: 'color' },
+    ],
+  },
+  {
+    type: 'color-overlay', label: 'Color Overlay', icon: '🎨', desc: 'Semi-transparent color wash',
+    defaultConfig: { color: '#000000', opacity: 0.5 },
+    fields: [
+      { key: 'color',   label: 'Color',   type: 'color' },
+      { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    type: 'crt-effect', label: 'CRT Scanlines', icon: '📺', desc: 'Retro scanline + vignette overlay',
+    defaultConfig: { scanlineIntensity: 0.25, vignetteStrength: 0.5 },
+    fields: [
+      { key: 'scanlineIntensity', label: 'Scanlines', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'vignetteStrength',  label: 'Vignette',  type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    type: 'vignette', label: 'Vignette', icon: '◉', desc: 'Edge-darkening radial gradient',
+    defaultConfig: { color: '#000000', strength: 0.6 },
+    fields: [
+      { key: 'color',    label: 'Color',    type: 'color' },
+      { key: 'strength', label: 'Strength', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    type: 'noise-grain', label: 'Film Grain', icon: '📽', desc: 'Animated film grain noise (overlay blend)',
+    defaultConfig: { opacity: 0.08, animated: true },
+    fields: [
+      { key: 'opacity',  label: 'Opacity',  type: 'number', min: 0, max: 0.5, step: 0.01 },
+      { key: 'animated', label: 'Animated', type: 'boolean' },
+    ],
+  },
+  {
+    type: 'text-widget', label: 'Text Label', icon: '✍', desc: 'Static or typewriter text block',
+    defaultConfig: { content: 'Label', font: 'vt323', fontSize: 28, color: '#ffffff', typewriterMode: false },
+    fields: [
+      { key: 'content',        label: 'Content',    type: 'text' },
+      { key: 'font',           label: 'Font',       type: 'select', options: ['vt323', 'press-start', 'monospace', 'serif'] },
+      { key: 'fontSize',       label: 'Size',       type: 'number', min: 8, max: 200, step: 2 },
+      { key: 'color',          label: 'Color',      type: 'color' },
+      { key: 'typewriterMode', label: 'Typewriter', type: 'boolean' },
+    ],
+  },
+  {
+    type: 'clock-widget', label: 'Clock', icon: '🕐', desc: 'Live digital clock display',
+    defaultConfig: { format: '24h', color: '#00ff41', fontSize: 36, font: 'vt323' },
+    defaultPosition: { x: 1680, y: 20, width: 220, height: 60 },
+    fields: [
+      { key: 'format',   label: 'Format', type: 'select', options: ['24h', '12h', '24h-sec', '12h-sec'] },
+      { key: 'color',    label: 'Color',  type: 'color' },
+      { key: 'fontSize', label: 'Size',   type: 'number', min: 8, max: 200, step: 2 },
+      { key: 'font',     label: 'Font',   type: 'select', options: ['vt323', 'press-start', 'monospace', 'serif'] },
+    ],
+  },
+]
+
+function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="text-[10px] text-zinc-500 w-16 shrink-0">{field.label}</label>
+      {field.type === 'color' && (
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <input type="color" value={String(value ?? '#000000')} onChange={(e) => onChange(e.target.value)} className="w-6 h-5 shrink-0" />
+          <input type="text"  value={String(value ?? '')}        onChange={(e) => onChange(e.target.value)} className="flex-1 font-mono text-[10px] min-w-0" />
+        </div>
+      )}
+      {field.type === 'number' && (
+        <input type="number" value={Number(value ?? 0)}
+          min={field.min} max={field.max} step={field.step}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 font-mono text-xs" />
+      )}
+      {field.type === 'text' && (
+        <input type="text" value={String(value ?? '')} placeholder={field.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 text-xs" />
+      )}
+      {field.type === 'boolean' && (
+        <input type="checkbox" checked={Boolean(value)}
+          onChange={(e) => onChange(e.target.checked)} />
+      )}
+      {field.type === 'select' && (
+        <select value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} className="flex-1 text-xs">
+          {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )}
+    </div>
+  )
+}
+
+function SourcesEditor({ sceneId }: { sceneId: string }) {
+  const config     = useAdminStore((s) => s.config)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const scene      = config.scenes[sceneId] as (typeof config.scenes)[string] | undefined
+  const sources    = (scene?.sources ?? []) as SourceInstance[]
+  const [expanded,    setExpanded]    = useState<string | null>(null)
+  const [showCatalog, setShowCatalog] = useState(false)
+
+  const save = (next: SourceInstance[]) =>
+    saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...scene, sources: next } } })
+
+  const toggle   = (id: string) => save(sources.map((s) => s.id === id ? { ...s, visible: !s.visible } : s))
+  const remove   = (id: string) => { save(sources.filter((s) => s.id !== id)); if (expanded === id) setExpanded(null) }
+  const setConfig = (id: string, cfg: Record<string, unknown>) => save(sources.map((s) => s.id === id ? { ...s, config: cfg } : s))
+  const setPos   = (id: string, f: keyof SourceInstance['position'], v: number) =>
+    save(sources.map((s) => s.id === id ? { ...s, position: { ...s.position, [f]: v } } : s))
+  const moveZ    = (id: string, dir: 1 | -1) =>
+    save(sources.map((s) => s.id === id ? { ...s, zIndex: s.zIndex + dir } : s))
+
+  const addSource = (entry: CatalogEntry) => {
+    const newSrc: SourceInstance = {
+      id:         entry.type + '-' + Date.now(),
+      pluginType: entry.type,
+      config:     { ...entry.defaultConfig },
+      position:   entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
+      zIndex:     sources.length,
+      visible:    true,
+    }
+    save([...sources, newSrc])
+    setShowCatalog(false)
+    setExpanded(newSrc.id)
+  }
+
+  const sorted = [...sources].sort((a, b) => a.zIndex - b.zIndex)
+
+  return (
+    <div className="space-y-1">
+      {sorted.length === 0 && (
+        <div className="text-[10px] text-zinc-600 italic py-1">No sources. Game capture shows through.</div>
+      )}
+      {sorted.map((src) => {
+        const meta  = SOURCE_CATALOG.find((c) => c.type === src.pluginType)
+        const isExp = expanded === src.id
+        return (
+          <div key={src.id} className="rounded border border-zinc-700/60 bg-zinc-800/40 overflow-hidden">
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <button
+                title={src.visible ? 'Hide' : 'Show'}
+                onClick={() => toggle(src.id)}
+                className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (src.visible ? 'bg-emerald-400 hover:bg-emerald-600' : 'bg-zinc-600 hover:bg-zinc-400')}
+              />
+              <span className="text-[10px] text-zinc-500 shrink-0">{meta?.icon ?? '▣'}</span>
+              <span className="text-[11px] text-zinc-200 flex-1 truncate font-mono">{src.id}</span>
+              <span className="text-[9px] text-zinc-600 shrink-0">{src.pluginType}</span>
+              <button onClick={() => setExpanded(isExp ? null : src.id)} className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1">{isExp ? '▲' : '▼'}</button>
+              <button onClick={() => remove(src.id)} className="text-[10px] text-red-500 hover:text-red-300 px-1">✕</button>
+            </div>
+            {isExp && (
+              <div className="border-t border-zinc-700/50 px-2 py-2 space-y-2">
+                {meta?.fields.map((f) => (
+                  <SourceField key={f.key} field={f} value={src.config[f.key]}
+                    onChange={(v) => setConfig(src.id, { ...src.config, [f.key]: v })} />
+                ))}
+                <div>
+                  <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Position (px on 1920×1080)</div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(['x', 'y', 'width', 'height'] as const).map((f) => (
+                      <div key={f}>
+                        <div className="text-[8px] text-zinc-600 mb-0.5">{f}</div>
+                        <input type="number" value={src.position[f]}
+                          onChange={(e) => setPos(src.id, f, Number(e.target.value))}
+                          className="w-full font-mono text-[10px] px-1 py-0.5" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-zinc-600 uppercase tracking-wider">Z-index</span>
+                  <span className="font-mono text-[10px] text-zinc-400 w-4 text-center">{src.zIndex}</span>
+                  <button onClick={() => moveZ(src.id,  1)} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300">↑</button>
+                  <button onClick={() => moveZ(src.id, -1)} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300">↓</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {showCatalog ? (
+        <div className="border border-zinc-700 rounded bg-zinc-900 p-2 mt-1">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Choose source type</span>
+            <button onClick={() => setShowCatalog(false)} className="text-zinc-600 hover:text-zinc-300 text-xs">✕</button>
+          </div>
+          <div className="space-y-0.5 max-h-64 overflow-y-auto">
+            {SOURCE_CATALOG.map((entry) => (
+              <button key={entry.type} onClick={() => addSource(entry)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors hover:bg-zinc-700/60 border border-transparent hover:border-zinc-600/50">
+                <span className="text-base">{entry.icon}</span>
+                <div className="min-w-0">
+                  <div className="text-[11px] text-zinc-200 font-medium">{entry.label}</div>
+                  <div className="text-[9px] text-zinc-500 truncate">{entry.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowCatalog(true)}
+          className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/60 border border-dashed border-zinc-800 hover:border-zinc-600 transition-colors mt-1">
+          <span>+</span><span>Add Source</span>
+        </button>
+      )}
+    </div>
+  )
+}
 
 const BG_TYPES: { id: BackgroundType; label: string }[] = [
   { id: 'none',      label: 'None'     },
@@ -761,8 +1013,6 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
   const config      = useAdminStore((s) => s.config)
   const saveConfig  = useAdminStore((s) => s.saveConfig)
   const linkedApp   = config.applications.find((a) => a.targetSceneId === sceneId)
-  const sceneEntry  = (config.scenes as Record<string, { sources?: { id: string; pluginType: string; visible: boolean }[] } | undefined>)[sceneId]
-  const sources     = sceneEntry?.sources ?? []
 
   const updateAppTransition = (key: 'introTransition' | 'exitTransition', val: string) => {
     if (!linkedApp) return
@@ -775,19 +1025,7 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
   return (
     <div className="space-y-3">
       <Panel title="Sources">
-        {sources.length === 0 ? (
-          <div className="text-[10px] text-zinc-600 italic">No sources. Game capture shows through when opacity allows.</div>
-        ) : (
-          <div className="space-y-1">
-            {sources.map((src) => (
-              <div key={src.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-zinc-800/60 border border-zinc-700/60">
-                <span className={'w-1.5 h-1.5 rounded-full shrink-0 ' + (src.visible ? 'bg-emerald-400' : 'bg-zinc-600')} />
-                <span className="text-zinc-300 flex-1 font-mono text-[10px] truncate">{src.id}</span>
-                <span className="text-[10px] text-zinc-600 font-mono">{src.pluginType}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <SourcesEditor sceneId={sceneId} />
       </Panel>
       {linkedApp && (
         <Panel title="Transitions">
@@ -994,11 +1232,15 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
 
 // ── LeftSidebar ────────────────────────────────────────────────────
 
-function SidebarBtn({ icon, label, live, active, onClick }: {
-  icon: string; label: string; live?: boolean; active: boolean; onClick: () => void
+function SidebarBtn({ icon, label, live, active, onClick, onDoubleClick }: {
+  icon: string; label: string; live?: boolean; active: boolean
+  onClick: () => void; onDoubleClick?: () => void
 }) {
   return (
-    <button onClick={onClick}
+    <button
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      title={onDoubleClick ? 'Click to configure · Double-click to activate' : undefined}
       className={'w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors mb-0.5 text-left border ' +
         (active ? 'bg-zinc-700/90 text-zinc-100 border-zinc-600' : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800/70 border-transparent')}>
       <span className="text-sm w-4 text-center shrink-0 leading-none">{icon}</span>
@@ -1026,8 +1268,8 @@ function SectionLabel({ children }: { children: string }) {
   )
 }
 
-function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
-  selected: SelectedItem | null; onSelect: (item: SelectedItem) => void
+function LeftSidebar({ selected, onSelect, onActivate, eventDefs, onAddEvent }: {
+  selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
   eventDefs: EventDef[]; onAddEvent: () => void
 }) {
   const currentState = useAdminStore((s) => s.currentState)
@@ -1044,8 +1286,8 @@ function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
     <div className="w-52 shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto flex flex-col pb-2">
 
       <SectionLabel>Environments</SectionLabel>
-      <SidebarBtn icon="🖥" label="Lobby"   live={currentState === STATE.LOBBY}   active={isActive({ kind: 'env', envState: STATE.LOBBY })}   onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })} />
-      <SidebarBtn icon="💾" label="Desktop" live={currentState === STATE.DESKTOP} active={isActive({ kind: 'env', envState: STATE.DESKTOP })} onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })} />
+      <SidebarBtn icon="🖥" label="Lobby"   live={currentState === STATE.LOBBY}   active={isActive({ kind: 'env', envState: STATE.LOBBY })}   onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })}   onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
+      <SidebarBtn icon="💾" label="Desktop" live={currentState === STATE.DESKTOP} active={isActive({ kind: 'env', envState: STATE.DESKTOP })} onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })} onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.DESKTOP })} />
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
@@ -1057,7 +1299,8 @@ function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
           <SidebarBtn key={sc.id} icon={app.icon} label={sc.label}
             live={currentState === sc.id}
             active={isActive({ kind: 'scene', sceneState: sc.id })}
-            onClick={() => onSelect({ kind: 'scene', sceneState: sc.id })} />
+            onClick={() => onSelect({ kind: 'scene', sceneState: sc.id })}
+            onDoubleClick={() => onActivate({ kind: 'scene', sceneState: sc.id })} />
         )
       })}
 
@@ -1068,7 +1311,8 @@ function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
         <SidebarBtn key={app.id} icon={app.icon} label={app.label}
           live={currentState === app.targetSceneId}
           active={isActive({ kind: 'app', appId: app.id })}
-          onClick={() => onSelect({ kind: 'app', appId: app.id })} />
+          onClick={() => onSelect({ kind: 'app', appId: app.id })}
+          onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
       ))}
       <AddBtn label="New Application" onClick={() => {
         const sceneId = 'SCENE_' + Date.now()
@@ -1085,7 +1329,8 @@ function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
         <SidebarBtn key={app.id} icon={app.icon} label={app.label}
           live={currentState === app.targetSceneId}
           active={isActive({ kind: 'app', appId: app.id })}
-          onClick={() => onSelect({ kind: 'app', appId: app.id })} />
+          onClick={() => onSelect({ kind: 'app', appId: app.id })}
+          onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
       ))}
       <AddBtn label="New Widget" onClick={() => {
         const a: Application = { id: 'widget-' + Date.now(), label: 'New Widget', icon: '▣', appType: 'widget', targetSceneId: STATE.MUSIC, transitionType: 'default' }
@@ -1100,7 +1345,8 @@ function LeftSidebar({ selected, onSelect, eventDefs, onAddEvent }: {
         <SidebarBtn key={def.id} icon={def.icon} label={def.label}
           live={def.auto.enabled}
           active={isActive({ kind: 'event', id: def.id })}
-          onClick={() => onSelect({ kind: 'event', id: def.id })} />
+          onClick={() => onSelect({ kind: 'event', id: def.id })}
+          onDoubleClick={() => onActivate({ kind: 'event', id: def.id })} />
       ))}
       <AddBtn label="New Event" onClick={onAddEvent} />
 
@@ -1184,6 +1430,21 @@ export function Dashboard() {
     }
   }
 
+  const handleActivate = (item: SelectedItem) => {
+    // Ensure item is selected first
+    setSelected(item)
+    if (item.kind === 'env') {
+      socket.emit('scene:change', item.envState)
+    } else if (item.kind === 'scene') {
+      socket.emit('scene:change', item.sceneState)
+    } else if (item.kind === 'app') {
+      const app = applications.find((a) => a.id === item.appId)
+      if (app) socket.emit('scene:change', app.targetSceneId)
+    } else if (item.kind === 'event') {
+      socket.emit('overlay:trigger', item.id as never)
+    }
+  }
+
   const handleAddEvent = () => {
     const id  = 'custom-' + Date.now()
     const def: EventDef = { id, label: 'New Event', icon: '⚡', color: 'text-cyan-400', desc: '', auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } }
@@ -1208,7 +1469,7 @@ export function Dashboard() {
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
       <TopBar onSettings={() => handleSelect({ kind: 'settings' })} />
       <div className="flex flex-1 overflow-hidden">
-        <LeftSidebar selected={selected} onSelect={handleSelect} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
+        <LeftSidebar selected={selected} onSelect={handleSelect} onActivate={handleActivate} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
         <LivePreview />
         <RightPane selected={selected} onClose={() => setSelected(null)} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />
       </div>
