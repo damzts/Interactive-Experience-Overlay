@@ -14,6 +14,7 @@ import { MusicWidget } from './desktop/MusicWidget'
 import { ArchiveWidget } from './desktop/ArchiveWidget'
 import { LobbyScene } from './lobby/LobbyScene'
 import { playBootSequence } from './transitions/BootSequence'
+import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 
 export default function App() {
   const visualState   = useAppStore((s) => s.visualState)
@@ -40,42 +41,61 @@ export default function App() {
   // Desktop scene owns the visual style; fall back to root overlayStyle for compat
   const overlayStyle = config.scenes[STATE.DESKTOP]?.style ?? config.overlayStyle
 
+  // Play per-scene background music track (null = silence)
+  useEffect(() => {
+    audioEngine.playMusic(currentScene?.musicTrack ?? null)
+  }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div id="overlay-root" className={`state-${visualState.toLowerCase()}`}>
       {/* Configurable background (gradient / image / video / pattern) */}
       <div id="background-layer">
-        <BackgroundLayer style={overlayStyle} />
+        <LayerErrorBoundary name="background">
+          <BackgroundLayer style={overlayStyle} />
+        </LayerErrorBoundary>
       </div>
 
       {/* Particle system on top of background */}
       <div id="particles-layer">
-        <ParticlesLayer {...overlayStyle.particles} />
+        <LayerErrorBoundary name="particles">
+          <ParticlesLayer {...overlayStyle.particles} />
+        </LayerErrorBoundary>
       </div>
 
       {/* All plugin sources (backgrounds, effects, overlays) */}
       <div id="sources-layer">
-        <LayerStack sources={visibleSources} />
+        <LayerErrorBoundary name="sources">
+          <LayerStack sources={visibleSources} />
+        </LayerErrorBoundary>
       </div>
 
       {/* 3D lobby room — only mounted when in LOBBY state (no wasted render otherwise) */}
       <div id="lobby-layer">
-        {visualState === STATE.LOBBY && <LobbyScene />}
+        <LayerErrorBoundary name="lobby">
+          {visualState === STATE.LOBBY && <LobbyScene />}
+        </LayerErrorBoundary>
       </div>
 
       {/* Win98 OS desktop — CSS controls visibility via .state-desktop / .state-music / .state-archive */}
       <div id="desktop-layer">
-        <Desktop apps={config.applications} />
+        <LayerErrorBoundary name="desktop">
+          <Desktop apps={config.applications} />
+        </LayerErrorBoundary>
       </div>
 
       {/* Stacking widget windows (MUSIC, ARCHIVE) — above desktop */}
       <div id="widget-layer">
-        {visualState === STATE.MUSIC   && <MusicWidget />}
-        {visualState === STATE.ARCHIVE && <ArchiveWidget />}
+        <LayerErrorBoundary name="widgets">
+          {visualState === STATE.MUSIC   && <MusicWidget />}
+          {visualState === STATE.ARCHIVE && <ArchiveWidget />}
+        </LayerErrorBoundary>
       </div>
 
       {/* Global CSS effects — CRT, vignette, grain, flicker, chromatic */}
       <div id="effects-layer">
-        <CSSEffectsLayer effects={overlayStyle.effects} />
+        <LayerErrorBoundary name="effects">
+          <CSSEffectsLayer effects={overlayStyle.effects} />
+        </LayerErrorBoundary>
       </div>
 
       {/* GSAP transition effect elements (loading window, flash, static, etc.) */}

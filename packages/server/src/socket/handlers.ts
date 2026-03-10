@@ -79,10 +79,6 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
       machine.triggerOverlay(payload)
     })
 
-    socket.on('transition:complete', () => {
-      machine.completeTransition()
-    })
-
     socket.on('panic', () => {
       scheduler?.resetIdleTimer()
       machine.forceState(STATE.DESKTOP)

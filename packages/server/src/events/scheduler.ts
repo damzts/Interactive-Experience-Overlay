@@ -86,8 +86,8 @@ export class EventScheduler {
   private scheduleNextGlitch() {
     const delayMs = randBetween(GLITCH_MIN_SECONDS * 1000, GLITCH_MAX_SECONDS * 1000)
     this.glitchTimer = setTimeout(() => {
-      // Only fire if not in the middle of a transition
-      if (!this.machine.isTransitioning) {
+      // Only fire if not currently transitioning (check by comparing state)
+      if (this.machine.currentState !== 'TRANSITIONING') {
         console.log('[scheduler] auto network glitch')
         appendLog('auto-event', 'network_glitch')
         this.machine.triggerOverlay({ id: OVERLAY_EVENT.NETWORK_GLITCH, effects: [{ type: 'network-glitch', cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }] })

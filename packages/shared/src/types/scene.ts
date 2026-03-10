@@ -47,6 +47,13 @@ export interface Application {
   iconPosition?: { x: number; y: number }
   /** Visual size of the desktop icon */
   iconSize?: 'small' | 'normal' | 'large'
+  /** Optional cinematic pipeline played before the scene changes.
+   *  Fire effects (e.g. a static burst or OS launch animation), wait delayMs, then change scene. */
+  launchPipeline?: {
+    effects: EffectConfig[]
+    /** Milliseconds to wait after firing effects before emitting scene:change */
+    delayMs: number
+  }
 }
 
 /** A scene is an ordered list of source instances */
@@ -63,6 +70,9 @@ export interface Scene {
   introTransition?: string
   /** Transition effect played when leaving this scene/environment. */
   exitTransition?: string
+  /** Background music track URL (or /assets/audio/music/… path) to play when this scene is active.
+   *  Leave undefined for silence. Previous track will crossfade out over 1.5 s. */
+  musicTrack?: string
 }
 
 /** ── Overlay style system ─────────────────────────────────────── */
@@ -128,7 +138,7 @@ export interface DesktopConfig {
     /** Minutes of idle before activating */
     timeoutMinutes: number
     /** Animation preset */
-    preset: 'flying-windows' | 'starfield' | 'marquee' | 'pipes' | 'blank'
+    preset: 'flying-windows' | 'starfield' | 'marquee' | 'pipes' | 'blank' | 'gallery-scroll'
   }
   /** System sound SFX file paths (relative to ieom/assets/sfx/system/) */
   systemSounds: {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { socket } from '../socket/client'
 import { useAppStore } from '../store/useAppStore'
 
-type Preset = 'starfield' | 'marquee' | 'pipes' | 'blank' | 'flying-windows'
+type Preset = 'starfield' | 'marquee' | 'pipes' | 'blank' | 'flying-windows' | 'gallery-scroll'
 
 // ── Starfield preset ──────────────────────────────────────────────────────
 interface Star { x: number; y: number; vx: number; vy: number; size: number }
@@ -153,6 +153,181 @@ function BlankPreset() {
   return <div style={{ position: 'absolute', inset: 0, background: '#000', opacity: 0.95 }} />
 }
 
+// ── Pipes 3D preset ────────────────────────────────────────────────────────
+const PIPE_COLORS = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff', '#44ffff', '#ff8800', '#00ffcc']
+const PIPE_W = 16
+
+function PipesPreset() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    canvas.width  = 1920
+    canvas.height = 1080
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    const cols = Math.floor(canvas.width  / PIPE_W)
+    const rows = Math.floor(canvas.height / PIPE_W)
+    type Dir = 'R' | 'L' | 'U' | 'D'
+    const DIRS: Dir[] = ['R', 'L', 'U', 'D']
+    const dx: Record<Dir, number> = { R: 1,  L: -1, U: 0, D: 0 }
+    const dy: Record<Dir, number> = { R: 0,  L: 0,  U: -1, D: 1 }
+
+    const pipes: { x: number; y: number; dir: Dir; color: string; steps: number }[] = []
+
+    const spawn = () => {
+      pipes.push({
+        x:     Math.floor(Math.random() * cols),
+        y:     Math.floor(Math.random() * rows),
+        dir:   DIRS[Math.floor(Math.random() * 4)],
+        color: PIPE_COLORS[Math.floor(Math.random() * PIPE_COLORS.length)],
+        steps: 0,
+      })
+    }
+
+    // Seed with a few pipes
+    for (let i = 0; i < 6; i++) spawn()
+
+    let raf: number
+    const tick = () => {
+      for (const pipe of pipes) {
+        // Occasionally turn
+        if (pipe.steps > 0 && Math.random() < 0.12) {
+          const turns = DIRS.filter((d) => d !== pipe.dir && (
+            (d === 'R' && pipe.dir !== 'L') ||
+            (d === 'L' && pipe.dir !== 'R') ||
+            (d === 'U' && pipe.dir !== 'D') ||
+            (d === 'D' && pipe.dir !== 'U')
+          ))
+          if (turns.length) pipe.dir = turns[Math.floor(Math.random() * turns.length)]
+        }
+
+        const nx = pipe.x + dx[pipe.dir]
+        const ny = pipe.y + dy[pipe.dir]
+
+        // Wrap around
+        pipe.x = ((nx % cols) + cols) % cols
+        pipe.y = ((ny % rows) + rows) % rows
+        pipe.steps++
+
+        // Draw segment
+        ctx.fillStyle = pipe.color
+        ctx.shadowColor = pipe.color
+        ctx.shadowBlur = 6
+        ctx.fillRect(pipe.x * PIPE_W + 1, pipe.y * PIPE_W + 1, PIPE_W - 2, PIPE_W - 2)
+        ctx.shadowBlur = 0
+
+        // Draw joint dot at turns
+        if (pipe.steps > 1 && Math.random() < 0.12) {
+          ctx.fillStyle = '#fff'
+          ctx.beginPath()
+          ctx.arc(pipe.x * PIPE_W + PIPE_W / 2, pipe.y * PIPE_W + PIPE_W / 2, PIPE_W / 4, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+
+      // Occasionally reset canvas and add a new pipe
+      if (Math.random() < 0.003) {
+        ctx.fillStyle = 'rgba(0,0,0,0.04)'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        if (pipes.length < 20) spawn()
+      }
+
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  return <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+}
+
+// ── Gallery scroll preset (idle asset browser) ───────────────────────────
+function GalleryScrollPreset() {
+  const [images, setImages] = useState<string[]>([])
+  const [idx,    setIdx]    = useState(0)
+  const [game,   setGame]   = useState('')
+
+  useEffect(() => {
+    fetch('/api/media/list')
+      .then((r) => r.json())
+      .then((data: { games: Record<string, string[]> }) => {
+        const entries: { url: string; game: string }[] = []
+        for (const [name, urls] of Object.entries(data.games)) {
+          for (const url of urls) entries.push({ url, game: name })
+        }
+        // Shuffle
+        for (let i = entries.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [entries[i], entries[j]] = [entries[j], entries[i]]
+        }
+        setImages(entries.map((e) => e.url))
+        if (entries[0]) setGame(entries[0].game)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (images.length === 0) return
+    const t = setInterval(() => {
+      setIdx((i) => {
+        const next = (i + 1) % images.length
+        return next
+      })
+    }, 4000)
+    return () => clearInterval(t)
+  }, [images])
+
+  // Derive game name from current image path
+  useEffect(() => {
+    if (!images[idx]) return
+    // Path pattern: /media/games/0001_Game Name/file.jpg or similar
+    const match = images[idx].match(/\/([^\/]+)\/[^\/]+$/)
+    const folder = match?.[1] ?? ''
+    // Strip leading number prefix like "0001_"
+    setGame(folder.replace(/^\d+_/, '').replace(/_/g, ' '))
+  }, [idx, images])
+
+  if (images.length === 0) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: '#444', fontFamily: 'VT323, monospace', fontSize: 24 }}>No game images found</span>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: '#000', overflow: 'hidden' }}>
+      {images.map((url, i) => (
+        <div
+          key={url}
+          style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity:    i === idx ? 1 : 0,
+            transition: 'opacity 1s ease-in-out',
+            filter: 'brightness(0.7)',
+          }}
+        />
+      ))}
+      {/* Game title overlay */}
+      <div style={{
+        position: 'absolute', bottom: 48, left: 64, right: 64,
+        fontFamily: 'VT323, monospace', fontSize: 36,
+        color: '#fff', textShadow: '0 0 16px #000, 0 2px 4px #000',
+        letterSpacing: 2,
+      }}>
+        {game}
+      </div>
+    </div>
+  )
+}
+
 // ── Screen saver root ─────────────────────────────────────────────────────
 interface ScreenSaverProps {
   timeoutMinutes: number
@@ -203,7 +378,9 @@ export function ScreenSaver({ timeoutMinutes, preset, enabled }: ScreenSaverProp
       {preset === 'starfield'       && <Starfield />}
       {preset === 'marquee'         && <MarqueePreset />}
       {preset === 'flying-windows'  && <FlyingWindows />}
-      {(preset === 'blank' || preset === 'pipes') && <BlankPreset />}
+      {preset === 'pipes'           && <PipesPreset />}
+      {preset === 'blank'           && <BlankPreset />}
+      {preset === 'gallery-scroll'  && <GalleryScrollPreset />}
     </div>
   )
 }

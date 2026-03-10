@@ -3,6 +3,7 @@ import { STATE, OVERLAY_EVENT } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
+  EffectType, EffectConfig,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -224,7 +225,7 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
   const [showCatalog, setShowCatalog] = useState(false)
 
   const save = (next: SourceInstance[]) =>
-    saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...scene, sources: next } } })
+    saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...config.scenes[sceneId], sources: next } } })
 
   const toggle   = (id: string) => save(sources.map((s) => s.id === id ? { ...s, visible: !s.visible } : s))
   const remove   = (id: string) => { save(sources.filter((s) => s.id !== id)); if (expanded === id) setExpanded(null) }
@@ -346,6 +347,7 @@ const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; label: 
   { id: 'flying-windows', label: 'Flying Windows' },
   { id: 'marquee',        label: 'Marquee Text'   },
   { id: 'pipes',          label: 'Pipes 3D'       },
+  { id: 'gallery-scroll', label: 'Game Gallery'   },
   { id: 'blank',          label: 'Black Screen'   },
 ]
 
@@ -658,7 +660,7 @@ function LobbyConfigEditor() {
             <div key={field}>
               <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
               <select
-                value={(config.scenes[STATE.LOBBY] as Record<string, string> | undefined)?.[field] ?? ''}
+                value={config.scenes[STATE.LOBBY]?.[field] ?? ''}
                 onChange={(e) => {
                   const val = e.target.value || undefined
                   saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: { ...config.scenes[STATE.LOBBY], [field]: val } } })
@@ -755,7 +757,7 @@ function DesktopConfigEditor() {
             <div key={field}>
               <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
               <select
-                value={(config.scenes[STATE.DESKTOP] as Record<string, string> | undefined)?.[field] ?? ''}
+                value={config.scenes[STATE.DESKTOP]?.[field] ?? ''}
                 onChange={(e) => {
                   const val = e.target.value || undefined
                   saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], [field]: val } } })
@@ -919,6 +921,77 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
       </Panel>
 
+      <Panel title="Launch Pipeline">
+        <div className="text-[10px] text-zinc-500 mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
+        <Toggle
+          checked={!!form.launchPipeline}
+          label="Enable"
+          onChange={(v) => update((d) => {
+            d.launchPipeline = v ? { effects: [], delayMs: 0 } : undefined
+          })}
+        />
+        {form.launchPipeline && (
+          <div className="mt-3 space-y-3">
+            <Slider
+              label="Scene change delay (ms)"
+              value={form.launchPipeline.delayMs}
+              min={0} max={5000} step={100}
+              onChange={(v) => update((d) => { if (d.launchPipeline) d.launchPipeline.delayMs = v })}
+            />
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Effects</div>
+              {form.launchPipeline.effects.length === 0 && (
+                <div className="text-[10px] text-zinc-600 italic">No effects added.</div>
+              )}
+              {form.launchPipeline.effects.map((eff, i) => (
+                <div key={i} className="flex items-center gap-2 py-1 border-b border-zinc-700/40">
+                  <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
+                  <input
+                    type="number" min={0} max={10} step={0.1}
+                    value={eff.delay ?? 0}
+                    onChange={(e) => update((d) => {
+                      if (!d.launchPipeline) return
+                      d.launchPipeline.effects[i] = { ...d.launchPipeline.effects[i], delay: Number(e.target.value) }
+                    })}
+                    className="w-16 font-mono text-xs"
+                    title="Delay (s)"
+                  />
+                  <span className="text-[9px] text-zinc-600">s</span>
+                  <button
+                    onClick={() => update((d) => {
+                      if (!d.launchPipeline) return
+                      d.launchPipeline.effects.splice(i, 1)
+                    })}
+                    className="text-[10px] text-red-500 hover:text-red-300 px-1">✕</button>
+                </div>
+              ))}
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const type = e.target.value as EffectType
+                  if (!type) return
+                  e.target.value = ''
+                  update((d) => {
+                    if (!d.launchPipeline) return
+                    d.launchPipeline.effects.push({ type, cfg: {}, delay: 0 } as EffectConfig)
+                  })
+                }}
+                className="w-full text-xs mt-2">
+                <option value="">+ Add effect…</option>
+                {([
+                  'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
+                  'death-overlay', 'victory-overlay', 'revive-overlay',
+                  'terminal-toast', 'notification-box', 'typewriter',
+                  'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
+                ] as EffectType[]).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </Panel>
+
       <button onClick={onDelete}
         className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-900/50 hover:border-red-700 transition-colors">
         Remove
@@ -1053,6 +1126,21 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
       )}
       <div className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1 mb-1">Visual Style</div>
       <StyleEditor sceneId={sceneId} />
+
+      <Panel title="Background Music">
+        <div className="text-[10px] text-zinc-500 mb-2">Loop a music track while this scene is active. Leave blank for silence.</div>
+        <input
+          type="text"
+          placeholder="/assets/audio/music/ambient/track.mp3"
+          value={config.scenes[sceneId]?.musicTrack ?? ''}
+          onChange={(e) => {
+            const val = e.target.value.trim() || undefined
+            saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...config.scenes[sceneId], musicTrack: val } } })
+          }}
+          className="w-full font-mono text-xs"
+        />
+        <div className="text-[10px] text-zinc-600 mt-1">Crossfade: 1.5 s</div>
+      </Panel>
     </div>
   )
 }
@@ -1084,7 +1172,7 @@ function LivePreview() {
     <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden min-w-0">
       <iframe
         ref={frameRef}
-        src="/overlay"
+        src="http://localhost:3001"
         width={1920}
         height={1080}
         style={{ position: 'absolute', border: 'none', display: 'block' }}

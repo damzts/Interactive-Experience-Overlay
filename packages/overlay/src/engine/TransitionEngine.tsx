@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { socket } from '../socket/client'
 import type gsap from 'gsap'
 import { lobbyToDesktop } from '../transitions/LobbyToDesktop'
 import { desktopToLobby } from '../transitions/DesktopToLobby'
@@ -41,7 +40,7 @@ export function TransitionEngine() {
     // Kill any currently running timeline
     activeTimeline.current?.kill()
 
-    const complete = () => socket.emit('transition:complete')
+    const complete = () => {}
 
     const exitFn  = pendingTransition.exitTransition  ? TRANSITION_MAP[pendingTransition.exitTransition]  : undefined
     const introFn = pendingTransition.introTransition ? TRANSITION_MAP[pendingTransition.introTransition] : undefined

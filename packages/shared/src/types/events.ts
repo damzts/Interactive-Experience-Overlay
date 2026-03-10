@@ -15,7 +15,6 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'scene:change': (target: STATE, callback?: (err: string | null) => void) => void
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
-  'transition:complete': () => void
   'state:request': (callback: (state: STATE) => void) => void
   'panic': () => void
 }

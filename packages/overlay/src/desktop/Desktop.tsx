@@ -57,9 +57,20 @@ export function Desktop({ apps }: DesktopProps) {
   const ss = config.desktopConfig?.screenSaver
 
   const handleLaunch = (app: Application) => {
-    socket.emit('scene:change', app.targetSceneId as STATE)
     setSelectedId(null)
     setStartMenuOpen(false)
+
+    if (app.launchPipeline && app.launchPipeline.effects.length > 0) {
+      socket.emit('overlay:trigger', {
+        id: `launch-${app.id}`,
+        effects: app.launchPipeline.effects,
+      })
+      setTimeout(() => {
+        socket.emit('scene:change', app.targetSceneId as STATE)
+      }, app.launchPipeline.delayMs)
+    } else {
+      socket.emit('scene:change', app.targetSceneId as STATE)
+    }
   }
 
   const handleDesktopMouseDown = () => {

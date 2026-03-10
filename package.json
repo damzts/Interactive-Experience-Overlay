@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n server,app -c cyan,yellow \"pnpm --filter @ieom/server dev\" \"pnpm --filter @ieom/admin dev\"",
-    "build": "pnpm --filter @ieom/admin build",
+    "dev": "concurrently -n server,overlay,app -c cyan,green,yellow \"pnpm --filter @ieom/server dev\" \"pnpm --filter @ieom/overlay dev\" \"pnpm --filter @ieom/admin dev\"",
+    "build": "pnpm --filter @ieom/overlay build && pnpm --filter @ieom/admin build",
     "start": "pnpm build && pnpm --filter @ieom/server start",
     "server": "pnpm --filter @ieom/server dev"
   },

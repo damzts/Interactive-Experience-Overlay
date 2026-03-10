@@ -37,7 +37,7 @@ class AudioEngine {
   private async load(id: SoundId) {
     if (!this.ctx) return
     try {
-      const res = await fetch(`/assets/sfx/${id}.wav`)
+      const res = await fetch(`/assets/audio/sfx/${id}.wav`)
       if (!res.ok) return
       const buf = await res.arrayBuffer()
       const decoded = await this.ctx.decodeAudioData(buf)
@@ -160,6 +160,54 @@ class AudioEngine {
   setMasterVolume(v: number) {
     if (this.masterGain) this.masterGain.gain.value = Math.max(0, Math.min(1, v))
   }
+
+  /** Play a looping background music track, crossfading from the previous track.
+   *  Pass null to fade out and stop all music. */
+  playMusic(url: string | null, crossfadeMs = 1500) {
+    const prev = this._musicEl
+
+    if (prev) {
+      // Fade out previous track
+      const start = prev.volume
+      const step  = start / (crossfadeMs / 50)
+      const fade  = setInterval(() => {
+        prev.volume = Math.max(0, prev.volume - step)
+        if (prev.volume <= 0) {
+          clearInterval(fade)
+          prev.pause()
+          prev.src = ''
+        }
+      }, 50)
+    }
+
+    if (!url) {
+      this._musicEl = null
+      return
+    }
+
+    const el = new Audio()
+    el.src    = url
+    el.loop   = true
+    el.volume = 0
+    el.play().catch(() => {})
+    this._musicEl = el
+
+    // Fade in
+    const target = this._musicVolume
+    const step   = target / (crossfadeMs / 50)
+    const fadeIn = setInterval(() => {
+      el.volume = Math.min(target, el.volume + step)
+      if (el.volume >= target) clearInterval(fadeIn)
+    }, 50)
+  }
+
+  setMusicVolume(v: number) {
+    this._musicVolume = Math.max(0, Math.min(1, v))
+    if (this._musicEl) this._musicEl.volume = this._musicVolume
+  }
+
+  private _musicEl:     HTMLAudioElement | null = null
+  private _musicVolume: number = 0.5
 }
 
 export const audioEngine = new AudioEngine()

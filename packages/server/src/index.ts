@@ -120,7 +120,6 @@ console.log(`
 ║   IEOM — Interactive Experience Overlay   ║
 ╠═══════════════════════════════════════════╣
 ║  Server  →  http://localhost:${PORT}          ║
-║  Overlay →  http://localhost:3001 (dev)   ║
 ║  Admin   →  http://localhost:3002 (dev)   ║
 ╚═══════════════════════════════════════════╝
 `)
