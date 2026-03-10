@@ -1268,8 +1268,7 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     actionLabel = isLive ? '● Live' : '▶ Go Live'
     actionFn    = () => triggerScene(selected.envState)
   } else if (selected.kind === 'scene') {
-    const labels: Record<string, string> = { [STATE.GAMEPLAY]: '🎮 Gameplay', [STATE.TV]: '📺 TV' }
-    const parts = (labels[selected.sceneState] ?? selected.sceneState).split(' ')
+    const parts = selected.sceneState.split(' ')
     headerIcon  = parts[0]
     headerLabel = parts.slice(1).join(' ') || selected.sceneState
     isLive      = currentState === selected.sceneState
@@ -1421,7 +1420,7 @@ function LeftSidebar({ selected, onSelect, onActivate, eventDefs, onAddEvent }: 
           onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
       ))}
       <AddBtn label="New Widget" onClick={() => {
-        const a: Application = { id: 'widget-' + Date.now(), label: 'New Widget', icon: '▣', appType: 'widget', targetSceneId: STATE.MUSIC, transitionType: 'default' }
+        const a: Application = { id: 'widget-' + Date.now(), label: 'New Widget', icon: '▣', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
         saveConfig({ applications: [...applications, a] })
         onSelect({ kind: 'app', appId: a.id })
       }} />

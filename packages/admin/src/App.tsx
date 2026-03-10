@@ -32,11 +32,9 @@ export default function App() {
     const handleKey = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as Element)?.tagName)) return
       if (e.key === 'Escape') { socket.emit('panic'); return }
-      if (e.key === 'F1') { e.preventDefault(); socket.emit('scene:change', STATE.GAMEPLAY); return }
       if (e.key === 'F2') { e.preventDefault(); socket.emit('overlay:trigger', { id: 'death',   effects: [{ type: 'death-overlay',   cfg: {} }] }); return }
       if (e.key === 'F3') { e.preventDefault(); socket.emit('overlay:trigger', { id: 'revive',  effects: [{ type: 'revive-overlay',  cfg: {} }] }); return }
       if (e.key === 'F4') { e.preventDefault(); socket.emit('overlay:trigger', { id: 'victory', effects: [{ type: 'victory-overlay', cfg: {} }] }); return }
-      if (e.key === 'F5') { e.preventDefault(); socket.emit('scene:change', STATE.TV); return }
       if (e.key === 'F6') { e.preventDefault(); socket.emit('scene:change', STATE.LOBBY); return }
     }
 

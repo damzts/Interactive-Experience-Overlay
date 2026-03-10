@@ -4,10 +4,7 @@ import { Panel, Btn } from '../components/ui'
 
 const ACTIONS = [
   'scene:lobby',
-  'scene:gameplay',
-  'scene:tv',
-  'scene:music',
-  'scene:archive',
+  'scene:desktop',
   'overlay:death',
   'overlay:victory',
   'overlay:revive',

@@ -10,8 +10,6 @@ import { ParticlesLayer } from './layers/ParticlesLayer'
 import { CSSEffectsLayer } from './layers/CSSEffectsLayer'
 import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
-import { MusicWidget } from './desktop/MusicWidget'
-import { ArchiveWidget } from './desktop/ArchiveWidget'
 import { LobbyScene } from './lobby/LobbyScene'
 import { playBootSequence } from './transitions/BootSequence'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
@@ -76,18 +74,10 @@ export default function App() {
         </LayerErrorBoundary>
       </div>
 
-      {/* Win98 OS desktop — CSS controls visibility via .state-desktop / .state-music / .state-archive */}
+      {/* Win98 OS desktop */}
       <div id="desktop-layer">
         <LayerErrorBoundary name="desktop">
           <Desktop apps={config.applications} />
-        </LayerErrorBoundary>
-      </div>
-
-      {/* Stacking widget windows (MUSIC, ARCHIVE) — above desktop */}
-      <div id="widget-layer">
-        <LayerErrorBoundary name="widgets">
-          {visualState === STATE.MUSIC   && <MusicWidget />}
-          {visualState === STATE.ARCHIVE && <ArchiveWidget />}
         </LayerErrorBoundary>
       </div>
 

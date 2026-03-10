@@ -45,8 +45,6 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
     })
 
     socket.on('scene:change', (target, callback) => {
-      scheduler?.resetIdleTimer()
-
       // Look up exit + intro transitions independently so they can be chained client-side
       const cfg = getConfig()
       const fromState = machine.currentState
@@ -80,7 +78,6 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
     })
 
     socket.on('panic', () => {
-      scheduler?.resetIdleTimer()
       machine.forceState(STATE.DESKTOP)
     })
 

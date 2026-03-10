@@ -61,18 +61,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   pointer-events: none;
 }
 
-/* Widget layer: z=25, hidden by default — stacking windows on top of desktop */
-#widget-layer {
-  z-index: 25;
-  opacity: 0;
-  pointer-events: none;
-}
-.state-music  #widget-layer,
-.state-archive #widget-layer {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* Effects: z=30 */
 #effects-layer {
   z-index: 30;
@@ -91,11 +79,8 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   background: #05050f;
 }
 
-/* Desktop (Win98 2D layer) is visible in DESKTOP state and any stacking apps
-   that layer on top of it (MUSIC, ARCHIVE). LOBBY uses the 3D room instead. */
-.state-desktop #desktop-layer,
-.state-music #desktop-layer,
-.state-archive #desktop-layer {
+/* Desktop (Win98 2D layer) is visible in DESKTOP state. LOBBY uses the 3D room. */
+.state-desktop #desktop-layer {
   opacity: 1;
   pointer-events: auto;
 }
