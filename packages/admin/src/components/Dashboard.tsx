@@ -67,18 +67,18 @@ const GOOGLE_FONTS = [
 const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', '#eab308', '#ef4444', '#ffffff']
 
 const TRANSITION_OPTIONS = [
-  { id: 'instant',             label: 'Instant',       desc: 'Immediate cut' },
-  { id: 'fade',                label: 'Fade',          desc: 'Cross-fade through black' },
-  { id: 'desktop-to-lobby',    label: 'Zoom Out',      desc: 'Glitch flash + desktop shrinks' },
-  { id: 'lobby-to-desktop',    label: 'Boot Rush',     desc: 'Camera rushes into CRT' },
-  { id: 'desktop-to-gameplay', label: 'Win98 Loading', desc: 'Windows 98 progress dialog' },
-  { id: 'gameplay-to-desktop', label: 'CRT Dissolve',  desc: 'Static wipe back to desktop' },
-  { id: 'desktop-to-tv',       label: 'Channel Sweep', desc: 'TV channel-change sweep' },
-  { id: 'tv-to-desktop',       label: 'Channel Back',  desc: 'TV channel-change reverse' },
-  { id: 'glitch-burst',        label: 'Glitch Burst',  desc: 'Digital glitch explosion' },
-  { id: 'static-burst',        label: 'Static Burst',  desc: 'TV static fill then clear' },
-  { id: 'wipe-left',           label: 'Wipe Left',     desc: 'Panel sweeps from right' },
-  { id: 'wipe-right',          label: 'Wipe Right',    desc: 'Panel sweeps from left' },
+  { id: 'instant',       label: 'Instant',        desc: 'Immediate cut, no animation' },
+  { id: 'fade',          label: 'Fade',           desc: 'Cross-fade through black' },
+  { id: 'zoom-in',       label: 'Zoom In',        desc: 'Camera rushes into CRT screen' },
+  { id: 'zoom-out',      label: 'Zoom Out',       desc: 'Screen shrinks back to 3D room' },
+  { id: 'win98-loading', label: 'Win98 Loading',  desc: 'Windows 98 progress dialog' },
+  { id: 'crt-wipe',      label: 'CRT Wipe',       desc: 'Static fills screen then clears' },
+  { id: 'channel-sweep', label: 'Channel Sweep',  desc: 'TV channel-change scan-line' },
+  { id: 'boot-sequence', label: 'Boot Sequence',  desc: 'BIOS POST text and progress bar' },
+  { id: 'glitch-burst',  label: 'Glitch Burst',   desc: 'Digital glitch explosion' },
+  { id: 'static-burst',  label: 'Static Burst',   desc: 'TV static fill then clear' },
+  { id: 'wipe-left',     label: 'Wipe Left',      desc: 'Black panel sweeps from right' },
+  { id: 'wipe-right',    label: 'Wipe Right',     desc: 'Black panel sweeps from left' },
 ]
 
 // ── Source catalog ────────────────────────────────────────────────
@@ -379,18 +379,9 @@ function itemKey(item: SelectedItem): string {
 
 // ── StyleEditor ────────────────────────────────────────────────────
 
-type StyleTab = 'background' | 'effects' | 'particles' | 'typography'
-const STYLE_TABS: { id: StyleTab; label: string }[] = [
-  { id: 'background', label: 'Background' },
-  { id: 'effects',    label: 'Effects'    },
-  { id: 'particles',  label: 'Particles'  },
-  { id: 'typography', label: 'Type'       },
-]
-
 function StyleEditor({ sceneId }: { sceneId: string }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const [tab,   setTab]   = useState<StyleTab>('background')
   const [style, setStyle] = useState<OverlayStyle>(() =>
     structuredClone((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle)
   )
@@ -424,37 +415,20 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
   const pt = style.particles
 
   return (
-    <div>
-      <div className="flex gap-0.5 border-b border-zinc-700 mb-3">
-        {STYLE_TABS.map(({ id, label }) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={'px-2.5 py-1.5 text-[11px] rounded-t border-b-2 -mb-px transition-colors ' +
-              (id === tab ? 'text-cyan-300 border-cyan-500' : 'text-zinc-500 border-transparent hover:text-zinc-200')}>
-            {label}
-          </button>
-        ))}
-        <div className="flex-1" />
-        {saving && <span className="text-[10px] text-zinc-500 self-center pr-1">saving…</span>}
-        {saved  && <span className="text-[10px] text-emerald-400 self-center pr-1">✔</span>}
+    <div className="space-y-4">
+      <div className="flex justify-end text-[10px] h-4">
+        {saving && <span className="text-zinc-500">saving…</span>}
+        {saved  && <span className="text-emerald-400">✔</span>}
       </div>
 
-      <div className="space-y-3">
-        {tab === 'background' && <>
-          <div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Type</div>
-            <div className="flex flex-wrap gap-1">
-              {BG_TYPES.map(({ id, label }) => (
-                <button key={id} onClick={() => update((d) => { d.background.type = id })}
-                  className={'px-2 py-1 text-[11px] rounded border transition-colors ' +
-                    (bg.type === id ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+      <Panel title="Background">
+        <div className="space-y-3">
+          <select value={bg.type} onChange={(e) => update((d) => { d.background.type = e.target.value as BackgroundType })}
+            className="w-full text-xs">
+            {BG_TYPES.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+          </select>
 
           {bg.type === 'gradient' && <div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Presets</div>
             <div className="grid grid-cols-3 gap-1 mb-2">
               {GRADIENT_PRESETS.map((g) => (
                 <button key={g.name} onClick={() => update((d) => { d.background.gradient = g.value })}
@@ -512,61 +486,50 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
             <Slider label="Opacity" value={bg.opacity} onChange={(v) => update((d) => { d.background.opacity = v })} />
             <Slider label="Blur" value={bg.blur} min={0} max={20} step={0.5} unit="px" onChange={(v) => update((d) => { d.background.blur = v })} />
           </div>}
-        </>}
+        </div>
+      </Panel>
 
-        {tab === 'effects' && <div className="space-y-2">
-          <Panel title="CRT Scanlines">
-            <Toggle checked={fx.crt} onChange={(v) => update((d) => { d.effects.crt = v })} label="Enable" />
-            {fx.crt && <div className="mt-2"><Slider label="Intensity" value={fx.scanlineOpacity} onChange={(v) => update((d) => { d.effects.scanlineOpacity = v })} /></div>}
-          </Panel>
-          <Panel title="Film Grain">
-            <Toggle checked={fx.noise} onChange={(v) => update((d) => { d.effects.noise = v })} label="Enable" />
-            {fx.noise && <div className="mt-2"><Slider label="Grain" value={fx.noiseOpacity} onChange={(v) => update((d) => { d.effects.noiseOpacity = v })} /></div>}
-          </Panel>
-          <Panel title="Vignette">
-            <Toggle checked={fx.vignette} onChange={(v) => update((d) => { d.effects.vignette = v })} label="Enable" />
-            {fx.vignette && <div className="mt-2"><Slider label="Strength" value={fx.vignetteStrength} onChange={(v) => update((d) => { d.effects.vignetteStrength = v })} /></div>}
-          </Panel>
-          <Panel title="Other">
-            <Toggle checked={fx.flicker} onChange={(v) => update((d) => { d.effects.flicker = v })} label="Screen flicker" />
-            <div className="mt-2">
-              <Toggle checked={fx.chromatic} onChange={(v) => update((d) => { d.effects.chromatic = v })} label="Chromatic aberration" />
-            </div>
-          </Panel>
-        </div>}
-
-        {tab === 'particles' && <div className="space-y-3">
-          <Toggle checked={pt.enabled} onChange={(v) => update((d) => { d.particles.enabled = v })} label="Enable particles" />
-          <div className="grid grid-cols-3 gap-1">
-            {PARTICLE_PRESETS.map((p) => (
-              <button key={p.id}
-                onClick={() => update((d) => { d.particles.preset = p.id; d.particles.enabled = p.id !== 'none' })}
-                className={'py-2.5 rounded text-sm border transition-colors flex flex-col items-center gap-0.5 ' +
-                  (pt.preset === p.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-100')}>
-                <span>{p.icon}</span>
-                <span className="text-[10px]">{p.label}</span>
-              </button>
-            ))}
+      <Panel title="Effects">
+        <div className="space-y-2">
+          <div>
+            <Toggle checked={fx.crt} onChange={(v) => update((d) => { d.effects.crt = v })} label="CRT Scanlines" />
+            {fx.crt && <div className="mt-1 pl-11"><Slider label="Intensity" value={fx.scanlineOpacity} onChange={(v) => update((d) => { d.effects.scanlineOpacity = v })} /></div>}
           </div>
+          <div>
+            <Toggle checked={fx.noise} onChange={(v) => update((d) => { d.effects.noise = v })} label="Film Grain" />
+            {fx.noise && <div className="mt-1 pl-11"><Slider label="Grain" value={fx.noiseOpacity} onChange={(v) => update((d) => { d.effects.noiseOpacity = v })} /></div>}
+          </div>
+          <div>
+            <Toggle checked={fx.vignette} onChange={(v) => update((d) => { d.effects.vignette = v })} label="Vignette" />
+            {fx.vignette && <div className="mt-1 pl-11"><Slider label="Strength" value={fx.vignetteStrength} onChange={(v) => update((d) => { d.effects.vignetteStrength = v })} /></div>}
+          </div>
+          <Toggle checked={fx.flicker} onChange={(v) => update((d) => { d.effects.flicker = v })} label="Screen Flicker" />
+          <Toggle checked={fx.chromatic} onChange={(v) => update((d) => { d.effects.chromatic = v })} label="Chromatic Aberration" />
+        </div>
+      </Panel>
+
+      <Panel title="Particles">
+        <div className="space-y-3">
+          <select value={pt.preset}
+            onChange={(e) => update((d) => { d.particles.preset = e.target.value as ParticlePreset; d.particles.enabled = e.target.value !== 'none' })}
+            className="w-full text-xs">
+            {PARTICLE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.icon} {p.label}</option>)}
+          </select>
           {pt.enabled && pt.preset !== 'none' && <div className="space-y-1">
             <Slider label="Density" value={pt.density} onChange={(v) => update((d) => { d.particles.density = v })} />
             <Slider label="Speed"   value={pt.speed}   onChange={(v) => update((d) => { d.particles.speed   = v })} />
           </div>}
-        </div>}
+        </div>
+      </Panel>
 
-        {tab === 'typography' && <div className="space-y-3">
+      <Panel title="Typography">
+        <div className="space-y-3">
           <div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Font</div>
-            <div className="space-y-0.5 max-h-40 overflow-y-auto">
-              {GOOGLE_FONTS.map((f) => (
-                <button key={f.css} onClick={() => update((d) => { d.fontFamily = f.css })}
-                  className={'block w-full text-left px-2.5 py-1.5 rounded text-xs border transition-colors ' +
-                    (style.fontFamily === f.css ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800')}
-                  style={{ fontFamily: f.css === 'default' ? undefined : '"' + f.css + '", sans-serif' }}>
-                  {f.name}
-                </button>
-              ))}
-            </div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Font</div>
+            <select value={style.fontFamily} onChange={(e) => update((d) => { d.fontFamily = e.target.value })}
+              className="w-full text-xs">
+              {GOOGLE_FONTS.map((f) => <option key={f.css} value={f.css}>{f.name}</option>)}
+            </select>
           </div>
           <div>
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Accent</div>
@@ -589,8 +552,8 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
               <input type="text" value={style.textColor} onChange={(e) => update((d) => { d.textColor = e.target.value })} className="font-mono text-xs w-20" />
             </div>
           </div>
-        </div>}
-      </div>
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -1280,7 +1243,8 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     headerLabel = app?.label ?? 'Application'
     isLive      = app ? currentState === app.targetSceneId : false
     actionLabel = app?.appType === 'widget' ? '▶ Open' : '▶ Launch'
-    actionFn    = app ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
+    // Widgets do not transition — they are floating windows. Only scene apps emit scene:change.
+    actionFn    = (app && app.appType === 'scene') ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
   } else if (selected.kind === 'event') {
     const def   = eventDefs.find((e) => e.id === selected.id)
     headerIcon  = def?.icon  ?? '⚡'

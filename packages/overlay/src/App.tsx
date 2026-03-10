@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { STATE } from '@ieom/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
@@ -11,33 +11,21 @@ import { CSSEffectsLayer } from './layers/CSSEffectsLayer'
 import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
 import { LobbyScene } from './lobby/LobbyScene'
-import { playBootSequence } from './transitions/BootSequence'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 
 export default function App() {
   const visualState   = useAppStore((s) => s.visualState)
   const config        = useAppStore((s) => s.config)
-  const hasBooted     = useRef(false)
 
   // Wire socket events to the store
   useSocket()
 
   useEffect(() => { audioEngine.init() }, [])
 
-  // Play boot sequence once per browser session.
-  // sessionStorage key is cleared when the browser tab closes.
-  useEffect(() => {
-    if (hasBooted.current) return
-    if (sessionStorage.getItem('ieom-booted')) return
-    hasBooted.current = true
-    sessionStorage.setItem('ieom-booted', '1')
-    playBootSequence(() => audioEngine.play('startup'))
-  }, [])
-
   const currentScene = config.scenes[visualState] ?? config.scenes[STATE.DESKTOP]
   const visibleSources = currentScene?.sources.filter((s) => s.visible) ?? []
-  // Desktop scene owns the visual style; fall back to root overlayStyle for compat
-  const overlayStyle = config.scenes[STATE.DESKTOP]?.style ?? config.overlayStyle
+  // Each scene owns its own visual style; fall back to root overlayStyle if absent
+  const overlayStyle = currentScene?.style ?? config.overlayStyle
 
   // Play per-scene background music track (null = silence)
   useEffect(() => {

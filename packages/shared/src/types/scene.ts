@@ -62,7 +62,9 @@ export interface Scene {
   label: string
   backgroundOpaque: boolean
   sources: SourceInstance[]
-  /** Visual style: background, effects, particles, typography. Used by DESKTOP scene. */
+  /** Visual style: background, effects, particles, typography.
+   *  Drives BackgroundLayer, ParticlesLayer, and CSSEffectsLayer for this scene.
+   *  Falls back to AppConfig.overlayStyle if absent. */
   style?: OverlayStyle
   /** 3D room configuration. Used by LOBBY scene. */
   lobbyConfig?: LobbyConfig

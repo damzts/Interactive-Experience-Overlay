@@ -85,6 +85,11 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   pointer-events: auto;
 }
 
+/* Particles render above the desktop canvas in desktop state */
+.state-desktop #particles-layer {
+  z-index: 21;
+}
+
 /* ── Transition layer elements (all invisible by default) ───────── */
 #tl-loading-window,
 #tl-flash,

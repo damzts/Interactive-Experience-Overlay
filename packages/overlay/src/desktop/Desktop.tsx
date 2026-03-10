@@ -32,13 +32,12 @@ function bgToCss(bg: OverlayBackground): React.CSSProperties {
         backgroundPosition: 'center',
       }
     case 'video-url':
-      // Video is rendered by BackgroundLayer in the parent; fall through to teal
-      return { background: '#008080' }
     case 'pattern':
-      // Pattern is rendered by BackgroundLayer; fall through to teal
-      return { background: '#008080' }
+    case 'none':
     default:
-      return { background: '#008080' }
+      // These types are handled by BackgroundLayer (behind the desktop canvas),
+      // or are intentionally transparent for camera pass-through.
+      return { background: 'transparent' }
   }
 }
 
@@ -52,13 +51,17 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopStyle = (config.scenes[STATE.DESKTOP] as { style?: { background?: OverlayBackground } } | undefined)
     ?.style?.background
 
-  const wallpaperStyle = desktopStyle ? bgToCss(desktopStyle) : { background: '#008080' }
+  const wallpaperStyle = desktopStyle ? bgToCss(desktopStyle) : { background: 'transparent' }
 
   const ss = config.desktopConfig?.screenSaver
 
   const handleLaunch = (app: Application) => {
     setSelectedId(null)
     setStartMenuOpen(false)
+
+    // Widgets do not change state — they are floating windows on top of the current scene.
+    // Only 'scene' apps emit scene:change and may play a launchPipeline.
+    if (app.appType !== 'scene') return
 
     if (app.launchPipeline && app.launchPipeline.effects.length > 0) {
       socket.emit('overlay:trigger', {
