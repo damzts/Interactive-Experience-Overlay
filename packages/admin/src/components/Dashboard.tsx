@@ -3,7 +3,7 @@ import { STATE, OVERLAY_EVENT } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
-  EffectType, EffectConfig,
+  EffectType, EffectConfig, MediaEntry, TransitionStep,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -181,6 +181,709 @@ const SOURCE_CATALOG: CatalogEntry[] = [
     ],
   },
 ]
+
+// ── TransitionPicker ─────────────────────────────────────────────
+
+const TRANSITION_ICONS: Record<string, string> = {
+  'instant':       '⚡',
+  'fade':          '🌫',
+  'zoom-in':       '🔍',
+  'zoom-out':      '🔎',
+  'win98-loading': '💾',
+  'crt-wipe':      '📺',
+  'channel-sweep': '📡',
+  'boot-sequence': '🖥',
+  'glitch-burst':  '⚠',
+  'static-burst':  '📻',
+  'wipe-left':     '◀',
+  'wipe-right':    '▶',
+}
+
+function TransitionPicker({
+  value,
+  onChange,
+  placeholder = '— Default —',
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  const [open, setOpen]                   = useState(false)
+  const [mediaOpen, setMediaOpen]         = useState(false)
+  const [mediaView, setMediaView]         = useState<'library' | 'form'>('library')
+  const [saveToLib, setSaveToLib]         = useState(true)
+  const [settingsCard, setSettingsCard]   = useState<string | null>(null)
+  const [settingsDuration, setSettingsDuration] = useState('')
+  const [mediaUrl,  setMediaUrl]          = useState('')
+  const [mediaName, setMediaName]         = useState('')
+  const [mediaType, setMediaType]         = useState<'image' | 'video'>('image')
+  const [mediaDurStr, setMediaDurStr]     = useState('')
+  const [previewSrc, setPreviewSrc]       = useState('')
+  const [videoDur, setVideoDur]           = useState<number | null>(null)
+  const [dragOver, setDragOver]           = useState(false)
+  const [pendingFile, setPendingFile]     = useState<File | null>(null)
+  const [uploading, setUploading]         = useState(false)
+  const [uploadErr, setUploadErr]         = useState('')
+  const fileInputRef                      = useRef<HTMLInputElement>(null)
+
+  const mediaLibrary  = useAdminStore((s) => s.config.mediaLibrary ?? [])
+  const saveConfig    = useAdminStore((s) => s.saveConfig)
+  const fullConfig    = useAdminStore((s) => s.config)
+
+  // Parse a stored media value: media:<type>:<url>||<name>||dur=<N>
+  const parseMedia = (v: string) => {
+    const body  = v.slice(6)
+    const colon = body.indexOf(':')
+    const type  = colon >= 0 ? body.slice(0, colon) : body
+    const rest  = colon >= 0 ? body.slice(colon + 1) : ''
+    const parts = rest.split('||')
+    const url   = parts[0] ?? ''
+    const name  = parts[1] ?? ''
+    const durPart = parts.slice(2).find(p => p.startsWith('dur='))
+    const duration = durPart ? parseFloat(durPart.slice(4)) : undefined
+    return { type, url, name, duration }
+  }
+
+  // Parse a GSAP transition value: id  OR  id?duration=N
+  const parseGsap = (v: string) => {
+    const qi  = v.indexOf('?')
+    const id  = qi >= 0 ? v.slice(0, qi) : v
+    const dur = qi >= 0 ? new URLSearchParams(v.slice(qi + 1)).get('duration') : null
+    return { id, duration: dur ? parseFloat(dur) : undefined }
+  }
+
+  const mediaParsed  = value.startsWith('media:') ? parseMedia(value) : null
+  const gsapParsed   = !value.startsWith('media:') ? parseGsap(value) : null
+  const selected     = TRANSITION_OPTIONS.find((t) => t.id === (gsapParsed?.id ?? ''))
+  const mediaDisplay = mediaParsed?.name || mediaParsed?.url.split('/').pop() || 'Media'
+  const displayLabel = selected
+    ? selected.label
+    : mediaParsed
+      ? `🖼 ${mediaDisplay}`
+      : placeholder
+
+  const preview = (id: string) => socket.emit('transition:preview', [{ id }])
+
+  // Toggle settings inline-panel for a GSAP card
+  const toggleSettings = (id: string) => {
+    if (settingsCard === id) { setSettingsCard(null); return }
+    const dur = gsapParsed?.id === id ? (gsapParsed?.duration?.toString() ?? '') : ''
+    setSettingsDuration(dur)
+    setSettingsCard(id)
+  }
+
+  const commitSettings = () => {
+    if (!settingsCard) return
+    const dur = parseFloat(settingsDuration)
+    const suffix = !isNaN(dur) && dur > 0 ? `?duration=${dur}` : ''
+    onChange(`${settingsCard}${suffix}`)
+    setSettingsCard(null)
+    // modal stays open
+  }
+
+  const openMediaPanel = () => {
+    // Always reset preview state first
+    setPreviewSrc('')
+    setVideoDur(null)
+    if (mediaParsed) {
+      // Editing an existing media selection → go straight to form
+      setMediaType(mediaParsed.type as 'image' | 'video')
+      setMediaUrl(mediaParsed.url)
+      setMediaName(mediaParsed.name)
+      setMediaDurStr(mediaParsed.duration?.toString() ?? '')
+      setMediaView('form')
+    } else {
+      setMediaUrl('')
+      setMediaName('')
+      setMediaDurStr('')
+      setMediaType('image')
+      // Show library first if entries exist, otherwise go straight to the form
+      setMediaView(mediaLibrary.length > 0 ? 'library' : 'form')
+    }
+    setSaveToLib(true)
+    setMediaOpen(true)
+  }
+
+  const applyFile = (file: File) => {
+    const isVideo = file.type.startsWith('video/')
+    setMediaType(isVideo ? 'video' : 'image')
+    setPreviewSrc(URL.createObjectURL(file))
+    setVideoDur(null)
+    setPendingFile(file)
+    setUploadErr('')
+    const folder = isVideo ? 'video' : 'images'
+    setMediaUrl(`/assets/${folder}/${file.name}`)
+    if (!mediaName) setMediaName(file.name.replace(/\.[^.]+$/, ''))
+  }
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) applyFile(file)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) applyFile(file)
+  }
+
+  const commitMedia = async () => {
+    setUploadErr('')
+    let finalUrl = mediaUrl
+
+    // If the user dropped / picked a local file, upload it first
+    if (pendingFile) {
+      setUploading(true)
+      try {
+        const form = new FormData()
+        form.append('file', pendingFile)
+        const res  = await fetch('/api/upload/asset', { method: 'POST', body: form })
+        const json = await res.json() as { url?: string; error?: string }
+        if (!res.ok || !json.url) throw new Error(json.error ?? 'Upload failed')
+        finalUrl = json.url
+        setMediaUrl(finalUrl)
+        setPendingFile(null)
+      } catch (err) {
+        setUploadErr(err instanceof Error ? err.message : 'Upload failed')
+        setUploading(false)
+        return
+      }
+      setUploading(false)
+    }
+
+    const durVal = parseFloat(mediaDurStr)
+    const hasDur = mediaType === 'image' && !isNaN(durVal) && durVal > 0
+    let encoded  = `media:${mediaType}:${finalUrl}`
+    if (mediaName.trim() || hasDur) encoded += `||${mediaName.trim()}`
+    if (hasDur) encoded += `||dur=${durVal}`
+    // Optionally persist to library so the entry is available for every scene
+    if (saveToLib && finalUrl) {
+      const existing = mediaLibrary.find((e) => e.url === finalUrl)
+      if (!existing) {
+        const entry: MediaEntry = {
+          id: 'media-' + Date.now(),
+          name: mediaName.trim() || finalUrl.split('/').pop() || 'Unnamed',
+          type: mediaType,
+          url: finalUrl,
+          ...(hasDur ? { duration: durVal } : {}),
+        }
+        saveConfig({ ...fullConfig, mediaLibrary: [...mediaLibrary, entry] })
+      }
+    }
+    onChange(encoded)
+    handleClose()
+  }
+
+  /** Pick a saved library entry — immediately commit it as the transition value */
+  const commitFromLibrary = (entry: MediaEntry) => {
+    const hasDur = entry.type === 'image' && entry.duration != null && entry.duration > 0
+    let encoded  = `media:${entry.type}:${entry.url}||${entry.name}`
+    if (hasDur) encoded += `||dur=${entry.duration}`
+    onChange(encoded)
+    handleClose()
+  }
+
+  const handleClose = () => { setOpen(false); setMediaOpen(false); setSettingsCard(null); setPendingFile(null); setUploadErr('') }
+
+  return (
+    <>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full flex items-center justify-between px-2 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded hover:border-zinc-500 transition-colors"
+      >
+        <span className={selected || value.startsWith('media:') ? 'text-zinc-100' : 'text-zinc-500'}>
+          {selected && <span className="mr-1.5">{TRANSITION_ICONS[selected.id]}</span>}
+          {displayLabel}
+        </span>
+        <span className="text-zinc-600 text-[10px]">▼</span>
+      </button>
+
+      {/* Modal — fixed size, flex column */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
+          onClick={handleClose}
+        >
+          <div
+            className="w-[560px] h-[600px] flex flex-col bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header — fixed */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-zinc-100">Choose Transition</span>
+                {(selected || mediaParsed) && (
+                  <span className="text-[10px] text-cyan-400 bg-cyan-900/30 border border-cyan-700/30 rounded px-1.5 py-0.5">
+                    {selected ? `${TRANSITION_ICONS[selected.id]} ${selected.label}` : `🖼 ${mediaDisplay}`}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="text-zinc-500 hover:text-zinc-200 text-lg leading-none ml-3"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body — scrollable */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* None / default row */}
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className={
+                  'w-full text-left px-3 py-2 mb-3 rounded border text-xs transition-colors ' +
+                  (!value
+                    ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300'
+                    : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800')
+                }
+              >
+                <span className="mr-2 text-zinc-500">—</span> {placeholder}
+              </button>
+
+              {/* Transition cards grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {TRANSITION_OPTIONS.map((t) => {
+                  const isActive   = gsapParsed?.id === t.id
+                  const isExpanded = settingsCard === t.id
+                  return (
+                  <div
+                    key={t.id}
+                    className={
+                      'rounded border overflow-hidden transition-colors ' +
+                      (isActive
+                        ? 'bg-cyan-600/20 border-cyan-500/40'
+                        : 'bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600')
+                    }
+                  >
+                    {/* Card row */}
+                    <div className="flex">
+                      {/* Select area */}
+                      <button
+                        type="button"
+                        onClick={() => onChange(isActive ? '' : t.id)}
+                        className="flex-1 text-left px-3 py-2.5 min-w-0"
+                      >
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-base shrink-0">{TRANSITION_ICONS[t.id]}</span>
+                          <span className={'text-xs font-medium truncate ' + (isActive ? 'text-cyan-300' : 'text-zinc-200')}>
+                            {t.label}
+                          </span>
+                          {isActive && gsapParsed?.duration && (
+                            <span className="ml-auto shrink-0 text-[9px] text-cyan-500/70 font-mono">{gsapParsed.duration}s</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-zinc-500 truncate">{t.desc}</div>
+                      </button>
+                      {/* Right column: ✕ delete | ☰ settings | ▶ preview */}
+                      <div className="w-10 shrink-0 flex flex-col border-l border-zinc-700/50 divide-y divide-zinc-700/50">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); if (isActive) onChange('') }}
+                          title={isActive ? 'Remove selection' : ''}
+                          className={'flex-1 flex items-center justify-center text-[11px] transition-colors ' +
+                            (isActive ? 'text-zinc-600 hover:text-red-400 hover:bg-red-900/20' : 'text-zinc-800 cursor-default')}
+                        >
+                          ✕
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleSettings(t.id) }}
+                          title="Duration settings"
+                          className={'flex-1 flex items-center justify-center text-xs transition-colors ' +
+                            (isExpanded ? 'text-cyan-400 bg-zinc-700/40' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/30')}
+                        >
+                          ☰
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); preview(t.id) }}
+                          title="Preview on overlay"
+                          className="flex-1 flex items-center justify-center text-xs text-zinc-500 hover:text-cyan-400 hover:bg-zinc-700/30 transition-colors"
+                        >
+                          ▶
+                        </button>
+                      </div>
+                    </div>
+                    {/* Inline settings expansion */}
+                    {isExpanded && (
+                      <div className="border-t border-zinc-700/50 bg-zinc-800/40 px-3 py-2.5 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-zinc-500 uppercase tracking-wide w-16 shrink-0">Duration</span>
+                          <input
+                            type="number"
+                            min={0.1}
+                            max={60}
+                            step={0.1}
+                            value={settingsDuration}
+                            onChange={(e) => setSettingsDuration(e.target.value)}
+                            placeholder="default"
+                            className="w-20 text-xs font-mono"
+                          />
+                          <span className="text-[10px] text-zinc-600">sec</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-600">Leave empty to use the transition's built-in speed.</div>
+                        <div className="flex gap-1.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={commitSettings}
+                            className="flex-1 py-1 text-[11px] bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded transition-colors"
+                          >
+                            Apply
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSettingsCard(null)}
+                            className="flex-1 py-1 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  )
+                })}
+
+                {/* Image / Video Transition card */}
+                <div
+                  className={
+                    'rounded border overflow-hidden transition-colors ' +
+                    (mediaParsed
+                      ? 'bg-cyan-600/20 border-cyan-500/40'
+                      : 'bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600')
+                  }
+                >
+                  <div className="flex">
+                    {/* Info area */}
+                    <div className="flex-1 px-3 py-2.5 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-base shrink-0">🖼</span>
+                        <span className={'text-xs font-medium truncate ' + (mediaParsed ? 'text-cyan-300' : 'text-zinc-200')}>
+                          {mediaParsed ? mediaDisplay : 'Image / Video'}
+                        </span>
+                        {mediaParsed?.duration && (
+                          <span className="ml-auto shrink-0 text-[9px] text-cyan-500/70 font-mono">{mediaParsed.duration}s</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-zinc-500 truncate">
+                        {mediaParsed ? mediaParsed.url.split('/').pop() : 'Use a file as the transition'}
+                      </div>
+                    </div>
+                    {/* Right column: ✕ delete | ☰ edit | ▶ preview */}
+                    <div className="w-10 shrink-0 flex flex-col border-l border-zinc-700/50 divide-y divide-zinc-700/50">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); if (mediaParsed) { onChange(''); setMediaUrl(''); setMediaName(''); setPreviewSrc('') } }}
+                        title={mediaParsed ? 'Remove' : ''}
+                        className={'flex-1 flex items-center justify-center text-[11px] transition-colors ' +
+                          (mediaParsed ? 'text-zinc-600 hover:text-red-400 hover:bg-red-900/20' : 'text-zinc-800 cursor-default')}
+                      >
+                        ✕
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openMediaPanel() }}
+                        title="Edit or add media"
+                        className="flex-1 flex items-center justify-center text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/30 transition-colors"
+                      >
+                        ☰
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); if (mediaParsed) preview(value) }}
+                        title={mediaParsed ? 'Preview' : ''}
+                        className={'flex-1 flex items-center justify-center text-xs transition-colors ' +
+                          (mediaParsed ? 'text-zinc-500 hover:text-cyan-400 hover:bg-zinc-700/30' : 'text-zinc-800 cursor-default')}
+                      >
+                        ▶
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Fixed footer */}
+            <div className="shrink-0 px-4 py-3 border-t border-zinc-800 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={openMediaPanel}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors"
+              >
+                <span>＋</span>
+                <span>Add media</span>
+              </button>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-5 py-1.5 text-xs bg-cyan-600/20 hover:bg-cyan-600/35 text-cyan-300 border border-cyan-500/30 rounded-lg transition-colors"
+              >
+                Done
+              </button>
+            </div>
+
+            {/* Media sub-panel — absolute overlay inside the modal */}
+            {mediaOpen && (
+              <div className="absolute inset-0 flex flex-col bg-zinc-900 z-10">
+                {/* Sub-header */}
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setMediaOpen(false)}
+                    className="text-zinc-500 hover:text-zinc-200 text-sm leading-none mr-1"
+                  >
+                    ←
+                  </button>
+                  <span className="text-sm font-semibold text-zinc-100">
+                    {mediaView === 'library' ? 'Media Library' : 'Image / Video'}
+                  </span>
+                  {mediaView === 'form' && mediaLibrary.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setMediaView('library')}
+                      className="ml-auto text-[10px] text-zinc-500 hover:text-zinc-200 transition-colors"
+                    >
+                      ← Library
+                    </button>
+                  )}
+                </div>
+
+                {/* ── Library view ── */}
+                {mediaView === 'library' && (
+                  <>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+                      {mediaLibrary.length === 0 ? (
+                        <div className="text-xs text-zinc-600 italic text-center py-8">No saved media yet.</div>
+                      ) : (
+                        mediaLibrary.map((entry) => (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => commitFromLibrary(entry)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-800/50 hover:border-cyan-500/50 hover:bg-cyan-900/20 transition-colors text-left group"
+                          >
+                            <div className="w-14 h-8 rounded overflow-hidden bg-zinc-950 border border-zinc-700 shrink-0 flex items-center justify-center">
+                              {entry.type === 'image'
+                                ? <img src={entry.url} alt={entry.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex') }} />
+                                : null
+                              }
+                              <span className="text-base" style={{ display: entry.type === 'image' ? 'none' : 'flex' }}>{entry.type === 'image' ? '🖼' : '🎬'}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium text-zinc-200 truncate">{entry.name}</div>
+                              <div className="text-[10px] text-zinc-500 font-mono truncate">{entry.url}</div>
+                              {entry.type === 'image' && entry.duration != null && (
+                                <div className="text-[10px] text-zinc-600">{entry.duration}s</div>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-cyan-500 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">Use</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <div className="shrink-0 px-4 py-3 border-t border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMediaUrl(''); setMediaName(''); setMediaDurStr(''); setMediaType('image')
+                          setPreviewSrc(''); setVideoDur(null); setSaveToLib(true); setPendingFile(null); setUploadErr('')
+                          setMediaView('form')
+                        }}
+                        className="w-full py-2 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-500 rounded-lg transition-colors"
+                      >
+                        ＋ Add New Media
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* ── Form view ── */}
+                {mediaView === 'form' && (
+                  <>
+                    {/* Sub-body */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+                      {/* Name */}
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Name</div>
+                        <input
+                          type="text"
+                          value={mediaName}
+                          onChange={(e) => setMediaName(e.target.value)}
+                          placeholder="My Transition"
+                          className="w-full text-xs"
+                        />
+                      </div>
+
+                      {/* Type toggle */}
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-2 uppercase tracking-wider">Type</div>
+                        <div className="flex gap-2">
+                          {(['image', 'video'] as const).map((mt) => (
+                            <button
+                              key={mt}
+                              type="button"
+                              onClick={() => { setMediaType(mt); if (previewSrc.startsWith('blob:')) setPreviewSrc('') }}
+                              className={
+                                'px-4 py-1.5 text-xs rounded border capitalize transition-colors ' +
+                                (mediaType === mt
+                                  ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40'
+                                  : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200')
+                              }
+                            >
+                              {mt === 'image' ? '🖼 Image' : '🎬 Video'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Drag-and-drop + browse zone */}
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-2 uppercase tracking-wider">Source</div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          className="hidden"
+                          onChange={handleFilePick}
+                        />
+                        <div
+                          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                          onDragLeave={() => setDragOver(false)}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={
+                            'w-full h-24 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ' +
+                            (dragOver
+                              ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                              : 'border-zinc-700 bg-zinc-800/30 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300')
+                          }
+                        >
+                          <span className="text-xl">📁</span>
+                          <span className="text-xs">Drop a file or <span className="underline">browse</span></span>
+                        </div>
+                      </div>
+
+                      {/* Path or URL */}
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Path or URL</div>
+                        <input
+                          type="text"
+                          value={mediaUrl}
+                          onChange={(e) => { setMediaUrl(e.target.value); setPreviewSrc(''); setPendingFile(null) }}
+                          placeholder="/assets/video/wipe.mp4  or  https://…"
+                          className="w-full text-xs font-mono"
+                        />
+                        <div className="text-[10px] mt-1">
+                          {pendingFile
+                            ? <span className="text-cyan-600">📤 Will be uploaded to server on save</span>
+                            : <span className="text-zinc-600">Server-relative path (proxied) or full URL.</span>
+                          }
+                        </div>
+                      </div>
+
+                      {/* Image duration */}
+                      {mediaType === 'image' && (
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Display Duration (seconds)</div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={0.1}
+                              max={120}
+                              step={0.5}
+                              value={mediaDurStr}
+                              onChange={(e) => setMediaDurStr(e.target.value)}
+                              placeholder="4.0"
+                              className="w-28 text-xs font-mono"
+                            />
+                            <span className="text-[10px] text-zinc-600">sec (default 4.0)</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Preview */}
+                      {(previewSrc || mediaUrl) && (
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Preview</div>
+                          <div className="relative w-full aspect-video bg-black rounded-lg border border-zinc-700 overflow-hidden">
+                            {mediaType === 'image' ? (
+                              <img
+                                src={previewSrc || mediaUrl}
+                                alt="preview"
+                                className="w-full h-full object-contain"
+                                onError={(e) => { (e.currentTarget.parentElement as HTMLElement).dataset.err = '1'; e.currentTarget.style.display = 'none' }}
+                              />
+                            ) : (
+                              <video
+                                key={previewSrc || mediaUrl}
+                                src={previewSrc || mediaUrl}
+                                className="w-full h-full object-contain"
+                                muted
+                                loop
+                                autoPlay
+                                playsInline
+                                onLoadedMetadata={(e) => setVideoDur(e.currentTarget.duration)}
+                                onError={() => setVideoDur(null)}
+                              />
+                            )}
+                          </div>
+                          {mediaType === 'video' && videoDur != null && (
+                            <div className="mt-1 text-[10px] text-zinc-500">
+                              Duration: <span className="text-zinc-300 font-mono">{videoDur.toFixed(2)}s</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Save to Library toggle */}
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={saveToLib}
+                          onChange={(e) => setSaveToLib(e.target.checked)}
+                          className="accent-cyan-500"
+                        />
+                        <span className="text-[11px] text-zinc-400">Save to Library</span>
+                        <span className="text-[10px] text-zinc-600">(reuse in any scene)</span>
+                      </label>
+                    </div>
+
+                    {/* Sub-footer */}
+                    <div className="shrink-0 px-4 py-3 border-t border-zinc-800 space-y-2">
+                      {uploadErr && (
+                        <div className="text-[10px] text-red-400 bg-red-900/20 border border-red-700/40 rounded px-2 py-1">{uploadErr}</div>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!mediaUrl || uploading}
+                        onClick={commitMedia}
+                        className="w-full py-2 text-sm bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-500/40 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {uploading
+                          ? 'Uploading…'
+                          : pendingFile
+                            ? `Upload & Use ${mediaType === 'image' ? 'Image' : 'Video'}`
+                            : `Use This ${mediaType === 'image' ? 'Image' : 'Video'}`}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
 function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void }) {
   return (
@@ -558,6 +1261,85 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
   )
 }
 
+// ── TransitionList ────────────────────────────────────────────────
+// Converts between the TransitionPicker string encoding and TransitionStep.
+function stepToStr(step: TransitionStep): string {
+  if (step.id.startsWith('media:')) return step.id
+  return step.duration ? `${step.id}?duration=${step.duration}` : step.id
+}
+function strToStep(s: string): TransitionStep {
+  if (!s || s.startsWith('media:')) return { id: s }
+  const qi  = s.indexOf('?')
+  const id  = qi >= 0 ? s.slice(0, qi) : s
+  const dur = qi >= 0 ? new URLSearchParams(s.slice(qi + 1)).get('duration') : null
+  return { id, ...(dur ? { duration: parseFloat(dur) } : {}) }
+}
+
+/** Ordered pipeline editor — each step is a full TransitionPicker row. */
+function TransitionList({
+  value,
+  onChange,
+}: {
+  value: TransitionStep[]
+  onChange: (steps: TransitionStep[]) => void
+}) {
+  const steps = value ?? []
+
+  const updateStep = (idx: number, str: string) => {
+    const next = [...steps]
+    next[idx] = strToStep(str)
+    onChange(next.filter((s) => s.id))
+  }
+
+  const removeStep = (idx: number) => onChange(steps.filter((_, i) => i !== idx))
+
+  const moveUp = (idx: number) => {
+    if (idx === 0) return
+    const next = [...steps];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+    onChange(next)
+  }
+
+  const moveDown = (idx: number) => {
+    if (idx === steps.length - 1) return
+    const next = [...steps];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-1">
+      {steps.map((step, idx) => (
+        <div key={idx} className="flex gap-1 items-start">
+          <div className="flex-1 min-w-0">
+            <TransitionPicker
+              value={stepToStr(step)}
+              onChange={(str) => updateStep(idx, str)}
+              placeholder="— Pick transition —"
+            />
+          </div>
+          <div className="flex flex-col gap-0.5 shrink-0 pt-0.5">
+            <button
+              onClick={() => moveUp(idx)} disabled={idx === 0}
+              className="px-1.5 text-[9px] text-zinc-500 hover:text-zinc-200 disabled:opacity-20 leading-none">▲</button>
+            <button
+              onClick={() => moveDown(idx)} disabled={idx === steps.length - 1}
+              className="px-1.5 text-[9px] text-zinc-500 hover:text-zinc-200 disabled:opacity-20 leading-none">▼</button>
+          </div>
+          <button
+            onClick={() => removeStep(idx)}
+            className="px-1.5 shrink-0 text-xs text-zinc-500 hover:text-red-400 transition-colors pt-0.5">✕</button>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange([...steps, { id: '' }])}
+        className="w-full text-[11px] text-zinc-500 hover:text-cyan-300 border border-dashed border-zinc-700 hover:border-cyan-500/40 rounded py-1 mt-1 transition-colors">
+        + Add step
+      </button>
+    </div>
+  )
+}
+
 // ── LobbyConfigEditor ──────────────────────────────────────────────
 
 const DEFAULT_LOBBY: LobbyConfig = {
@@ -615,23 +1397,19 @@ function LobbyConfigEditor() {
         {saved  && <span className="text-emerald-400">✔</span>}
       </div>
       <Panel title="Transitions">
-        <div className="space-y-2">
+        <div className="space-y-3">
           {([
-            { field: 'introTransition' as const, label: 'Intro (entering)' },
-            { field: 'exitTransition'  as const, label: 'Exit (leaving)' },
+            { field: 'introTransitions' as const, label: 'Intro (entering)' },
+            { field: 'exitTransitions'  as const, label: 'Exit (leaving)' },
           ]).map(({ field, label }) => (
             <div key={field}>
               <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
-              <select
-                value={config.scenes[STATE.LOBBY]?.[field] ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value || undefined
-                  saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: { ...config.scenes[STATE.LOBBY], [field]: val } } })
+              <TransitionList
+                value={config.scenes[STATE.LOBBY]?.[field] ?? []}
+                onChange={(steps) => {
+                  saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: { ...config.scenes[STATE.LOBBY], [field]: steps } } })
                 }}
-                className="w-full text-xs">
-                <option value="">— None —</option>
-                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
-              </select>
+              />
             </div>
           ))}
         </div>
@@ -712,23 +1490,19 @@ function DesktopConfigEditor() {
         {saved && <span className="text-emerald-400">✔</span>}
       </div>
       <Panel title="Transitions">
-        <div className="space-y-2">
+        <div className="space-y-3">
           {([
-            { field: 'introTransition' as const, label: 'Intro (entering)' },
-            { field: 'exitTransition'  as const, label: 'Exit (leaving)' },
+            { field: 'introTransitions' as const, label: 'Intro (entering)' },
+            { field: 'exitTransitions'  as const, label: 'Exit (leaving)' },
           ]).map(({ field, label }) => (
             <div key={field}>
               <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
-              <select
-                value={config.scenes[STATE.DESKTOP]?.[field] ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value || undefined
-                  saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], [field]: val } } })
+              <TransitionList
+                value={config.scenes[STATE.DESKTOP]?.[field] ?? []}
+                onChange={(steps) => {
+                  saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], [field]: steps } } })
                 }}
-                className="w-full text-xs">
-                <option value="">— None —</option>
-                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
-              </select>
+              />
             </div>
           ))}
         </div>
@@ -817,6 +1591,10 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       <Panel title="Identity">
         <div className="space-y-2">
           <div>
+            <div className="text-[10px] text-zinc-500 mb-1">ID <span className="text-zinc-600">(read-only — used by widget registry)</span></div>
+            <input type="text" value={form.id} readOnly className="w-full text-xs font-mono text-zinc-500 cursor-default select-all" />
+          </div>
+          <div>
             <div className="text-[10px] text-zinc-500 mb-1">Label</div>
             <input type="text" value={form.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full text-xs" />
           </div>
@@ -843,24 +1621,20 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       </Panel>
 
       <Panel title="Transitions">
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
-            <select value={form.introTransition ?? ''}
-              onChange={(e) => update((d) => { d.introTransition = e.target.value || undefined })}
-              className="w-full text-xs">
-              <option value="">— Default —</option>
-              {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
-            </select>
+            <TransitionList
+              value={form.introTransitions ?? []}
+              onChange={(steps) => update((d) => { d.introTransitions = steps.length ? steps : undefined })}
+            />
           </div>
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Exit</div>
-            <select value={form.exitTransition ?? ''}
-              onChange={(e) => update((d) => { d.exitTransition = e.target.value || undefined })}
-              className="w-full text-xs">
-              <option value="">— Default —</option>
-              {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
-            </select>
+            <TransitionList
+              value={form.exitTransitions ?? []}
+              onChange={(steps) => update((d) => { d.exitTransitions = steps.length ? steps : undefined })}
+            />
           </div>
         </div>
       </Panel>
@@ -1050,10 +1824,10 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
   const saveConfig  = useAdminStore((s) => s.saveConfig)
   const linkedApp   = config.applications.find((a) => a.targetSceneId === sceneId)
 
-  const updateAppTransition = (key: 'introTransition' | 'exitTransition', val: string) => {
+  const updateAppTransitions = (key: 'introTransitions' | 'exitTransitions', steps: TransitionStep[]) => {
     if (!linkedApp) return
     const apps = config.applications.map((a) =>
-      a.id === linkedApp.id ? { ...a, [key]: val || undefined } : a
+      a.id === linkedApp.id ? { ...a, [key]: steps.length ? steps : undefined } : a
     )
     saveConfig({ applications: apps })
   }
@@ -1064,25 +1838,21 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
         <SourcesEditor sceneId={sceneId} />
       </Panel>
       {linkedApp && (
-        <Panel title="Transitions">
-          <div className="space-y-2">
+      <Panel title="Transitions">
+          <div className="space-y-3">
             <div>
               <div className="text-[10px] text-zinc-500 mb-1">Intro (entering)</div>
-              <select value={linkedApp.introTransition ?? ''}
-                onChange={(e) => updateAppTransition('introTransition', e.target.value)}
-                className="w-full text-xs">
-                <option value="">— Default —</option>
-                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
-              </select>
+              <TransitionList
+                value={linkedApp.introTransitions ?? []}
+                onChange={(steps) => updateAppTransitions('introTransitions', steps)}
+              />
             </div>
             <div>
               <div className="text-[10px] text-zinc-500 mb-1">Exit (leaving)</div>
-              <select value={linkedApp.exitTransition ?? ''}
-                onChange={(e) => updateAppTransition('exitTransition', e.target.value)}
-                className="w-full text-xs">
-                <option value="">— Default —</option>
-                {TRANSITION_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label} — {t.desc}</option>)}
-              </select>
+              <TransitionList
+                value={linkedApp.exitTransitions ?? []}
+                onChange={(steps) => updateAppTransitions('exitTransitions', steps)}
+              />
             </div>
           </div>
         </Panel>
@@ -1104,6 +1874,247 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
         />
         <div className="text-[10px] text-zinc-600 mt-1">Crossfade: 1.5 s</div>
       </Panel>
+    </div>
+  )
+}
+
+// ── AssetLibraryPanel ──────────────────────────────────────────────
+
+function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
+  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
+  const fullConfig   = useAdminStore((s) => s.config)
+  const saveConfig   = useAdminStore((s) => s.saveConfig)
+
+  const [tab, setTab]           = useState<'media' | 'transitions'>('media')
+  const [addOpen, setAddOpen]   = useState(false)
+  // Form state for adding a new entry
+  const [name,      setName]      = useState('')
+  const [type,      setType]      = useState<'image' | 'video'>('image')
+  const [url,       setUrl]       = useState('')
+  const [durStr,    setDurStr]    = useState('')
+  const [previewSrc, setPreviewSrc] = useState('')
+  const [videoDur,  setVideoDur]  = useState<number | null>(null)
+  const [dragOver,  setDragOver]  = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const resetForm = () => { setName(''); setType('image'); setUrl(''); setDurStr(''); setPreviewSrc(''); setVideoDur(null) }
+
+  const applyFile = (file: File) => {
+    const isVid = file.type.startsWith('video/')
+    setType(isVid ? 'video' : 'image')
+    setPreviewSrc(URL.createObjectURL(file))
+    setVideoDur(null)
+    setUrl(`/assets/${isVid ? 'video' : 'images'}/${file.name}`)
+    if (!name) setName(file.name.replace(/\.[^.]+$/, ''))
+  }
+
+  const handleSave = () => {
+    if (!url) return
+    const durVal = parseFloat(durStr)
+    const hasDur = type === 'image' && !isNaN(durVal) && durVal > 0
+    const entry: MediaEntry = {
+      id:   'media-' + Date.now(),
+      name: name.trim() || url.split('/').pop() || 'Unnamed',
+      type,
+      url,
+      ...(hasDur ? { duration: durVal } : {}),
+    }
+    saveConfig({ ...fullConfig, mediaLibrary: [...mediaLibrary, entry] })
+    resetForm()
+    setAddOpen(false)
+  }
+
+  const handleDelete = (id: string) => {
+    saveConfig({ ...fullConfig, mediaLibrary: mediaLibrary.filter((e) => e.id !== id) })
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={onClose}>
+      <div className="w-[720px] max-h-[85vh] flex flex-col bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+
+        {/* Modal header */}
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-zinc-800 shrink-0">
+          <span className="text-base">🗂</span>
+          <span className="text-sm font-semibold text-zinc-100">Asset Library</span>
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-xl leading-none transition-colors">✕</button>
+        </div>
+
+        {/* Modal body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-lg">
+        {(['media', 'transitions'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={'flex-1 py-1 text-xs rounded capitalize transition-colors ' +
+              (tab === t ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-200')}
+          >
+            {t === 'media' ? '🖼 Media' : '✨ Transitions'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Media tab ── */}
+      {tab === 'media' && (
+        <div className="space-y-2">
+          {mediaLibrary.length === 0 && !addOpen && (
+            <div className="text-xs text-zinc-600 italic text-center py-6">
+              No saved media. Click below to add.
+            </div>
+          )}
+
+          {mediaLibrary.map((entry) => (
+            <div key={entry.id} className="flex items-center gap-3 px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-800/30">
+              {/* Thumbnail */}
+              <div className="w-20 h-11 rounded overflow-hidden bg-zinc-950 border border-zinc-700/60 shrink-0 flex items-center justify-center">
+                {entry.type === 'image' ? (
+                  <img
+                    src={entry.url}
+                    alt={entry.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fb = e.currentTarget.nextElementSibling as HTMLElement | null
+                      if (fb) fb.style.display = 'flex'
+                    }}
+                  />
+                ) : (
+                  <video
+                    src={entry.url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                )}
+                <span className="text-sm hidden items-center justify-center">{entry.type === 'image' ? '🖼' : '🎬'}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-zinc-200 truncate">{entry.name}</div>
+                <div className="text-[10px] text-zinc-500 font-mono truncate">{entry.url}</div>
+                {entry.type === 'image' && entry.duration != null && (
+                  <div className="text-[10px] text-zinc-600">{entry.duration}s display</div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDelete(entry.id)}
+                className="shrink-0 text-zinc-600 hover:text-red-400 text-sm transition-colors px-1"
+                title="Delete"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+
+          {/* Add new form */}
+          {addOpen && (
+            <div className="border border-zinc-700 rounded-lg p-3 space-y-3 bg-zinc-800/20">
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">New Media Entry</div>
+
+              <div>
+                <div className="text-[10px] text-zinc-600 mb-1">Name</div>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="My Transition" className="w-full text-xs" />
+              </div>
+
+              <div className="flex gap-2">
+                {(['image', 'video'] as const).map((mt) => (
+                  <button key={mt} type="button"
+                    onClick={() => { setType(mt); if (previewSrc.startsWith('blob:')) setPreviewSrc('') }}
+                    className={'px-3 py-1 text-xs rounded border transition-colors ' +
+                      (type === mt ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200')}>
+                    {mt === 'image' ? '🖼 Image' : '🎬 Video'}
+                  </button>
+                ))}
+              </div>
+
+              <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) applyFile(f) }} />
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) applyFile(f) }}
+                onClick={() => fileRef.current?.click()}
+                className={'w-full h-16 flex flex-col items-center justify-center gap-1 rounded border-2 border-dashed cursor-pointer transition-colors text-xs ' +
+                  (dragOver ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-zinc-700 bg-zinc-800/30 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300')}
+              >
+                <span>📁 Drop or <span className="underline">browse</span></span>
+              </div>
+
+              <div>
+                <input type="text" value={url} onChange={(e) => { setUrl(e.target.value); setPreviewSrc('') }}
+                  placeholder="/assets/video/wipe.mp4" className="w-full text-xs font-mono" />
+              </div>
+
+              {type === 'image' && (
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0.1} max={120} step={0.5} value={durStr}
+                    onChange={(e) => setDurStr(e.target.value)} placeholder="4.0"
+                    className="w-24 text-xs font-mono" />
+                  <span className="text-[10px] text-zinc-600">sec display duration</span>
+                </div>
+              )}
+
+              {(previewSrc || url) && (
+                <div className="relative w-full aspect-video bg-black rounded border border-zinc-700 overflow-hidden">
+                  {type === 'image'
+                    ? <img src={previewSrc || url} alt="preview" className="w-full h-full object-contain" />
+                    : <video key={previewSrc || url} src={previewSrc || url} className="w-full h-full object-contain" muted loop autoPlay playsInline
+                        onLoadedMetadata={(e) => setVideoDur(e.currentTarget.duration)} onError={() => setVideoDur(null)} />
+                  }
+                </div>
+              )}
+              {type === 'video' && videoDur != null && (
+                <div className="text-[10px] text-zinc-500">Duration: <span className="font-mono text-zinc-300">{videoDur.toFixed(2)}s</span></div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={handleSave} disabled={!url}
+                  className="flex-1 py-1.5 text-xs bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  Save to Library
+                </button>
+                <button type="button" onClick={() => { resetForm(); setAddOpen(false) }}
+                  className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!addOpen && (
+            <button type="button" onClick={() => setAddOpen(true)}
+              className="w-full py-2 text-xs border border-dashed border-zinc-700 hover:border-zinc-500 text-zinc-600 hover:text-zinc-300 rounded-lg transition-colors">
+              ＋ Add Media
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Transitions tab ── */}
+      {tab === 'transitions' && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] text-zinc-500 px-0.5 pb-1">All available GSAP transitions. Set custom durations per-scene in each transition picker.</div>
+          {TRANSITION_OPTIONS.map((t) => (
+            <div key={t.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded border border-zinc-800 bg-zinc-800/20">
+              <span className="text-base w-5 text-center shrink-0">{TRANSITION_ICONS[t.id]}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-zinc-200">{t.label}</div>
+                <div className="text-[10px] text-zinc-500 font-mono">{t.id}</div>
+              </div>
+              <button type="button" onClick={() => socket.emit('transition:preview', [{ id: t.id }])}
+                className="shrink-0 text-[10px] text-zinc-600 hover:text-cyan-400 px-1 transition-colors" title="Preview">
+                ▶
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+        </div>
+      </div>
     </div>
   )
 }
@@ -1281,6 +2292,124 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
   )
 }
 
+// ── SocketLogConsole ────────────────────────────────────────────────
+
+type LogEntry = { id: number; time: string; dir: '←' | '→'; event: string; summary: string }
+const logListeners: ((e: LogEntry) => void)[] = []
+let logSeq = 0
+
+function formatLogData(args: unknown[]): string {
+  if (args.length === 0) return ''
+  try {
+    const data = args[0]
+    // For transition:play strip verbose from/to, show only transitionType
+    if (data && typeof data === 'object' && 'transitionType' in (data as object)) {
+      const t = (data as Record<string, unknown>).transitionType
+      return String(t)
+    }
+    const s = JSON.stringify(data)
+    // Strip outer quotes for simple strings
+    if (s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1)
+    return s.length > 60 ? s.slice(0, 60) + '…' : s
+  } catch { return String(args[0]) }
+}
+
+function pushLog(dir: '←' | '→', event: string, args: unknown[]) {
+  const now = new Date()
+  const time = now.toTimeString().slice(0, 8)
+  const entry: LogEntry = { id: ++logSeq, time, dir, event, summary: formatLogData(args) }
+  logListeners.forEach((fn) => fn(entry))
+}
+
+// Wire up socket event capture at module level
+const LOG_SKIP = new Set(['obs:status'])
+socket.onAny((event, ...args) => { if (!LOG_SKIP.has(event)) pushLog('←', event, args as unknown[]) })
+socket.onAnyOutgoing((event, ...args) => pushLog('→', event, args as unknown[]))
+
+function SocketLogConsole() {
+  const [open,      setOpen]    = useState(false)
+  const [entries,   setEntries] = useState<LogEntry[]>([])
+  const [copied,    setCopied]  = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const text = entries.map(en => `${en.time} ${en.dir} ${en.event}${en.summary ? ' ' + en.summary : ''}`).join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEntries([])
+  }
+
+  useEffect(() => {
+    const handler = (e: LogEntry) =>
+      setEntries((prev) => [...prev.slice(-99), e])
+    logListeners.push(handler)
+    return () => { const i = logListeners.indexOf(handler); if (i >= 0) logListeners.splice(i, 1) }
+  }, [])
+
+  useEffect(() => {
+    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [entries, open])
+
+  return (
+    <div className="shrink-0 border-t border-zinc-800">
+      {/* Toggle bar */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-zinc-800/50 transition-colors"
+      >
+        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1">Console</span>
+        {!open && entries.length > 0 && (
+          <span className="text-[10px] font-mono text-zinc-600 truncate max-w-[100px]">
+            {entries[entries.length - 1].dir} {entries[entries.length - 1].event}
+          </span>
+        )}
+        {entries.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={handleCopy}
+              title="Copy log"
+              className="text-[10px] text-zinc-600 hover:text-zinc-300 px-1 transition-colors"
+            >{copied ? '✓' : '⎘'}</button>
+            <button
+              type="button"
+              onClick={handleClear}
+              title="Clear log"
+              className="text-[10px] text-zinc-600 hover:text-red-400 px-1 transition-colors"
+            >✕</button>
+          </>
+        )}
+        <span className="text-[9px] text-zinc-700">{open ? '▲' : '▼'}</span>
+      </button>
+      {/* Log entries */}
+      {open && (
+        <div className="h-[110px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-0.5">
+          {entries.length === 0 && (
+            <div className="text-[10px] text-zinc-700 italic pt-2 text-center">No events yet.</div>
+          )}
+          {entries.map((e) => (
+            <div key={e.id} className="flex gap-1.5 items-baseline font-mono">
+              <span className="text-[9px] text-zinc-700 shrink-0">{e.time}</span>
+              <span className={'text-[10px] shrink-0 ' + (e.dir === '→' ? 'text-cyan-600' : 'text-emerald-600')}>{e.dir}</span>
+              <span className="text-[10px] text-zinc-300 shrink-0 truncate max-w-[70px]">{e.event}</span>
+              {e.summary && <span className="text-[10px] text-zinc-600 truncate">{e.summary}</span>}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── LeftSidebar ────────────────────────────────────────────────────
 
 function SidebarBtn({ icon, label, live, active, onClick, onDoubleClick }: {
@@ -1319,8 +2448,9 @@ function SectionLabel({ children }: { children: string }) {
   )
 }
 
-function LeftSidebar({ selected, onSelect, onActivate, eventDefs, onAddEvent }: {
+function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
   selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
+  onLibrary: () => void
   eventDefs: EventDef[]; onAddEvent: () => void
 }) {
   const currentState = useAdminStore((s) => s.currentState)
@@ -1334,7 +2464,9 @@ function LeftSidebar({ selected, onSelect, onActivate, eventDefs, onAddEvent }: 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
   return (
-    <div className="w-52 shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto flex flex-col pb-2">
+    <div className="w-52 shrink-0 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+      {/* Scrollable nav area */}
+      <div className="flex-1 overflow-y-auto pb-1">
 
       <SectionLabel>Environments</SectionLabel>
       <SidebarBtn icon="🖥" label="Lobby"   live={currentState === STATE.LOBBY}   active={isActive({ kind: 'env', envState: STATE.LOBBY })}   onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })}   onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
@@ -1405,9 +2537,12 @@ function LeftSidebar({ selected, onSelect, onActivate, eventDefs, onAddEvent }: 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
       <SectionLabel>Studio</SectionLabel>
-      <SidebarBtn icon="🔊" label="Audio"       active={isActive({ kind: 'audio' })}       onClick={() => onSelect({ kind: 'audio' })} />
-      <SidebarBtn icon="⌨"  label="Keybinds"    active={isActive({ kind: 'keybinds' })}    onClick={() => onSelect({ kind: 'keybinds' })} />
-      <SidebarBtn icon="📁" label="Archive"     active={isActive({ kind: 'archive' })}     onClick={() => onSelect({ kind: 'archive' })} />
+      <SidebarBtn icon="🔊" label="Audio"         active={isActive({ kind: 'audio' })}       onClick={() => onSelect({ kind: 'audio' })} />
+      <SidebarBtn icon="⌨"  label="Keybinds"      active={isActive({ kind: 'keybinds' })}    onClick={() => onSelect({ kind: 'keybinds' })} />
+      <SidebarBtn icon="📁" label="Archive"       active={isActive({ kind: 'archive' })}     onClick={() => onSelect({ kind: 'archive' })} />
+      <SidebarBtn icon="🗂" label="Asset Library" active={false}                              onClick={onLibrary} />
+      </div>{/* end scrollable nav */}
+      <SocketLogConsole />
     </div>
   )
 }
@@ -1462,8 +2597,9 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
 // ── Dashboard ──────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const [selected,   setSelected]   = useState<SelectedItem | null>(null)
-  const [eventDefs,  setEventDefs]  = useState<EventDef[]>(DEFAULT_EVENT_DEFS)
+  const [selected,     setSelected]     = useState<SelectedItem | null>(null)
+  const [libraryOpen,  setLibraryOpen]  = useState(false)
+  const [eventDefs,    setEventDefs]    = useState<EventDef[]>(DEFAULT_EVENT_DEFS)
   const applications = useAdminStore((s) => s.config.applications)
 
   // Clear selection when selected app is removed
@@ -1490,7 +2626,13 @@ export function Dashboard() {
       socket.emit('scene:change', item.sceneState)
     } else if (item.kind === 'app') {
       const app = applications.find((a) => a.id === item.appId)
-      if (app) socket.emit('scene:change', app.targetSceneId)
+      if (!app) return
+      if (app.appType === 'widget') {
+        // Widgets are floating windows — tell the overlay to toggle them, no scene change.
+        socket.emit('widget:toggle', app.id)
+      } else {
+        socket.emit('scene:change', app.targetSceneId)
+      }
     } else if (item.kind === 'event') {
       socket.emit('overlay:trigger', item.id as never)
     }
@@ -1520,10 +2662,11 @@ export function Dashboard() {
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
       <TopBar onSettings={() => handleSelect({ kind: 'settings' })} />
       <div className="flex flex-1 overflow-hidden">
-        <LeftSidebar selected={selected} onSelect={handleSelect} onActivate={handleActivate} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
+        <LeftSidebar selected={selected} onSelect={handleSelect} onActivate={handleActivate} onLibrary={() => setLibraryOpen(true)} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
         <LivePreview />
         <RightPane selected={selected} onClose={() => setSelected(null)} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />
       </div>
+      {libraryOpen && <AssetLibraryPanel onClose={() => setLibraryOpen(false)} />}
     </div>
   )
 }

@@ -22,6 +22,4 @@ export const NAVIGABLE_STATES: STATE[] = [
 /** Maps a from→to pair to the named GSAP transition animation.
  *  Pairs not listed here get an instant snap (no animation). */
 export const TRANSITION_TYPE: Record<string, string> = {
-  [`${STATE.LOBBY}->${STATE.DESKTOP}`]:  'zoom-in',
-  [`${STATE.DESKTOP}->${STATE.LOBBY}`]:  'zoom-out',
 }

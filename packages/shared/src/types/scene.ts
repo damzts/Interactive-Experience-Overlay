@@ -37,12 +37,16 @@ export interface Application {
   /** 'scene' = fullscreen (replaces display), 'widget' = stacking Win98 window on Desktop */
   appType: ApplicationType
   targetSceneId: string
-  /** @deprecated Use introTransition / exitTransition */
-  transitionType: string
-  /** Transition played when entering this app (desktop → app). Overrides TRANSITION_TYPE map. */
+  /** @deprecated kept for stored-config migration; use exitTransitions / introTransitions */
+  transitionType?: string
+  /** @deprecated use introTransitions */
   introTransition?: string
-  /** Transition played when leaving this app back to desktop (app → desktop). */
+  /** @deprecated use exitTransitions */
   exitTransition?: string
+  /** Ordered pipeline played when entering this app. */
+  introTransitions?: TransitionStep[]
+  /** Ordered pipeline played when leaving this app. */
+  exitTransitions?: TransitionStep[]
   /** Absolute pixel position of the icon on the 1920×1080 desktop canvas */
   iconPosition?: { x: number; y: number }
   /** Visual size of the desktop icon */
@@ -62,18 +66,19 @@ export interface Scene {
   label: string
   backgroundOpaque: boolean
   sources: SourceInstance[]
-  /** Visual style: background, effects, particles, typography.
-   *  Drives BackgroundLayer, ParticlesLayer, and CSSEffectsLayer for this scene.
-   *  Falls back to AppConfig.overlayStyle if absent. */
+  /** Visual style: background, effects, particles, typography. */
   style?: OverlayStyle
   /** 3D room configuration. Used by LOBBY scene. */
   lobbyConfig?: LobbyConfig
-  /** Transition effect played when entering this scene/environment. */
+  /** @deprecated use introTransitions */
   introTransition?: string
-  /** Transition effect played when leaving this scene/environment. */
+  /** @deprecated use exitTransitions */
   exitTransition?: string
-  /** Background music track URL (or /assets/audio/music/… path) to play when this scene is active.
-   *  Leave undefined for silence. Previous track will crossfade out over 1.5 s. */
+  /** Ordered pipeline of transitions played when entering this scene. */
+  introTransitions?: TransitionStep[]
+  /** Ordered pipeline of transitions played when leaving this scene. */
+  exitTransitions?: TransitionStep[]
+  /** Background music track URL to play when this scene is active. */
   musicTrack?: string
 }
 
@@ -152,6 +157,31 @@ export interface DesktopConfig {
   }
 }
 
+// ── Media Library ──────────────────────────────────────────────
+
+/** A named media asset saved in the centralised Asset Library */
+export interface MediaEntry {
+  id: string
+  name: string
+  type: 'image' | 'video'
+  url: string
+  /** Display duration in seconds (images only; videos auto-detect) */
+  duration?: number
+}
+
+// ── Transition pipeline ─────────────────────────────────────────
+
+/**
+ * One step in a transition pipeline.
+ * `id` is either a GSAP key ('fade', 'zoom-in', …) or a media specifier
+ * ('media:video:/assets/video/file.mp4||Name||dur=3').
+ * `duration` overrides the animation's built-in speed (seconds).
+ */
+export interface TransitionStep {
+  id: string
+  duration?: number
+}
+
 // ── Event config ────────────────────────────────────────────────
 // Imported by: admin Dashboard.tsx, shared defaults, server (auto-trigger future)
 import type { EffectConfig } from './effects.js'
@@ -202,4 +232,6 @@ export interface AppConfig {
   desktopConfig?: DesktopConfig
   /** Saved event definitions. Falls back to DEFAULT_CONFIG.events if absent. */
   events?: EventConfig[]
+  /** Centralised media asset library (images / videos) used by TransitionPicker. */
+  mediaLibrary?: MediaEntry[]
 }

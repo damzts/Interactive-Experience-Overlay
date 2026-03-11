@@ -4,3 +4,5 @@ dist/
 ieom.db
 *.db-journal
 *.log
+*.mp4
+*.mp3

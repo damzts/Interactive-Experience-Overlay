@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import {
   STATE,
-  TRANSITION_TYPE,
+  type TransitionStep,
   type OverlayTriggerPayload,
 } from '@ieom/shared'
 
@@ -10,21 +10,27 @@ interface MachineSnapshot {
   previous: STATE
 }
 
+export interface TransitionStartPayload {
+  from: STATE
+  to: STATE
+  exit: TransitionStep[]
+  intro: TransitionStep[]
+}
+
 export class SceneMachine extends EventEmitter {
   private snap: MachineSnapshot = {
     current: STATE.DESKTOP,
     previous: STATE.DESKTOP,
   }
 
-  get currentState() {
-    return this.snap.current
-  }
-  get previousState() {
-    return this.snap.previous
-  }
+  get currentState() { return this.snap.current }
+  get previousState() { return this.snap.previous }
 
-  /** Attempt a transition. State updates immediately — no lock, no waiting for overlay. */
-  transition(target: STATE, options?: { transitionType?: string; exitTransition?: string; introTransition?: string }): { ok: boolean; error?: string; transitionType?: string } {
+  /** Attempt a transition. State updates immediately — overlay is eventually consistent. */
+  transition(
+    target: STATE,
+    options?: { exit?: TransitionStep[]; intro?: TransitionStep[] },
+  ): { ok: boolean; error?: string } {
     if (target === STATE.TRANSITIONING) {
       return { ok: false, error: 'Cannot navigate to TRANSITIONING state' }
     }
@@ -32,34 +38,25 @@ export class SceneMachine extends EventEmitter {
       return { ok: false, error: `Already in ${target}` }
     }
 
-    const transitionType =
-      options?.transitionType ??
-      TRANSITION_TYPE[`${this.snap.current}->${target}`] ??
-      'default'
-
     const previous = this.snap.current
     this.snap.previous = previous
     this.snap.current = target
 
-    // Tell the overlay which animation to play (fire-and-forget)
+    // Fire transition pipeline to overlay (fire-and-forget)
     this.emit('transition:start', {
       from: previous,
       to: target,
-      transitionType,
-      exitTransition: options?.exitTransition,
-      introTransition: options?.introTransition,
-    })
+      exit:  options?.exit  ?? [],
+      intro: options?.intro ?? [],
+    } satisfies TransitionStartPayload)
 
-    // Broadcast final state immediately — overlay is eventually consistent
-    this.emit('state:change', {
-      state: target,
-      previousState: previous,
-    })
+    // Broadcast final state immediately
+    this.emit('state:change', { state: target, previousState: previous })
 
-    return { ok: true, transitionType }
+    return { ok: true }
   }
 
-  /** Force a state immediately, bypassing animations. PANIC → STATE.DESKTOP. */
+  /** Force a state immediately, bypassing animations. */
   forceState(target: STATE) {
     const previous = this.snap.current
     this.snap.current = target

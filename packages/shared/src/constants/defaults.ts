@@ -80,6 +80,26 @@ export const DEFAULT_CONFIG: AppConfig = {
       iconPosition: { x: 16, y: 16 },
       iconSize: 'normal' as const,
     },
+    {
+      id: 'music',
+      label: 'MUSIC.exe',
+      icon: '🎵',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 96 },
+      iconSize: 'normal' as const,
+    },
+    {
+      id: 'archive',
+      label: 'ARCHIVE.exe',
+      icon: '📖',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 176 },
+      iconSize: 'normal' as const,
+    },
   ],
 
   keybinds: {
@@ -168,4 +188,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: OVERLAY_EVENT.NETWORK_GLITCH, label: 'GLITCH',   icon: '📡', color: 'text-purple-400',  desc: 'Full-screen artifact burst',        effects: [{ type: 'network-glitch',  cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }],                                          auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } },
     { id: 'idle-floaties',              label: 'FLOATIES', icon: '✨',  color: 'text-cyan-400',    desc: 'Glowing symbols drift over screen', effects: [{ type: 'floaties',         cfg: { count: 10, duration: 10, speed: 1.0 } }],                                                     auto: { enabled: false, mode: 'idle',     intervalMin: 15, idleMin: 5 } },
   ],
+
+  mediaLibrary: [],
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { STATE, type EffectConfig } from '@ieom/shared'
+import { STATE, type EffectConfig, type TransitionPlayPayload } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import { socket } from './client'
-import { useAppStore, type PendingTransition } from '../store/useAppStore'
+import { useAppStore } from '../store/useAppStore'
 import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
@@ -19,8 +19,8 @@ const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngin
 /** Connects socket events to the app store. Mount once — inside App. */
 export function useSocket() {
   const setVisualState = useAppStore((s) => s.setVisualState)
+  const setPendingVisualState = useAppStore((s) => s.setPendingVisualState)
   const setPendingTransition = useAppStore((s) => s.setPendingTransition)
-  const clearPendingTransition = useAppStore((s) => s.clearPendingTransition)
   const setConfig = useAppStore((s) => s.setConfig)
   const setObsConnected = useAppStore((s) => s.setObsConnected)
   const audioUnlocked = useRef(false)
@@ -47,17 +47,19 @@ export function useSocket() {
         audioUnlocked.current = true
         audioEngine.unlockContext()
       }
-      setVisualState(payload.state as Parameters<typeof setVisualState>[0])
-      clearPendingTransition()
+      // Buffer the new state — TransitionEngine will apply it at the transition midpoint.
+      // If no transition is running (e.g. initial connect), applyState falls back to setVisualState.
+      const next = payload.state as Parameters<typeof setVisualState>[0]
+      if (useAppStore.getState().pendingTransition) {
+        setPendingVisualState(next)
+      } else {
+        setVisualState(next)
+      }
     }
 
-    const onTransitionPlay = (payload: {
-      from: string
-      to: string
-      transitionType: string
-    }) => {
+    const onTransitionPlay = (payload: TransitionPlayPayload) => {
       audioEngine.play('transition')
-      setPendingTransition(payload as PendingTransition)
+      setPendingTransition(payload)
     }
 
     const onOverlayShow = (payload: { effects: EffectConfig[] }) => {
@@ -83,11 +85,16 @@ export function useSocket() {
       setObsConnected(payload.connected)
     }
 
+    const onWidgetToggle = (widgetId: string) => {
+      useAppStore.getState().toggleWidget(widgetId)
+    }
+
     socket.on('state:update', onStateUpdate)
     socket.on('transition:play', onTransitionPlay)
     socket.on('overlay:show', onOverlayShow)
     socket.on('config:update', onConfigUpdate)
     socket.on('obs:status', onObsStatus)
+    socket.on('widget:toggle', onWidgetToggle)
 
     return () => {
       socket.off('connect', onConnect)
@@ -96,6 +103,7 @@ export function useSocket() {
       socket.off('overlay:show', onOverlayShow)
       socket.off('config:update', onConfigUpdate)
       socket.off('obs:status', onObsStatus)
+      socket.off('widget:toggle', onWidgetToggle)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

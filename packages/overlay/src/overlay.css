@@ -19,7 +19,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 #sources-layer,
 #lobby-layer,
 #desktop-layer,
-#widget-layer,
 #effects-layer,
 #transition-layer {
   position: absolute;

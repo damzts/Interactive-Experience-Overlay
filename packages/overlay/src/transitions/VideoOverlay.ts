@@ -14,20 +14,17 @@ export function runVideoOverlay(cfg: VideoOverlayConfig): void {
   video.playsInline = true
   video.style.cssText = [
     'position: absolute',
+    'inset: 0',
+    'width: 100%',
+    'height: 100%',
+    'object-fit: cover',
     'opacity: 0',
     'pointer-events: none',
-    cfg.width  != null ? `width:${cfg.width}px`   : '',
-    cfg.height != null ? `height:${cfg.height}px` : '',
-  ].filter(Boolean).join(';')
+  ].join(';')
 
   container.appendChild(video)
 
   video.onloadedmetadata = () => {
-    const vw  = cfg.width  ?? video.videoWidth
-    const vh  = cfg.height ?? video.videoHeight
-    video.style.left = (cfg.x != null ? cfg.x : (1920 - vw) / 2) + 'px'
-    video.style.top  = (cfg.y != null ? cfg.y : (1080 - vh) / 2) + 'px'
-
     const dur  = cfg.duration > 0 ? cfg.duration : video.duration ?? 3
     const hold = Math.max(dur - 0.7, 0.1)
 

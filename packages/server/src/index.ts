@@ -1,9 +1,11 @@
 import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
+import fastifyMultipart from '@fastify/multipart'
 import { Server as SocketIO } from 'socket.io'
-import { existsSync, readdirSync } from 'fs'
-import { join, dirname } from 'path'
+import { existsSync, readdirSync, mkdirSync, createWriteStream } from 'fs'
+import { join, dirname, extname } from 'path'
+import { pipeline } from 'stream/promises'
 import { fileURLToPath } from 'url'
 import { SceneMachine } from './state/machine.js'
 import { setupSocketHandlers } from './socket/handlers.js'
@@ -16,8 +18,8 @@ import { EventScheduler } from './events/scheduler.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10)
-// Root of the ieom monorepo (4 levels up from packages/server/src/)
-const MONO_ROOT = join(__dirname, '../../../..')
+// Root of the ieom monorepo (3 levels up: src → server → packages → ieom)
+const MONO_ROOT = join(__dirname, '../../..')
 // Root of the stream project (one level above ieom/)
 const PROJECT_ROOT = join(MONO_ROOT, '..')
 
@@ -55,15 +57,14 @@ if (existsSync(adminDist)) {
   })
 }
 
-// Serve shared assets
+// Serve shared assets (always register — upload endpoint may create the dir on first use)
 const assetsDir = join(MONO_ROOT, 'assets')
-if (existsSync(assetsDir)) {
-  await app.register(fastifyStatic, {
-    root: assetsDir,
-    prefix: '/assets',
-    decorateReply: false,
-  })
-}
+mkdirSync(assetsDir, { recursive: true })
+await app.register(fastifyStatic, {
+  root: assetsDir,
+  prefix: '/assets',
+  decorateReply: false,
+})
 
 // Serve scraped game images at the canonical /assets/images/games path.
 // Only registers if the assets/images/games folder is empty or missing
@@ -85,6 +86,25 @@ if (!gamesAssetsHasContent && existsSync(scrapedDir)) {
     },
   })
 }
+
+// File upload endpoint — saves to ieom/assets/{video|images}/{filename}
+await app.register(fastifyMultipart, { limits: { fileSize: 500 * 1024 * 1024 } })
+app.post('/api/upload/asset', async (req, reply) => {
+  const data = await req.file()
+  if (!data) return reply.code(400).send({ error: 'No file' })
+
+  const mime = data.mimetype
+  const subfolder = mime.startsWith('video/') ? 'video' : 'images'
+  const destDir  = join(MONO_ROOT, 'assets', subfolder)
+  mkdirSync(destDir, { recursive: true })
+
+  // Sanitise filename — keep extension, replace path separators
+  const safeName = data.filename.replace(/[\\/]/g, '_')
+  const destPath = join(destDir, safeName)
+
+  await pipeline(data.file, createWriteStream(destPath))
+  return reply.send({ url: `/assets/${subfolder}/${safeName}` })
+})
 
 // Scene state machine
 const machine = new SceneMachine()
