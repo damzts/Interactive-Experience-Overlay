@@ -23,6 +23,11 @@ export interface DesktopRecycleBinPayload {
   full: boolean
 }
 
+export interface DesktopRuntimeStatePayload {
+  openWidgetIds: string[]
+  recycleBinFull: boolean
+}
+
 /** Events the server sends to clients */
 export interface ServerToClientEvents {
   'state:update': (payload: { state: STATE; previousState: STATE }) => void
@@ -40,6 +45,7 @@ export interface ClientToServerEvents {
   'scene:change': (target: STATE, callback?: (err: string | null) => void) => void
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   'state:request': (callback: (state: STATE) => void) => void
+  'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
   'widget:toggle': (widgetId: string) => void
   'desktop:notify': (payload: DesktopNotificationPayload) => void
   'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void

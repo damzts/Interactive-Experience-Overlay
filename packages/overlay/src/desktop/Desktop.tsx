@@ -225,12 +225,9 @@ export function Desktop({ apps }: DesktopProps) {
   const openWidgets = useAppStore((s) => s.openWidgets)
   const closingWidgets = useAppStore((s) => s.closingWidgets)
   const minimizedWidgets = useAppStore((s) => s.minimizedWidgets)
-  const toggleWidget = useAppStore((s) => s.toggleWidget)
-  const closeWidget = useAppStore((s) => s.closeWidget)
   const minimizeWidget = useAppStore((s) => s.minimizeWidget)
   const recycleBinFull = useAppStore((s) => s.recycleBinFull)
   const reactiveIconId = useAppStore((s) => s.reactiveIconId)
-  const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
 
   const desktopRef = useRef<HTMLDivElement>(null)
 
@@ -289,10 +286,6 @@ export function Desktop({ apps }: DesktopProps) {
   )
 
   useEffect(() => {
-    setRecycleBinFull(desktopConfig.recycleBin.fullOnStart)
-  }, [desktopConfig.recycleBin.fullOnStart, setRecycleBinFull])
-
-  useEffect(() => {
     setWindowOrder((prev) => {
       const ids = visibleWidgets.map((widget) => widget.id)
       const next = prev.filter((id) => ids.includes(id))
@@ -323,7 +316,7 @@ export function Desktop({ apps }: DesktopProps) {
     setStartMenuOpen(false)
 
     // Widgets are floating windows — toggle open/closed, no state change.
-    if (app.appType === 'widget') { toggleWidget(app.id); return }
+    if (app.appType === 'widget') { socket.emit('widget:toggle', app.id); return }
     if (app.appType !== 'scene') return
 
     if (app.launchPipeline && app.launchPipeline.effects.length > 0) {
@@ -501,7 +494,7 @@ export function Desktop({ apps }: DesktopProps) {
       {visibleWidgets.map((a) => {
         const WidgetComp = WIDGET_COMPONENTS[a.id]
         const widgetProps: DesktopWidgetProps = {
-          onClose: () => closeWidget(a.id),
+          onClose: () => socket.emit('widget:toggle', a.id),
           onMinimize: () => minimizeWidget(a.id),
           onFocus: () => focusWidget(a.id),
           windowState: closingWidgets.has(a.id) ? 'closing' : 'open',

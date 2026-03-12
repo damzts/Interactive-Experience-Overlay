@@ -1,9 +1,11 @@
 import type { Server, Socket } from 'socket.io'
 import {
   STATE,
+  withDesktopConfigDefaults,
   type TransitionStep,
   type TransitionPlayPayload,
   type DesktopNotificationPayload,
+  type DesktopRuntimeStatePayload,
   type DesktopRecycleBinPayload,
   type ServerToClientEvents,
   type ClientToServerEvents,
@@ -73,6 +75,14 @@ function resolvePipelines(
 }
 
 export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: EventScheduler) {
+  const openWidgetIds = new Set<string>()
+  let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
+
+  const getDesktopRuntimeState = (): DesktopRuntimeStatePayload => ({
+    openWidgetIds: [...openWidgetIds],
+    recycleBinFull,
+  })
+
   // Broadcast machine state events to all clients
   machine.on('state:change', (payload: { state: STATE; previousState: STATE }) => {
     io.emit('state:update', payload)
@@ -80,6 +90,12 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
 
   machine.on('config:update', (config: AppConfig) => {
     io.emit('config:update', config)
+
+    const nextRecycleBinFull = withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart
+    if (nextRecycleBinFull !== recycleBinFull) {
+      recycleBinFull = nextRecycleBinFull
+      io.emit('desktop:recycle-bin', { full: recycleBinFull })
+    }
   })
 
   machine.on('transition:start', (payload: TransitionStartPayload) => {
@@ -103,6 +119,10 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
       callback(machine.currentState)
     })
 
+    socket.on('desktop:state:request', (callback) => {
+      callback(getDesktopRuntimeState())
+    })
+
     socket.on('scene:change', (target, callback) => {
       const cfg = getConfig()
       const { exit, intro } = resolvePipelines(cfg, machine.currentState, target)
@@ -119,6 +139,8 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
     })
 
     socket.on('widget:toggle', (widgetId: string) => {
+      if (openWidgetIds.has(widgetId)) openWidgetIds.delete(widgetId)
+      else openWidgetIds.add(widgetId)
       io.emit('widget:toggle', widgetId)
     })
 
@@ -127,6 +149,7 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
     })
 
     socket.on('desktop:recycle-bin', (payload: DesktopRecycleBinPayload) => {
+      recycleBinFull = payload.full
       io.emit('desktop:recycle-bin', payload)
     })
 

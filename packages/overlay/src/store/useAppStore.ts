@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { STATE, DEFAULT_CONFIG } from '@ieom/shared'
-import type { AppConfig, DesktopNotificationPayload, TransitionStep } from '@ieom/shared'
+import type {
+  AppConfig,
+  DesktopNotificationPayload,
+  DesktopRuntimeStatePayload,
+  TransitionStep,
+} from '@ieom/shared'
 
 /** visualState never equals STATE.TRANSITIONING — CSS classes use this */
 type VisualState = Exclude<STATE, typeof STATE.TRANSITIONING>
@@ -14,6 +19,11 @@ function clearWidgetCloseTimer(widgetId: string) {
     clearTimeout(timer)
     widgetCloseTimers.delete(widgetId)
   }
+}
+
+function clearAllWidgetCloseTimers() {
+  for (const timer of widgetCloseTimers.values()) clearTimeout(timer)
+  widgetCloseTimers.clear()
 }
 
 export interface DesktopNotificationItem extends DesktopNotificationPayload {
@@ -64,6 +74,7 @@ interface AppStore {
   setRecycleBinFull: (full: boolean) => void
   setReactiveIconId: (id: string | null) => void
   markSocketActivity: () => void
+  syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -178,4 +189,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
   setReactiveIconId: (id) => set({ reactiveIconId: id }),
   markSocketActivity: () => set({ lastSocketActivityAt: Date.now() }),
+  syncDesktopRuntimeState: (payload) => {
+    clearAllWidgetCloseTimers()
+    set({
+      openWidgets: new Set(payload.openWidgetIds),
+      minimizedWidgets: new Set<string>(),
+      closingWidgets: new Set<string>(),
+      recycleBinFull: payload.recycleBinFull,
+    })
+  },
 }))

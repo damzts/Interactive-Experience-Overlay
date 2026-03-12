@@ -34,6 +34,7 @@ export function useSocket() {
   const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
   const setReactiveIconId = useAppStore((s) => s.setReactiveIconId)
   const markSocketActivity = useAppStore((s) => s.markSocketActivity)
+  const syncDesktopRuntimeState = useAppStore((s) => s.syncDesktopRuntimeState)
   const audioUnlocked = useRef(false)
   const reactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -59,6 +60,9 @@ export function useSocket() {
       socket.emit('state:request', (serverState: STATE) => {
         setVisualState(serverState as Exclude<STATE, typeof STATE.TRANSITIONING>)
         pulseReactiveIcon(serverState)
+      })
+      socket.emit('desktop:state:request', (payload) => {
+        syncDesktopRuntimeState(payload)
       })
       fetch('/api/config').then((r) => r.json()).then(setConfig).catch(() => {})
     }
