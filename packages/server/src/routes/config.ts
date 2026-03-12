@@ -1,14 +1,16 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, withDesktopConfigDefaults } from '@ieom/shared'
-import type { AppConfig } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE, withDesktopConfigDefaults, withLobbyConfigDefaults } from '@ieom/shared'
+import type { AppConfig, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
-const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes'])
+const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes', 'chat'])
 
 function withConfigDefaults(next: AppConfig): AppConfig {
   const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
   const applications = [...next.applications]
+  const lobbyScene = next.scenes[STATE.LOBBY] ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
+  const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
 
   for (const app of requiredApps) {
     if (!applications.some((existing) => existing.id === app.id)) {
@@ -19,7 +21,23 @@ function withConfigDefaults(next: AppConfig): AppConfig {
   return {
     ...next,
     applications,
+    scenes: {
+      ...next.scenes,
+      [STATE.LOBBY]: {
+        ...DEFAULT_CONFIG.scenes[STATE.LOBBY],
+        ...lobbyScene,
+        style: lobbyScene.style ?? structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style),
+        lobbyConfig: withLobbyConfigDefaults(lobbyScene.lobbyConfig),
+      },
+      [STATE.DESKTOP]: {
+        ...DEFAULT_CONFIG.scenes[STATE.DESKTOP],
+        ...desktopScene,
+        style: desktopScene.style ?? structuredClone(DEFAULT_CONFIG.scenes[STATE.DESKTOP].style),
+      },
+    },
     desktopConfig: withDesktopConfigDefaults(next.desktopConfig),
+    events: next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events),
+    mediaLibrary: next.mediaLibrary ?? [],
   }
 }
 
@@ -60,6 +78,47 @@ export async function configRoute(
     async (req, reply) => {
       try {
         save({ ...config, audio: { ...config.audio, ...req.body } })
+        return { ok: true }
+      } catch (e) {
+        return reply.code(400).send({ ok: false, error: String(e) })
+      }
+    },
+  )
+
+  app.patch<{ Body: Partial<DesktopConfig> }>(
+    '/api/config/desktop',
+    async (req, reply) => {
+      try {
+        const currentDesktop = withDesktopConfigDefaults(config.desktopConfig)
+        const nextDesktop = withDesktopConfigDefaults({
+          ...currentDesktop,
+          ...req.body,
+          notifications: {
+            ...currentDesktop.notifications,
+            ...req.body.notifications,
+          },
+          recycleBin: {
+            ...currentDesktop.recycleBin,
+            ...req.body.recycleBin,
+          },
+          stickyNotes: {
+            ...currentDesktop.stickyNotes,
+            ...req.body.stickyNotes,
+          },
+          screenSaver: {
+            ...currentDesktop.screenSaver,
+            ...req.body.screenSaver,
+          },
+          systemSounds: {
+            ...currentDesktop.systemSounds,
+            ...req.body.systemSounds,
+          },
+          widgetPositions: {
+            ...currentDesktop.widgetPositions,
+            ...req.body.widgetPositions,
+          },
+        })
+        save({ ...config, desktopConfig: nextDesktop })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })

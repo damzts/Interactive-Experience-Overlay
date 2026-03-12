@@ -1,53 +1,88 @@
-/**
- * scheduler.ts — Auto-event scheduler.
- *
- * Manages one timer:
- * 1. NetworkGlitch — fires at a random interval, emits the glitch overlay event
- */
-import type { Server } from 'socket.io'
 import type { SceneMachine } from '../state/machine.js'
-import { OVERLAY_EVENT } from '@ieom/shared'
+import { STATE } from '@ieom/shared'
+import type { EventConfig } from '@ieom/shared'
 import { appendLog } from '../db/db.js'
+import { getConfig } from '../routes/config.js'
 
-// ── Config (values in seconds, can be read from AppConfig later) ──
-const GLITCH_MIN_SECONDS   = 8 * 60   // min 8 min between random glitches
-const GLITCH_MAX_SECONDS   = 20 * 60  // max 20 min between random glitches
+const TICK_MS = 5_000
 
-function randBetween(minMs: number, maxMs: number) {
-  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs
+function randBetween(minValue: number, maxValue: number) {
+  return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue
+}
+
+function jitterMs(minutes: number) {
+  const base = Math.max(1, minutes) * 60_000
+  return randBetween(Math.floor(base * 0.8), Math.ceil(base * 1.2))
 }
 
 export class EventScheduler {
-  private glitchTimer: ReturnType<typeof setTimeout> | null = null
+  private tickTimer: ReturnType<typeof setInterval> | null = null
+  private lastActivityAt = Date.now()
+  private intervalNextRunAt = new Map<string, number>()
+  private idleTriggered = new Set<string>()
 
-  constructor(
-    private io:      Server,
-    private machine: SceneMachine,
-  ) {}
+  constructor(private machine: SceneMachine) {}
 
   /** Call this when the server is ready to start scheduling. */
   start() {
-    // Start glitch scheduler unconditionally
-    this.scheduleNextGlitch()
-
+    this.stop()
+    this.lastActivityAt = Date.now()
+    this.intervalNextRunAt.clear()
+    this.idleTriggered.clear()
+    this.tickTimer = setInterval(() => this.evaluateEvents(), TICK_MS)
+    this.evaluateEvents()
     console.log('[scheduler] auto-event scheduler started')
   }
 
   stop() {
-    if (this.glitchTimer) clearTimeout(this.glitchTimer)
-    this.glitchTimer = null
+    if (this.tickTimer) clearInterval(this.tickTimer)
+    this.tickTimer = null
   }
 
-  private scheduleNextGlitch() {
-    const delayMs = randBetween(GLITCH_MIN_SECONDS * 1000, GLITCH_MAX_SECONDS * 1000)
-    this.glitchTimer = setTimeout(() => {
-      // Only fire if not currently transitioning (check by comparing state)
-      if (this.machine.currentState !== 'TRANSITIONING') {
-        console.log('[scheduler] auto network glitch')
-        appendLog('auto-event', 'network_glitch')
-        this.machine.triggerOverlay({ id: OVERLAY_EVENT.NETWORK_GLITCH, effects: [{ type: 'network-glitch', cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }] })
+  noteActivity() {
+    this.lastActivityAt = Date.now()
+    this.idleTriggered.clear()
+  }
+
+  private fireEvent(eventDef: EventConfig) {
+    appendLog('auto-event', eventDef.id)
+    this.machine.triggerOverlay({ id: eventDef.id, effects: eventDef.effects })
+  }
+
+  private evaluateEvents() {
+    const now = Date.now()
+    const events = getConfig().events ?? []
+    const activeIds = new Set(events.filter((eventDef) => eventDef.auto.enabled).map((eventDef) => eventDef.id))
+
+    for (const id of [...this.intervalNextRunAt.keys()]) {
+      if (!activeIds.has(id)) this.intervalNextRunAt.delete(id)
+    }
+    for (const id of [...this.idleTriggered]) {
+      if (!activeIds.has(id)) this.idleTriggered.delete(id)
+    }
+
+    if (this.machine.currentState === STATE.TRANSITIONING) return
+
+    events.forEach((eventDef) => {
+      if (!eventDef.auto.enabled || eventDef.effects.length === 0) return
+
+      if (eventDef.auto.mode === 'interval') {
+        const nextRun = this.intervalNextRunAt.get(eventDef.id) ?? (now + jitterMs(eventDef.auto.intervalMin))
+        if (!this.intervalNextRunAt.has(eventDef.id)) {
+          this.intervalNextRunAt.set(eventDef.id, nextRun)
+          return
+        }
+        if (now < nextRun) return
+        this.fireEvent(eventDef)
+        this.intervalNextRunAt.set(eventDef.id, now + jitterMs(eventDef.auto.intervalMin))
+        return
       }
-      this.scheduleNextGlitch()
-    }, delayMs)
+
+      const idleThresholdMs = Math.max(1, eventDef.auto.idleMin) * 60_000
+      if (this.idleTriggered.has(eventDef.id)) return
+      if (now - this.lastActivityAt < idleThresholdMs) return
+      this.fireEvent(eventDef)
+      this.idleTriggered.add(eventDef.id)
+    })
   }
 }

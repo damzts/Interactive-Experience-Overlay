@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import type { Application, DesktopIconAnimation } from '@ieom/shared'
+import { AppGlyph } from './AppGlyph'
 
 interface AppIconProps {
   app: Application
@@ -65,14 +66,7 @@ export function AppIcon({
       onContextMenu={onContextMenu}
       title={launchable ? `${app.label} — double-click to open` : app.label}
     >
-      <span
-        className="app-icon-emoji"
-        role="img"
-        aria-label={app.label}
-        style={{ fontSize: emojiSize }}
-      >
-        {app.icon}
-      </span>
+      <AppGlyph icon={app.icon} label={app.label} size={emojiSize} className="app-icon-emoji" />
       <span className="app-icon-label">{app.label}</span>
     </div>
   )

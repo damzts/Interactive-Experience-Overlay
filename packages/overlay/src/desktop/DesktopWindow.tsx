@@ -1,18 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { patchDesktopConfig } from './configPersistence'
 
 function saveWidgetPosition(key: string, pos: { x: number; y: number }) {
   const cfg = useAppStore.getState().config
-  fetch('/api/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...cfg,
-      desktopConfig: {
-        ...cfg.desktopConfig,
-        widgetPositions: { ...cfg.desktopConfig?.widgetPositions, [key]: pos },
-      },
-    }),
+  patchDesktopConfig({
+    widgetPositions: { ...cfg.desktopConfig?.widgetPositions, [key]: pos },
   }).catch(() => {})
 }
 

@@ -9,16 +9,36 @@ export default function App() {
   const setObsConnected = useAdminStore((s) => s.setObsConnected)
   const fetchConfig = useAdminStore((s) => s.fetchConfig)
   const setConfig = useAdminStore((s) => s.setConfig)
+  const syncDesktopRuntimeState = useAdminStore((s) => s.syncDesktopRuntimeState)
+  const toggleWidgetRuntimeState = useAdminStore((s) => s.toggleWidgetRuntimeState)
+  const setRecycleBinFull = useAdminStore((s) => s.setRecycleBinFull)
+  const config = useAdminStore((s) => s.config)
 
   useEffect(() => {
-    fetchConfig()
+    const requestRuntimeState = () => {
+      socket.emit('state:request', (state: STATE) => {
+        if (state && state !== STATE.TRANSITIONING) setCurrentState(state)
+      })
+      socket.emit('desktop:state:request', (payload) => {
+        syncDesktopRuntimeState(payload)
+      })
+    }
 
-    socket.emit('state:request', (state: STATE) => {
-      if (state && state !== STATE.TRANSITIONING) setCurrentState(state)
-    })
+    fetchConfig()
+    requestRuntimeState()
+
+    socket.on('connect', requestRuntimeState)
 
     socket.on('state:update', ({ state }: { state: STATE }) => {
       if (state !== STATE.TRANSITIONING) setCurrentState(state)
+    })
+
+    socket.on('widget:toggle', (widgetId) => {
+      toggleWidgetRuntimeState(widgetId)
+    })
+
+    socket.on('desktop:recycle-bin', ({ full }) => {
+      setRecycleBinFull(full)
     })
 
     socket.on('obs:status', ({ connected }: { connected: boolean }) => {
@@ -29,24 +49,35 @@ export default function App() {
       setConfig(config)
     })
 
+    return () => {
+      socket.off('connect', requestRuntimeState)
+      socket.off('state:update')
+      socket.off('widget:toggle')
+      socket.off('desktop:recycle-bin')
+      socket.off('obs:status')
+      socket.off('config:update')
+    }
+  }, [fetchConfig, setConfig, setCurrentState, setObsConnected, setRecycleBinFull, syncDesktopRuntimeState, toggleWidgetRuntimeState])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as Element)?.tagName)) return
-      if (e.key === 'Escape') { socket.emit('panic'); return }
-      if (e.key === 'F2') { e.preventDefault(); socket.emit('overlay:trigger', { id: 'death',   effects: [{ type: 'death-overlay',   cfg: {} }] }); return }
-      if (e.key === 'F3') { e.preventDefault(); socket.emit('overlay:trigger', { id: 'revive',  effects: [{ type: 'revive-overlay',  cfg: {} }] }); return }
-      if (e.key === 'F4') { e.preventDefault(); socket.emit('overlay:trigger', { id: 'victory', effects: [{ type: 'victory-overlay', cfg: {} }] }); return }
-      if (e.key === 'F6') { e.preventDefault(); socket.emit('scene:change', STATE.LOBBY); return }
+      const key = e.key === ' ' ? 'Space' : e.key
+      const scope = config.keybinds.admin[key]
+        ? 'admin'
+        : config.keybinds.obs[key]
+          ? 'obs'
+          : null
+      if (!scope) return
+      e.preventDefault()
+      socket.emit('keybind:execute', { scope, key })
     }
 
     window.addEventListener('keydown', handleKey)
     return () => {
-      socket.off('state:update')
-      socket.off('obs:status')
-      socket.off('config:update')
       window.removeEventListener('keydown', handleKey)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [config])
 
   return <Dashboard />
 }

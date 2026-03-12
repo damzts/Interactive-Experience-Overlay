@@ -10,7 +10,7 @@ import { pipeline } from 'stream/promises'
 import { fileURLToPath } from 'url'
 import { SceneMachine } from './state/machine.js'
 import { setupSocketHandlers } from './socket/handlers.js'
-import { configRoute } from './routes/config.js'
+import { configRoute, getConfig } from './routes/config.js'
 import { mediaRoute } from './routes/media.js'
 import { archiveRoute } from './routes/archive.js'
 import { ObsBridge } from './obs/bridge.js'
@@ -103,7 +103,7 @@ const io = new SocketIO(app.server, {
 })
 
 // Auto-event scheduler — created before socket handlers so it can be passed in
-const scheduler = new EventScheduler(io, machine)
+const scheduler = new EventScheduler(machine)
 
 // Socket handlers receive scheduler reference so scene:change resets idle timer
 setupSocketHandlers(io, machine, scheduler)
@@ -141,7 +141,11 @@ if (IS_DEV_SERVER) {
 
 // OBS WebSocket bridge (graceful — server works without OBS)
 const obsBridge = new ObsBridge(io, machine)
-obsBridge.connect()
+obsBridge.connect(getConfig().obs.url, getConfig().obs.password)
+
+machine.on('config:update', (config) => {
+  obsBridge.updateConnection(config.obs.url, config.obs.password)
+})
 
 // Start scheduler after all handlers are wired
 scheduler.start()

@@ -646,19 +646,24 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   border-color: var(--desktop-panel-light) var(--desktop-panel-dark) var(--desktop-panel-dark) var(--desktop-panel-light);
 }
 
-.desktop--theme-vista .window,
+.desktop--theme-y2k-candy .window,
 .desktop--theme-frutiger-aero .window,
-.desktop--theme-vista .taskbar,
+.desktop--theme-midnight-chrome .window,
+.desktop--theme-y2k-candy .taskbar,
 .desktop--theme-frutiger-aero .taskbar,
-.desktop--theme-vista .start-menu,
+.desktop--theme-midnight-chrome .taskbar,
+.desktop--theme-y2k-candy .start-menu,
 .desktop--theme-frutiger-aero .start-menu,
-.desktop--theme-vista .taskbar-tray,
-.desktop--theme-frutiger-aero .taskbar-tray {
+.desktop--theme-midnight-chrome .start-menu,
+.desktop--theme-y2k-candy .taskbar-tray,
+.desktop--theme-frutiger-aero .taskbar-tray,
+.desktop--theme-midnight-chrome .taskbar-tray {
   border-radius: 7px 7px 0 0;
 }
 
-.desktop--theme-vista .taskbar,
-.desktop--theme-frutiger-aero .taskbar {
+.desktop--theme-y2k-candy .taskbar,
+.desktop--theme-frutiger-aero .taskbar,
+.desktop--theme-midnight-chrome .taskbar {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 -1px 0 rgba(0, 0, 0, 0.25);
 }
 
@@ -681,6 +686,14 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 .desktop .app-icon-emoji {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+.desktop img.app-icon-emoji,
+.desktop img.taskbar-window-icon {
+  display: block;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 2px;
 }
 
 .desktop .app-icon-label {

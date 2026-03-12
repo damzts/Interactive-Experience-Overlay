@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Scene, SourceInstance } from '@ieom/shared'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn } from '../components/ui'
+import { Panel, Btn, HexColorInput } from '../components/ui'
 
 /** Renders editable form fields for a source's config Record */
 function ConfigFieldEditor({
@@ -28,11 +28,12 @@ function ConfigFieldEditor({
                 onChange={(e) => update(key, e.target.checked)}
               />
             ) : isColor ? (
-              <input
-                type="color"
-                value={val}
-                onChange={(e) => update(key, e.target.value)}
-                style={{ width: 40, height: 24, padding: 0, border: '1px solid #888' }}
+              <HexColorInput
+                value={String(val)}
+                onChange={(nextValue) => update(key, nextValue)}
+                className="flex-1 min-w-0 gap-2"
+                pickerStyle={{ width: 40, height: 24, padding: 0, border: '1px solid #888' }}
+                textClassName="font-mono text-xs flex-1 min-w-0"
               />
             ) : typeof val === 'number' ? (
               <input

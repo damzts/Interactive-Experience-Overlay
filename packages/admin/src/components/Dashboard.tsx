@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { STATE, OVERLAY_EVENT, withDesktopConfigDefaults } from '@ieom/shared'
+import { STATE, OVERLAY_EVENT, withDesktopConfigDefaults, withLobbyConfigDefaults } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
@@ -7,7 +7,7 @@ import type {
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Toggle, Slider, Btn } from './ui'
+import { Panel, Toggle, Slider, Btn, HexColorInput } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
@@ -65,6 +65,96 @@ const GOOGLE_FONTS = [
 ]
 
 const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', '#eab308', '#ef4444', '#ffffff']
+
+function looksLikeImageIcon(icon: string) {
+  if (!icon) return false
+  if (icon.startsWith('data:image/')) return true
+  if (/^(https?:\/\/|\/|\.\/|\.\.\/)/i.test(icon) && /(png|jpe?g|gif|webp|svg|avif)(\?.*)?$/i.test(icon)) {
+    return true
+  }
+  return icon.startsWith('/assets/') || icon.startsWith('/media/')
+}
+
+function IconGlyph({ icon, label, size = 16, className = '' }: { icon: string; label: string; size?: number; className?: string }) {
+  if (looksLikeImageIcon(icon)) {
+    return (
+      <img
+        src={icon}
+        alt=""
+        aria-hidden="true"
+        className={className}
+        style={{ width: size, height: size, objectFit: 'contain', borderRadius: 4, background: 'rgba(255,255,255,0.08)', padding: 1 }}
+      />
+    )
+  }
+
+  return (
+    <span className={className} role="img" aria-label={label} style={{ fontSize: size }}>
+      {icon}
+    </span>
+  )
+}
+
+function cloneTransitionSteps(steps?: TransitionStep[]) {
+  return structuredClone(steps ?? [])
+}
+
+function isSameDraft(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function ConfigApplyBar({
+  label,
+  dirty,
+  saving,
+  saved,
+  onApply,
+  onReset,
+}: {
+  label: string
+  dirty: boolean
+  saving: boolean
+  saved: boolean
+  onApply: () => void
+  onReset: () => void
+}) {
+  return (
+    <div className="sticky top-0 z-10 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/85 px-3 py-2 backdrop-blur">
+      <span className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</span>
+      <div className="flex items-center gap-2">
+        {dirty && <span className="text-[10px] text-amber-300">Unsaved changes</span>}
+        {!dirty && saved && <span className="text-[10px] text-emerald-400">Applied</span>}
+        <Btn variant="ghost" onClick={onReset} disabled={saving || !dirty} className="px-2.5 py-1 text-xs">Revert</Btn>
+        <Btn variant="primary" onClick={onApply} disabled={saving || !dirty} className="px-2.5 py-1 text-xs">
+          {saving ? 'Applying...' : 'Apply'}
+        </Btn>
+      </div>
+    </div>
+  )
+}
+
+function LabeledHexColorRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      {label && <label className="text-[11px] text-zinc-400 w-16 shrink-0">{label}</label>}
+      <HexColorInput
+        value={value}
+        onChange={onChange}
+        className="flex-1 min-w-0 gap-2"
+        pickerClassName="w-7 h-6 shrink-0"
+        textClassName="font-mono text-xs flex-1 min-w-0"
+      />
+    </div>
+  )
+}
 
 const TRANSITION_OPTIONS = [
   { id: 'instant',       label: 'Instant',        desc: 'Immediate cut, no animation' },
@@ -890,10 +980,13 @@ function SourceField({ field, value, onChange }: { field: FieldDef; value: unkno
     <div className="flex items-center gap-2">
       <label className="text-[10px] text-zinc-500 w-16 shrink-0">{field.label}</label>
       {field.type === 'color' && (
-        <div className="flex items-center gap-1 flex-1 min-w-0">
-          <input type="color" value={String(value ?? '#000000')} onChange={(e) => onChange(e.target.value)} className="w-6 h-5 shrink-0" />
-          <input type="text"  value={String(value ?? '')}        onChange={(e) => onChange(e.target.value)} className="flex-1 font-mono text-[10px] min-w-0" />
-        </div>
+        <HexColorInput
+          value={String(value ?? '#000000')}
+          onChange={(nextValue) => onChange(nextValue)}
+          className="flex-1 min-w-0 gap-1"
+          pickerClassName="w-6 h-5 shrink-0"
+          textClassName="flex-1 font-mono text-[10px] min-w-0"
+        />
       )}
       {field.type === 'number' && (
         <input type="number" value={Number(value ?? 0)}
@@ -1056,8 +1149,9 @@ const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; label: 
 
 const DESKTOP_THEMES: { id: DesktopConfig['theme']; label: string }[] = [
   { id: 'win98', label: 'Win98' },
-  { id: 'win vista', label: 'Vista' },
   { id: 'frutiger aero', label: 'Frutiger Aero' },
+  { id: 'y2k candy', label: 'Y2K Candy' },
+  { id: 'midnight chrome', label: 'Midnight Chrome' },
   { id: 'custom', label: 'Custom' },
 ]
 
@@ -1072,7 +1166,7 @@ const ICON_ANIMATIONS: { id: DesktopConfig['iconAnimation']; label: string }[] =
 // ── Events def ─────────────────────────────────────────────────────
 
 type AutoTrigger = { enabled: boolean; mode: 'interval' | 'idle'; intervalMin: number; idleMin: number }
-type EventDef    = { id: string; label: string; icon: string; color: string; desc: string; builtIn?: boolean; auto: AutoTrigger }
+type EventDef    = { id: string; label: string; icon: string; color: string; desc: string; builtIn?: boolean; effects: EffectConfig[]; auto: AutoTrigger }
 
 const DEFAULT_EVENT_DEFS: EventDef[] = []
 // ── Selected item union ────────────────────────────────────────────
@@ -1100,33 +1194,42 @@ function itemKey(item: SelectedItem): string {
 function StyleEditor({ sceneId }: { sceneId: string }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const [style, setStyle] = useState<OverlayStyle>(() =>
-    structuredClone((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle)
-  )
+  const sourceStyle = structuredClone((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle)
+  const [style, setStyle] = useState<OverlayStyle>(() => sourceStyle)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dirty = !isSameDraft(style, sourceStyle)
 
   useEffect(() => {
-    setStyle(structuredClone((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle))
+    setStyle(sourceStyle)
+    setSaved(false)
   }, [config.scenes, config.overlayStyle, sceneId])
 
   const update = useCallback((updater: (d: OverlayStyle) => void) => {
     setStyle((prev) => {
       const next = structuredClone(prev)
       updater(next)
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(async () => {
-        setSaving(true)
-        const scene = config.scenes[sceneId]
-        await saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...scene, style: next } } })
-        setSaving(false); setSaved(true)
-        setTimeout(() => setSaved(false), 1500)
-      }, 600)
       return next
     })
     setSaved(false)
-  }, [saveConfig, config.scenes, sceneId])
+  }, [])
+
+  const apply = useCallback(async () => {
+    if (!dirty) return
+    setSaving(true)
+    const scene = config.scenes[sceneId]
+    await saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...scene, style } } })
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [dirty, saveConfig, config.scenes, sceneId, style])
+
+  const reset = useCallback(() => {
+    setStyle(sourceStyle)
+    setSaved(false)
+  }, [sourceStyle])
 
   const bg = style.background
   const fx = style.effects
@@ -1134,10 +1237,7 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end text-[10px] h-4">
-        {saving && <span className="text-zinc-500">saving…</span>}
-        {saved  && <span className="text-emerald-400">✔</span>}
-      </div>
+      <ConfigApplyBar label="Scene Style" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
 
       <Panel title="Background">
         <div className="space-y-3">
@@ -1145,6 +1245,12 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
             className="w-full text-xs">
             {BG_TYPES.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
           </select>
+
+          {sceneId === STATE.LOBBY && (
+            <div className="text-[10px] text-zinc-500 leading-relaxed">
+              In the lobby, color and gradient backgrounds tint the sky dome. Image, video, and pattern backgrounds stay behind the 3D scene and will not replace the sky.
+            </div>
+          )}
 
           {bg.type === 'gradient' && <div>
             <div className="grid grid-cols-3 gap-1 mb-2">
@@ -1162,8 +1268,12 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
           </div>}
 
           {bg.type === 'color' && <div className="flex items-center gap-2">
-            <input type="color" value={bg.color} onChange={(e) => update((d) => { d.background.color = e.target.value })} />
-            <input type="text" value={bg.color} onChange={(e) => update((d) => { d.background.color = e.target.value })} className="font-mono text-xs w-24" />
+            <HexColorInput
+              value={bg.color}
+              onChange={(nextValue) => update((d) => { d.background.color = nextValue })}
+              className="gap-2"
+              textClassName="font-mono text-xs w-28"
+            />
           </div>}
 
           {bg.type === 'image-url' && <div>
@@ -1259,15 +1369,25 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <input type="color" value={style.accentColor} onChange={(e) => update((d) => { d.accentColor = e.target.value })} style={{ width: 32, height: 28 }} />
-              <input type="text" value={style.accentColor} onChange={(e) => update((d) => { d.accentColor = e.target.value })} className="font-mono text-xs w-20" />
+              <HexColorInput
+                value={style.accentColor}
+                onChange={(nextValue) => update((d) => { d.accentColor = nextValue })}
+                className="gap-2"
+                pickerStyle={{ width: 32, height: 28 }}
+                textClassName="font-mono text-xs w-28"
+              />
             </div>
           </div>
           <div>
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Text</div>
             <div className="flex items-center gap-2">
-              <input type="color" value={style.textColor} onChange={(e) => update((d) => { d.textColor = e.target.value })} style={{ width: 32, height: 28 }} />
-              <input type="text" value={style.textColor} onChange={(e) => update((d) => { d.textColor = e.target.value })} className="font-mono text-xs w-20" />
+              <HexColorInput
+                value={style.textColor}
+                onChange={(nextValue) => update((d) => { d.textColor = nextValue })}
+                className="gap-2"
+                pickerStyle={{ width: 32, height: 28 }}
+                textClassName="font-mono text-xs w-28"
+              />
             </div>
           </div>
         </div>
@@ -1357,72 +1477,83 @@ function TransitionList({
 
 // ── LobbyConfigEditor ──────────────────────────────────────────────
 
-const DEFAULT_LOBBY: LobbyConfig = {
-  ambientColor: '#1e1a3a', ambientIntensity: 0.28,
-  fogColor: '#080810', fogNear: 6, fogFar: 22,
-  wallColor: '#0f0f16', floorColor: '#0d0d14', floorReflectivity: 0.6,
-  crtGlowColor: '#00c8e0', neonStrips: true, neonColors: ['#00c8ff', '#8000ff'],
-  dustMotes: true, cameraFov: 62, starsCount: 400,
-}
-
 function LobbyConfigEditor() {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const [form, setForm] = useState<LobbyConfig>(() =>
-    structuredClone((config.scenes[STATE.LOBBY] as { lobbyConfig?: LobbyConfig } | undefined)?.lobbyConfig ?? DEFAULT_LOBBY)
-  )
+  const lobbyScene = config.scenes[STATE.LOBBY] as { lobbyConfig?: LobbyConfig; introTransitions?: TransitionStep[]; exitTransitions?: TransitionStep[] } | undefined
+  const sourceForm = withLobbyConfigDefaults(lobbyScene?.lobbyConfig)
+  const sourceIntroTransitions = cloneTransitionSteps(lobbyScene?.introTransitions)
+  const sourceExitTransitions = cloneTransitionSteps(lobbyScene?.exitTransitions)
+  const [form, setForm] = useState<LobbyConfig>(() => sourceForm)
+  const [introTransitions, setIntroTransitions] = useState<TransitionStep[]>(() => sourceIntroTransitions)
+  const [exitTransitions, setExitTransitions] = useState<TransitionStep[]>(() => sourceExitTransitions)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dirty = !isSameDraft(form, sourceForm)
+    || !isSameDraft(introTransitions, sourceIntroTransitions)
+    || !isSameDraft(exitTransitions, sourceExitTransitions)
 
   useEffect(() => {
-    const lc = (config.scenes[STATE.LOBBY] as { lobbyConfig?: LobbyConfig } | undefined)?.lobbyConfig
-    if (lc) setForm(structuredClone(lc))
+    setForm(sourceForm)
+    setIntroTransitions(sourceIntroTransitions)
+    setExitTransitions(sourceExitTransitions)
+    setSaved(false)
   }, [config.scenes])
 
   const update = useCallback((updater: (d: LobbyConfig) => void) => {
     setForm((prev) => {
       const next = structuredClone(prev)
       updater(next)
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(async () => {
-        setSaving(true)
-        await saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: { ...config.scenes[STATE.LOBBY], lobbyConfig: next } } })
-        setSaving(false); setSaved(true)
-        setTimeout(() => setSaved(false), 1500)
-      }, 600)
       return next
     })
     setSaved(false)
-  }, [saveConfig, config.scenes])
+  }, [])
 
-  const ColorRow = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
-    <div className="flex items-center gap-2 mb-2">
-      {label && <label className="text-[11px] text-zinc-400 w-16 shrink-0">{label}</label>}
-      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="w-7 h-6 shrink-0" />
-      <input type="text"  value={value} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs flex-1" />
-    </div>
-  )
+  const apply = useCallback(async () => {
+    if (!dirty) return
+    setSaving(true)
+    await saveConfig({
+      scenes: {
+        ...config.scenes,
+        [STATE.LOBBY]: {
+          ...config.scenes[STATE.LOBBY],
+          lobbyConfig: form,
+          introTransitions: introTransitions.length ? introTransitions : undefined,
+          exitTransitions: exitTransitions.length ? exitTransitions : undefined,
+        },
+      },
+    })
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [dirty, saveConfig, config.scenes, form, introTransitions, exitTransitions])
+
+  const reset = useCallback(() => {
+    setForm(sourceForm)
+    setIntroTransitions(sourceIntroTransitions)
+    setExitTransitions(sourceExitTransitions)
+    setSaved(false)
+  }, [sourceForm, sourceIntroTransitions, sourceExitTransitions])
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-between text-[10px]">
-        <span className="text-zinc-500 uppercase tracking-wider">3D Room</span>
-        {saving && <span className="text-zinc-500">saving…</span>}
-        {saved  && <span className="text-emerald-400">✔</span>}
-      </div>
+      <ConfigApplyBar label="Lobby Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
       <Panel title="Transitions">
         <div className="space-y-3">
           {([
             { field: 'introTransitions' as const, label: 'Intro (entering)' },
-            { field: 'exitTransitions'  as const, label: 'Exit (leaving)' },
+            { field: 'exitTransitions' as const, label: 'Exit (leaving)' },
           ]).map(({ field, label }) => (
             <div key={field}>
               <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
               <TransitionList
-                value={config.scenes[STATE.LOBBY]?.[field] ?? []}
+                value={field === 'introTransitions' ? introTransitions : exitTransitions}
                 onChange={(steps) => {
-                  saveConfig({ scenes: { ...config.scenes, [STATE.LOBBY]: { ...config.scenes[STATE.LOBBY], [field]: steps } } })
+                  if (field === 'introTransitions') setIntroTransitions(steps)
+                  else setExitTransitions(steps)
+                  setSaved(false)
                 }}
               />
             </div>
@@ -1430,28 +1561,22 @@ function LobbyConfigEditor() {
         </div>
       </Panel>
       <Panel title="Ambient Light">
-        <ColorRow label="" value={form.ambientColor} onChange={(v) => update((d) => { d.ambientColor = v })} />
+        <LabeledHexColorRow label="" value={form.ambientColor} onChange={(v) => update((d) => { d.ambientColor = v })} />
         <Slider label="Intensity" value={form.ambientIntensity} min={0} max={2} step={0.01} onChange={(v) => update((d) => { d.ambientIntensity = v })} />
       </Panel>
       <Panel title="Fog">
-        <ColorRow label="" value={form.fogColor} onChange={(v) => update((d) => { d.fogColor = v })} />
+        <LabeledHexColorRow label="" value={form.fogColor} onChange={(v) => update((d) => { d.fogColor = v })} />
         <Slider label="Near" value={form.fogNear} min={1} max={20} step={0.5} onChange={(v) => update((d) => { d.fogNear = v })} />
         <Slider label="Far"  value={form.fogFar}  min={5} max={60} step={1}   onChange={(v) => update((d) => { d.fogFar  = v })} />
       </Panel>
-      <Panel title="Surfaces">
-        <ColorRow label="Walls" value={form.wallColor}  onChange={(v) => update((d) => { d.wallColor  = v })} />
-        <ColorRow label="Floor" value={form.floorColor} onChange={(v) => update((d) => { d.floorColor = v })} />
+      <Panel title="World">
+        <LabeledHexColorRow label="Sky Top" value={form.skyTopColor} onChange={(v) => update((d) => { d.skyTopColor = v })} />
+        <LabeledHexColorRow label="Horizon" value={form.skyHorizonColor} onChange={(v) => update((d) => { d.skyHorizonColor = v })} />
+        <LabeledHexColorRow label="Floor" value={form.floorColor} onChange={(v) => update((d) => { d.floorColor = v })} />
         <Slider label="Reflectivity" value={form.floorReflectivity} min={0} max={1} step={0.05} onChange={(v) => update((d) => { d.floorReflectivity = v })} />
       </Panel>
       <Panel title="CRT Glow">
-        <ColorRow label="" value={form.crtGlowColor} onChange={(v) => update((d) => { d.crtGlowColor = v })} />
-      </Panel>
-      <Panel title="Neon Strips">
-        <Toggle checked={form.neonStrips} onChange={(v) => update((d) => { d.neonStrips = v })} label="Enable" />
-        {form.neonStrips && <div className="mt-2 space-y-1">
-          <ColorRow label="Strip 1" value={form.neonColors[0]} onChange={(v) => update((d) => { d.neonColors = [v, d.neonColors[1]] })} />
-          <ColorRow label="Strip 2" value={form.neonColors[1]} onChange={(v) => update((d) => { d.neonColors = [d.neonColors[0], v] })} />
-        </div>}
+        <LabeledHexColorRow label="" value={form.crtGlowColor} onChange={(v) => update((d) => { d.crtGlowColor = v })} />
       </Panel>
       <Panel title="Atmosphere">
         <Toggle checked={form.dustMotes} onChange={(v) => update((d) => { d.dustMotes = v })} label="Dust motes" />
@@ -1460,49 +1585,112 @@ function LobbyConfigEditor() {
           <Slider label="Stars"      value={form.starsCount} min={0} max={2000} step={50} onChange={(v) => update((d) => { d.starsCount = v })} />
         </div>
       </Panel>
+      <Panel title="Room Life">
+        <div className="space-y-3">
+          <div>
+            <Toggle checked={form.virtualPet.enabled} onChange={(v) => update((d) => { d.virtualPet.enabled = v })} label="Virtual pet" />
+            {form.virtualPet.enabled && (
+              <div className="mt-2 space-y-1">
+                <LabeledHexColorRow label="Body" value={form.virtualPet.color} onChange={(v) => update((d) => { d.virtualPet.color = v })} />
+                <LabeledHexColorRow label="Charm" value={form.virtualPet.accessoryColor} onChange={(v) => update((d) => { d.virtualPet.accessoryColor = v })} />
+              </div>
+            )}
+          </div>
+          <div>
+            <Toggle checked={form.lavaLamp.enabled} onChange={(v) => update((d) => { d.lavaLamp.enabled = v })} label="Lava lamp" />
+            {form.lavaLamp.enabled && (
+              <div className="mt-2 space-y-1">
+                <LabeledHexColorRow label="Glass" value={form.lavaLamp.glassColor} onChange={(v) => update((d) => { d.lavaLamp.glassColor = v })} />
+                <LabeledHexColorRow label="Wax" value={form.lavaLamp.liquidColor} onChange={(v) => update((d) => { d.lavaLamp.liquidColor = v })} />
+                <LabeledHexColorRow label="Glow" value={form.lavaLamp.glowColor} onChange={(v) => update((d) => { d.lavaLamp.glowColor = v })} />
+              </div>
+            )}
+          </div>
+          <div>
+            <Toggle checked={form.fishTank.enabled} onChange={(v) => update((d) => { d.fishTank.enabled = v })} label="Fish tank" />
+            {form.fishTank.enabled && (
+              <div className="mt-2 space-y-1">
+                <LabeledHexColorRow label="Glass" value={form.fishTank.glassColor} onChange={(v) => update((d) => { d.fishTank.glassColor = v })} />
+                <LabeledHexColorRow label="Water" value={form.fishTank.waterColor} onChange={(v) => update((d) => { d.fishTank.waterColor = v })} />
+                <LabeledHexColorRow label="Fish" value={form.fishTank.fishColor} onChange={(v) => update((d) => { d.fishTank.fishColor = v })} />
+                <Slider label="Count" value={form.fishTank.fishCount} min={1} max={8} step={1} onChange={(v) => update((d) => { d.fishTank.fishCount = v })} />
+              </div>
+            )}
+          </div>
+        </div>
+      </Panel>
     </div>
   )
 }
 
 // ── DesktopConfigEditor ────────────────────────────────────────────
 
-const DEFAULT_DESKTOP_CONFIG: DesktopConfig = withDesktopConfigDefaults(undefined)
-
 function DesktopConfigEditor() {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const [form, setForm] = useState<DesktopConfig>(() =>
-    withDesktopConfigDefaults(config.desktopConfig)
-  )
+  const desktopScene = config.scenes[STATE.DESKTOP]
+  const sourceForm = withDesktopConfigDefaults(config.desktopConfig)
+  const sourceIntroTransitions = cloneTransitionSteps(desktopScene?.introTransitions)
+  const sourceExitTransitions = cloneTransitionSteps(desktopScene?.exitTransitions)
+  const [form, setForm] = useState<DesktopConfig>(() => sourceForm)
+  const [introTransitions, setIntroTransitions] = useState<TransitionStep[]>(() => sourceIntroTransitions)
+  const [exitTransitions, setExitTransitions] = useState<TransitionStep[]>(() => sourceExitTransitions)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [notifyTitle, setNotifyTitle] = useState('New follower')
   const [notifyBody, setNotifyBody] = useState('streamfan42 just joined the feed')
   const [notifyIcon, setNotifyIcon] = useState('🎉')
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dirty = !isSameDraft(form, sourceForm)
+    || !isSameDraft(introTransitions, sourceIntroTransitions)
+    || !isSameDraft(exitTransitions, sourceExitTransitions)
 
   useEffect(() => {
-    setForm(withDesktopConfigDefaults(config.desktopConfig))
-  }, [config.desktopConfig])
+    setForm(sourceForm)
+    setIntroTransitions(sourceIntroTransitions)
+    setExitTransitions(sourceExitTransitions)
+    setSaved(false)
+  }, [config.desktopConfig, config.scenes])
 
   const update = useCallback((updater: (d: DesktopConfig) => void) => {
     setForm((prev) => {
       const next = structuredClone(prev)
       updater(next)
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(async () => {
-        await saveConfig({ desktopConfig: next })
-        setSaved(true); setTimeout(() => setSaved(false), 1500)
-      }, 500)
       return next
     })
-  }, [saveConfig])
+    setSaved(false)
+  }, [])
+
+  const apply = useCallback(async () => {
+    if (!dirty) return
+    setSaving(true)
+    await saveConfig({
+      desktopConfig: form,
+      scenes: {
+        ...config.scenes,
+        [STATE.DESKTOP]: {
+          ...config.scenes[STATE.DESKTOP],
+          introTransitions: introTransitions.length ? introTransitions : undefined,
+          exitTransitions: exitTransitions.length ? exitTransitions : undefined,
+        },
+      },
+    })
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [dirty, saveConfig, config.scenes, form, introTransitions, exitTransitions])
+
+  const reset = useCallback(() => {
+    setForm(sourceForm)
+    setIntroTransitions(sourceIntroTransitions)
+    setExitTransitions(sourceExitTransitions)
+    setSaved(false)
+  }, [sourceForm, sourceIntroTransitions, sourceExitTransitions])
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-between text-[10px]">
-        <span className="text-zinc-500 uppercase tracking-wider">Win98 Desktop</span>
-        {saved && <span className="text-emerald-400">✔</span>}
-      </div>
+      <ConfigApplyBar label="Desktop Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
       <Panel title="Transitions">
         <div className="space-y-3">
           {([
@@ -1512,9 +1700,11 @@ function DesktopConfigEditor() {
             <div key={field}>
               <div className="text-[10px] text-zinc-500 mb-1">{label}</div>
               <TransitionList
-                value={config.scenes[STATE.DESKTOP]?.[field] ?? []}
+                value={field === 'introTransitions' ? introTransitions : exitTransitions}
                 onChange={(steps) => {
-                  saveConfig({ scenes: { ...config.scenes, [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], [field]: steps } } })
+                  if (field === 'introTransitions') setIntroTransitions(steps)
+                  else setExitTransitions(steps)
+                  setSaved(false)
                 }}
               />
             </div>
@@ -1572,9 +1762,13 @@ function DesktopConfigEditor() {
           onChange={(e) => update((d) => { d.stickyNotes.text = e.target.value })}
           className="w-full min-h-[110px] text-xs font-mono" />
         <div className="mt-3 text-[10px] text-zinc-500 mb-1">Note color</div>
-        <input type="color" value={form.stickyNotes.color}
-          onChange={(e) => update((d) => { d.stickyNotes.color = e.target.value })}
-          className="w-20 h-9 p-1" />
+        <HexColorInput
+          value={form.stickyNotes.color}
+          onChange={(nextValue) => update((d) => { d.stickyNotes.color = nextValue })}
+          className="max-w-sm gap-2"
+          pickerClassName="w-20 h-9 p-1 shrink-0"
+          textClassName="font-mono text-xs flex-1 min-w-0"
+        />
       </Panel>
       <Panel title="Recycle Bin">
         <Toggle checked={form.recycleBin.fullOnStart} onChange={(v) => update((d) => { d.recycleBin.fullOnStart = v })} label="Starts full" />
@@ -1654,34 +1848,56 @@ function DesktopConfigEditor() {
 function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
+  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
   const [form, setForm] = useState<Application>(app)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const imageEntries = mediaLibrary.filter((entry) => entry.type === 'image')
+  const dirty = !isSameDraft(form, app)
 
-  useEffect(() => { setForm(app) }, [app])
-
-  const autoSave = (updated: Application) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      const apps = [...config.applications]
-      const idx  = apps.findIndex((a) => a.id === updated.id)
-      if (idx !== -1) apps[idx] = updated; else apps.push(updated)
-      // Keep the scene label in sync with the application label
-      const scene = config.scenes[updated.targetSceneId]
-      if (scene) {
-        const updatedScene = { ...scene, label: updated.label }
-        saveConfig({ applications: apps, scenes: { ...config.scenes, [updated.targetSceneId]: updatedScene } })
-      } else {
-        saveConfig({ applications: apps })
-      }
-    }, 400)
-  }
+  useEffect(() => {
+    setForm(app)
+    setSaved(false)
+  }, [app])
 
   const update = (updater: (d: Application) => void) => {
-    const next = { ...form }; updater(next); setForm(next); autoSave(next)
+    const next = { ...form }
+    updater(next)
+    setForm(next)
+    setSaved(false)
+  }
+
+  const apply = async () => {
+    if (!dirty) return
+    setSaving(true)
+    const apps = [...config.applications]
+    const idx  = apps.findIndex((entry) => entry.id === form.id)
+    if (idx !== -1) apps[idx] = form
+    else apps.push(form)
+
+    const scene = config.scenes[form.targetSceneId]
+    if (scene) {
+      const updatedScene = { ...scene, label: form.label }
+      await saveConfig({ applications: apps, scenes: { ...config.scenes, [form.targetSceneId]: updatedScene } })
+    } else {
+      await saveConfig({ applications: apps })
+    }
+
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }
+
+  const reset = () => {
+    setForm(app)
+    setSaved(false)
   }
 
   return (
     <div className="space-y-3">
+      <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
       <Panel title="Identity">
         <div className="space-y-2">
           <div>
@@ -1695,9 +1911,27 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
             <div className="flex gap-2 items-center">
-              <span className="text-2xl p-1.5 bg-zinc-800 rounded border border-zinc-700">{form.icon}</span>
+              <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
+                <IconGlyph icon={form.icon} label={form.label} size={32} />
+              </div>
               <input type="text" value={form.icon} onChange={(e) => update((d) => { d.icon = e.target.value })} className="flex-1 font-mono text-xs" />
             </div>
+            <div className="text-[10px] text-zinc-600 mt-1.5">Use an emoji, or pick any uploaded image from the Asset Library.</div>
+            {imageEntries.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mt-2">
+                {imageEntries.slice(0, 8).map((entry) => (
+                  <button
+                    key={entry.id}
+                    onClick={() => update((d) => { d.icon = entry.url })}
+                    className={'rounded border p-1.5 transition-colors bg-zinc-800/60 hover:border-cyan-500/50 ' + (form.icon === entry.url ? 'border-cyan-500/60' : 'border-zinc-700')}
+                    title={entry.name}
+                  >
+                    <img src={entry.url} alt={entry.name} className="w-full aspect-square object-contain rounded bg-zinc-950" />
+                    <div className="text-[9px] text-zinc-500 truncate mt-1">{entry.name}</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Size</div>
@@ -1839,7 +2073,11 @@ function EventForm({ def, onUpdate, onDelete }: {
   onDelete?: () => void
 }) {
   const update = (fn: (d: EventDef) => void) => {
-    const next = { ...def, auto: { ...def.auto } }
+    const next: EventDef = {
+      ...def,
+      auto: { ...def.auto },
+      effects: def.effects.map((effect) => structuredClone(effect)),
+    }
     fn(next)
     onUpdate(next)
   }
@@ -1900,6 +2138,58 @@ function EventForm({ def, onUpdate, onDelete }: {
             )}
           </div>
         )}
+      </Panel>
+
+      <Panel title="Effects">
+        <div className="space-y-2">
+          {def.effects.length === 0 && (
+            <div className="text-[10px] text-zinc-600 italic">No effects configured.</div>
+          )}
+          {def.effects.map((eff, index) => (
+            <div key={`${def.id}-effect-${index}`} className="flex items-center gap-2 py-1 border-b border-zinc-700/40">
+              <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.1}
+                value={eff.delay ?? 0}
+                onChange={(e) => update((d) => {
+                  d.effects[index] = { ...d.effects[index], delay: Number(e.target.value) }
+                })}
+                className="w-16 font-mono text-xs"
+                title="Delay (s)"
+              />
+              <span className="text-[9px] text-zinc-600">s</span>
+              <button
+                onClick={() => update((d) => { d.effects.splice(index, 1) })}
+                className="text-[10px] text-red-500 hover:text-red-300 px-1"
+              >✕</button>
+            </div>
+          ))}
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              const type = e.target.value as EffectType
+              if (!type) return
+              e.target.value = ''
+              update((d) => {
+                d.effects.push({ type, cfg: {}, delay: 0 } as EffectConfig)
+              })
+            }}
+            className="w-full text-xs"
+          >
+            <option value="">+ Add effect…</option>
+            {([
+              'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
+              'death-overlay', 'victory-overlay', 'revive-overlay',
+              'terminal-toast', 'notification-box', 'typewriter',
+              'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
+            ] as EffectType[]).map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
       </Panel>
 
       {!def.builtIn && onDelete && (
@@ -2222,6 +2512,7 @@ function LivePreview() {
   const previewUrl = typeof window !== 'undefined'
     ? `${window.location.protocol}//${window.location.hostname}:${previewTarget === 'runtime' ? 3000 : 3001}`
     : 'http://localhost:3000'
+  const previewLabel = previewTarget === 'runtime' ? 'Runtime 3000' : 'Direct Dev 3001'
 
   useEffect(() => {
     const scale = () => {
@@ -2242,6 +2533,14 @@ function LivePreview() {
 
   return (
     <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden min-w-0">
+      <div className="absolute left-3 top-3 z-10 pointer-events-none">
+        <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] backdrop-blur ${previewTarget === 'runtime'
+          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100'
+          : 'border-amber-400/40 bg-amber-500/15 text-amber-100'}`}>
+          <span className={`h-2 w-2 rounded-full ${previewTarget === 'runtime' ? 'bg-emerald-300' : 'bg-amber-300'}`} />
+          <span>{previewLabel}</span>
+        </div>
+      </div>
       <iframe
         ref={frameRef}
         src={previewUrl}
@@ -2264,7 +2563,15 @@ function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDel
   const applications = useAdminStore((s) => s.config.applications)
 
   if (selected.kind === 'env') {
-    if (selected.envState === STATE.LOBBY) return <LobbyConfigEditor />
+    if (selected.envState === STATE.LOBBY) return (
+      <div className="space-y-5">
+        <LobbyConfigEditor />
+        <div className="border-t border-zinc-800 pt-4">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Background & Style</div>
+          <StyleEditor sceneId={STATE.LOBBY} />
+        </div>
+      </div>
+    )
     return (
       <div className="space-y-5">
         <DesktopConfigEditor />
@@ -2327,7 +2634,7 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
   }
 
   // Build header info
-  let headerIcon  = ''
+  let headerIcon: React.ReactNode = ''
   let headerLabel = ''
   let actionLabel = ''
   let actionFn: (() => void) | null = null
@@ -2348,7 +2655,7 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     actionFn    = () => triggerScene(selected.sceneState)
   } else if (selected.kind === 'app') {
     const app   = applications.find((a) => a.id === selected.appId)
-    headerIcon  = app?.icon  ?? '🎮'
+    headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
     headerLabel = app?.label ?? 'Application'
     isLive      = app ? currentState === app.targetSceneId : false
     actionLabel = app?.appType === 'widget' ? '▶ Open' : app?.appType === 'scene' ? '▶ Launch' : 'Decoration'
@@ -2360,7 +2667,10 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     headerLabel = def?.label ?? 'Event'
     isLive      = def?.auto.enabled ?? false
     actionLabel = '▶ Fire Now'
-    actionFn    = () => socket.emit('overlay:trigger', selected.id)
+    actionFn    = () => {
+      if (!def) return
+      socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
+    }
   } else if (selected.kind === 'audio')       { headerIcon = '🔊'; headerLabel = 'Audio' }
   else if (selected.kind === 'keybinds')    { headerIcon = '⌨';  headerLabel = 'Keybinds' }
   else if (selected.kind === 'archive')     { headerIcon = '📁'; headerLabel = 'Archive' }
@@ -2425,7 +2735,6 @@ socket.onAny((event, ...args) => { if (!LOG_SKIP.has(event)) pushLog('←', even
 socket.onAnyOutgoing((event, ...args) => pushLog('→', event, args as unknown[]))
 
 function SocketLogConsole() {
-  const [open,      setOpen]    = useState(false)
   const [entries,   setEntries] = useState<LogEntry[]>([])
   const [copied,    setCopied]  = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -2452,19 +2761,14 @@ function SocketLogConsole() {
   }, [])
 
   useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [entries, open])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [entries])
 
   return (
     <div className="shrink-0 border-t border-zinc-800">
-      {/* Toggle bar */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-zinc-800/50 transition-colors"
-      >
+      <div className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left bg-zinc-900/70 border-b border-zinc-800">
         <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1">Console</span>
-        {!open && entries.length > 0 && (
+        {entries.length > 0 && (
           <span className="text-[10px] font-mono text-zinc-600 truncate max-w-[100px]">
             {entries[entries.length - 1].dir} {entries[entries.length - 1].event}
           </span>
@@ -2485,33 +2789,29 @@ function SocketLogConsole() {
             >✕</button>
           </>
         )}
-        <span className="text-[9px] text-zinc-700">{open ? '▲' : '▼'}</span>
-      </button>
-      {/* Log entries */}
-      {open && (
-        <div className="h-[110px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-0.5">
-          {entries.length === 0 && (
-            <div className="text-[10px] text-zinc-700 italic pt-2 text-center">No events yet.</div>
-          )}
-          {entries.map((e) => (
-            <div key={e.id} className="flex gap-1.5 items-baseline font-mono">
-              <span className="text-[9px] text-zinc-700 shrink-0">{e.time}</span>
-              <span className={'text-[10px] shrink-0 ' + (e.dir === '→' ? 'text-cyan-600' : 'text-emerald-600')}>{e.dir}</span>
-              <span className="text-[10px] text-zinc-300 shrink-0 truncate max-w-[70px]">{e.event}</span>
-              {e.summary && <span className="text-[10px] text-zinc-600 truncate">{e.summary}</span>}
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-      )}
+      </div>
+      <div className="h-[150px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-0.5">
+        {entries.length === 0 && (
+          <div className="text-[10px] text-zinc-700 italic pt-2 text-center">No events yet.</div>
+        )}
+        {entries.map((e) => (
+          <div key={e.id} className="flex gap-1.5 items-baseline font-mono">
+            <span className="text-[9px] text-zinc-700 shrink-0">{e.time}</span>
+            <span className={'text-[10px] shrink-0 ' + (e.dir === '→' ? 'text-cyan-600' : 'text-emerald-600')}>{e.dir}</span>
+            <span className="text-[10px] text-zinc-300 shrink-0 truncate max-w-[70px]">{e.event}</span>
+            {e.summary && <span className="text-[10px] text-zinc-600 truncate">{e.summary}</span>}
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
     </div>
   )
 }
 
 // ── LeftSidebar ────────────────────────────────────────────────────
 
-function SidebarBtn({ icon, label, live, active, onClick, onDoubleClick }: {
-  icon: string; label: string; live?: boolean; active: boolean
+function SidebarBtn({ icon, label, live, statusLabel, statusClassName, active, onClick, onDoubleClick }: {
+  icon: React.ReactNode; label: string; live?: boolean; statusLabel?: string; statusClassName?: string; active: boolean
   onClick: () => void; onDoubleClick?: () => void
 }) {
   return (
@@ -2521,9 +2821,10 @@ function SidebarBtn({ icon, label, live, active, onClick, onDoubleClick }: {
       title={onDoubleClick ? 'Click to configure · Double-click to activate' : undefined}
       className={'w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors mb-0.5 text-left border ' +
         (active ? 'bg-zinc-700/90 text-zinc-100 border-zinc-600' : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800/70 border-transparent')}>
-      <span className="text-sm w-4 text-center shrink-0 leading-none">{icon}</span>
+      <span className="text-sm w-4 h-4 flex items-center justify-center shrink-0 leading-none">{icon}</span>
       <span className="flex-1 truncate font-medium">{label}</span>
       {live && <span className="text-[9px] font-bold text-emerald-400 tracking-widest shrink-0">LIVE</span>}
+      {!live && statusLabel && <span className={`text-[9px] font-bold tracking-widest shrink-0 ${statusClassName ?? 'text-zinc-500'}`}>{statusLabel}</span>}
     </button>
   )
 }
@@ -2555,6 +2856,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const saveConfig   = useAdminStore((s) => s.saveConfig)
   const applications = useAdminStore((s) => s.config.applications)
   const scenes       = useAdminStore((s) => s.config.scenes)
+  const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
 
   const sceneApps      = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
   const widgetApps     = applications.filter((a) => a.appType === 'widget')
@@ -2578,7 +2880,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
         const sc = scenes[app.targetSceneId]
         if (!sc) return null
         return (
-          <SidebarBtn key={sc.id} icon={app.icon} label={sc.label}
+          <SidebarBtn key={sc.id} icon={<IconGlyph icon={app.icon} label={sc.label} />} label={sc.label}
             live={currentState === sc.id}
             active={isActive({ kind: 'scene', sceneState: sc.id })}
             onClick={() => onSelect({ kind: 'scene', sceneState: sc.id })}
@@ -2590,7 +2892,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <SectionLabel>Applications</SectionLabel>
       {sceneApps.map((app) => (
-        <SidebarBtn key={app.id} icon={app.icon} label={app.label}
+        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
           live={currentState === app.targetSceneId}
           active={isActive({ kind: 'app', appId: app.id })}
           onClick={() => onSelect({ kind: 'app', appId: app.id })}
@@ -2608,8 +2910,9 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <SectionLabel>Widgets</SectionLabel>
       {widgetApps.map((app) => (
-        <SidebarBtn key={app.id} icon={app.icon} label={app.label}
-          live={currentState === app.targetSceneId}
+        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
+          statusLabel={openWidgetIds.includes(app.id) ? 'OPEN' : 'CLOSED'}
+          statusClassName={openWidgetIds.includes(app.id) ? 'text-cyan-300' : 'text-zinc-600'}
           active={isActive({ kind: 'app', appId: app.id })}
           onClick={() => onSelect({ kind: 'app', appId: app.id })}
           onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
@@ -2624,7 +2927,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <SectionLabel>Decorations</SectionLabel>
       {decorationApps.map((app) => (
-        <SidebarBtn key={app.id} icon={app.icon} label={app.label}
+        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
           live={false}
           active={isActive({ kind: 'app', appId: app.id })}
           onClick={() => onSelect({ kind: 'app', appId: app.id })}
@@ -2641,7 +2944,8 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       <SectionLabel>Events</SectionLabel>
       {eventDefs.map((def) => (
         <SidebarBtn key={def.id} icon={def.icon} label={def.label}
-          live={def.auto.enabled}
+          statusLabel={def.auto.enabled ? 'AUTO' : undefined}
+          statusClassName="text-amber-300"
           active={isActive({ kind: 'event', id: def.id })}
           onClick={() => onSelect({ kind: 'event', id: def.id })}
           onDoubleClick={() => onActivate({ kind: 'event', id: def.id })} />
@@ -2651,9 +2955,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       <div className="flex-1" />
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Studio</SectionLabel>
-      <SidebarBtn icon="🔊" label="Audio"         active={isActive({ kind: 'audio' })}       onClick={() => onSelect({ kind: 'audio' })} />
-      <SidebarBtn icon="⌨"  label="Keybinds"      active={isActive({ kind: 'keybinds' })}    onClick={() => onSelect({ kind: 'keybinds' })} />
+      <SectionLabel>Utilities</SectionLabel>
       <SidebarBtn icon="📁" label="Archive"       active={isActive({ kind: 'archive' })}     onClick={() => onSelect({ kind: 'archive' })} />
       <SidebarBtn icon="🗂" label="Asset Library" active={false}                              onClick={onLibrary} />
       </div>{/* end scrollable nav */}
@@ -2709,13 +3011,65 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
   )
 }
 
+type SettingsTab = 'general' | 'audio' | 'keybinds'
+
+function SettingsModal({ tab, onTabChange, onClose }: {
+  tab: SettingsTab
+  onTabChange: (tab: SettingsTab) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+      <div className="w-[min(1100px,calc(100vw-48px))] h-[min(760px,calc(100vh-48px))] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 shrink-0">
+          <span className="text-sm font-semibold text-zinc-100">Settings</span>
+          <div className="flex gap-1 ml-4">
+            {([
+              ['general', 'General'],
+              ['audio', 'Audio'],
+              ['keybinds', 'Keybinds'],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => onTabChange(id)}
+                className={'px-3 py-1.5 rounded text-xs border transition-colors ' + (
+                  tab === id
+                    ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:border-zinc-700'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-lg leading-none px-2 py-1">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {tab === 'general' && <SettingsPage />}
+          {tab === 'audio' && <AudioPanel />}
+          {tab === 'keybinds' && <KeybindEditor />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dashboard ──────────────────────────────────────────────────────
 
 export function Dashboard() {
   const [selected,     setSelected]     = useState<SelectedItem | null>(null)
   const [libraryOpen,  setLibraryOpen]  = useState(false)
-  const [eventDefs,    setEventDefs]    = useState<EventDef[]>(DEFAULT_EVENT_DEFS)
+  const eventDefs = useAdminStore((s) => (s.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
   const applications = useAdminStore((s) => s.config.applications)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const settingsTab: SettingsTab | null = selected?.kind === 'settings'
+    ? 'general'
+    : selected?.kind === 'audio'
+      ? 'audio'
+      : selected?.kind === 'keybinds'
+        ? 'keybinds'
+        : null
 
   // Clear selection when selected app is removed
   useEffect(() => {
@@ -2749,19 +3103,21 @@ export function Dashboard() {
         socket.emit('scene:change', app.targetSceneId)
       }
     } else if (item.kind === 'event') {
-      socket.emit('overlay:trigger', item.id as never)
+      const def = eventDefs.find((eventDef) => eventDef.id === item.id)
+      if (!def) return
+      socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
     }
   }
 
   const handleAddEvent = () => {
     const id  = 'custom-' + Date.now()
-    const def: EventDef = { id, label: 'New Event', icon: '⚡', color: 'text-cyan-400', desc: '', auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } }
-    setEventDefs((prev) => [...prev, def])
+    const def: EventDef = { id, label: 'New Event', icon: '⚡', color: 'text-cyan-400', desc: '', effects: [], auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } }
+    saveConfig({ events: [...eventDefs, def] })
     setSelected({ kind: 'event', id })
   }
 
   const handleUpdateEvent = (updated: EventDef) => {
-    setEventDefs((prev) => prev.map((e) => e.id === updated.id ? updated : e))
+    saveConfig({ events: eventDefs.map((e) => e.id === updated.id ? updated : e) })
     // Keep selected up to date (label/icon may have changed)
     if (selected?.kind === 'event' && selected.id === updated.id) {
       setSelected({ kind: 'event', id: updated.id })
@@ -2769,19 +3125,26 @@ export function Dashboard() {
   }
 
   const handleDeleteEvent = (id: string) => {
-    setEventDefs((prev) => prev.filter((e) => e.id !== id))
+    saveConfig({ events: eventDefs.filter((e) => e.id !== id) })
     if (selected?.kind === 'event' && selected.id === id) setSelected(null)
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="relative flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
       <TopBar onSettings={() => handleSelect({ kind: 'settings' })} />
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar selected={selected} onSelect={handleSelect} onActivate={handleActivate} onLibrary={() => setLibraryOpen(true)} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
         <LivePreview />
-        <RightPane selected={selected} onClose={() => setSelected(null)} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />
+        {!settingsTab && <RightPane selected={selected} onClose={() => setSelected(null)} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />}
       </div>
       {libraryOpen && <AssetLibraryPanel onClose={() => setLibraryOpen(false)} />}
+      {settingsTab && (
+        <SettingsModal
+          tab={settingsTab}
+          onTabChange={(tab) => setSelected(tab === 'general' ? { kind: 'settings' } : tab === 'audio' ? { kind: 'audio' } : { kind: 'keybinds' })}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }

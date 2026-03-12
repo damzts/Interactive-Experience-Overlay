@@ -28,6 +28,12 @@ export interface DesktopRuntimeStatePayload {
   recycleBinFull: boolean
 }
 
+export interface KeybindExecutionPayload {
+  scope: 'obs' | 'admin'
+  key?: string
+  action?: string
+}
+
 /** Events the server sends to clients */
 export interface ServerToClientEvents {
   'state:update': (payload: { state: STATE; previousState: STATE }) => void
@@ -44,6 +50,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'scene:change': (target: STATE, callback?: (err: string | null) => void) => void
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
+  'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   'state:request': (callback: (state: STATE) => void) => void
   'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
   'widget:toggle': (widgetId: string) => void

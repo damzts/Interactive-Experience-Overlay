@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { STATE, withDesktopConfigDefaults } from '@ieom/shared'
 import { socket } from '../socket/client'
+import { AppGlyph } from './AppGlyph'
 
 interface TaskbarProps {
   startMenuOpen: boolean
@@ -90,7 +91,7 @@ export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
           onClick={handleWindowBtnClick}
           title={`${activeApp.label} — click to return to desktop`}
         >
-          <span className="taskbar-window-icon">{activeApp.icon}</span>
+          <AppGlyph icon={activeApp.icon} label={activeApp.label} size={16} className="taskbar-window-icon" />
           <span className="taskbar-window-label">{activeApp.label}</span>
         </button>
       )}
@@ -104,7 +105,7 @@ export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
             onClick={() => toggleWidgetMinimized(widget.id)}
             title={`${widget.label} — ${minimized ? 'restore' : 'minimize'}`}
           >
-            <span className="taskbar-window-icon">{widget.icon}</span>
+            <AppGlyph icon={widget.icon} label={widget.label} size={16} className="taskbar-window-icon" />
             <span className="taskbar-window-label">{widget.label}</span>
           </button>
         )

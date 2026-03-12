@@ -1,24 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
+import { patchDesktopConfig } from './configPersistence'
 
 const NOTE_COLORS = ['#fff2a8', '#ffd3e0', '#d8f8d0', '#cde8ff']
 
 function saveStickyNote(text: string, color: string) {
-  const cfg = useAppStore.getState().config
-  fetch('/api/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...cfg,
-      desktopConfig: {
-        ...cfg.desktopConfig,
-        stickyNotes: {
-          text,
-          color,
-        },
-      },
-    }),
+  patchDesktopConfig({
+    stickyNotes: {
+      text,
+      color,
+    },
   }).catch(() => {})
 }
 

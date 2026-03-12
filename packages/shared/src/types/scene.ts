@@ -15,27 +15,47 @@ export interface LobbyConfig {
   fogColor: string
   fogNear: number
   fogFar: number
-  wallColor: string
+  skyTopColor: string
+  skyHorizonColor: string
   floorColor: string
   floorReflectivity: number
   crtGlowColor: string
-  neonStrips: boolean
-  neonColors: [string, string]
   dustMotes: boolean
   cameraFov: number
   starsCount: number
+  virtualPet: {
+    enabled: boolean
+    color: string
+    accessoryColor: string
+  }
+  lavaLamp: {
+    enabled: boolean
+    glassColor: string
+    liquidColor: string
+    glowColor: string
+  }
+  fishTank: {
+    enabled: boolean
+    glassColor: string
+    waterColor: string
+    fishColor: string
+    fishCount: number
+  }
+  /** @deprecated legacy flat-sky migration field */
+  skyColor?: string
 }
 
 /** Whether an application launches a fullscreen Scene, opens a widget, or is decorative only. */
 export type ApplicationType = 'scene' | 'widget' | 'decoration'
 
-export type DesktopTheme = 'win98' | 'win vista' | 'frutiger aero' | 'custom'
+export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'custom'
 export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'reactive'
 
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
   label: string
+  /** Emoji glyph or image URL/path from the asset library. */
   icon: string
   /** 'scene' = fullscreen (replaces display), 'widget' = stacking window, 'decoration' = desktop-only icon */
   appType: ApplicationType

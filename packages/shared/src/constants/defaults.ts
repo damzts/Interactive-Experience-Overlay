@@ -1,5 +1,69 @@
-import type { AppConfig, DesktopConfig } from '../types/scene.js'
+import type { AppConfig, DesktopConfig, DesktopTheme, LobbyConfig } from '../types/scene.js'
 import { STATE, OVERLAY_EVENT } from '../types/state.js'
+
+export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
+  ambientColor: '#f8fbff',
+  ambientIntensity: 0.85,
+  fogColor: '#edf3ff',
+  fogNear: 10,
+  fogFar: 30,
+  skyTopColor: '#dceeff',
+  skyHorizonColor: '#f8fbff',
+  floorColor: '#eef2f9',
+  floorReflectivity: 0.28,
+  crtGlowColor: '#6cb6ff',
+  dustMotes: true,
+  cameraFov: 56,
+  starsCount: 0,
+  virtualPet: {
+    enabled: true,
+    color: '#7fd0ff',
+    accessoryColor: '#ffe27a',
+  },
+  lavaLamp: {
+    enabled: true,
+    glassColor: '#eff6ff',
+    liquidColor: '#7ec8ff',
+    glowColor: '#9be7ff',
+  },
+  fishTank: {
+    enabled: true,
+    glassColor: '#e9f7ff',
+    waterColor: '#dcf6ff',
+    fishColor: '#ffb347',
+    fishCount: 4,
+  },
+}
+
+function normalizeDesktopTheme(theme?: DesktopTheme | 'win vista'): DesktopTheme {
+  if (theme === 'win vista') return 'frutiger aero'
+  if (theme === 'y2k candy' || theme === 'midnight chrome' || theme === 'frutiger aero' || theme === 'custom') {
+    return theme
+  }
+  return 'win98'
+}
+
+export function withLobbyConfigDefaults(config?: Partial<LobbyConfig> | null): LobbyConfig {
+  const legacySkyColor = config?.skyColor
+  return {
+    ...DEFAULT_LOBBY_CONFIG,
+    ...config,
+    skyTopColor: config?.skyTopColor ?? legacySkyColor ?? DEFAULT_LOBBY_CONFIG.skyTopColor,
+    skyHorizonColor: config?.skyHorizonColor ?? legacySkyColor ?? DEFAULT_LOBBY_CONFIG.skyHorizonColor,
+    virtualPet: {
+      ...DEFAULT_LOBBY_CONFIG.virtualPet,
+      ...config?.virtualPet,
+    },
+    lavaLamp: {
+      ...DEFAULT_LOBBY_CONFIG.lavaLamp,
+      ...config?.lavaLamp,
+    },
+    fishTank: {
+      ...DEFAULT_LOBBY_CONFIG.fishTank,
+      ...config?.fishTank,
+    },
+  }
+}
 
 export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   theme: 'win98',
@@ -38,6 +102,7 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
   return {
     ...DEFAULT_DESKTOP_CONFIG,
     ...config,
+    theme: normalizeDesktopTheme(config?.theme as DesktopTheme | 'win vista' | undefined),
     notifications: {
       ...DEFAULT_DESKTOP_CONFIG.notifications,
       ...config?.notifications,
@@ -70,22 +135,38 @@ export const DEFAULT_CONFIG: AppConfig = {
       // Lobby = 3D room (R3F ThreeBackground plugin — NOT the Win98 desktop).
       // The desktop layer is hidden in LOBBY state; only the 3D room renders here.
       sources: [],
-      lobbyConfig: {
-        ambientColor: '#1e1a3a',
-        ambientIntensity: 0.28,
-        fogColor: '#080810',
-        fogNear: 6,
-        fogFar: 22,
-        wallColor: '#0f0f16',
-        floorColor: '#0d0d14',
-        floorReflectivity: 0.6,
-        crtGlowColor: '#00c8e0',
-        neonStrips: true,
-        neonColors: ['#00c8ff', '#8000ff'],
-        dustMotes: true,
-        cameraFov: 62,
-        starsCount: 400,
+      style: {
+        background: {
+          type: 'color',
+          color: '#f8fbff',
+          gradient: 'linear-gradient(180deg, #ffffff 0%, #edf3ff 100%)',
+          imageUrl: '',
+          videoUrl: '',
+          pattern: 'none',
+          opacity: 1,
+          blur: 0,
+        },
+        effects: {
+          crt: false,
+          noise: false,
+          vignette: false,
+          flicker: false,
+          chromatic: false,
+          scanlineOpacity: 0,
+          noiseOpacity: 0,
+          vignetteStrength: 0,
+        },
+        particles: {
+          enabled: false,
+          preset: 'none',
+          density: 0.25,
+          speed: 0.25,
+        },
+        fontFamily: 'default',
+        accentColor: '#7fd0ff',
+        textColor: '#18314d',
       },
+      lobbyConfig: DEFAULT_LOBBY_CONFIG,
     },
 
     DESKTOP: {
@@ -178,6 +259,16 @@ export const DEFAULT_CONFIG: AppConfig = {
       targetSceneId: STATE.DESKTOP,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 336 },
+      iconSize: 'normal' as const,
+    },
+    {
+      id: 'chat',
+      label: 'CHAT.exe',
+      icon: '💬',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 416 },
       iconSize: 'normal' as const,
     },
   ],

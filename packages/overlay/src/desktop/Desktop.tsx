@@ -12,6 +12,7 @@ import { ChatWidget } from './ChatWidget'
 import { StickyNotesWidget } from './StickyNotesWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
+import { AppGlyph } from './AppGlyph'
 
 interface DesktopWidgetProps {
   onClose: () => void
@@ -32,8 +33,9 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>>
 
 const THEME_CLASSNAME: Record<DesktopTheme, string> = {
   win98: 'desktop--theme-win98',
-  'win vista': 'desktop--theme-vista',
   'frutiger aero': 'desktop--theme-frutiger-aero',
+  'y2k candy': 'desktop--theme-y2k-candy',
+  'midnight chrome': 'desktop--theme-midnight-chrome',
   custom: 'desktop--theme-custom',
 }
 
@@ -82,21 +84,21 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     '--desktop-tray-glow': 'rgba(0, 204, 0, 0.3)',
   }
 
-  if (theme === 'win vista') {
+  if (theme === 'y2k candy') {
     Object.assign(vars, {
-      '--desktop-bg': '#24558d',
-      '--desktop-panel': '#d9ebff',
+      '--desktop-bg': '#f58fd8',
+      '--desktop-panel': '#ffe6fb',
       '--desktop-panel-light': '#ffffff',
-      '--desktop-panel-dark': '#7292b8',
-      '--desktop-panel-shadow': '#24405f',
-      '--desktop-title-start': '#2c62b0',
-      '--desktop-title-end': '#8fc5ff',
-      '--desktop-title-text': '#ffffff',
-      '--desktop-ui-font': 'Trebuchet MS, Segoe UI, Arial, sans-serif',
-      '--desktop-menu-hover': '#2a63c7',
-      '--desktop-menu-danger': '#b83333',
-      '--desktop-icon-shadow': '0 1px 2px rgba(0, 0, 0, 0.85)',
-      '--desktop-tray-glow': 'rgba(72, 166, 255, 0.4)',
+      '--desktop-panel-dark': '#d76eb8',
+      '--desktop-panel-shadow': '#772a72',
+      '--desktop-title-start': '#ff7bc6',
+      '--desktop-title-end': '#7bdcff',
+      '--desktop-title-text': '#3d1140',
+      '--desktop-ui-font': 'Trebuchet MS, Verdana, Arial, sans-serif',
+      '--desktop-menu-hover': '#f05db3',
+      '--desktop-menu-danger': '#bf4378',
+      '--desktop-icon-shadow': '0 1px 2px rgba(65, 0, 70, 0.85)',
+      '--desktop-tray-glow': 'rgba(255, 143, 216, 0.45)',
     })
   } else if (theme === 'frutiger aero') {
     Object.assign(vars, {
@@ -113,6 +115,22 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
       '--desktop-menu-danger': '#d24d4d',
       '--desktop-icon-shadow': '0 2px 6px rgba(0, 0, 0, 0.8)',
       '--desktop-tray-glow': 'rgba(55, 226, 255, 0.5)',
+    })
+  } else if (theme === 'midnight chrome') {
+    Object.assign(vars, {
+      '--desktop-bg': '#09131d',
+      '--desktop-panel': '#d8e2ef',
+      '--desktop-panel-light': '#ffffff',
+      '--desktop-panel-dark': '#667382',
+      '--desktop-panel-shadow': '#0c1117',
+      '--desktop-title-start': '#22384f',
+      '--desktop-title-end': '#9ab8d8',
+      '--desktop-title-text': '#f6fbff',
+      '--desktop-ui-font': 'Tahoma, Segoe UI, Arial, sans-serif',
+      '--desktop-menu-hover': '#345c86',
+      '--desktop-menu-danger': '#8c3849',
+      '--desktop-icon-shadow': '0 2px 8px rgba(0, 0, 0, 0.9)',
+      '--desktop-tray-glow': 'rgba(154, 184, 216, 0.4)',
     })
   } else if (theme === 'custom') {
     Object.assign(vars, {
@@ -199,7 +217,7 @@ function GenericWidget({ app, onClose, onMinimize, onFocus, windowState = 'open'
   return (
     <DesktopWindow
       id={app.id}
-      title={`${app.icon} ${app.label}`}
+      title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><AppGlyph icon={app.icon} label={app.label} size={16} /> <span>{app.label}</span></span>}
       width={260}
       defaultPosition={{ x: 80, y: 120 }}
       zIndex={zIndex}
@@ -209,7 +227,9 @@ function GenericWidget({ app, onClose, onMinimize, onFocus, windowState = 'open'
       onClose={onClose}
       bodyStyle={{ padding: '12px 16px', color: 'var(--desktop-title-start)', textAlign: 'center' }}
     >
-        <div style={{ fontSize: 28 }}>{app.icon}</div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <AppGlyph icon={app.icon} label={app.label} size={28} />
+        </div>
         <div style={{ marginTop: 6, fontWeight: 'bold' }}>{app.label}</div>
         <div style={{ marginTop: 4, fontSize: 10, color: '#666' }}>Widget — no component registered for id: {app.id}</div>
     </DesktopWindow>
@@ -409,7 +429,7 @@ export function Desktop({ apps }: DesktopProps) {
                     className="start-menu-sub-item"
                     onClick={() => handleLaunch(app)}
                   >
-                    <span>{app.icon}</span>
+                    <AppGlyph icon={app.icon} label={app.label} size={16} />
                     <span>{app.label}</span>
                   </button>
                 ))}

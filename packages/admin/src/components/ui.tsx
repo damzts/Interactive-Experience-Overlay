@@ -1,4 +1,102 @@
-import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes } from 'react'
+import { useEffect, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+function expandHexColor(value: string) {
+  if (value.length === 4 || value.length === 5) {
+    const body = value.slice(1).split('').map((char) => char + char).join('')
+    return `#${body}`
+  }
+  return value
+}
+
+function getOpaqueHexColor(value: string, fallback = '#000000') {
+  if (!HEX_COLOR_PATTERN.test(value)) return fallback
+  const expanded = expandHexColor(value)
+  return expanded.length === 9 ? expanded.slice(0, 7) : expanded
+}
+
+function getAlphaHex(value: string) {
+  if (!HEX_COLOR_PATTERN.test(value)) return ''
+  const expanded = expandHexColor(value)
+  return expanded.length === 9 ? expanded.slice(7, 9) : ''
+}
+
+interface HexColorInputProps {
+  value: string
+  onChange: (value: string) => void
+  className?: string
+  pickerClassName?: string
+  textClassName?: string
+  pickerStyle?: CSSProperties
+  placeholder?: string
+}
+
+export function HexColorInput({
+  value,
+  onChange,
+  className = '',
+  pickerClassName = '',
+  textClassName = '',
+  pickerStyle,
+  placeholder = '#RRGGBB or #RRGGBBAA',
+}: HexColorInputProps) {
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  const commitPickerValue = (rgbValue: string) => {
+    const alpha = getAlphaHex(draft.trim()) || getAlphaHex(value.trim())
+    const nextValue = `${rgbValue}${alpha}`
+    setDraft(nextValue)
+    onChange(nextValue)
+  }
+
+  const handleTextChange = (nextValue: string) => {
+    setDraft(nextValue)
+    const trimmed = nextValue.trim()
+    if (HEX_COLOR_PATTERN.test(trimmed)) {
+      onChange(trimmed)
+    }
+  }
+
+  const handleBlur = () => {
+    const trimmed = draft.trim()
+    if (HEX_COLOR_PATTERN.test(trimmed)) {
+      setDraft(trimmed)
+      return
+    }
+    setDraft(value)
+  }
+
+  const previewValue = getOpaqueHexColor(HEX_COLOR_PATTERN.test(draft.trim()) ? draft.trim() : value.trim())
+
+  return (
+    <div className={`flex items-center ${className}`}>
+      <input
+        type="color"
+        value={previewValue}
+        onInput={(event) => commitPickerValue(event.currentTarget.value)}
+        onChange={(event) => commitPickerValue(event.target.value)}
+        className={pickerClassName}
+        style={pickerStyle}
+      />
+      <input
+        type="text"
+        value={draft}
+        onChange={(event) => handleTextChange(event.target.value)}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className={textClassName}
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+    </div>
+  )
+}
 
 /** Dark card / panel replacing Win98 .window */
 export function Panel({

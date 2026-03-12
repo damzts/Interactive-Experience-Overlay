@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { STATE, DEFAULT_CONFIG } from '@ieom/shared'
-import type { AppConfig } from '@ieom/shared'
+import type { AppConfig, DesktopRuntimeStatePayload } from '@ieom/shared'
 
 export type PreviewTarget = 'runtime' | 'dev'
 
@@ -33,6 +33,8 @@ interface AdminStore {
   config: AppConfig
   configLoaded: boolean
   previewTarget: PreviewTarget
+  openWidgetIds: string[]
+  recycleBinFull: boolean
 
   setCurrentState: (s: STATE) => void
   setObsConnected: (b: boolean) => void
@@ -40,6 +42,9 @@ interface AdminStore {
   setLastError: (e: string | null) => void
   setConfig: (c: AppConfig) => void
   setPreviewTarget: (target: PreviewTarget) => void
+  syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
+  toggleWidgetRuntimeState: (widgetId: string) => void
+  setRecycleBinFull: (full: boolean) => void
   fetchConfig: () => Promise<void>
   saveConfig: (updates: Partial<AppConfig>) => Promise<void>
 }
@@ -52,6 +57,8 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   config: DEFAULT_CONFIG,
   configLoaded: false,
   previewTarget: getStoredPreviewTarget(),
+  openWidgetIds: [],
+  recycleBinFull: false,
 
   setCurrentState: (s) => set({ currentState: s }),
   setObsConnected: (b) => set({ obsConnected: b }),
@@ -62,6 +69,16 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     storePreviewTarget(target)
     set({ previewTarget: target })
   },
+  syncDesktopRuntimeState: (payload) => set({
+    openWidgetIds: payload.openWidgetIds,
+    recycleBinFull: payload.recycleBinFull,
+  }),
+  toggleWidgetRuntimeState: (widgetId) => set((state) => ({
+    openWidgetIds: state.openWidgetIds.includes(widgetId)
+      ? state.openWidgetIds.filter((id) => id !== widgetId)
+      : [...state.openWidgetIds, widgetId],
+  })),
+  setRecycleBinFull: (full) => set({ recycleBinFull: full }),
 
   fetchConfig: async () => {
     try {
