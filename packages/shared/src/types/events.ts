@@ -12,6 +12,17 @@ export interface TransitionPlayPayload {
   intro: TransitionStep[]
 }
 
+export interface DesktopNotificationPayload {
+  title: string
+  body: string
+  icon?: string
+  durationMs?: number
+}
+
+export interface DesktopRecycleBinPayload {
+  full: boolean
+}
+
 /** Events the server sends to clients */
 export interface ServerToClientEvents {
   'state:update': (payload: { state: STATE; previousState: STATE }) => void
@@ -20,6 +31,8 @@ export interface ServerToClientEvents {
   'config:update': (config: AppConfig) => void
   'obs:status': (payload: { connected: boolean }) => void
   'widget:toggle': (widgetId: string) => void
+  'desktop:notify': (payload: DesktopNotificationPayload) => void
+  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
 }
 
 /** Events clients send to the server */
@@ -28,6 +41,8 @@ export interface ClientToServerEvents {
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   'state:request': (callback: (state: STATE) => void) => void
   'widget:toggle': (widgetId: string) => void
+  'desktop:notify': (payload: DesktopNotificationPayload) => void
+  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
   'transition:preview': (steps: TransitionStep[]) => void
   'panic': () => void
 }

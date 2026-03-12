@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { DesktopWindow } from './DesktopWindow'
 
 function useSessionTimer() {
   const [seconds, setSeconds] = useState(0)
@@ -13,20 +14,17 @@ function useSessionTimer() {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-interface Props { onClose: () => void }
+interface Props {
+  onClose: () => void
+  onMinimize?: () => void
+  onFocus?: () => void
+  windowState?: 'open' | 'closing'
+  zIndex?: number
+}
 
-export function ArchiveWidget({ onClose }: Props) {
+export function ArchiveWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
   const visualState = useAppStore((st) => st.visualState)
-  const configPos   = useAppStore((s) => s.config.desktopConfig?.widgetPositions?.['archive'])
-  const [pos, setPos] = useState(() => configPos ?? { x: 900, y: 120 })
-  const dragging    = useRef(false)
-  const offset      = useRef({ x: 0, y: 0 })
-  const posRef      = useRef(pos)
   const sessionTime = useSessionTimer()
-
-  useEffect(() => {
-    if (!dragging.current && configPos) setPos(configPos)
-  }, [configPos])
 
   const [log, setLog] = useState<{ state: string; time: string }[]>([
     { state: String(visualState), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
@@ -37,51 +35,22 @@ export function ArchiveWidget({ onClose }: Props) {
     setLog((prev) => [{ state: String(visualState), time: t }, ...prev].slice(0, 8))
   }, [visualState])
 
-  const onMouseDown = (e: React.MouseEvent) => {
-    dragging.current = true
-    offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
-    e.preventDefault()
-  }
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return
-      const next = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y }
-      posRef.current = next
-      setPos(next)
-    }
-    const onUp = () => {
-      if (!dragging.current) return
-      dragging.current = false
-      const cfg = useAppStore.getState().config
-      fetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...cfg,
-          desktopConfig: { ...cfg.desktopConfig, widgetPositions: { ...cfg.desktopConfig?.widgetPositions, archive: posRef.current } },
-        }),
-      })
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, [])
-
   const now = new Date()
   const dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="window" style={{ position: 'absolute', left: pos.x, top: pos.y, width: 300, boxShadow: '4px 4px 0 #000', userSelect: 'none', zIndex: 50 }}>
-      <div className="title-bar" style={{ cursor: 'move' }} onMouseDown={onMouseDown}>
-        <div className="title-bar-text">📖 ARCHIVE.exe</div>
-        <div className="title-bar-controls">
-          <button aria-label="Minimize" />
-          <button aria-label="Maximize" />
-          <button aria-label="Close" onClick={onClose} />
-        </div>
-      </div>
-      <div className="window-body" style={{ padding: '8px 10px' }}>
+    <DesktopWindow
+      id="archive"
+      title="📖 ARCHIVE.exe"
+      width={300}
+      defaultPosition={{ x: 900, y: 120 }}
+      zIndex={zIndex}
+      state={windowState}
+      onFocus={onFocus}
+      onMinimize={onMinimize}
+      onClose={onClose}
+      bodyStyle={{ padding: '8px 10px' }}
+    >
         <div style={{ background: '#000', border: '2px inset', padding: '6px 8px', marginBottom: 8, fontFamily: 'VT323, monospace', fontSize: 13, color: '#00aaff', lineHeight: 1.6 }}>
           <div>SESSION ACTIVE</div>
           <div style={{ color: '#fff' }}>{dateStr}</div>
@@ -96,7 +65,6 @@ export function ArchiveWidget({ onClose }: Props) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </DesktopWindow>
   )
 }

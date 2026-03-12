@@ -22,6 +22,11 @@ export default function App() {
 
   useEffect(() => { audioEngine.init() }, [])
 
+  useEffect(() => {
+    audioEngine.setMasterVolume(config.audio.masterVolume)
+    audioEngine.setMusicVolume(config.audio.musicVolume)
+  }, [config.audio.masterVolume, config.audio.musicVolume])
+
   const currentScene = config.scenes[visualState] ?? config.scenes[STATE.DESKTOP]
   const visibleSources = currentScene?.sources.filter((s) => s.visible) ?? []
   // Each scene owns its own visual style; fall back to root overlayStyle if absent

@@ -1,5 +1,65 @@
-import type { AppConfig } from '../types/scene.js'
+import type { AppConfig, DesktopConfig } from '../types/scene.js'
 import { STATE, OVERLAY_EVENT } from '../types/state.js'
+
+export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
+  theme: 'win98',
+  defaultIconSize: 'normal',
+  autoArrangeIcons: false,
+  iconAnimation: 'none',
+  notifications: {
+    enabled: true,
+    defaultDurationMs: 6500,
+    maxVisible: 3,
+  },
+  recycleBin: {
+    emptyIcon: '🗑️',
+    fullIcon: '🗑️',
+    fullOnStart: false,
+  },
+  stickyNotes: {
+    text: 'Reminder:\n- queue scenes\n- test alerts\n- hydrate',
+    color: '#fff2a8',
+  },
+  screenSaver: {
+    enabled: false,
+    timeoutMinutes: 5,
+    preset: 'starfield',
+  },
+  systemSounds: {
+    startup: '',
+    error: '',
+    notify: '',
+    click: '',
+    close: '',
+  },
+}
+
+export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null): DesktopConfig {
+  return {
+    ...DEFAULT_DESKTOP_CONFIG,
+    ...config,
+    notifications: {
+      ...DEFAULT_DESKTOP_CONFIG.notifications,
+      ...config?.notifications,
+    },
+    recycleBin: {
+      ...DEFAULT_DESKTOP_CONFIG.recycleBin,
+      ...config?.recycleBin,
+    },
+    stickyNotes: {
+      ...DEFAULT_DESKTOP_CONFIG.stickyNotes,
+      ...config?.stickyNotes,
+    },
+    screenSaver: {
+      ...DEFAULT_DESKTOP_CONFIG.screenSaver,
+      ...config?.screenSaver,
+    },
+    systemSounds: {
+      ...DEFAULT_DESKTOP_CONFIG.systemSounds,
+      ...config?.systemSounds,
+    },
+  }
+}
 
 export const DEFAULT_CONFIG: AppConfig = {
   scenes: {
@@ -71,13 +131,23 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   applications: [
     {
+      id: 'recycle-bin',
+      label: 'Recycle Bin',
+      icon: '🗑️',
+      appType: 'decoration' as const,
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 16 },
+      iconSize: 'normal' as const,
+    },
+    {
       id: 'browser',
       label: 'Browser.exe',
       icon: '🌐',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
       transitionType: 'instant',
-      iconPosition: { x: 16, y: 16 },
+      iconPosition: { x: 16, y: 96 },
       iconSize: 'normal' as const,
     },
     {
@@ -87,7 +157,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
       transitionType: 'instant',
-      iconPosition: { x: 16, y: 96 },
+      iconPosition: { x: 16, y: 176 },
       iconSize: 'normal' as const,
     },
     {
@@ -97,7 +167,17 @@ export const DEFAULT_CONFIG: AppConfig = {
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
       transitionType: 'instant',
-      iconPosition: { x: 16, y: 176 },
+      iconPosition: { x: 16, y: 256 },
+      iconSize: 'normal' as const,
+    },
+    {
+      id: 'sticky-notes',
+      label: 'Sticky Notes',
+      icon: '📝',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 336 },
       iconSize: 'normal' as const,
     },
   ],
@@ -164,22 +244,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     textColor: '#ffffff',
   },
 
-  desktopConfig: {
-    defaultIconSize: 'normal',
-    autoArrangeIcons: false,
-    screenSaver: {
-      enabled: false,
-      timeoutMinutes: 5,
-      preset: 'starfield',
-    },
-    systemSounds: {
-      startup: '',
-      error: '',
-      notify: '',
-      click: '',
-      close: '',
-    },
-  },
+  desktopConfig: DEFAULT_DESKTOP_CONFIG,
 
   events: [
     { id: OVERLAY_EVENT.DEATH,          label: 'DEATH',    icon: '💀', color: 'text-red-400',     desc: 'Red vignette + YOU DIED',           effects: [{ type: 'death-overlay',   cfg: {} }],                                                                                             auto: { enabled: false, mode: 'interval', intervalMin: 20, idleMin: 5 } },

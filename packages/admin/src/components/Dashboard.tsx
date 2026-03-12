@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { STATE, OVERLAY_EVENT } from '@ieom/shared'
+import { STATE, OVERLAY_EVENT, withDesktopConfigDefaults } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
@@ -1054,6 +1054,21 @@ const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; label: 
   { id: 'blank',          label: 'Black Screen'   },
 ]
 
+const DESKTOP_THEMES: { id: DesktopConfig['theme']; label: string }[] = [
+  { id: 'win98', label: 'Win98' },
+  { id: 'win vista', label: 'Vista' },
+  { id: 'frutiger aero', label: 'Frutiger Aero' },
+  { id: 'custom', label: 'Custom' },
+]
+
+const ICON_ANIMATIONS: { id: DesktopConfig['iconAnimation']; label: string }[] = [
+  { id: 'none', label: 'Static' },
+  { id: 'pulse', label: 'Pulse' },
+  { id: 'float', label: 'Float' },
+  { id: 'jiggle', label: 'Jiggle' },
+  { id: 'reactive', label: 'Reactive' },
+]
+
 // ── Events def ─────────────────────────────────────────────────────
 
 type AutoTrigger = { enabled: boolean; mode: 'interval' | 'idle'; intervalMin: number; idleMin: number }
@@ -1451,23 +1466,22 @@ function LobbyConfigEditor() {
 
 // ── DesktopConfigEditor ────────────────────────────────────────────
 
-const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
-  defaultIconSize: 'normal', autoArrangeIcons: false,
-  screenSaver: { enabled: false, timeoutMinutes: 5, preset: 'starfield' },
-  systemSounds: { startup: '', error: '', notify: '', click: '', close: '' },
-}
+const DEFAULT_DESKTOP_CONFIG: DesktopConfig = withDesktopConfigDefaults(undefined)
 
 function DesktopConfigEditor() {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const [form, setForm] = useState<DesktopConfig>(() =>
-    structuredClone(config.desktopConfig ?? DEFAULT_DESKTOP_CONFIG)
+    withDesktopConfigDefaults(config.desktopConfig)
   )
   const [saved, setSaved] = useState(false)
+  const [notifyTitle, setNotifyTitle] = useState('New follower')
+  const [notifyBody, setNotifyBody] = useState('streamfan42 just joined the feed')
+  const [notifyIcon, setNotifyIcon] = useState('🎉')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    setForm(structuredClone(config.desktopConfig ?? DEFAULT_DESKTOP_CONFIG))
+    setForm(withDesktopConfigDefaults(config.desktopConfig))
   }, [config.desktopConfig])
 
   const update = useCallback((updater: (d: DesktopConfig) => void) => {
@@ -1507,6 +1521,17 @@ function DesktopConfigEditor() {
           ))}
         </div>
       </Panel>
+      <Panel title="Theme">
+        <div className="grid grid-cols-2 gap-1.5">
+          {DESKTOP_THEMES.map((theme) => (
+            <button key={theme.id} onClick={() => update((d) => { d.theme = theme.id })}
+              className={'px-2.5 py-1.5 text-[11px] rounded border transition-colors ' +
+                (form.theme === theme.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
+              {theme.label}
+            </button>
+          ))}
+        </div>
+      </Panel>
       <Panel title="Icons">
         <div className="mb-3">
           <div className="text-[10px] text-zinc-500 mb-1.5">Default size</div>
@@ -1521,6 +1546,52 @@ function DesktopConfigEditor() {
           </div>
         </div>
         <Toggle checked={form.autoArrangeIcons} onChange={(v) => update((d) => { d.autoArrangeIcons = v })} label="Auto-arrange" />
+        <div className="mt-3">
+          <div className="text-[10px] text-zinc-500 mb-1.5">Ambient motion</div>
+          <div className="grid grid-cols-2 gap-1">
+            {ICON_ANIMATIONS.map((mode) => (
+              <button key={mode.id} onClick={() => update((d) => { d.iconAnimation = mode.id })}
+                className={'px-2.5 py-1.5 text-[11px] rounded border transition-colors ' +
+                  (form.iconAnimation === mode.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Notifications">
+        <Toggle checked={form.notifications.enabled} onChange={(v) => update((d) => { d.notifications.enabled = v })} label="Enable desktop notifications" />
+        <div className="mt-3 space-y-2">
+          <Slider label="Duration" value={form.notifications.defaultDurationMs} min={1500} max={12000} step={500} unit="ms" onChange={(v) => update((d) => { d.notifications.defaultDurationMs = v })} />
+          <Slider label="Visible toasts" value={form.notifications.maxVisible} min={1} max={5} step={1} onChange={(v) => update((d) => { d.notifications.maxVisible = v })} />
+        </div>
+      </Panel>
+      <Panel title="Sticky Notes">
+        <div className="text-[10px] text-zinc-500 mb-1">Default note text</div>
+        <textarea value={form.stickyNotes.text}
+          onChange={(e) => update((d) => { d.stickyNotes.text = e.target.value })}
+          className="w-full min-h-[110px] text-xs font-mono" />
+        <div className="mt-3 text-[10px] text-zinc-500 mb-1">Note color</div>
+        <input type="color" value={form.stickyNotes.color}
+          onChange={(e) => update((d) => { d.stickyNotes.color = e.target.value })}
+          className="w-20 h-9 p-1" />
+      </Panel>
+      <Panel title="Recycle Bin">
+        <Toggle checked={form.recycleBin.fullOnStart} onChange={(v) => update((d) => { d.recycleBin.fullOnStart = v })} label="Starts full" />
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Empty icon</div>
+            <input type="text" value={form.recycleBin.emptyIcon}
+              onChange={(e) => update((d) => { d.recycleBin.emptyIcon = e.target.value })}
+              className="w-full text-xs font-mono" />
+          </div>
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Full icon</div>
+            <input type="text" value={form.recycleBin.fullIcon}
+              onChange={(e) => update((d) => { d.recycleBin.fullIcon = e.target.value })}
+              className="w-full text-xs font-mono" />
+          </div>
+        </div>
       </Panel>
       <Panel title="Screen Saver">
         <Toggle checked={form.screenSaver.enabled} onChange={(v) => update((d) => { d.screenSaver.enabled = v })} label="Enable" />
@@ -1550,6 +1621,29 @@ function DesktopConfigEditor() {
               placeholder={key + '.wav'} className="flex-1 font-mono text-[11px]" />
           </div>
         ))}
+      </Panel>
+      <Panel title="Socket Tests">
+        <div className="space-y-2">
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Title</div>
+            <input type="text" value={notifyTitle} onChange={(e) => setNotifyTitle(e.target.value)} className="w-full text-xs" />
+          </div>
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Body</div>
+            <textarea value={notifyBody} onChange={(e) => setNotifyBody(e.target.value)} className="w-full min-h-[70px] text-xs" />
+          </div>
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+            <input type="text" value={notifyIcon} onChange={(e) => setNotifyIcon(e.target.value)} className="w-20 text-xs font-mono" />
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Btn variant="primary" onClick={() => socket.emit('desktop:notify', { title: notifyTitle, body: notifyBody, icon: notifyIcon, durationMs: form.notifications.defaultDurationMs })}>
+              Send Notification
+            </Btn>
+            <Btn onClick={() => socket.emit('desktop:recycle-bin', { full: true })}>Bin Full</Btn>
+            <Btn onClick={() => socket.emit('desktop:recycle-bin', { full: false })}>Bin Empty</Btn>
+          </div>
+        </div>
       </Panel>
     </div>
   )
@@ -2253,7 +2347,7 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     headerIcon  = app?.icon  ?? '🎮'
     headerLabel = app?.label ?? 'Application'
     isLive      = app ? currentState === app.targetSceneId : false
-    actionLabel = app?.appType === 'widget' ? '▶ Open' : '▶ Launch'
+    actionLabel = app?.appType === 'widget' ? '▶ Open' : app?.appType === 'scene' ? '▶ Launch' : 'Decoration'
     // Widgets do not transition — they are floating windows. Only scene apps emit scene:change.
     actionFn    = (app && app.appType === 'scene') ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
   } else if (selected.kind === 'event') {
@@ -2458,8 +2552,9 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const applications = useAdminStore((s) => s.config.applications)
   const scenes       = useAdminStore((s) => s.config.scenes)
 
-  const sceneApps  = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
-  const widgetApps = applications.filter((a) => a.appType === 'widget')
+  const sceneApps      = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
+  const widgetApps     = applications.filter((a) => a.appType === 'widget')
+  const decorationApps = applications.filter((a) => a.appType === 'decoration')
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
@@ -2517,6 +2612,22 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       ))}
       <AddBtn label="New Widget" onClick={() => {
         const a: Application = { id: 'widget-' + Date.now(), label: 'New Widget', icon: '▣', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
+        saveConfig({ applications: [...applications, a] })
+        onSelect({ kind: 'app', appId: a.id })
+      }} />
+
+      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
+
+      <SectionLabel>Decorations</SectionLabel>
+      {decorationApps.map((app) => (
+        <SidebarBtn key={app.id} icon={app.icon} label={app.label}
+          live={false}
+          active={isActive({ kind: 'app', appId: app.id })}
+          onClick={() => onSelect({ kind: 'app', appId: app.id })}
+          onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
+      ))}
+      <AddBtn label="New Decoration" onClick={() => {
+        const a: Application = { id: 'decor-' + Date.now(), label: 'New Decoration', icon: '🖼', appType: 'decoration', targetSceneId: STATE.DESKTOP, transitionType: 'instant' }
         saveConfig({ applications: [...applications, a] })
         onSelect({ kind: 'app', appId: a.id })
       }} />
@@ -2630,7 +2741,7 @@ export function Dashboard() {
       if (app.appType === 'widget') {
         // Widgets are floating windows — tell the overlay to toggle them, no scene change.
         socket.emit('widget:toggle', app.id)
-      } else {
+      } else if (app.appType === 'scene') {
         socket.emit('scene:change', app.targetSceneId)
       }
     } else if (item.kind === 'event') {

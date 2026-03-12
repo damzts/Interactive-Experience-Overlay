@@ -1,12 +1,31 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG } from '@ieom/shared'
+import { DEFAULT_CONFIG, withDesktopConfigDefaults } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
+const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes'])
+
+function withConfigDefaults(next: AppConfig): AppConfig {
+  const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
+  const applications = [...next.applications]
+
+  for (const app of requiredApps) {
+    if (!applications.some((existing) => existing.id === app.id)) {
+      applications.push(structuredClone(app))
+    }
+  }
+
+  return {
+    ...next,
+    applications,
+    desktopConfig: withDesktopConfigDefaults(next.desktopConfig),
+  }
+}
+
 // Load persisted config on startup, fall back to DEFAULT_CONFIG
 const persisted = getDbConfig('appConfig') as AppConfig | null
-let config: AppConfig = persisted ?? structuredClone(DEFAULT_CONFIG)
+let config: AppConfig = withConfigDefaults(persisted ?? structuredClone(DEFAULT_CONFIG))
 
 export function getConfig() {
   return config
@@ -17,7 +36,7 @@ export async function configRoute(
   opts: FastifyPluginOptions & { machine: SceneMachine },
 ) {
   const save = (next: AppConfig) => {
-    config = next
+    config = withConfigDefaults(next)
     setDbConfig('appConfig', config)
     opts.machine.emit('config:update', config)
   }

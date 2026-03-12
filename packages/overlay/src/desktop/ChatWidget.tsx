@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { DesktopWindow } from './DesktopWindow'
 
 interface Message {
   user: string
@@ -13,40 +14,23 @@ const SEED_MESSAGES: Message[] = [
   { user: 'RetroViewer',  text: 'this overlay is sick',      color: '#da77f2' },
 ]
 
-interface Props { onClose: () => void }
+interface Props {
+  onClose: () => void
+  onMinimize?: () => void
+  onFocus?: () => void
+  windowState?: 'open' | 'closing'
+  zIndex?: number
+}
 
-export function ChatWidget({ onClose }: Props) {
-  const [pos, setPos]         = useState({ x: 1580, y: 60 })
+export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
   const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES)
   const [input, setInput]     = useState('')
   const listRef               = useRef<HTMLDivElement>(null)
-  const dragging              = useRef(false)
-  const offset                = useRef({ x: 0, y: 0 })
-  const posRef                = useRef(pos)
 
   // Auto-scroll on new messages
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
   }, [messages])
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    dragging.current = true
-    offset.current = { x: e.clientX - posRef.current.x, y: e.clientY - posRef.current.y }
-    e.preventDefault()
-  }
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return
-      const next = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y }
-      posRef.current = next
-      setPos(next)
-    }
-    const onUp = () => { dragging.current = false }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, [])
 
   const handleSend = () => {
     const txt = input.trim()
@@ -56,20 +40,18 @@ export function ChatWidget({ onClose }: Props) {
   }
 
   return (
-    <div
-      className="window"
-      style={{ position: 'absolute', left: pos.x, top: pos.y, width: 280, userSelect: 'none', zIndex: 50, boxShadow: '4px 4px 0 #000' }}
+    <DesktopWindow
+      id="chat"
+      title="💬 Chat.exe"
+      width={280}
+      defaultPosition={{ x: 1580, y: 60 }}
+      zIndex={zIndex}
+      state={windowState}
+      onFocus={onFocus}
+      onMinimize={onMinimize}
+      onClose={onClose}
+      bodyStyle={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}
     >
-      <div className="title-bar" style={{ cursor: 'move' }} onMouseDown={onMouseDown}>
-        <div className="title-bar-text">💬 Chat.exe</div>
-        <div className="title-bar-controls">
-          <button aria-label="Minimize" />
-          <button aria-label="Maximize" />
-          <button aria-label="Close" onClick={onClose} />
-        </div>
-      </div>
-
-      <div className="window-body" style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Message list */}
         <div
           ref={listRef}
@@ -103,7 +85,6 @@ export function ChatWidget({ onClose }: Props) {
           />
           <button onClick={handleSend} style={{ fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 11 }}>Send</button>
         </div>
-      </div>
-    </div>
+    </DesktopWindow>
   )
 }

@@ -26,15 +26,18 @@ export interface LobbyConfig {
   starsCount: number
 }
 
-/** Whether an application launches a fullscreen Scene or a stacking Widget window */
-export type ApplicationType = 'scene' | 'widget'
+/** Whether an application launches a fullscreen Scene, opens a widget, or is decorative only. */
+export type ApplicationType = 'scene' | 'widget' | 'decoration'
+
+export type DesktopTheme = 'win98' | 'win vista' | 'frutiger aero' | 'custom'
+export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'reactive'
 
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
   label: string
   icon: string
-  /** 'scene' = fullscreen (replaces display), 'widget' = stacking Win98 window on Desktop */
+  /** 'scene' = fullscreen (replaces display), 'widget' = stacking window, 'decoration' = desktop-only icon */
   appType: ApplicationType
   targetSceneId: string
   /** @deprecated kept for stored-config migration; use exitTransitions / introTransitions */
@@ -133,12 +136,33 @@ export interface OverlayStyle {
 
 /** Win98-specific desktop OS configuration */
 export interface DesktopConfig {
+  /** Desktop chrome preset: taskbar, title bars, menus, and controls */
+  theme: DesktopTheme
   /** Icon size applied to all icons when no per-app iconSize is set */
   defaultIconSize: 'small' | 'normal' | 'large'
   /** When true: icons snap to auto-column; when false: icons use absolute iconPosition */
   autoArrangeIcons: boolean
+  /** Ambient motion profile used by desktop icons */
+  iconAnimation: DesktopIconAnimation
   /** Persisted widget window positions, keyed by widget id (e.g. 'music', 'archive') */
   widgetPositions?: Record<string, { x: number; y: number }>
+  /** Desktop notification renderer settings */
+  notifications: {
+    enabled: boolean
+    defaultDurationMs: number
+    maxVisible: number
+  }
+  /** Visual state for the recycle bin decoration app */
+  recycleBin: {
+    emptyIcon: string
+    fullIcon: string
+    fullOnStart: boolean
+  }
+  /** Persisted content for the sticky notes widget */
+  stickyNotes: {
+    text: string
+    color: string
+  }
   /** Screen saver settings */
   screenSaver: {
     enabled: boolean

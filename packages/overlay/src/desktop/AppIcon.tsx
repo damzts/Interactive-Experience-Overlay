@@ -1,9 +1,14 @@
 import { useRef } from 'react'
-import type { Application } from '@ieom/shared'
+import type { Application, DesktopIconAnimation } from '@ieom/shared'
 
 interface AppIconProps {
   app: Application
   selected: boolean
+  /** Resolved absolute position — precomputed by Desktop (grid or manual). */
+  position?: { x: number; y: number }
+  animationMode?: DesktopIconAnimation
+  animationSeed?: number
+  reactive?: boolean
   onSelect: () => void
   onLaunch: () => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -11,13 +16,24 @@ interface AppIconProps {
 
 const ICON_SIZE: Record<string, number> = { small: 24, normal: 32, large: 40 }
 
-export function AppIcon({ app, selected, onSelect, onLaunch, onContextMenu }: AppIconProps) {
+export function AppIcon({
+  app,
+  selected,
+  position,
+  animationMode = 'none',
+  animationSeed = 0,
+  reactive = false,
+  onSelect,
+  onLaunch,
+  onContextMenu,
+}: AppIconProps) {
   const lastClickTime = useRef(0)
+  const launchable = app.appType === 'scene' || app.appType === 'widget'
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     const now = Date.now()
-    if (now - lastClickTime.current < 350) {
+    if (launchable && now - lastClickTime.current < 350) {
       lastClickTime.current = 0
       onLaunch()
     } else {
@@ -27,19 +43,27 @@ export function AppIcon({ app, selected, onSelect, onLaunch, onContextMenu }: Ap
   }
 
   const emojiSize = ICON_SIZE[app.iconSize ?? 'normal'] ?? 32
-  const pos = app.iconPosition
+  const pos = position ?? app.iconPosition
 
-  const style: React.CSSProperties = pos
+  const style: React.CSSProperties & Record<string, string | number> = pos
     ? { position: 'absolute', left: pos.x, top: pos.y }
     : {}
+  style['--icon-phase'] = `${(animationSeed % 12) * 0.45}s`
 
   return (
     <div
-      className={`app-icon app-icon--size-${app.iconSize ?? 'normal'}${selected ? ' app-icon--selected' : ''}`}
+      className={[
+        'app-icon',
+        `app-icon--size-${app.iconSize ?? 'normal'}`,
+        `app-icon--anim-${animationMode}`,
+        selected ? 'app-icon--selected' : '',
+        reactive ? 'app-icon--reactive' : '',
+        app.appType === 'decoration' ? 'app-icon--decoration' : '',
+      ].filter(Boolean).join(' ')}
       style={style}
       onClick={handleClick}
       onContextMenu={onContextMenu}
-      title={`${app.label} — double-click to open`}
+      title={launchable ? `${app.label} — double-click to open` : app.label}
     >
       <span
         className="app-icon-emoji"

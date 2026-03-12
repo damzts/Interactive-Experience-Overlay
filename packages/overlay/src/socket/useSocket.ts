@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { STATE, type EffectConfig, type TransitionPlayPayload } from '@ieom/shared'
+import {
+  STATE,
+  withDesktopConfigDefaults,
+  type DesktopNotificationPayload,
+  type DesktopRecycleBinPayload,
+  type EffectConfig,
+  type TransitionPlayPayload,
+} from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
@@ -23,13 +30,35 @@ export function useSocket() {
   const setPendingTransition = useAppStore((s) => s.setPendingTransition)
   const setConfig = useAppStore((s) => s.setConfig)
   const setObsConnected = useAppStore((s) => s.setObsConnected)
+  const enqueueDesktopNotification = useAppStore((s) => s.enqueueDesktopNotification)
+  const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
+  const setReactiveIconId = useAppStore((s) => s.setReactiveIconId)
+  const markSocketActivity = useAppStore((s) => s.markSocketActivity)
   const audioUnlocked = useRef(false)
+  const reactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    const pulseReactiveIcon = (state: STATE) => {
+      const store = useAppStore.getState()
+      const desktopConfig = withDesktopConfigDefaults(store.config.desktopConfig)
+      if (desktopConfig.iconAnimation !== 'reactive') return
+
+      const sceneApp = store.config.applications.find((app) => (
+        app.appType === 'scene' && app.targetSceneId === state
+      ))
+
+      if (!sceneApp) return
+
+      setReactiveIconId(sceneApp.id)
+      if (reactiveTimer.current) clearTimeout(reactiveTimer.current)
+      reactiveTimer.current = setTimeout(() => setReactiveIconId(null), 720)
+    }
+
     // Called on initial connect AND every reconnect — keeps state in sync after drops
     const onConnect = () => {
       socket.emit('state:request', (serverState: STATE) => {
         setVisualState(serverState as Exclude<STATE, typeof STATE.TRANSITIONING>)
+        pulseReactiveIcon(serverState)
       })
       fetch('/api/config').then((r) => r.json()).then(setConfig).catch(() => {})
     }
@@ -55,6 +84,7 @@ export function useSocket() {
       } else {
         setVisualState(next)
       }
+      pulseReactiveIcon(next as STATE)
     }
 
     const onTransitionPlay = (payload: TransitionPlayPayload) => {
@@ -89,14 +119,35 @@ export function useSocket() {
       useAppStore.getState().toggleWidget(widgetId)
     }
 
+    const onDesktopNotify = (payload: DesktopNotificationPayload) => {
+      const settings = withDesktopConfigDefaults(useAppStore.getState().config.desktopConfig).notifications
+      if (!settings.enabled) return
+      enqueueDesktopNotification({
+        ...payload,
+        durationMs: payload.durationMs ?? settings.defaultDurationMs,
+      }, settings.maxVisible)
+    }
+
+    const onDesktopRecycleBin = (payload: DesktopRecycleBinPayload) => {
+      setRecycleBinFull(payload.full)
+    }
+
+    const onAny = () => {
+      markSocketActivity()
+    }
+
     socket.on('state:update', onStateUpdate)
     socket.on('transition:play', onTransitionPlay)
     socket.on('overlay:show', onOverlayShow)
     socket.on('config:update', onConfigUpdate)
     socket.on('obs:status', onObsStatus)
     socket.on('widget:toggle', onWidgetToggle)
+    socket.on('desktop:notify', onDesktopNotify)
+    socket.on('desktop:recycle-bin', onDesktopRecycleBin)
+    socket.onAny(onAny)
 
     return () => {
+      if (reactiveTimer.current) clearTimeout(reactiveTimer.current)
       socket.off('connect', onConnect)
       socket.off('state:update', onStateUpdate)
       socket.off('transition:play', onTransitionPlay)
@@ -104,6 +155,9 @@ export function useSocket() {
       socket.off('config:update', onConfigUpdate)
       socket.off('obs:status', onObsStatus)
       socket.off('widget:toggle', onWidgetToggle)
+      socket.off('desktop:notify', onDesktopNotify)
+      socket.off('desktop:recycle-bin', onDesktopRecycleBin)
+      socket.offAny(onAny)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

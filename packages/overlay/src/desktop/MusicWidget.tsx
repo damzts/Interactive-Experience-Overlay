@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAppStore } from '../store/useAppStore'
+import { DesktopWindow } from './DesktopWindow'
 
 /** Animated VU bar — 8 vertical bars that bounce independently */
 function VUBar() {
@@ -45,34 +45,16 @@ function TrackMarquee({ text }: { text: string }) {
   )
 }
 
-function saveWidgetPosition(key: string, pos: { x: number; y: number }) {
-  const cfg = useAppStore.getState().config
-  fetch('/api/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...cfg,
-      desktopConfig: {
-        ...cfg.desktopConfig,
-        widgetPositions: { ...cfg.desktopConfig?.widgetPositions, [key]: pos },
-      },
-    }),
-  })
+interface Props {
+  onClose: () => void
+  onMinimize?: () => void
+  onFocus?: () => void
+  windowState?: 'open' | 'closing'
+  zIndex?: number
 }
 
-interface Props { onClose: () => void }
-
-export function MusicWidget({ onClose }: Props) {
-  const configPos = useAppStore((s) => s.config.desktopConfig?.widgetPositions?.['music'])
-  const [pos, setPos] = useState(() => configPos ?? { x: 60, y: 120 })
+export function MusicWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
   const [elapsed, setElapsed] = useState(0)
-  const dragging = useRef(false)
-  const offset   = useRef({ x: 0, y: 0 })
-  const posRef   = useRef(pos)
-
-  useEffect(() => {
-    if (!dragging.current && configPos) setPos(configPos)
-  }, [configPos])
 
   useEffect(() => {
     const id = setInterval(() => setElapsed((e) => e + 1), 1000)
@@ -81,40 +63,21 @@ export function MusicWidget({ onClose }: Props) {
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
-  const onMouseDown = (e: React.MouseEvent) => {
-    dragging.current = true
-    offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
-    e.preventDefault()
-  }
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return
-      const next = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y }
-      posRef.current = next
-      setPos(next)
-    }
-    const onUp = () => {
-      if (dragging.current) { dragging.current = false; saveWidgetPosition('music', posRef.current) }
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, [])
-
   return (
     <>
       <style>{`@keyframes music-scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }`}</style>
-      <div className="window" style={{ position: 'absolute', left: pos.x, top: pos.y, width: 280, boxShadow: '4px 4px 0 #000', userSelect: 'none', zIndex: 50 }}>
-        <div className="title-bar" style={{ cursor: 'move' }} onMouseDown={onMouseDown}>
-          <div className="title-bar-text">🎵 MUSIC.exe</div>
-          <div className="title-bar-controls">
-            <button aria-label="Minimize" />
-            <button aria-label="Maximize" />
-            <button aria-label="Close" onClick={onClose} />
-          </div>
-        </div>
-        <div className="window-body" style={{ padding: '8px 10px' }}>
+      <DesktopWindow
+        id="music"
+        title="🎵 MUSIC.exe"
+        width={280}
+        defaultPosition={{ x: 60, y: 120 }}
+        zIndex={zIndex}
+        state={windowState}
+        onFocus={onFocus}
+        onMinimize={onMinimize}
+        onClose={onClose}
+        bodyStyle={{ padding: '8px 10px' }}
+      >
           <div style={{ background: '#000', border: '2px inset', padding: '6px 8px', marginBottom: 8, minHeight: 52 }}>
             <div style={{ fontFamily: 'VT323, monospace', fontSize: 11, color: '#00ff88', marginBottom: 2 }}>NOW PLAYING</div>
             <TrackMarquee text="lo-fi beats to stream to — track 01" />
@@ -132,8 +95,7 @@ export function MusicWidget({ onClose }: Props) {
             <span style={{ fontFamily: 'MS Sans Serif, Arial', fontSize: 11, width: 44 }}>Volume:</span>
             <input type="range" min={0} max={100} defaultValue={70} style={{ flex: 1, height: 16 }} />
           </div>
-        </div>
-      </div>
+      </DesktopWindow>
     </>
   )
 }

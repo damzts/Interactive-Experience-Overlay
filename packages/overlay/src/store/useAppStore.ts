@@ -1,9 +1,25 @@
 import { create } from 'zustand'
 import { STATE, DEFAULT_CONFIG } from '@ieom/shared'
-import type { AppConfig, Application, TransitionStep } from '@ieom/shared'
+import type { AppConfig, DesktopNotificationPayload, TransitionStep } from '@ieom/shared'
 
 /** visualState never equals STATE.TRANSITIONING — CSS classes use this */
 type VisualState = Exclude<STATE, typeof STATE.TRANSITIONING>
+
+const WINDOW_CLOSE_MS = 180
+const widgetCloseTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function clearWidgetCloseTimer(widgetId: string) {
+  const timer = widgetCloseTimers.get(widgetId)
+  if (timer) {
+    clearTimeout(timer)
+    widgetCloseTimers.delete(widgetId)
+  }
+}
+
+export interface DesktopNotificationItem extends DesktopNotificationPayload {
+  id: string
+  createdAt: number
+}
 
 export interface PendingTransition {
   from: STATE
@@ -23,6 +39,12 @@ interface AppStore {
   configLoaded: boolean
   obsConnected: boolean
   openWidgets: Set<string>
+  minimizedWidgets: Set<string>
+  closingWidgets: Set<string>
+  desktopNotifications: DesktopNotificationItem[]
+  recycleBinFull: boolean
+  reactiveIconId: string | null
+  lastSocketActivityAt: number
 
   setVisualState: (s: VisualState) => void
   setPendingVisualState: (s: VisualState) => void
@@ -31,10 +53,20 @@ interface AppStore {
   clearPendingTransition: () => void
   setConfig: (c: AppConfig) => void
   setObsConnected: (b: boolean) => void
+  openWidget: (id: string) => void
+  closeWidget: (id: string) => void
   toggleWidget: (id: string) => void
+  minimizeWidget: (id: string) => void
+  restoreWidget: (id: string) => void
+  toggleWidgetMinimized: (id: string) => void
+  enqueueDesktopNotification: (payload: DesktopNotificationPayload, maxVisible?: number) => void
+  dismissDesktopNotification: (id: string) => void
+  setRecycleBinFull: (full: boolean) => void
+  setReactiveIconId: (id: string | null) => void
+  markSocketActivity: () => void
 }
 
-export const useAppStore = create<AppStore>((set) => ({
+export const useAppStore = create<AppStore>((set, get) => ({
   visualState: STATE.DESKTOP as VisualState,
   pendingVisualState: null,
   pendingTransition: null,
@@ -42,6 +74,12 @@ export const useAppStore = create<AppStore>((set) => ({
   configLoaded: false,
   obsConnected: false,
   openWidgets: new Set<string>(),
+  minimizedWidgets: new Set<string>(),
+  closingWidgets: new Set<string>(),
+  desktopNotifications: [],
+  recycleBinFull: false,
+  reactiveIconId: null,
+  lastSocketActivityAt: 0,
 
   setVisualState: (s) => set({ visualState: s }),
   setPendingVisualState: (s) => set({ pendingVisualState: s }),
@@ -50,9 +88,94 @@ export const useAppStore = create<AppStore>((set) => ({
   clearPendingTransition: () => set({ pendingTransition: null }),
   setConfig: (c) => set({ config: c, configLoaded: true }),
   setObsConnected: (b) => set({ obsConnected: b }),
-  toggleWidget: (id) => set((state) => {
-    const next = new Set(state.openWidgets)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    return { openWidgets: next }
+  openWidget: (id) => {
+    clearWidgetCloseTimer(id)
+    set((state) => {
+      const openWidgets = new Set(state.openWidgets)
+      const minimizedWidgets = new Set(state.minimizedWidgets)
+      const closingWidgets = new Set(state.closingWidgets)
+      openWidgets.add(id)
+      minimizedWidgets.delete(id)
+      closingWidgets.delete(id)
+      return { openWidgets, minimizedWidgets, closingWidgets }
+    })
+  },
+  closeWidget: (id) => {
+    const state = get()
+    if (state.openWidgets.has(id) && !state.closingWidgets.has(id)) {
+      get().toggleWidget(id)
+      return
+    }
+    clearWidgetCloseTimer(id)
+    set((current) => {
+      const openWidgets = new Set(current.openWidgets)
+      const minimizedWidgets = new Set(current.minimizedWidgets)
+      const closingWidgets = new Set(current.closingWidgets)
+      openWidgets.delete(id)
+      minimizedWidgets.delete(id)
+      closingWidgets.delete(id)
+      return { openWidgets, minimizedWidgets, closingWidgets }
+    })
+  },
+  toggleWidget: (id) => {
+    const state = get()
+    if (state.openWidgets.has(id) && !state.closingWidgets.has(id)) {
+      clearWidgetCloseTimer(id)
+      set((current) => {
+        const closingWidgets = new Set(current.closingWidgets)
+        const minimizedWidgets = new Set(current.minimizedWidgets)
+        closingWidgets.add(id)
+        minimizedWidgets.delete(id)
+        return { closingWidgets, minimizedWidgets }
+      })
+      const timer = setTimeout(() => {
+        set((current) => {
+          const openWidgets = new Set(current.openWidgets)
+          const minimizedWidgets = new Set(current.minimizedWidgets)
+          const closingWidgets = new Set(current.closingWidgets)
+          openWidgets.delete(id)
+          minimizedWidgets.delete(id)
+          closingWidgets.delete(id)
+          return { openWidgets, minimizedWidgets, closingWidgets }
+        })
+        widgetCloseTimers.delete(id)
+      }, WINDOW_CLOSE_MS)
+      widgetCloseTimers.set(id, timer)
+      return
+    }
+    get().openWidget(id)
+  },
+  minimizeWidget: (id) => set((state) => {
+    const minimizedWidgets = new Set(state.minimizedWidgets)
+    minimizedWidgets.add(id)
+    return { minimizedWidgets }
   }),
+  restoreWidget: (id) => set((state) => {
+    const minimizedWidgets = new Set(state.minimizedWidgets)
+    minimizedWidgets.delete(id)
+    return { minimizedWidgets }
+  }),
+  toggleWidgetMinimized: (id) => {
+    const state = get()
+    if (!state.openWidgets.has(id)) {
+      get().openWidget(id)
+      return
+    }
+    if (state.minimizedWidgets.has(id)) get().restoreWidget(id)
+    else get().minimizeWidget(id)
+  },
+  enqueueDesktopNotification: (payload, maxVisible = 3) => set((state) => {
+    const next: DesktopNotificationItem = {
+      ...payload,
+      id: `desktop-note-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      createdAt: Date.now(),
+    }
+    return { desktopNotifications: [next, ...state.desktopNotifications].slice(0, maxVisible) }
+  }),
+  dismissDesktopNotification: (id) => set((state) => ({
+    desktopNotifications: state.desktopNotifications.filter((item) => item.id !== id),
+  })),
+  setRecycleBinFull: (full) => set({ recycleBinFull: full }),
+  setReactiveIconId: (id) => set({ reactiveIconId: id }),
+  markSocketActivity: () => set({ lastSocketActivityAt: Date.now() }),
 }))

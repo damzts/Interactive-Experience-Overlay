@@ -3,6 +3,8 @@ import {
   STATE,
   type TransitionStep,
   type TransitionPlayPayload,
+  type DesktopNotificationPayload,
+  type DesktopRecycleBinPayload,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type InterServerEvents,
@@ -118,6 +120,14 @@ export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: E
 
     socket.on('widget:toggle', (widgetId: string) => {
       io.emit('widget:toggle', widgetId)
+    })
+
+    socket.on('desktop:notify', (payload: DesktopNotificationPayload) => {
+      io.emit('desktop:notify', payload)
+    })
+
+    socket.on('desktop:recycle-bin', (payload: DesktopRecycleBinPayload) => {
+      io.emit('desktop:recycle-bin', payload)
     })
 
     socket.on('transition:preview', (steps: TransitionStep[]) => {
