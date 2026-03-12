@@ -2218,6 +2218,10 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 function LivePreview() {
   const containerRef = useRef<HTMLDivElement>(null)
   const frameRef     = useRef<HTMLIFrameElement>(null)
+  const previewTarget = useAdminStore((s) => s.previewTarget)
+  const previewUrl = typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:${previewTarget === 'runtime' ? 3000 : 3001}`
+    : 'http://localhost:3000'
 
   useEffect(() => {
     const scale = () => {
@@ -2240,7 +2244,7 @@ function LivePreview() {
     <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden min-w-0">
       <iframe
         ref={frameRef}
-        src="http://localhost:3001"
+        src={previewUrl}
         width={1920}
         height={1080}
         style={{ position: 'absolute', border: 'none', display: 'block' }}

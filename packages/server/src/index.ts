@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
+import fastifyHttpProxy from '@fastify/http-proxy'
 import fastifyStatic from '@fastify/static'
 import fastifyMultipart from '@fastify/multipart'
 import { Server as SocketIO } from 'socket.io'
@@ -18,6 +19,8 @@ import { EventScheduler } from './events/scheduler.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10)
+const OVERLAY_DEV_UPSTREAM = process.env.IEOM_OVERLAY_DEV_UPSTREAM ?? 'http://localhost:3001'
+const IS_DEV_SERVER = process.env.npm_lifecycle_event === 'dev'
 // Root of the ieom monorepo (3 levels up: src → server → packages → ieom)
 const MONO_ROOT = join(__dirname, '../../..')
 // Root of the stream project (one level above ieom/)
@@ -27,24 +30,8 @@ const app = Fastify({ logger: { level: 'warn' } })
 
 await app.register(fastifyCors, { origin: '*' })
 
-// Serve overlay dist at / (only after build)
+// Overlay build output is served at / in non-dev runs.
 const overlayDist = join(__dirname, '../../overlay/dist')
-if (existsSync(overlayDist)) {
-  await app.register(fastifyStatic, {
-    root: overlayDist,
-    prefix: '/',
-    wildcard: false,
-  })
-} else {
-  app.get('/', async (_req, reply) => {
-    return reply.code(200).type('text/html').send(`
-      <html><body style="background:#111;color:#0f0;font-family:monospace;padding:2rem">
-        <h2>IEOM Server running — overlay not built yet</h2>
-        <p>Run <code>pnpm build</code> to build the overlay, or access overlay at <a href="http://localhost:3001" style="color:#0ff">http://localhost:3001</a> in dev mode.</p>
-        <p>Admin panel: <a href="http://localhost:3002" style="color:#0ff">http://localhost:3002</a> in dev mode.</p>
-      </body></html>`)
-  })
-}
 
 // Serve admin dist at /admin (only after build)
 const adminDist = join(__dirname, '../../admin/dist')
@@ -126,6 +113,32 @@ await app.register(configRoute, { machine })
 await app.register(mediaRoute)
 await app.register(archiveRoute)
 
+// Frontend hosting strategy:
+// - `pnpm dev`: proxy overlay HTTP requests from :3000 -> :3001 so OBS can still use :3000.
+// - built runs: serve overlay dist directly from the server.
+if (IS_DEV_SERVER) {
+  await app.register(fastifyHttpProxy, {
+    upstream: OVERLAY_DEV_UPSTREAM,
+    httpMethods: ['GET', 'HEAD'],
+  })
+} else if (existsSync(overlayDist)) {
+  await app.register(fastifyStatic, {
+    root: overlayDist,
+    prefix: '/',
+    wildcard: false,
+  })
+} else {
+  app.get('/', async (_req, reply) => {
+    return reply.code(200).type('text/html').send(`
+      <html><body style="background:#111;color:#0f0;font-family:monospace;padding:2rem">
+        <h2>IEOM Server running — overlay not built yet</h2>
+        <p>Run <code>pnpm dev</code> to proxy the live overlay through <a href="http://localhost:3000" style="color:#0ff">http://localhost:3000</a>, or run <code>pnpm build</code> for a static build.</p>
+        <p>Direct overlay dev server: <a href="http://localhost:3001" style="color:#0ff">http://localhost:3001</a></p>
+        <p>Admin panel: <a href="http://localhost:3002" style="color:#0ff">http://localhost:3002</a></p>
+      </body></html>`)
+  })
+}
+
 // OBS WebSocket bridge (graceful — server works without OBS)
 const obsBridge = new ObsBridge(io, machine)
 obsBridge.connect()
@@ -139,7 +152,8 @@ console.log(`
 ╔═══════════════════════════════════════════╗
 ║   IEOM — Interactive Experience Overlay   ║
 ╠═══════════════════════════════════════════╣
-║  Server  →  http://localhost:${PORT}          ║
-║  Admin   →  http://localhost:3002 (dev)   ║
+║  Overlay →  http://localhost:${PORT}          ║
+║  Admin   →  http://localhost:3002          ║
+║  Dev UI  →  http://localhost:3001          ║
 ╚═══════════════════════════════════════════╝
 `)
