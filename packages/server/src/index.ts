@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url'
 import { SceneMachine } from './state/machine.js'
 import { setupSocketHandlers } from './socket/handlers.js'
 import { configRoute, getConfig } from './routes/config.js'
-import { mediaRoute } from './routes/media.js'
+import { clearMediaCaches, mediaRoute } from './routes/media.js'
 import { archiveRoute } from './routes/archive.js'
 import { ObsBridge } from './obs/bridge.js'
 import { EventScheduler } from './events/scheduler.js'
@@ -90,6 +90,7 @@ app.post('/api/upload/asset', async (req, reply) => {
   const destPath = join(destDir, safeName)
 
   await pipeline(data.file, createWriteStream(destPath))
+  clearMediaCaches()
   return reply.send({ url: `/assets/${subfolder}/${safeName}` })
 })
 

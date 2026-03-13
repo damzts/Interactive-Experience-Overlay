@@ -48,7 +48,7 @@ export interface LobbyConfig {
 /** Whether an application launches a fullscreen Scene, opens a widget, or is decorative only. */
 export type ApplicationType = 'scene' | 'widget' | 'decoration'
 
-export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'custom'
+export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
 export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'reactive'
 
 /** A desktop application icon that launches a scene or opens a widget */

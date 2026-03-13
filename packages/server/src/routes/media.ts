@@ -15,7 +15,30 @@ const GAMES_DIR = existsSync(GAMES_ASSETS) && readdirSync(GAMES_ASSETS).length >
   ? GAMES_ASSETS
   : GAMES_LEGACY
 
+const ASSET_ROOT = join(MONO_ROOT, 'assets')
+
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp'])
+const CATALOG_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.avif'])
+const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v'])
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac'])
+
+type AssetKind = 'image' | 'video' | 'audio'
+
+interface AssetCatalogEntry {
+  id: string
+  name: string
+  kind: AssetKind
+  url: string
+  source: 'filesystem' | 'games'
+  folder: string
+  relativePath: string
+  ext: string
+  game?: string
+}
+
+interface AssetCatalogCache {
+  assets: AssetCatalogEntry[]
+}
 
 interface MediaCache {
   games: Record<string, string[]>
@@ -23,6 +46,102 @@ interface MediaCache {
 }
 
 let mediaCache: MediaCache | null = null
+let assetCatalogCache: AssetCatalogCache | null = null
+
+export function clearMediaCaches() {
+  mediaCache = null
+  assetCatalogCache = null
+}
+
+function encodePathSegments(segments: string[]) {
+  return segments.map((segment) => encodeURIComponent(segment)).join('/')
+}
+
+function detectAssetKind(fileName: string): AssetKind | null {
+  const ext = extname(fileName).toLowerCase()
+  if (CATALOG_IMAGE_EXTS.has(ext)) return 'image'
+  if (VIDEO_EXTS.has(ext)) return 'video'
+  if (AUDIO_EXTS.has(ext)) return 'audio'
+  return null
+}
+
+function scanAssetTree(dir: string, relativeParts: string[], assets: AssetCatalogEntry[]) {
+  if (!existsSync(dir)) return
+
+  for (const entryName of readdirSync(dir).sort()) {
+    if (relativeParts.length === 1 && relativeParts[0] === 'images' && entryName === 'games') {
+      continue
+    }
+
+    const nextParts = [...relativeParts, entryName]
+    const entryPath = join(dir, entryName)
+
+    let stats
+    try {
+      stats = statSync(entryPath)
+    } catch {
+      continue
+    }
+
+    if (stats.isDirectory()) {
+      scanAssetTree(entryPath, nextParts, assets)
+      continue
+    }
+
+    const kind = detectAssetKind(entryName)
+    if (!kind) continue
+
+    const relativePath = nextParts.join('/')
+    assets.push({
+      id: `filesystem:${relativePath}`,
+      name: entryName.replace(/\.[^.]+$/, ''),
+      kind,
+      url: `/assets/${encodePathSegments(nextParts)}`,
+      source: 'filesystem',
+      folder: relativeParts.join('/') || 'assets',
+      relativePath,
+      ext: extname(entryName).toLowerCase(),
+    })
+  }
+}
+
+function scanAssetCatalog(): AssetCatalogCache {
+  if (assetCatalogCache) return assetCatalogCache
+
+  const assets: AssetCatalogEntry[] = []
+  scanAssetTree(ASSET_ROOT, [], assets)
+
+  for (const [gameName, urls] of Object.entries(scanGames().games)) {
+    for (const url of urls) {
+      const fileName = decodeURIComponent(url.split('/').pop() ?? '')
+      const relativePath = `games/${gameName}/${fileName}`
+      assets.push({
+        id: `games:${relativePath}`,
+        name: fileName.replace(/\.[^.]+$/, ''),
+        kind: 'image',
+        url,
+        source: 'games',
+        folder: `games/${gameName}`,
+        relativePath,
+        ext: extname(fileName).toLowerCase(),
+        game: gameName,
+      })
+    }
+  }
+
+  assets.sort((left, right) => {
+    const sourceCompare = left.source.localeCompare(right.source)
+    if (sourceCompare !== 0) return sourceCompare
+    const kindCompare = left.kind.localeCompare(right.kind)
+    if (kindCompare !== 0) return kindCompare
+    const folderCompare = left.folder.localeCompare(right.folder)
+    if (folderCompare !== 0) return folderCompare
+    return left.name.localeCompare(right.name)
+  })
+
+  assetCatalogCache = { assets }
+  return assetCatalogCache
+}
 
 function scanGames(): MediaCache {
   if (mediaCache) return mediaCache
@@ -63,6 +182,10 @@ function scanGames(): MediaCache {
 }
 
 export async function mediaRoute(app: FastifyInstance) {
+  app.get('/api/assets/catalog', async (_req, _reply) => {
+    return scanAssetCatalog()
+  })
+
   /** Return all games with their image URL lists */
   app.get('/api/media/list', async (_req, _reply) => {
     const cache = scanGames()
@@ -83,8 +206,14 @@ export async function mediaRoute(app: FastifyInstance) {
 
   /** Invalidate the scan cache (call after adding new game images) */
   app.post('/api/media/refresh', async (_req, _reply) => {
-    mediaCache = null
+    clearMediaCaches()
     const cache = scanGames()
     return { ok: true, total: cache.total }
+  })
+
+  app.post('/api/assets/refresh', async (_req, _reply) => {
+    clearMediaCaches()
+    const catalog = scanAssetCatalog()
+    return { ok: true, total: catalog.assets.length }
   })
 }

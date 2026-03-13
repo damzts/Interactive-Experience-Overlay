@@ -1,4 +1,4 @@
-import type { AppConfig, DesktopConfig, DesktopTheme, LobbyConfig } from '../types/scene.js'
+import type { AppConfig, DesktopConfig, DesktopTheme, LobbyConfig, OverlayStyle } from '../types/scene.js'
 import { STATE, OVERLAY_EVENT } from '../types/state.js'
 
 export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
@@ -37,10 +37,52 @@ export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
 
 function normalizeDesktopTheme(theme?: DesktopTheme | 'win vista'): DesktopTheme {
   if (theme === 'win vista') return 'frutiger aero'
-  if (theme === 'y2k candy' || theme === 'midnight chrome' || theme === 'frutiger aero' || theme === 'custom') {
+  if (
+    theme === 'y2k candy'
+    || theme === 'midnight chrome'
+    || theme === 'frutiger aero'
+    || theme === 'sunset boulevard'
+    || theme === 'coastal glass'
+    || theme === 'amber terminal'
+    || theme === 'custom'
+  ) {
     return theme
   }
   return 'win98'
+}
+
+function buildSolidGradient(color: string) {
+  return `linear-gradient(180deg, ${color} 0%, ${color} 100%)`
+}
+
+export function withOverlayStyleDefaults(style: OverlayStyle | null | undefined, fallback: OverlayStyle): OverlayStyle {
+  const nextStyle: OverlayStyle = {
+    ...fallback,
+    ...style,
+    background: {
+      ...fallback.background,
+      ...style?.background,
+    },
+    effects: {
+      ...fallback.effects,
+      ...style?.effects,
+    },
+    particles: {
+      ...fallback.particles,
+      ...style?.particles,
+    },
+  }
+
+  if (!nextStyle.background.gradient) {
+    nextStyle.background.gradient = buildSolidGradient(nextStyle.background.color)
+  }
+
+  if (nextStyle.background.type === 'color') {
+    nextStyle.background.type = 'gradient'
+    nextStyle.background.gradient = buildSolidGradient(nextStyle.background.color)
+  }
+
+  return nextStyle
 }
 
 export function withLobbyConfigDefaults(config?: Partial<LobbyConfig> | null): LobbyConfig {
@@ -137,7 +179,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       sources: [],
       style: {
         background: {
-          type: 'color',
+          type: 'gradient',
           color: '#f8fbff',
           gradient: 'linear-gradient(180deg, #ffffff 0%, #edf3ff 100%)',
           imageUrl: '',

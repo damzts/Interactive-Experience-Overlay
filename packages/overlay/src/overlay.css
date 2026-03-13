@@ -649,21 +649,36 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 .desktop--theme-y2k-candy .window,
 .desktop--theme-frutiger-aero .window,
 .desktop--theme-midnight-chrome .window,
+.desktop--theme-sunset-boulevard .window,
+.desktop--theme-coastal-glass .window,
+.desktop--theme-amber-terminal .window,
 .desktop--theme-y2k-candy .taskbar,
 .desktop--theme-frutiger-aero .taskbar,
 .desktop--theme-midnight-chrome .taskbar,
+.desktop--theme-sunset-boulevard .taskbar,
+.desktop--theme-coastal-glass .taskbar,
+.desktop--theme-amber-terminal .taskbar,
 .desktop--theme-y2k-candy .start-menu,
 .desktop--theme-frutiger-aero .start-menu,
 .desktop--theme-midnight-chrome .start-menu,
+.desktop--theme-sunset-boulevard .start-menu,
+.desktop--theme-coastal-glass .start-menu,
+.desktop--theme-amber-terminal .start-menu,
 .desktop--theme-y2k-candy .taskbar-tray,
 .desktop--theme-frutiger-aero .taskbar-tray,
-.desktop--theme-midnight-chrome .taskbar-tray {
+.desktop--theme-midnight-chrome .taskbar-tray,
+.desktop--theme-sunset-boulevard .taskbar-tray,
+.desktop--theme-coastal-glass .taskbar-tray,
+.desktop--theme-amber-terminal .taskbar-tray {
   border-radius: 7px 7px 0 0;
 }
 
 .desktop--theme-y2k-candy .taskbar,
 .desktop--theme-frutiger-aero .taskbar,
-.desktop--theme-midnight-chrome .taskbar {
+.desktop--theme-midnight-chrome .taskbar,
+.desktop--theme-sunset-boulevard .taskbar,
+.desktop--theme-coastal-glass .taskbar,
+.desktop--theme-amber-terminal .taskbar {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 -1px 0 rgba(0, 0, 0, 0.25);
 }
 

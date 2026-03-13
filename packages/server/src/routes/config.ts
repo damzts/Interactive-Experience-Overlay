@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, STATE, withDesktopConfigDefaults, withLobbyConfigDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
@@ -11,6 +11,8 @@ function withConfigDefaults(next: AppConfig): AppConfig {
   const applications = [...next.applications]
   const lobbyScene = next.scenes[STATE.LOBBY] ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
   const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
+  const defaultLobbyStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style ?? DEFAULT_CONFIG.overlayStyle)
+  const defaultDesktopStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.DESKTOP].style ?? DEFAULT_CONFIG.overlayStyle)
 
   for (const app of requiredApps) {
     if (!applications.some((existing) => existing.id === app.id)) {
@@ -26,15 +28,16 @@ function withConfigDefaults(next: AppConfig): AppConfig {
       [STATE.LOBBY]: {
         ...DEFAULT_CONFIG.scenes[STATE.LOBBY],
         ...lobbyScene,
-        style: lobbyScene.style ?? structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style),
+        style: withOverlayStyleDefaults(lobbyScene.style, defaultLobbyStyle),
         lobbyConfig: withLobbyConfigDefaults(lobbyScene.lobbyConfig),
       },
       [STATE.DESKTOP]: {
         ...DEFAULT_CONFIG.scenes[STATE.DESKTOP],
         ...desktopScene,
-        style: desktopScene.style ?? structuredClone(DEFAULT_CONFIG.scenes[STATE.DESKTOP].style),
+        style: withOverlayStyleDefaults(desktopScene.style, defaultDesktopStyle),
       },
     },
+    overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
     desktopConfig: withDesktopConfigDefaults(next.desktopConfig),
     events: next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events),
     mediaLibrary: next.mediaLibrary ?? [],

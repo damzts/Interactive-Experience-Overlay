@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { STATE, OVERLAY_EVENT, withDesktopConfigDefaults, withLobbyConfigDefaults } from '@ieom/shared'
+import { STATE, OVERLAY_EVENT, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
@@ -7,6 +7,8 @@ import type {
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
+import type { AssetKind } from '../assets/catalog'
+import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
 import { Panel, Toggle, Slider, Btn, HexColorInput } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
@@ -25,13 +27,6 @@ const GRADIENT_PRESETS = [
   { name: 'Plasma',       value: 'radial-gradient(ellipse at 20% 20%, #1a0040 0%, #000010 60%, #001a3d 100%)' },
   { name: 'Void',         value: 'radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%)' },
   { name: 'Amethyst',     value: 'linear-gradient(45deg, #1a0033 0%, #330066 50%, #1a0033 100%)' },
-]
-
-const IMAGE_PRESETS = [
-  { name: 'Galaxy',      thumb: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=200&h=113&fit=crop', url: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=1920&h=1080&fit=crop&q=80' },
-  { name: 'Nebula',      thumb: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=200&h=113&fit=crop', url: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1920&h=1080&fit=crop&q=80' },
-  { name: 'Neon City',   thumb: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=200&h=113&fit=crop', url: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920&h=1080&fit=crop&q=80' },
-  { name: 'Dark Forest', thumb: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=200&h=113&fit=crop', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&h=1080&fit=crop&q=80' },
 ]
 
 const PATTERN_CSS: Record<PatternPreset, React.CSSProperties> = {
@@ -175,6 +170,7 @@ const TRANSITION_OPTIONS = [
 interface FieldDef {
   key: string; label: string
   type: 'text' | 'number' | 'color' | 'boolean' | 'select'
+  assetKinds?: AssetKind[]
   options?: string[]; min?: number; max?: number; step?: number; placeholder?: string
 }
 interface CatalogEntry {
@@ -196,7 +192,7 @@ const SOURCE_CATALOG: CatalogEntry[] = [
     type: 'image-static', label: 'Static Image', icon: '🖼', desc: 'Single image — local path or URL',
     defaultConfig: { url: '', objectFit: 'cover', opacity: 1 },
     fields: [
-      { key: 'url',       label: 'URL / Path', type: 'text', placeholder: '/assets/backgrounds/name.jpg' },
+      { key: 'url',       label: 'URL / Path', type: 'text', assetKinds: ['image'], placeholder: '/assets/backgrounds/name.jpg' },
       { key: 'objectFit', label: 'Fit',        type: 'select', options: ['cover', 'contain', 'fill'] },
       { key: 'opacity',   label: 'Opacity',    type: 'number', min: 0, max: 1, step: 0.05 },
     ],
@@ -205,7 +201,7 @@ const SOURCE_CATALOG: CatalogEntry[] = [
     type: 'video-loop', label: 'Video Loop', icon: '🎬', desc: 'Muted looping video — local path or URL',
     defaultConfig: { url: '', opacity: 1 },
     fields: [
-      { key: 'url',     label: 'URL / Path', type: 'text', placeholder: '/assets/video/name.mp4' },
+      { key: 'url',     label: 'URL / Path', type: 'text', assetKinds: ['video'], placeholder: '/assets/video/name.mp4' },
       { key: 'opacity', label: 'Opacity',    type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
@@ -995,9 +991,23 @@ function SourceField({ field, value, onChange }: { field: FieldDef; value: unkno
           className="flex-1 font-mono text-xs" />
       )}
       {field.type === 'text' && (
-        <input type="text" value={String(value ?? '')} placeholder={field.placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          className="flex-1 text-xs" />
+        field.assetKinds?.length ? (
+          <div className="flex-1 min-w-0">
+            <AssetSelectionInput
+              value={String(value ?? '')}
+              onChange={(nextValue) => onChange(nextValue)}
+              kinds={field.assetKinds}
+              modalTitle={field.label}
+              placeholder={field.placeholder}
+              buttonLabel="Browse Assets"
+              previewKind={field.assetKinds[0] ?? 'auto'}
+            />
+          </div>
+        ) : (
+          <input type="text" value={String(value ?? '')} placeholder={field.placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1 text-xs" />
+        )
       )}
       {field.type === 'boolean' && (
         <input type="checkbox" checked={Boolean(value)}
@@ -1132,7 +1142,6 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
 const BG_TYPES: { id: BackgroundType; label: string }[] = [
   { id: 'none',      label: 'None'     },
   { id: 'gradient',  label: 'Gradient' },
-  { id: 'color',     label: 'Color'    },
   { id: 'image-url', label: 'Image'    },
   { id: 'video-url', label: 'Video'    },
   { id: 'pattern',   label: 'Pattern'  },
@@ -1152,6 +1161,9 @@ const DESKTOP_THEMES: { id: DesktopConfig['theme']; label: string }[] = [
   { id: 'frutiger aero', label: 'Frutiger Aero' },
   { id: 'y2k candy', label: 'Y2K Candy' },
   { id: 'midnight chrome', label: 'Midnight Chrome' },
+  { id: 'sunset boulevard', label: 'Sunset Boulevard' },
+  { id: 'coastal glass', label: 'Coastal Glass' },
+  { id: 'amber terminal', label: 'Amber Terminal' },
   { id: 'custom', label: 'Custom' },
 ]
 
@@ -1194,7 +1206,7 @@ function itemKey(item: SelectedItem): string {
 function StyleEditor({ sceneId }: { sceneId: string }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const sourceStyle = structuredClone((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style ?? config.overlayStyle)
+  const sourceStyle = structuredClone(withOverlayStyleDefaults((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style, config.overlayStyle))
   const [style, setStyle] = useState<OverlayStyle>(() => sourceStyle)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
@@ -1248,7 +1260,7 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
 
           {sceneId === STATE.LOBBY && (
             <div className="text-[10px] text-zinc-500 leading-relaxed">
-              In the lobby, color and gradient backgrounds tint the sky dome. Image, video, and pattern backgrounds stay behind the 3D scene and will not replace the sky.
+              In the lobby, gradient backgrounds tint the sky dome. Image, video, and pattern backgrounds stay behind the 3D scene and will not replace the sky.
             </div>
           )}
 
@@ -1267,38 +1279,31 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
               placeholder="linear-gradient(…)" className="w-full text-xs" />
           </div>}
 
-          {bg.type === 'color' && <div className="flex items-center gap-2">
-            <HexColorInput
-              value={bg.color}
-              onChange={(nextValue) => update((d) => { d.background.color = nextValue })}
-              className="gap-2"
-              textClassName="font-mono text-xs w-28"
+          {bg.type === 'image-url' && (
+            <AssetSelectionInput
+              value={bg.imageUrl}
+              onChange={(nextValue) => update((d) => { d.background.imageUrl = nextValue })}
+              kinds={['image']}
+              modalTitle="Background Image"
+              placeholder="/assets/backgrounds/name.jpg or https://..."
+              buttonLabel="Choose Image"
+              hint="Pick from the unified asset library, game-image catalog, or paste any direct image URL."
+              previewKind="image"
             />
-          </div>}
+          )}
 
-          {bg.type === 'image-url' && <div>
-            <div className="grid grid-cols-2 gap-1.5 mb-2">
-              {IMAGE_PRESETS.map((img) => (
-                <button key={img.name} onClick={() => update((d) => { d.background.imageUrl = img.url })}
-                  className={'relative rounded overflow-hidden h-14 transition-all ' + (bg.imageUrl === img.url ? 'ring-2 ring-cyan-400' : 'hover:ring-1 hover:ring-zinc-400')}>
-                  <img src={img.thumb} alt={img.name} className="w-full h-full object-cover" loading="lazy" />
-                  <div className="absolute inset-0 bg-black/30 flex items-end p-1">
-                    <span className="text-[10px] text-white font-medium">{img.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <input type="url" value={bg.imageUrl}
-              onChange={(e) => update((d) => { d.background.imageUrl = e.target.value })}
-              placeholder="https://…" className="w-full text-xs" />
-          </div>}
-
-          {bg.type === 'video-url' && <div>
-            <input type="url" value={bg.videoUrl}
-              onChange={(e) => update((d) => { d.background.videoUrl = e.target.value })}
-              placeholder="https://… (.mp4 / .webm)" className="w-full text-xs" />
-            <div className="text-[10px] text-zinc-600 mt-1">Local: <span className="font-mono text-zinc-400">/assets/videos/file.mp4</span></div>
-          </div>}
+          {bg.type === 'video-url' && (
+            <AssetSelectionInput
+              value={bg.videoUrl}
+              onChange={(nextValue) => update((d) => { d.background.videoUrl = nextValue })}
+              kinds={['video']}
+              modalTitle="Background Video"
+              placeholder="/assets/video/name.mp4 or https://..."
+              buttonLabel="Choose Video"
+              hint="Use the asset library for local loops or paste any direct MP4/WebM URL."
+              previewKind="video"
+            />
+          )}
 
           {bg.type === 'pattern' && <div className="grid grid-cols-3 gap-1">
             {(Object.keys(PATTERN_CSS) as PatternPreset[]).map((pat) => (
@@ -1712,7 +1717,7 @@ function DesktopConfigEditor() {
         </div>
       </Panel>
       <Panel title="Theme">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {DESKTOP_THEMES.map((theme) => (
             <button key={theme.id} onClick={() => update((d) => { d.theme = theme.id })}
               className={'px-2.5 py-1.5 text-[11px] rounded border transition-colors ' +
@@ -1775,15 +1780,27 @@ function DesktopConfigEditor() {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Empty icon</div>
-            <input type="text" value={form.recycleBin.emptyIcon}
-              onChange={(e) => update((d) => { d.recycleBin.emptyIcon = e.target.value })}
-              className="w-full text-xs font-mono" />
+            <AssetSelectionInput
+              value={form.recycleBin.emptyIcon}
+              onChange={(nextValue) => update((d) => { d.recycleBin.emptyIcon = nextValue })}
+              kinds={['image']}
+              modalTitle="Recycle Bin Empty Icon"
+              placeholder="Emoji or /assets/icons/recycle-empty.png"
+              buttonLabel="Choose Image"
+              previewKind="image"
+            />
           </div>
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Full icon</div>
-            <input type="text" value={form.recycleBin.fullIcon}
-              onChange={(e) => update((d) => { d.recycleBin.fullIcon = e.target.value })}
-              className="w-full text-xs font-mono" />
+            <AssetSelectionInput
+              value={form.recycleBin.fullIcon}
+              onChange={(nextValue) => update((d) => { d.recycleBin.fullIcon = nextValue })}
+              kinds={['image']}
+              modalTitle="Recycle Bin Full Icon"
+              placeholder="Emoji or /assets/icons/recycle-full.png"
+              buttonLabel="Choose Image"
+              previewKind="image"
+            />
           </div>
         </div>
       </Panel>
@@ -1848,12 +1865,10 @@ function DesktopConfigEditor() {
 function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
   const [form, setForm] = useState<Application>(app)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const imageEntries = mediaLibrary.filter((entry) => entry.type === 'image')
   const dirty = !isSameDraft(form, app)
 
   useEffect(() => {
@@ -1914,24 +1929,20 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
                 <IconGlyph icon={form.icon} label={form.label} size={32} />
               </div>
-              <input type="text" value={form.icon} onChange={(e) => update((d) => { d.icon = e.target.value })} className="flex-1 font-mono text-xs" />
-            </div>
-            <div className="text-[10px] text-zinc-600 mt-1.5">Use an emoji, or pick any uploaded image from the Asset Library.</div>
-            {imageEntries.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                {imageEntries.slice(0, 8).map((entry) => (
-                  <button
-                    key={entry.id}
-                    onClick={() => update((d) => { d.icon = entry.url })}
-                    className={'rounded border p-1.5 transition-colors bg-zinc-800/60 hover:border-cyan-500/50 ' + (form.icon === entry.url ? 'border-cyan-500/60' : 'border-zinc-700')}
-                    title={entry.name}
-                  >
-                    <img src={entry.url} alt={entry.name} className="w-full aspect-square object-contain rounded bg-zinc-950" />
-                    <div className="text-[9px] text-zinc-500 truncate mt-1">{entry.name}</div>
-                  </button>
-                ))}
+              <div className="flex-1 min-w-0">
+                <AssetSelectionInput
+                  value={form.icon}
+                  onChange={(nextValue) => update((d) => { d.icon = nextValue })}
+                  kinds={['image']}
+                  modalTitle="Application Icon"
+                  placeholder="Emoji or /assets/icons/custom.png"
+                  buttonLabel="Choose Image"
+                  hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
+                  inputClassName="font-mono"
+                  previewKind="image"
+                />
               </div>
-            )}
+            </div>
           </div>
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Size</div>
@@ -2266,55 +2277,40 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
 
 function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
-  const fullConfig   = useAdminStore((s) => s.config)
   const saveConfig   = useAdminStore((s) => s.saveConfig)
 
-  const [tab, setTab]           = useState<'media' | 'transitions'>('media')
-  const [addOpen, setAddOpen]   = useState(false)
-  // Form state for adding a new entry
-  const [name,      setName]      = useState('')
-  const [type,      setType]      = useState<'image' | 'video'>('image')
-  const [url,       setUrl]       = useState('')
-  const [durStr,    setDurStr]    = useState('')
-  const [previewSrc, setPreviewSrc] = useState('')
-  const [videoDur,  setVideoDur]  = useState<number | null>(null)
-  const [dragOver,  setDragOver]  = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [tab, setTab] = useState<'catalog' | 'transitions'>('catalog')
+  const [addOpen, setAddOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [type, setType] = useState<'image' | 'video'>('image')
+  const [url, setUrl] = useState('')
+  const [durStr, setDurStr] = useState('')
 
-  const resetForm = () => { setName(''); setType('image'); setUrl(''); setDurStr(''); setPreviewSrc(''); setVideoDur(null) }
+  const resetForm = () => { setName(''); setType('image'); setUrl(''); setDurStr('') }
 
-  const applyFile = (file: File) => {
-    const isVid = file.type.startsWith('video/')
-    setType(isVid ? 'video' : 'image')
-    setPreviewSrc(URL.createObjectURL(file))
-    setVideoDur(null)
-    setUrl(`/assets/${isVid ? 'video' : 'images'}/${file.name}`)
-    if (!name) setName(file.name.replace(/\.[^.]+$/, ''))
-  }
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!url) return
     const durVal = parseFloat(durStr)
     const hasDur = type === 'image' && !isNaN(durVal) && durVal > 0
     const entry: MediaEntry = {
-      id:   'media-' + Date.now(),
+      id: 'media-' + Date.now(),
       name: name.trim() || url.split('/').pop() || 'Unnamed',
       type,
       url,
       ...(hasDur ? { duration: durVal } : {}),
     }
-    saveConfig({ ...fullConfig, mediaLibrary: [...mediaLibrary, entry] })
+    await saveConfig({ mediaLibrary: [...mediaLibrary, entry] })
     resetForm()
     setAddOpen(false)
   }
 
-  const handleDelete = (id: string) => {
-    saveConfig({ ...fullConfig, mediaLibrary: mediaLibrary.filter((e) => e.id !== id) })
+  const handleDelete = async (id: string) => {
+    await saveConfig({ mediaLibrary: mediaLibrary.filter((entry) => entry.id !== id) })
   }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={onClose}>
-      <div className="w-[720px] max-h-[85vh] flex flex-col bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="w-[720px] h-[85vh] max-h-[780px] flex flex-col bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
 
         {/* Modal header */}
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-zinc-800 shrink-0">
@@ -2325,11 +2321,11 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Modal body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-lg">
-        {(['media', 'transitions'] as const).map((t) => (
+        {(['catalog', 'transitions'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -2337,78 +2333,35 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
             className={'flex-1 py-1 text-xs rounded capitalize transition-colors ' +
               (tab === t ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-200')}
           >
-            {t === 'media' ? '🖼 Media' : '✨ Transitions'}
+            {t === 'catalog' ? '🗂 Catalog' : '✨ Transitions'}
           </button>
         ))}
       </div>
 
-      {/* ── Media tab ── */}
-      {tab === 'media' && (
-        <div className="space-y-2">
-          {mediaLibrary.length === 0 && !addOpen && (
-            <div className="text-xs text-zinc-600 italic text-center py-6">
-              No saved media. Click below to add.
-            </div>
-          )}
+      {tab === 'catalog' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-800/20 px-3 py-2 text-xs text-zinc-500">
+            The catalog indexes the full assets folder, the scraped game-image feed, and your saved media presets in one place.
+          </div>
 
-          {mediaLibrary.map((entry) => (
-            <div key={entry.id} className="flex items-center gap-3 px-2.5 py-2 rounded-lg border border-zinc-800 bg-zinc-800/30">
-              {/* Thumbnail */}
-              <div className="w-20 h-11 rounded overflow-hidden bg-zinc-950 border border-zinc-700/60 shrink-0 flex items-center justify-center">
-                {entry.type === 'image' ? (
-                  <img
-                    src={entry.url}
-                    alt={entry.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      const fb = e.currentTarget.nextElementSibling as HTMLElement | null
-                      if (fb) fb.style.display = 'flex'
-                    }}
-                  />
-                ) : (
-                  <video
-                    src={entry.url}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                )}
-                <span className="text-sm hidden items-center justify-center">{entry.type === 'image' ? '🖼' : '🎬'}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-zinc-200 truncate">{entry.name}</div>
-                <div className="text-[10px] text-zinc-500 font-mono truncate">{entry.url}</div>
-                {entry.type === 'image' && entry.duration != null && (
-                  <div className="text-[10px] text-zinc-600">{entry.duration}s display</div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(entry.id)}
-                className="shrink-0 text-zinc-600 hover:text-red-400 text-sm transition-colors px-1"
-                title="Delete"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          <AssetCatalogPanel
+            kinds={['image', 'video', 'audio']}
+            onDeleteSavedEntry={(asset) => { void handleDelete(asset.id) }}
+          />
 
-          {/* Add new form */}
           {addOpen && (
             <div className="border border-zinc-700 rounded-lg p-3 space-y-3 bg-zinc-800/20">
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">New Media Entry</div>
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">New Saved Media Entry</div>
 
               <div>
                 <div className="text-[10px] text-zinc-600 mb-1">Name</div>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="My Transition" className="w-full text-xs" />
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Scene opener" className="w-full text-xs" />
               </div>
 
               <div className="flex gap-2">
                 {(['image', 'video'] as const).map((mt) => (
                   <button key={mt} type="button"
-                    onClick={() => { setType(mt); if (previewSrc.startsWith('blob:')) setPreviewSrc('') }}
+                    onClick={() => setType(mt)}
                     className={'px-3 py-1 text-xs rounded border transition-colors ' +
                       (type === mt ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200')}>
                     {mt === 'image' ? '🖼 Image' : '🎬 Video'}
@@ -2416,22 +2369,15 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
 
-              <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) applyFile(f) }} />
-              <div
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) applyFile(f) }}
-                onClick={() => fileRef.current?.click()}
-                className={'w-full h-16 flex flex-col items-center justify-center gap-1 rounded border-2 border-dashed cursor-pointer transition-colors text-xs ' +
-                  (dragOver ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-zinc-700 bg-zinc-800/30 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300')}
-              >
-                <span>📁 Drop or <span className="underline">browse</span></span>
-              </div>
-
-              <div>
-                <input type="text" value={url} onChange={(e) => { setUrl(e.target.value); setPreviewSrc('') }}
-                  placeholder="/assets/video/wipe.mp4" className="w-full text-xs font-mono" />
-              </div>
+              <AssetSelectionInput
+                value={url}
+                onChange={setUrl}
+                kinds={[type]}
+                modalTitle={type === 'image' ? 'Saved Media Image' : 'Saved Media Video'}
+                placeholder={type === 'image' ? '/assets/images/entry.png' : '/assets/video/entry.mp4'}
+                buttonLabel="Choose Asset"
+                previewKind={type}
+              />
 
               {type === 'image' && (
                 <div className="flex items-center gap-2">
@@ -2442,23 +2388,10 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
-              {(previewSrc || url) && (
-                <div className="relative w-full aspect-video bg-black rounded border border-zinc-700 overflow-hidden">
-                  {type === 'image'
-                    ? <img src={previewSrc || url} alt="preview" className="w-full h-full object-contain" />
-                    : <video key={previewSrc || url} src={previewSrc || url} className="w-full h-full object-contain" muted loop autoPlay playsInline
-                        onLoadedMetadata={(e) => setVideoDur(e.currentTarget.duration)} onError={() => setVideoDur(null)} />
-                  }
-                </div>
-              )}
-              {type === 'video' && videoDur != null && (
-                <div className="text-[10px] text-zinc-500">Duration: <span className="font-mono text-zinc-300">{videoDur.toFixed(2)}s</span></div>
-              )}
-
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={handleSave} disabled={!url}
+                <button type="button" onClick={() => void handleSave()} disabled={!url}
                   className="flex-1 py-1.5 text-xs bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                  Save to Library
+                  Save Preset
                 </button>
                 <button type="button" onClick={() => { resetForm(); setAddOpen(false) }}
                   className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors">
@@ -2471,7 +2404,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
           {!addOpen && (
             <button type="button" onClick={() => setAddOpen(true)}
               className="w-full py-2 text-xs border border-dashed border-zinc-700 hover:border-zinc-500 text-zinc-600 hover:text-zinc-300 rounded-lg transition-colors">
-              ＋ Add Media
+              ＋ Add Saved Media Entry
             </button>
           )}
         </div>
