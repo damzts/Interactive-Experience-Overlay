@@ -50,7 +50,9 @@ The type system is the backbone of the entire protocol. Key structures:
 
 `Application.icon` can be either an emoji glyph or an uploaded image path/URL from the asset library. The desktop, taskbar, start menu, and admin editor all understand both forms.
 
-**DesktopConfig** is now a larger runtime contract rather than only icon/screen-saver settings. It includes theme preset, ambient icon animation mode, sticky notes defaults, recycle-bin icon state, widget positions, system sounds, and screen-saver configuration. Desktop notifications are runtime socket events, not persisted desktop-config fields.
+`Application.iconPosition` remains the persisted source of truth for manual desktop icon placement. When auto-arrange is off, the overlay writes dragged icon positions back to this field through a targeted application PATCH route rather than rewriting the entire config blob.
+
+**DesktopConfig** is now a larger runtime contract rather than only icon/screen-saver settings. It includes theme preset, default icon size, auto-arrange toggle, ambient icon animation mode, icon motion strength, sticky notes defaults, recycle-bin icon state, widget positions, system sounds, and screen-saver configuration. Desktop notifications are runtime socket events, not persisted desktop-config fields.
 
 **OverlayStyle** describes every visual property of a scene: background type, CSS effect flags, particle preset, desktop font, accent color, and text color. Desktop theme presets consume those typography/accent fields for chrome styling, but they do not paint a wallpaper/background on their own.
 
@@ -117,6 +119,7 @@ The server exposes a small REST API:
 - `PUT /api/config` — replaces the entire AppConfig, persists to SQLite, and broadcasts `config:update` to all clients.
 - `PATCH /api/config/audio` — updates only `audio.masterVolume`, `audio.sfxVolume`, `audio.musicVolume` and broadcasts without touching scenes or applications.
 - `PATCH /api/config/desktop` — updates only `desktopConfig` fields such as widget positions, sticky notes, recycle-bin defaults, screen saver settings, and system sounds.
+- `PATCH /api/config/applications/:appId` — updates a single `Application` record without rewriting the rest of the config. The desktop runtime uses this for manual icon drag persistence (`iconPosition`).
 - `PATCH /api/config/obs` — updates only `obs.url` and `obs.password`.
 - `GET /api/assets/catalog` — returns the indexed asset library from `assets/` plus scraped game images, flattened into typed image/video/audio records for the admin asset browser.
 - `POST /api/assets/refresh` — invalidates the cached asset catalog and rescans the asset tree.
@@ -222,11 +225,11 @@ This means auto-event behaviour now comes from the same persisted event definiti
 
 A React SPA that connects to the server over Socket.IO on startup. It syncs state and config in real time. The live preview panel embeds an iframe pointed at either `http://localhost:3000` or `http://localhost:3001` depending on the persisted preview-target toggle, and the preview itself renders a badge indicating whether it is currently showing the runtime or direct dev source.
 
-**Dashboard** — The main control view. Displays current state, OBS connection status, navigation, the live preview, an always-open socket console, widget OPEN/CLOSED badges sourced from the server-owned desktop runtime snapshot, and the right-pane editors for scenes, environments, apps, and events.
+**Dashboard** — The main control view. Displays current state, OBS connection status, navigation, the live preview, an always-open socket console, widget OPEN/CLOSED badges sourced from the server-owned desktop runtime snapshot, and the right-pane editors for scenes, environments, apps, and events. The live preview uses a transparency checker instead of a black backdrop so transparent desktop scenes remain readable, and the Lobby/Desktop editors can show a one-click live-state notice if the preview/runtime is currently on the wrong environment.
 
 The admin now has a shared asset-library surface instead of separate per-form pickers. Scene background images/videos, application icons, recycle-bin icons, saved media entries, and image/video source URLs all use the same catalog-backed asset picker, which browses the indexed `assets/` tree, scraped game images, and saved media presets.
 
-**DesktopConfigEditor** — The desktop-specific editor inside the dashboard. It controls theme presets, desktop font/accent/text appearance, icon size, auto-arrange, ambient icon motion, sticky notes defaults, recycle-bin icons/state, screensaver settings, and system sound paths. It also includes runtime test buttons for desktop notification and recycle-bin events. Wallpaper/background remains in the desktop scene Background editor so the overlay stays transparent unless operators explicitly configure a background.
+**DesktopConfigEditor** — The desktop-specific editor inside the dashboard. It controls theme presets, desktop font/accent/text appearance, merged icon controls (default size slider, auto-arrange toggle, ambient motion preset, motion-strength slider up to 300%), sticky notes defaults, recycle-bin icons/state, screensaver settings, and system sound paths. It also includes runtime test buttons for desktop notification and recycle-bin events. Wallpaper/background remains in the desktop scene Background editor so the overlay stays transparent unless operators explicitly configure a background.
 
 **SceneEditor** — Create and edit scenes. Add, position, and configure plugin sources. Each scene has a **Background Music** field — a URL or `/assets/audio/music/` path that the overlay will loop while the scene is active, with a 1.5 s crossfade on entry. The config form is generated dynamically from the plugin type. Each scene's **Transitions** panel shows a `TransitionList` for both Intro and Exit — an ordered pipeline editor where each row is a full `TransitionPicker`. Steps can be added, removed, and reordered (↑↓) to compose multi-step transition sequences.
 
@@ -244,7 +247,7 @@ The admin now has a shared asset-library surface instead of separate per-form pi
 
 **ArchivePanel** — View and manually increment stream stats. Browse the event log. Reset archive data.
 
-Config changes are saved via PUT (or PATCH for audio/desktop/obs sub-routes) to the server, which rebroadcasts them to the overlay immediately.
+Config changes are saved via PUT (or PATCH for audio/desktop/applications/obs sub-routes) to the server, which rebroadcasts them to the overlay immediately.
 
 
 ### Communication Flow
@@ -253,11 +256,13 @@ The admin panel emits `scene:change` with a target state for environments and sc
 
 Widget toggles bypass the state machine entirely: admin → server desktop runtime state → all overlay clients → Zustand store → React render. Overlay clients also request the desktop runtime snapshot on connect so late-joining browser sources recover already-open widgets.
 
+Manual desktop icon dragging is the one overlay-originated config mutation path: when auto-arrange is off, the overlay PATCHes `/api/config/applications/:appId` with the dragged icon's new `iconPosition`, the server persists it, and all clients receive the resulting `config:update` broadcast.
+
 Desktop notifications and recycle-bin state also bypass the scene machine. They move through dedicated socket events (`desktop:notify`, `desktop:recycle-bin`) and are rendered entirely by the desktop layer. Notification duration and stack limits are runtime defaults rather than persisted desktop-config values.
 
 Keybind execution is now server-authoritative. The admin forwards bindings through `keybind:execute`, and the server resolves the action into the same scene/widget/event/panic operations it would perform for direct UI interaction. OBS-scoped bindings share that path, but passive OBS hotkey capture is still limited by obs-websocket as described above.
 
-Config changes propagate from admin to server to overlay in one round-trip. The overlay and admin are always in sync because both receive the same `config:update` broadcast.
+Config changes propagate from admin or the overlay's desktop icon-drag path to the server and then back to all clients in one round-trip. The overlay and admin are always in sync because both receive the same `config:update` broadcast.
 
 `transition:preview` lets the admin fire a test pipeline to the overlay without triggering a real scene change. The admin passes a `TransitionStep[]`; the server emits a `transition:play` with `from === to` and `intro: []`, so the overlay plays it in place and then idles.
 
@@ -265,7 +270,7 @@ Config changes propagate from admin to server to overlay in one round-trip. The 
 
 ## Overlay
 
-The overlay is a React application that renders entirely inside a 1920x1080 div captured by OBS. It receives all state and events from the server via WebSocket and renders accordingly. It never modifies state.
+The overlay is a React application that renders entirely inside a 1920x1080 div captured by OBS. It receives all state and events from the server via WebSocket and renders accordingly. It is mostly render-only; the one direct persistence exception is manual desktop icon dragging, which PATCHes a single application's `iconPosition` back to the server so layout changes survive reloads.
 
 ### Layer Stack
 
@@ -279,7 +284,7 @@ The visual output is built from a fixed set of layers rendered in z-order. **Eac
 
 **LobbyScene** — A React Three Fiber scene, mounted only when the state is LOBBY. It now renders as an open, uncontained space rather than a closed room: a large reflective floor plane under a configurable sky gradient (top color + horizon color), plus the desk cluster, optional room-life props, dust motes, and fog. The old bookshelf and neon room-strip framing are gone so the scene reads as floor-and-sky void space rather than a contained room, and the camera/light rig now frames the desk cluster with a slower cinematic quarter-orbit instead of the older room-centered sway. It owns its own scene style instead of inheriting the purple CRT global fallback.
 
-**Desktop** — The OS simulation shown in DESKTOP state. It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images. Styled with 98.css plus desktop-specific CSS variables and overrides. Theme presets style only chrome; the desktop layer itself stays transparent unless the desktop scene Background config explicitly provides wallpaper/color through BackgroundLayer. Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
+**Desktop** — The OS simulation shown in DESKTOP state. It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations (`pulse`, `float`, `jiggle`, `drift`, `orbit`, `breathe`, `reactive`) with a 0–300% motion-strength scalar, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images. Styled with 98.css plus desktop-specific CSS variables and overrides. Theme presets style only chrome; the desktop layer itself stays transparent unless the desktop scene Background config explicitly provides wallpaper/color through BackgroundLayer. When auto-arrange is off, icons can be dragged directly on the desktop and positions persist per application via `Application.iconPosition`; when no per-app `iconSize` is set, the desktop-wide default size from `DesktopConfig` is applied at render time. Desktop text color can still be authored with 8-digit hex for chrome, but icon labels and text-style glyph icons intentionally use the opaque RGB portion of that color so non-image icons do not disappear when alpha is zero. Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
 
 The built-in desktop widgets currently include Music, Archive, Chat, and Sticky Notes. The built-in decoration app is Recycle Bin.
 
@@ -321,6 +326,8 @@ The **EffectsLayer** file still exists as a reserved `null` render in `packages/
 
 The **gallery-scroll screensaver** currently fades between full images every 4 seconds. A more interesting version would scroll inside each game's folder (multiple screenshots per game), display the game name more prominently, and support keyboard navigation to skip to the next game.
 
+The **desktop icon layout system** now supports manual dragging with persistence, but there is still no first-class layout management UX around it. Add `Snap to grid`, `Reset icon positions`, and `Auto-arrange once` actions so operators can recover from messy layouts without manually editing every `Application.iconPosition` field.
+
 The **boot sequence transition** (`boot-sequence`) is a standard named GSAP transition that any scene can include in its `introTransitions` pipeline. No built-in default scene has it configured out of the box. To play the boot sequence on startup, add `{ id: 'boot-sequence' }` as the first step in `DESKTOP.introTransitions` (or whichever scene loads first). This should be surfaced in the admin transition-picker help text so it is discoverable without reading source.
 
 The **media file upload** currently supports video and image files via `POST /api/upload/asset`, which saves to `assets/video/` or `assets/images/`. There is no delete endpoint. Once a file is uploaded it can only be removed by manual filesystem access. Adding `DELETE /api/asset?path=…` (with path validation to prevent directory traversal) would let the admin's media library clean up unused files without touching the server manually.
@@ -333,7 +340,11 @@ The **launchPipeline UI** allows adding effects by type and setting delay, but d
 
 The **TransitionList pipeline preview** still only previews individual steps — clicking the preview button inside a `TransitionPicker` row sends `[{ id }]` as a one-step pipe. There is no button to fire the entire exit or intro pipeline as configured. A panel-level "Preview pipeline" button that calls `socket.emit('transition:preview', steps)` with the full array would let the streamer verify a multi-step chain before going live.
 
-The new shared **hex color editor** now supports live picker updates and `#RRGGBBAA`, but the admin UI still does not explain that alpha hex is supported or how alpha is resolved inside the 3D lobby. Inline validation, a short helper label, and a clearer preview swatch would make the new color workflow easier to discover.
+The new shared **hex color editor** now supports live picker updates and `#RRGGBBAA`, but the admin UI still does not explain the desktop-specific alpha semantics. Desktop chrome can use the authored text color directly, while desktop icon labels and text-style glyph icons intentionally use the opaque RGB portion so non-image icons do not disappear when alpha is `00`. That rule should be documented inline in the desktop Theme editor, and ideally split into separate controls if operators need independent icon-label color behavior.
+
+The **desktop icon drag UX** works, but the desktop context menu still shows disabled placeholder actions and does not expose the new layout capabilities. `Arrange Icons`, `Snap to Grid`, and `Reset to Saved Defaults` should be real commands instead of dead menu items so the runtime feels like a complete OS surface rather than a partially interactive mock.
+
+The **desktop icon text readability** path has become a stack of CSS overrides after several iterations around transparency, alpha-aware text colors, and selection styling. That logic should be centralized into a small set of desktop label tokens or helper classes so future theme/text-color changes do not keep regressing icon readability.
 
 The **widget system** works but `WIDGET_COMPONENTS` in `Desktop.tsx` is a hardcoded map. Adding a new widget requires editing source code. A cleaner model would be a plugin-style registry like the effect system — each widget self-registers with an ID, a display name, and a component. New widgets could then be dropped in without touching `Desktop.tsx`.
 
