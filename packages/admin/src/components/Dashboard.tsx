@@ -128,6 +128,62 @@ function ConfigApplyBar({
   )
 }
 
+
+type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
+
+function ThemeAppearanceFields({
+  appearance,
+  onChange,
+  helperText,
+}: {
+  appearance: ThemeAppearance
+  onChange: (updater: (draft: ThemeAppearance) => void) => void
+  helperText?: string
+}) {
+  return (
+    <div className="space-y-3">
+      {helperText && <div className="text-[10px] text-zinc-500 leading-relaxed">{helperText}</div>}
+      <div>
+        <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Font</div>
+        <select value={appearance.fontFamily} onChange={(e) => onChange((d) => { d.fontFamily = e.target.value })}
+          className="w-full text-xs">
+          {GOOGLE_FONTS.map((font) => <option key={font.css} value={font.css}>{font.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Accent</div>
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {ACCENT_SWATCHES.map((color) => (
+            <button key={color} type="button" onClick={() => onChange((d) => { d.accentColor = color })}
+              className={'w-6 h-6 rounded-full border-2 transition-all ' + (appearance.accentColor === color ? 'border-white scale-110' : 'border-transparent hover:border-zinc-400')}
+              style={{ backgroundColor: color }} />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <HexColorInput
+            value={appearance.accentColor}
+            onChange={(nextValue) => onChange((d) => { d.accentColor = nextValue })}
+            className="gap-2"
+            pickerStyle={{ width: 32, height: 28 }}
+            textClassName="font-mono text-xs w-28"
+          />
+        </div>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Text</div>
+        <div className="flex items-center gap-2">
+          <HexColorInput
+            value={appearance.textColor}
+            onChange={(nextValue) => onChange((d) => { d.textColor = nextValue })}
+            className="gap-2"
+            pickerStyle={{ width: 32, height: 28 }}
+            textClassName="font-mono text-xs w-28"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
 function LabeledHexColorRow({
   label,
   value,
@@ -1172,8 +1228,25 @@ const ICON_ANIMATIONS: { id: DesktopConfig['iconAnimation']; label: string }[] =
   { id: 'pulse', label: 'Pulse' },
   { id: 'float', label: 'Float' },
   { id: 'jiggle', label: 'Jiggle' },
+  { id: 'drift', label: 'Drift' },
+  { id: 'orbit', label: 'Orbit' },
+  { id: 'breathe', label: 'Breathe' },
   { id: 'reactive', label: 'Reactive' },
 ]
+
+const DESKTOP_ICON_SIZES: DesktopConfig['defaultIconSize'][] = ['small', 'normal', 'large']
+
+function iconSizeToSliderValue(size: DesktopConfig['defaultIconSize']) {
+  return DESKTOP_ICON_SIZES.indexOf(size)
+}
+
+function sliderValueToIconSize(value: number): DesktopConfig['defaultIconSize'] {
+  return DESKTOP_ICON_SIZES[Math.max(0, Math.min(DESKTOP_ICON_SIZES.length - 1, Math.round(value)))]
+}
+
+function labelizeIconSize(size: DesktopConfig['defaultIconSize']) {
+  return size.charAt(0).toUpperCase() + size.slice(1)
+}
 
 // ── Events def ─────────────────────────────────────────────────────
 
@@ -1257,6 +1330,12 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
             className="w-full text-xs">
             {BG_TYPES.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
           </select>
+
+          {sceneId === STATE.DESKTOP && (
+            <div className="text-[10px] text-zinc-500 leading-relaxed">
+              Desktop themes only style windows, menus, taskbars, and widgets. Leave Background on None to keep the overlay transparent; choose a background here only when you intentionally want wallpaper behind the desktop.
+            </div>
+          )}
 
           {sceneId === STATE.LOBBY && (
             <div className="text-[10px] text-zinc-500 leading-relaxed">
@@ -1352,49 +1431,6 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
             <Slider label="Density" value={pt.density} onChange={(v) => update((d) => { d.particles.density = v })} />
             <Slider label="Speed"   value={pt.speed}   onChange={(v) => update((d) => { d.particles.speed   = v })} />
           </div>}
-        </div>
-      </Panel>
-
-      <Panel title="Typography">
-        <div className="space-y-3">
-          <div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Font</div>
-            <select value={style.fontFamily} onChange={(e) => update((d) => { d.fontFamily = e.target.value })}
-              className="w-full text-xs">
-              {GOOGLE_FONTS.map((f) => <option key={f.css} value={f.css}>{f.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Accent</div>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {ACCENT_SWATCHES.map((c) => (
-                <button key={c} onClick={() => update((d) => { d.accentColor = c })}
-                  className={'w-6 h-6 rounded-full border-2 transition-all ' + (style.accentColor === c ? 'border-white scale-110' : 'border-transparent hover:border-zinc-400')}
-                  style={{ backgroundColor: c }} />
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <HexColorInput
-                value={style.accentColor}
-                onChange={(nextValue) => update((d) => { d.accentColor = nextValue })}
-                className="gap-2"
-                pickerStyle={{ width: 32, height: 28 }}
-                textClassName="font-mono text-xs w-28"
-              />
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Text</div>
-            <div className="flex items-center gap-2">
-              <HexColorInput
-                value={style.textColor}
-                onChange={(nextValue) => update((d) => { d.textColor = nextValue })}
-                className="gap-2"
-                pickerStyle={{ width: 32, height: 28 }}
-                textClassName="font-mono text-xs w-28"
-              />
-            </div>
-          </div>
         </div>
       </Panel>
     </div>
@@ -1635,9 +1671,16 @@ function DesktopConfigEditor() {
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const desktopScene = config.scenes[STATE.DESKTOP]
   const sourceForm = withDesktopConfigDefaults(config.desktopConfig)
+  const sourceStyle = structuredClone(withOverlayStyleDefaults((desktopScene as { style?: OverlayStyle } | undefined)?.style, config.overlayStyle))
+  const sourceAppearance: ThemeAppearance = {
+    fontFamily: sourceStyle.fontFamily,
+    accentColor: sourceStyle.accentColor,
+    textColor: sourceStyle.textColor,
+  }
   const sourceIntroTransitions = cloneTransitionSteps(desktopScene?.introTransitions)
   const sourceExitTransitions = cloneTransitionSteps(desktopScene?.exitTransitions)
   const [form, setForm] = useState<DesktopConfig>(() => sourceForm)
+  const [appearance, setAppearance] = useState<ThemeAppearance>(() => sourceAppearance)
   const [introTransitions, setIntroTransitions] = useState<TransitionStep[]>(() => sourceIntroTransitions)
   const [exitTransitions, setExitTransitions] = useState<TransitionStep[]>(() => sourceExitTransitions)
   const [saving, setSaving] = useState(false)
@@ -1647,11 +1690,13 @@ function DesktopConfigEditor() {
   const [notifyIcon, setNotifyIcon] = useState('🎉')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dirty = !isSameDraft(form, sourceForm)
+    || !isSameDraft(appearance, sourceAppearance)
     || !isSameDraft(introTransitions, sourceIntroTransitions)
     || !isSameDraft(exitTransitions, sourceExitTransitions)
 
   useEffect(() => {
     setForm(sourceForm)
+    setAppearance(sourceAppearance)
     setIntroTransitions(sourceIntroTransitions)
     setExitTransitions(sourceExitTransitions)
     setSaved(false)
@@ -1666,15 +1711,29 @@ function DesktopConfigEditor() {
     setSaved(false)
   }, [])
 
+  const updateAppearance = useCallback((updater: (d: ThemeAppearance) => void) => {
+    setAppearance((prev) => {
+      const next = structuredClone(prev)
+      updater(next)
+      return next
+    })
+    setSaved(false)
+  }, [])
+
   const apply = useCallback(async () => {
     if (!dirty) return
     setSaving(true)
+    const nextDesktopStyle = structuredClone(sourceStyle)
+    nextDesktopStyle.fontFamily = appearance.fontFamily
+    nextDesktopStyle.accentColor = appearance.accentColor
+    nextDesktopStyle.textColor = appearance.textColor
     await saveConfig({
       desktopConfig: form,
       scenes: {
         ...config.scenes,
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
+          style: nextDesktopStyle,
           introTransitions: introTransitions.length ? introTransitions : undefined,
           exitTransitions: exitTransitions.length ? exitTransitions : undefined,
         },
@@ -1684,14 +1743,15 @@ function DesktopConfigEditor() {
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [dirty, saveConfig, config.scenes, form, introTransitions, exitTransitions])
+  }, [dirty, saveConfig, sourceStyle, appearance, config.scenes, form, introTransitions, exitTransitions])
 
   const reset = useCallback(() => {
     setForm(sourceForm)
+    setAppearance(sourceAppearance)
     setIntroTransitions(sourceIntroTransitions)
     setExitTransitions(sourceExitTransitions)
     setSaved(false)
-  }, [sourceForm, sourceIntroTransitions, sourceExitTransitions])
+  }, [sourceForm, sourceAppearance, sourceIntroTransitions, sourceExitTransitions])
 
   return (
     <div className="space-y-3">
@@ -1717,48 +1777,65 @@ function DesktopConfigEditor() {
         </div>
       </Panel>
       <Panel title="Theme">
-        <div className="grid grid-cols-3 gap-1.5">
-          {DESKTOP_THEMES.map((theme) => (
-            <button key={theme.id} onClick={() => update((d) => { d.theme = theme.id })}
-              className={'px-2.5 py-1.5 text-[11px] rounded border transition-colors ' +
-                (form.theme === theme.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
-              {theme.label}
-            </button>
-          ))}
-        </div>
-      </Panel>
-      <Panel title="Icons">
-        <div className="mb-3">
-          <div className="text-[10px] text-zinc-500 mb-1.5">Default size</div>
-          <div className="flex gap-1">
-            {(['small', 'normal', 'large'] as const).map((s) => (
-              <button key={s} onClick={() => update((d) => { d.defaultIconSize = s })}
-                className={'px-2.5 py-1 text-[11px] rounded border capitalize transition-colors ' +
-                  (form.defaultIconSize === s ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
-                {s}
-              </button>
-            ))}
+        <div className="space-y-4">
+          <div className="text-[10px] text-zinc-500 leading-relaxed">
+            Theme presets style desktop chrome only. The overlay stays transparent until the desktop Background panel is explicitly set to show wallpaper, gradients, patterns, or video.
           </div>
-        </div>
-        <Toggle checked={form.autoArrangeIcons} onChange={(v) => update((d) => { d.autoArrangeIcons = v })} label="Auto-arrange" />
-        <div className="mt-3">
-          <div className="text-[10px] text-zinc-500 mb-1.5">Ambient motion</div>
-          <div className="grid grid-cols-2 gap-1">
-            {ICON_ANIMATIONS.map((mode) => (
-              <button key={mode.id} onClick={() => update((d) => { d.iconAnimation = mode.id })}
+          <div className="grid grid-cols-3 gap-1.5">
+            {DESKTOP_THEMES.map((theme) => (
+              <button key={theme.id} onClick={() => update((d) => { d.theme = theme.id })}
                 className={'px-2.5 py-1.5 text-[11px] rounded border transition-colors ' +
-                  (form.iconAnimation === mode.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
-                {mode.label}
+                  (form.theme === theme.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
+                {theme.label}
               </button>
             ))}
           </div>
-        </div>
-      </Panel>
-      <Panel title="Notifications">
-        <Toggle checked={form.notifications.enabled} onChange={(v) => update((d) => { d.notifications.enabled = v })} label="Enable desktop notifications" />
-        <div className="mt-3 space-y-2">
-          <Slider label="Duration" value={form.notifications.defaultDurationMs} min={1500} max={12000} step={500} unit="ms" onChange={(v) => update((d) => { d.notifications.defaultDurationMs = v })} />
-          <Slider label="Visible toasts" value={form.notifications.maxVisible} min={1} max={5} step={1} onChange={(v) => update((d) => { d.notifications.maxVisible = v })} />
+          <div className="border-t border-zinc-800 pt-3">
+            <ThemeAppearanceFields
+              appearance={appearance}
+              onChange={updateAppearance}
+              helperText="Font, accent, and text color ride on top of the preset so they are visible without turning the desktop background opaque."
+            />
+          </div>
+          <div className="border-t border-zinc-800 pt-3 space-y-3">
+            <div>
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Icons</div>
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                Turn off auto-arrange to drag icons directly on the desktop. Manual dragging saves each application icon position for you.
+              </div>
+            </div>
+            <Slider
+              label="Size"
+              value={iconSizeToSliderValue(form.defaultIconSize)}
+              min={0}
+              max={2}
+              step={1}
+              onChange={(value) => update((d) => { d.defaultIconSize = sliderValueToIconSize(value) })}
+            />
+            <div className="text-[10px] text-zinc-500 -mt-1 pl-[7rem]">Current default: {labelizeIconSize(form.defaultIconSize)}</div>
+            <Toggle checked={form.autoArrangeIcons} onChange={(v) => update((d) => { d.autoArrangeIcons = v })} label="Auto-arrange icons" />
+            <div>
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Ambient motion</div>
+              <select
+                value={form.iconAnimation}
+                onChange={(e) => update((d) => { d.iconAnimation = e.target.value as DesktopConfig['iconAnimation'] })}
+                className="w-full text-xs"
+              >
+                {ICON_ANIMATIONS.map((mode) => (
+                  <option key={mode.id} value={mode.id}>{mode.label}</option>
+                ))}
+              </select>
+            </div>
+            <Slider
+              label="Motion"
+              value={Math.round(form.iconMotion * 100)}
+              min={0}
+              max={300}
+              step={5}
+              unit="%"
+              onChange={(value) => update((d) => { d.iconMotion = value / 100 })}
+            />
+          </div>
         </div>
       </Panel>
       <Panel title="Sticky Notes">
@@ -1847,8 +1924,9 @@ function DesktopConfigEditor() {
             <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
             <input type="text" value={notifyIcon} onChange={(e) => setNotifyIcon(e.target.value)} className="w-20 text-xs font-mono" />
           </div>
+          <div className="text-[10px] text-zinc-600">Desktop notifications are runtime events, not desktop-config settings.</div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <Btn variant="primary" onClick={() => socket.emit('desktop:notify', { title: notifyTitle, body: notifyBody, icon: notifyIcon, durationMs: form.notifications.defaultDurationMs })}>
+            <Btn variant="primary" onClick={() => socket.emit('desktop:notify', { title: notifyTitle, body: notifyBody, icon: notifyIcon })}>
               Send Notification
             </Btn>
             <Btn onClick={() => socket.emit('desktop:recycle-bin', { full: true })}>Bin Full</Btn>
@@ -1995,6 +2073,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
           </div>
         </div>
         <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
+        <div className="text-[10px] text-zinc-600 mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
       </Panel>
 
       <Panel title="Launch Pipeline">
@@ -2446,6 +2525,15 @@ function LivePreview() {
     ? `${window.location.protocol}//${window.location.hostname}:${previewTarget === 'runtime' ? 3000 : 3001}`
     : 'http://localhost:3000'
   const previewLabel = previewTarget === 'runtime' ? 'Runtime 3000' : 'Direct Dev 3001'
+  const previewBackdropStyle: React.CSSProperties = {
+    backgroundColor: '#111827',
+    backgroundImage: [
+      'linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%, transparent 75%, rgba(255,255,255,0.05) 75%, rgba(255,255,255,0.05))',
+      'linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%, transparent 75%, rgba(255,255,255,0.05) 75%, rgba(255,255,255,0.05))',
+    ].join(', '),
+    backgroundPosition: '0 0, 16px 16px',
+    backgroundSize: '32px 32px',
+  }
 
   useEffect(() => {
     const scale = () => {
@@ -2465,7 +2553,7 @@ function LivePreview() {
   }, [])
 
   return (
-    <div ref={containerRef} className="relative flex-1 bg-black overflow-hidden min-w-0">
+    <div ref={containerRef} className="relative flex-1 overflow-hidden min-w-0" style={previewBackdropStyle}>
       <div className="absolute left-3 top-3 z-10 pointer-events-none">
         <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] backdrop-blur ${previewTarget === 'runtime'
           ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100'
@@ -2473,6 +2561,9 @@ function LivePreview() {
           <span className={`h-2 w-2 rounded-full ${previewTarget === 'runtime' ? 'bg-emerald-300' : 'bg-amber-300'}`} />
           <span>{previewLabel}</span>
         </div>
+      </div>
+      <div className="absolute right-3 bottom-3 z-10 pointer-events-none rounded-full border border-zinc-700/70 bg-zinc-950/75 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-zinc-400 backdrop-blur">
+        Transparent background preview
       </div>
       <iframe
         ref={frameRef}
@@ -2488,6 +2579,36 @@ function LivePreview() {
 
 // ── RightPane ──────────────────────────────────────────────────────
 
+function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; label: string }) {
+  const currentState = useAdminStore((s) => s.currentState)
+  const setLastError = useAdminStore((s) => s.setLastError)
+
+  if (currentState === targetState) return null
+
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold text-amber-200">{label} preview is not live</div>
+          <div className="text-[10px] text-amber-100/80 leading-relaxed">
+            Current state is <span className="font-mono">{currentState}</span>. Switch the runtime to <span className="font-mono">{targetState}</span> to see this editor reflected in the preview.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setLastError(null)
+            socket.emit('scene:change', targetState, (err: string | null) => { if (err) setLastError(err) })
+          }}
+          className="shrink-0 rounded border border-amber-300/40 bg-amber-200/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100 transition-colors hover:bg-amber-200/25"
+        >
+          Show {label}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDeleteEvent }: {
   selected: SelectedItem; onDeleted: () => void
   eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
@@ -2498,6 +2619,7 @@ function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDel
   if (selected.kind === 'env') {
     if (selected.envState === STATE.LOBBY) return (
       <div className="space-y-5">
+        <EnvironmentLiveNotice targetState={STATE.LOBBY} label="Lobby" />
         <LobbyConfigEditor />
         <div className="border-t border-zinc-800 pt-4">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Background & Style</div>
@@ -2507,6 +2629,7 @@ function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDel
     )
     return (
       <div className="space-y-5">
+        <EnvironmentLiveNotice targetState={STATE.DESKTOP} label="Desktop" />
         <DesktopConfigEditor />
         <div className="border-t border-zinc-800 pt-4">
           <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Background & Style</div>

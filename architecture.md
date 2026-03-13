@@ -50,9 +50,9 @@ The type system is the backbone of the entire protocol. Key structures:
 
 `Application.icon` can be either an emoji glyph or an uploaded image path/URL from the asset library. The desktop, taskbar, start menu, and admin editor all understand both forms.
 
-**DesktopConfig** is now a larger runtime contract rather than only icon/screen-saver settings. It includes theme preset, ambient icon animation mode, notification limits, sticky notes defaults, recycle-bin icon state, widget positions, system sounds, and screen-saver configuration.
+**DesktopConfig** is now a larger runtime contract rather than only icon/screen-saver settings. It includes theme preset, ambient icon animation mode, sticky notes defaults, recycle-bin icon state, widget positions, system sounds, and screen-saver configuration. Desktop notifications are runtime socket events, not persisted desktop-config fields.
 
-**OverlayStyle** describes every visual property of a scene: background type, CSS effect flags, particle preset, font, and accent color.
+**OverlayStyle** describes every visual property of a scene: background type, CSS effect flags, particle preset, desktop font, accent color, and text color. Desktop theme presets consume those typography/accent fields for chrome styling, but they do not paint a wallpaper/background on their own.
 
 **EffectConfig** is a discriminated union of all triggerable overlay effects. Effects have an optional delay and can be chained in arrays, allowing a single event to compose multiple animations in sequence.
 
@@ -101,7 +101,7 @@ The overlay registers a `connect` handler on the Socket.IO client. On every conn
 
 ### Desktop Runtime State
 
-The scene machine does **not** own widget visibility, desktop notifications, or recycle-bin fullness. Those are server-side desktop runtime concerns that live alongside the machine.
+The scene machine does **not** own widget visibility or recycle-bin fullness. Those are server-side desktop runtime concerns that live alongside the machine. Desktop notifications are transient runtime events delivered directly over the socket path.
 
 The server maintains:
 - the set of currently open widget IDs
@@ -116,7 +116,7 @@ The server exposes a small REST API:
 - `GET /api/config` — returns the full AppConfig object.
 - `PUT /api/config` — replaces the entire AppConfig, persists to SQLite, and broadcasts `config:update` to all clients.
 - `PATCH /api/config/audio` — updates only `audio.masterVolume`, `audio.sfxVolume`, `audio.musicVolume` and broadcasts without touching scenes or applications.
-- `PATCH /api/config/desktop` — updates only `desktopConfig` fields such as widget positions, sticky notes, recycle-bin defaults, screen saver settings, notifications, and system sounds.
+- `PATCH /api/config/desktop` — updates only `desktopConfig` fields such as widget positions, sticky notes, recycle-bin defaults, screen saver settings, and system sounds.
 - `PATCH /api/config/obs` — updates only `obs.url` and `obs.password`.
 - `GET /api/assets/catalog` — returns the indexed asset library from `assets/` plus scraped game images, flattened into typed image/video/audio records for the admin asset browser.
 - `POST /api/assets/refresh` — invalidates the cached asset catalog and rescans the asset tree.
@@ -226,7 +226,7 @@ A React SPA that connects to the server over Socket.IO on startup. It syncs stat
 
 The admin now has a shared asset-library surface instead of separate per-form pickers. Scene background images/videos, application icons, recycle-bin icons, saved media entries, and image/video source URLs all use the same catalog-backed asset picker, which browses the indexed `assets/` tree, scraped game images, and saved media presets.
 
-**DesktopConfigEditor** — The desktop-specific editor inside the dashboard. It controls theme presets, icon size, auto-arrange, ambient icon motion, notification defaults, sticky notes defaults, recycle-bin icons/state, screensaver settings, and system sound paths. It also includes socket test buttons for desktop notifications and recycle-bin state.
+**DesktopConfigEditor** — The desktop-specific editor inside the dashboard. It controls theme presets, desktop font/accent/text appearance, icon size, auto-arrange, ambient icon motion, sticky notes defaults, recycle-bin icons/state, screensaver settings, and system sound paths. It also includes runtime test buttons for desktop notification and recycle-bin events. Wallpaper/background remains in the desktop scene Background editor so the overlay stays transparent unless operators explicitly configure a background.
 
 **SceneEditor** — Create and edit scenes. Add, position, and configure plugin sources. Each scene has a **Background Music** field — a URL or `/assets/audio/music/` path that the overlay will loop while the scene is active, with a 1.5 s crossfade on entry. The config form is generated dynamically from the plugin type. Each scene's **Transitions** panel shows a `TransitionList` for both Intro and Exit — an ordered pipeline editor where each row is a full `TransitionPicker`. Steps can be added, removed, and reordered (↑↓) to compose multi-step transition sequences.
 
@@ -253,7 +253,7 @@ The admin panel emits `scene:change` with a target state for environments and sc
 
 Widget toggles bypass the state machine entirely: admin → server desktop runtime state → all overlay clients → Zustand store → React render. Overlay clients also request the desktop runtime snapshot on connect so late-joining browser sources recover already-open widgets.
 
-Desktop notifications and recycle-bin state also bypass the scene machine. They move through dedicated socket events (`desktop:notify`, `desktop:recycle-bin`) and are rendered entirely by the desktop layer.
+Desktop notifications and recycle-bin state also bypass the scene machine. They move through dedicated socket events (`desktop:notify`, `desktop:recycle-bin`) and are rendered entirely by the desktop layer. Notification duration and stack limits are runtime defaults rather than persisted desktop-config values.
 
 Keybind execution is now server-authoritative. The admin forwards bindings through `keybind:execute`, and the server resolves the action into the same scene/widget/event/panic operations it would perform for direct UI interaction. OBS-scoped bindings share that path, but passive OBS hotkey capture is still limited by obs-websocket as described above.
 
@@ -279,7 +279,7 @@ The visual output is built from a fixed set of layers rendered in z-order. **Eac
 
 **LobbyScene** — A React Three Fiber scene, mounted only when the state is LOBBY. It now renders as an open, uncontained space rather than a closed room: a large reflective floor plane under a configurable sky gradient (top color + horizon color), plus the desk cluster, optional room-life props, dust motes, and fog. The old bookshelf and neon room-strip framing are gone so the scene reads as floor-and-sky void space rather than a contained room, and the camera/light rig now frames the desk cluster with a slower cinematic quarter-orbit instead of the older room-centered sway. It owns its own scene style instead of inheriting the purple CRT global fallback.
 
-**Desktop** — The OS simulation shown in DESKTOP state. It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images. Styled with 98.css plus desktop-specific CSS variables and overrides. Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
+**Desktop** — The OS simulation shown in DESKTOP state. It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images. Styled with 98.css plus desktop-specific CSS variables and overrides. Theme presets style only chrome; the desktop layer itself stays transparent unless the desktop scene Background config explicitly provides wallpaper/color through BackgroundLayer. Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
 
 The built-in desktop widgets currently include Music, Archive, Chat, and Sticky Notes. The built-in decoration app is Recycle Bin.
 

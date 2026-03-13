@@ -49,7 +49,7 @@ export interface LobbyConfig {
 export type ApplicationType = 'scene' | 'widget' | 'decoration'
 
 export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
-export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'reactive'
+export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
 
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
@@ -164,14 +164,10 @@ export interface DesktopConfig {
   autoArrangeIcons: boolean
   /** Ambient motion profile used by desktop icons */
   iconAnimation: DesktopIconAnimation
+  /** 0-3 scalar controlling how strong icon motion appears (1 = 100%) */
+  iconMotion: number
   /** Persisted widget window positions, keyed by widget id (e.g. 'music', 'archive') */
   widgetPositions?: Record<string, { x: number; y: number }>
-  /** Desktop notification renderer settings */
-  notifications: {
-    enabled: boolean
-    defaultDurationMs: number
-    maxVisible: number
-  }
   /** Visual state for the recycle bin decoration app */
   recycleBin: {
     emptyIcon: string

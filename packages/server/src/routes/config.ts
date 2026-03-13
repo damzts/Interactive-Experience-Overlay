@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
 import { DEFAULT_CONFIG, STATE, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
-import type { AppConfig, DesktopConfig } from '@ieom/shared'
+import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
 const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes', 'chat'])
@@ -96,10 +96,6 @@ export async function configRoute(
         const nextDesktop = withDesktopConfigDefaults({
           ...currentDesktop,
           ...req.body,
-          notifications: {
-            ...currentDesktop.notifications,
-            ...req.body.notifications,
-          },
           recycleBin: {
             ...currentDesktop.recycleBin,
             ...req.body.recycleBin,
@@ -122,6 +118,28 @@ export async function configRoute(
           },
         })
         save({ ...config, desktopConfig: nextDesktop })
+        return { ok: true }
+      } catch (e) {
+        return reply.code(400).send({ ok: false, error: String(e) })
+      }
+    },
+  )
+
+  app.patch<{ Params: { appId: string }; Body: Partial<Application> }>(
+    '/api/config/applications/:appId',
+    async (req, reply) => {
+      try {
+        if (!config.applications.some((app) => app.id === req.params.appId)) {
+          return reply.code(404).send({ ok: false, error: `Unknown application: ${req.params.appId}` })
+        }
+
+        const applications = config.applications.map((app) => (
+          app.id === req.params.appId
+            ? { ...app, ...req.body }
+            : app
+        ))
+
+        save({ ...config, applications })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })

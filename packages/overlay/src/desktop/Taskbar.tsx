@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { STATE, withDesktopConfigDefaults } from '@ieom/shared'
+import { STATE } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { AppGlyph } from './AppGlyph'
 
@@ -22,8 +22,6 @@ export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
   const toggleWidgetMinimized = useAppStore((s) => s.toggleWidgetMinimized)
   const lastSocketActivityAt = useAppStore((s) => s.lastSocketActivityAt)
   const notificationCount = useAppStore((s) => s.desktopNotifications.length)
-
-  const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
 
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1_000)
@@ -140,7 +138,7 @@ export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
         </span>
         <span className="taskbar-tray-icon taskbar-tray-badge-wrap" title={`Notifications: ${notificationCount}`}>
           🔔
-          {desktopConfig.notifications.enabled && notificationCount > 0 && (
+          {notificationCount > 0 && (
             <span className="taskbar-tray-badge">{notificationCount}</span>
           )}
         </span>

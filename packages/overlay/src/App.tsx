@@ -31,6 +31,19 @@ export default function App() {
   const visibleSources = currentScene?.sources.filter((s) => s.visible) ?? []
   // Each scene owns its own visual style; fall back to root overlayStyle if absent
   const overlayStyle = currentScene?.style ?? config.overlayStyle
+  const effectiveEffects = visualState === STATE.DESKTOP && overlayStyle.background.type === 'none'
+    ? {
+        ...overlayStyle.effects,
+        crt: false,
+        noise: false,
+        vignette: false,
+        flicker: false,
+        chromatic: false,
+        scanlineOpacity: 0,
+        noiseOpacity: 0,
+        vignetteStrength: 0,
+      }
+    : overlayStyle.effects
 
   // Play per-scene background music track (null = silence)
   useEffect(() => {
@@ -77,7 +90,7 @@ export default function App() {
       {/* Global CSS effects — CRT, vignette, grain, flicker, chromatic */}
       <div id="effects-layer">
         <LayerErrorBoundary name="effects">
-          <CSSEffectsLayer effects={overlayStyle.effects} />
+          <CSSEffectsLayer effects={effectiveEffects} />
         </LayerErrorBoundary>
       </div>
 

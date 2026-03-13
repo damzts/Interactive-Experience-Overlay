@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;700&family=Audiowide&family=Electrolize&display=swap');
+
 /* ── Reset ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
@@ -188,8 +190,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   inset: 0;
   display: flex;
   flex-direction: column;
-  /* Win98 teal — this IS the lobby visual, blocks everything beneath */
-  background: #008080;
+  background: transparent;
 }
 
 .desktop-icons {
@@ -604,7 +605,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 /* ── Desktop runtime overrides ─────────────────────────────────── */
 .desktop {
-  background: var(--desktop-bg);
   color: var(--desktop-title-text);
   font-family: var(--desktop-ui-font);
 }
@@ -687,23 +687,58 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 }
 
 .desktop .app-icon {
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  --icon-motion-opacity: 0.72;
+  --icon-motion-offset: 8px;
+  --icon-motion-jiggle: 1.6deg;
+  --icon-motion-scale: 1.08;
+  --icon-motion-reactive-lift: 3px;
+  --icon-motion-reactive-brightness: 1.25;
   transform-origin: 50% 20%;
   transition: background-color 120ms linear, border-color 120ms linear, filter 180ms ease;
 }
 
 .desktop .app-icon:hover {
-  background: color-mix(in srgb, var(--desktop-menu-hover) 55%, transparent);
+  background: color-mix(in srgb, var(--desktop-menu-hover) 16%, transparent);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .desktop .app-icon--decoration {
   cursor: default;
 }
 
-.desktop .app-icon-emoji {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+.desktop .app-icon--draggable {
+  cursor: grab;
 }
 
-.desktop img.app-icon-emoji,
+.desktop .app-icon--dragging {
+  cursor: grabbing;
+  z-index: 12;
+  transition: none;
+}
+
+.desktop .app-icon-emoji {
+  display: block;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  filter: none;
+  color: var(--desktop-icon-label);
+}
+
+.desktop img.app-icon-emoji {
+  display: block;
+  border-radius: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
 .desktop img.taskbar-window-icon {
   display: block;
   border-radius: 4px;
@@ -712,16 +747,39 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 }
 
 .desktop .app-icon-label {
+  margin-top: 4px;
+  padding: 0;
+  max-width: 72px;
+  border-radius: 0;
+  background: none;
+  border: none;
   color: var(--desktop-icon-label);
-  text-shadow: var(--desktop-icon-shadow);
+  -webkit-text-fill-color: var(--desktop-icon-label);
+  font-family: var(--desktop-ui-font);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  line-height: 1.2;
 }
 
 .desktop .app-icon--selected {
-  background: color-mix(in srgb, var(--desktop-menu-hover) 75%, transparent);
+  background: transparent;
+  border-color: transparent;
+  outline: 1px dotted rgba(255, 255, 255, 0.78);
+  outline-offset: 0;
 }
 
 .desktop .app-icon--selected .app-icon-label {
-  background: var(--desktop-menu-hover);
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  color: var(--desktop-icon-label);
+  -webkit-text-fill-color: var(--desktop-icon-label);
+  text-shadow: none;
 }
 
 .desktop .app-icon--anim-pulse {
@@ -736,6 +794,21 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 .desktop .app-icon--anim-jiggle {
   animation: desktop-icon-jiggle 3.8s ease-in-out infinite;
+  animation-delay: var(--icon-phase);
+}
+
+.desktop .app-icon--anim-drift {
+  animation: desktop-icon-drift 6.2s ease-in-out infinite;
+  animation-delay: var(--icon-phase);
+}
+
+.desktop .app-icon--anim-orbit {
+  animation: desktop-icon-orbit 6.8s linear infinite;
+  animation-delay: var(--icon-phase);
+}
+
+.desktop .app-icon--anim-breathe {
+  animation: desktop-icon-breathe 4.8s ease-in-out infinite;
   animation-delay: var(--icon-phase);
 }
 
@@ -992,17 +1065,35 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 @keyframes desktop-icon-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
+  50% { opacity: var(--icon-motion-opacity); }
 }
 
 @keyframes desktop-icon-float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(calc(var(--icon-motion-offset) * -1)); }
 }
 
 @keyframes desktop-icon-jiggle {
-  0%, 100% { transform: rotate(-1deg); }
-  50% { transform: rotate(1.6deg); }
+  0%, 100% { transform: rotate(calc(var(--icon-motion-jiggle) * -1)); }
+  50% { transform: rotate(var(--icon-motion-jiggle)); }
+}
+
+@keyframes desktop-icon-drift {
+  0%, 100% { transform: translateX(calc(var(--icon-motion-drift-x) * -1)) translateY(0); }
+  50% { transform: translateX(var(--icon-motion-drift-x)) translateY(calc(var(--icon-motion-offset) * -0.35)); }
+}
+
+@keyframes desktop-icon-orbit {
+  0% { transform: translate(calc(var(--icon-motion-orbit-x) * -1), 0); }
+  25% { transform: translate(0, calc(var(--icon-motion-orbit-y) * -1)); }
+  50% { transform: translate(var(--icon-motion-orbit-x), 0); }
+  75% { transform: translate(0, var(--icon-motion-orbit-y)); }
+  100% { transform: translate(calc(var(--icon-motion-orbit-x) * -1), 0); }
+}
+
+@keyframes desktop-icon-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(var(--icon-motion-scale)); filter: brightness(calc(1 + (var(--icon-motion-reactive-brightness) - 1) * 0.45)); }
 }
 
 @keyframes desktop-icon-reactive {
@@ -1011,8 +1102,8 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
     filter: brightness(1);
   }
   35% {
-    transform: scale(1.08) translateY(-3px);
-    filter: brightness(1.25);
+    transform: scale(var(--icon-motion-scale)) translateY(calc(var(--icon-motion-reactive-lift) * -1));
+    filter: brightness(var(--icon-motion-reactive-brightness));
   }
   100% {
     transform: scale(1);

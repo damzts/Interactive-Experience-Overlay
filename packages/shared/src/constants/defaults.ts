@@ -112,11 +112,7 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   defaultIconSize: 'normal',
   autoArrangeIcons: false,
   iconAnimation: 'none',
-  notifications: {
-    enabled: true,
-    defaultDurationMs: 6500,
-    maxVisible: 3,
-  },
+  iconMotion: 0.45,
   recycleBin: {
     emptyIcon: '🗑️',
     fullIcon: '🗑️',
@@ -140,30 +136,32 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   },
 }
 
+export const DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS = 6500
+export const DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE = 3
+
 export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null): DesktopConfig {
+  const source = (config ?? {}) as Partial<DesktopConfig> & { notifications?: unknown }
+  const { notifications: _legacyNotifications, ...rest } = source
+
   return {
     ...DEFAULT_DESKTOP_CONFIG,
-    ...config,
-    theme: normalizeDesktopTheme(config?.theme as DesktopTheme | 'win vista' | undefined),
-    notifications: {
-      ...DEFAULT_DESKTOP_CONFIG.notifications,
-      ...config?.notifications,
-    },
+    ...rest,
+    theme: normalizeDesktopTheme(source.theme as DesktopTheme | 'win vista' | undefined),
     recycleBin: {
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
-      ...config?.recycleBin,
+      ...source.recycleBin,
     },
     stickyNotes: {
       ...DEFAULT_DESKTOP_CONFIG.stickyNotes,
-      ...config?.stickyNotes,
+      ...source.stickyNotes,
     },
     screenSaver: {
       ...DEFAULT_DESKTOP_CONFIG.screenSaver,
-      ...config?.screenSaver,
+      ...source.screenSaver,
     },
     systemSounds: {
       ...DEFAULT_DESKTOP_CONFIG.systemSounds,
-      ...config?.systemSounds,
+      ...source.systemSounds,
     },
   }
 }

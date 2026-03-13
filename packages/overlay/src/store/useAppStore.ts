@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { STATE, DEFAULT_CONFIG } from '@ieom/shared'
+import { STATE, DEFAULT_CONFIG, DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE } from '@ieom/shared'
 import type {
   AppConfig,
   DesktopNotificationPayload,
@@ -175,7 +175,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (state.minimizedWidgets.has(id)) get().restoreWidget(id)
     else get().minimizeWidget(id)
   },
-  enqueueDesktopNotification: (payload, maxVisible = 3) => set((state) => {
+  enqueueDesktopNotification: (payload, maxVisible = DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE) => set((state) => {
     const next: DesktopNotificationItem = {
       ...payload,
       id: `desktop-note-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,

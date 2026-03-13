@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
+  DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   STATE,
   withDesktopConfigDefaults,
   type DesktopNotificationPayload,
@@ -124,12 +125,10 @@ export function useSocket() {
     }
 
     const onDesktopNotify = (payload: DesktopNotificationPayload) => {
-      const settings = withDesktopConfigDefaults(useAppStore.getState().config.desktopConfig).notifications
-      if (!settings.enabled) return
       enqueueDesktopNotification({
         ...payload,
-        durationMs: payload.durationMs ?? settings.defaultDurationMs,
-      }, settings.maxVisible)
+        durationMs: payload.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
+      })
     }
 
     const onDesktopRecycleBin = (payload: DesktopRecycleBinPayload) => {

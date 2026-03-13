@@ -21,6 +21,7 @@ export function AppGlyph({ icon, label, size, className = '' }: AppGlyphProps) {
         src={icon}
         alt=""
         aria-hidden="true"
+        draggable={false}
         className={className}
         style={{ width: size, height: size, objectFit: 'contain' }}
       />

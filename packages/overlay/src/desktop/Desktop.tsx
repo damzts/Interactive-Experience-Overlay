@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { STATE, withDesktopConfigDefaults } from '@ieom/shared'
-import type { Application, DesktopTheme, OverlayBackground } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE, withDesktopConfigDefaults } from '@ieom/shared'
+import type { Application, DesktopTheme, OverlayStyle } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
@@ -13,6 +13,7 @@ import { StickyNotesWidget } from './StickyNotesWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
+import { patchApplicationConfig } from './configPersistence'
 
 interface DesktopWidgetProps {
   onClose: () => void
@@ -53,6 +54,17 @@ interface DesktopProps {
   apps: Application[]
 }
 
+type IconSize = NonNullable<Application['iconSize']>
+
+interface IconDragSession {
+  appId: string
+  iconSize: IconSize
+  pointerStart: { x: number; y: number }
+  pointerOffset: { x: number; y: number }
+  currentPosition: { x: number; y: number }
+  moved: boolean
+}
+
 function clampChannel(value: number) {
   return Math.max(0, Math.min(255, Math.round(value)))
 }
@@ -66,12 +78,33 @@ function adjustHexColor(input: string, delta: number) {
   return `#${[r, g, b].map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
-function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textColor: string): React.CSSProperties {
+function buildFontStack(fontFamily: string, fallback: string) {
+  return `"${fontFamily.replace(/"/g, '\\"')}", ${fallback}`
+}
+
+function opaqueHexColor(input: string, fallback: string) {
+  const value = input.trim()
+  if (/^#[\da-fA-F]{3,4}$/.test(value)) {
+    const expanded = value.slice(1).split('').map((char) => char + char).join('')
+    return `#${expanded.slice(0, 6)}`
+  }
+  if (/^#[\da-fA-F]{6}([\da-fA-F]{2})?$/.test(value)) {
+    return `#${value.slice(1, 7)}`
+  }
+  return fallback
+}
+
+const DEFAULT_DESKTOP_STYLE = DEFAULT_CONFIG.scenes[STATE.DESKTOP].style
+
+function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textColor: string, fontFamily: string): React.CSSProperties {
   const customAccent = accentColor.startsWith('#') ? accentColor : '#2f70c8'
   const customText = textColor || '#ffffff'
+  const opaqueCustomText = opaqueHexColor(customText, '#ffffff')
+  const hasAccentOverride = theme === 'custom' || customAccent.toLowerCase() !== DEFAULT_DESKTOP_STYLE.accentColor.toLowerCase()
+  const hasTextOverride = theme === 'custom' || customText.toLowerCase() !== DEFAULT_DESKTOP_STYLE.textColor.toLowerCase()
+  const hasFontOverride = fontFamily !== 'default' && fontFamily !== DEFAULT_DESKTOP_STYLE.fontFamily
 
   const vars: Record<string, string> = {
-    '--desktop-bg': '#008080',
     '--desktop-panel': '#c0c0c0',
     '--desktop-panel-light': '#ffffff',
     '--desktop-panel-dark': '#808080',
@@ -89,7 +122,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
 
   if (theme === 'y2k candy') {
     Object.assign(vars, {
-      '--desktop-bg': '#f58fd8',
       '--desktop-panel': '#ffe6fb',
       '--desktop-panel-light': '#ffffff',
       '--desktop-panel-dark': '#d76eb8',
@@ -105,7 +137,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     })
   } else if (theme === 'frutiger aero') {
     Object.assign(vars, {
-      '--desktop-bg': '#1c6dad',
       '--desktop-panel': 'rgba(231, 247, 255, 0.92)',
       '--desktop-panel-light': '#ffffff',
       '--desktop-panel-dark': '#5b8fb8',
@@ -121,7 +152,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     })
   } else if (theme === 'midnight chrome') {
     Object.assign(vars, {
-      '--desktop-bg': '#09131d',
       '--desktop-panel': '#d8e2ef',
       '--desktop-panel-light': '#ffffff',
       '--desktop-panel-dark': '#667382',
@@ -137,7 +167,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     })
   } else if (theme === 'sunset boulevard') {
     Object.assign(vars, {
-      '--desktop-bg': '#702a4a',
       '--desktop-panel': '#ffd8c8',
       '--desktop-panel-light': '#fff6f2',
       '--desktop-panel-dark': '#b96872',
@@ -153,7 +182,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     })
   } else if (theme === 'coastal glass') {
     Object.assign(vars, {
-      '--desktop-bg': '#0f6871',
       '--desktop-panel': 'rgba(229, 255, 252, 0.9)',
       '--desktop-panel-light': '#ffffff',
       '--desktop-panel-dark': '#65a1a6',
@@ -169,7 +197,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     })
   } else if (theme === 'amber terminal') {
     Object.assign(vars, {
-      '--desktop-bg': '#1b1206',
       '--desktop-panel': '#d1a45b',
       '--desktop-panel-light': '#f6ddaf',
       '--desktop-panel-dark': '#74531f',
@@ -186,7 +213,6 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
     })
   } else if (theme === 'custom') {
     Object.assign(vars, {
-      '--desktop-bg': adjustHexColor(customAccent, -80),
       '--desktop-panel': adjustHexColor(customAccent, 110),
       '--desktop-panel-light': '#ffffff',
       '--desktop-panel-dark': adjustHexColor(customAccent, -35),
@@ -197,9 +223,24 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
       '--desktop-ui-font': 'Segoe UI, Arial, sans-serif',
       '--desktop-menu-hover': adjustHexColor(customAccent, -25),
       '--desktop-menu-danger': '#9f2d41',
-      '--desktop-icon-label': customText,
+      '--desktop-icon-label': opaqueCustomText,
       '--desktop-tray-glow': `${customAccent}55`,
     })
+  }
+
+  if (theme !== 'custom' && hasAccentOverride) {
+    vars['--desktop-title-end'] = customAccent
+    vars['--desktop-menu-hover'] = customAccent
+    vars['--desktop-tray-glow'] = `${customAccent}55`
+  }
+
+  if (theme !== 'custom' && hasTextOverride) {
+    vars['--desktop-title-text'] = customText
+    vars['--desktop-icon-label'] = opaqueCustomText
+  }
+
+  if (hasFontOverride) {
+    vars['--desktop-ui-font'] = buildFontStack(fontFamily, vars['--desktop-ui-font'])
   }
 
   return vars as React.CSSProperties
@@ -207,11 +248,33 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
 
 // ── Icon grid layout ──────────────────────────────────────────
 // Slot dimensions: icon area + padding + label + inter-icon gap
-const ICON_SLOT_W: Record<string, number> = { small: 68, normal: 84, large: 106 }
+const ICON_SLOT_W: Record<IconSize, number> = { small: 68, normal: 84, large: 106 }
+const ICON_RENDER_W: Record<IconSize, number> = { small: 60, normal: 76, large: 90 }
+const ICON_RENDER_H: Record<IconSize, number> = { small: 74, normal: 86, large: 98 }
 const ICON_SLOT_H  = 88
 const DESKTOP_PAD  = 16
 const TASKBAR_H    = 40
 const CANVAS_H     = 1080
+const DRAG_THRESHOLD_PX = 4
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function resolveIconSize(app: Application, defaultIconSize: IconSize): IconSize {
+  return app.iconSize ?? defaultIconSize
+}
+
+function clampIconPosition(
+  position: { x: number; y: number },
+  iconSize: IconSize,
+  bounds: { width: number; height: number },
+) {
+  return {
+    x: clamp(position.x, 0, Math.max(0, bounds.width - ICON_RENDER_W[iconSize] - DESKTOP_PAD)),
+    y: clamp(position.y, 0, Math.max(0, bounds.height - TASKBAR_H - ICON_RENDER_H[iconSize] - DESKTOP_PAD)),
+  }
+}
 
 /**
  * Assigns a top-to-bottom, left-to-right column grid position to each app
@@ -220,7 +283,7 @@ const CANVAS_H     = 1080
  */
 function computeGridPositions(
   apps: Application[],
-  defaultIconSize: 'small' | 'normal' | 'large',
+  defaultIconSize: IconSize,
 ): Map<string, { x: number; y: number }> {
   const slotW     = ICON_SLOT_W[defaultIconSize] ?? ICON_SLOT_W.normal
   const availH    = CANVAS_H - TASKBAR_H - DESKTOP_PAD * 2
@@ -237,31 +300,6 @@ function computeGridPositions(
   })
 
   return result
-}
-
-/** Convert the background config to a CSS background shorthand */
-function bgToCss(bg: OverlayBackground): React.CSSProperties {
-  switch (bg.type) {
-    case 'color':
-      return { backgroundColor: bg.color }
-    case 'gradient':
-      return { background: bg.gradient }
-    case 'image-url':
-      return {
-        backgroundImage: `url("${bg.imageUrl}")`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    case 'video-url':
-    case 'pattern':
-      return { background: 'transparent' }
-    case 'none':
-      return {}
-    default:
-      // These types are handled by BackgroundLayer (behind the desktop canvas),
-      // or are intentionally transparent for camera pass-through.
-      return {}
-  }
 }
 
 /** Fallback draggable window for any widget ID not registered in WIDGET_COMPONENTS */
@@ -293,6 +331,8 @@ export function Desktop({ apps }: DesktopProps) {
   const [startMenuOpen, setStartMenuOpen] = useState(false)
   const [contextMenu, setContextMenu]     = useState<ContextMenu | null>(null)
   const [windowOrder, setWindowOrder]     = useState<string[]>([])
+  const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({})
+  const [draggingId, setDraggingId]       = useState<string | null>(null)
 
   const openWidgets = useAppStore((s) => s.openWidgets)
   const closingWidgets = useAppStore((s) => s.closingWidgets)
@@ -302,21 +342,21 @@ export function Desktop({ apps }: DesktopProps) {
   const reactiveIconId = useAppStore((s) => s.reactiveIconId)
 
   const desktopRef = useRef<HTMLDivElement>(null)
+  const iconDragRef = useRef<IconDragSession | null>(null)
+  const suppressClickRef = useRef(false)
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
-  const desktopScene = config.scenes[STATE.DESKTOP] as { style?: { background?: OverlayBackground; accentColor?: string; textColor?: string } } | undefined
-  const desktopStyle = desktopScene?.style?.background
-
-  const wallpaperStyle = desktopStyle ? bgToCss(desktopStyle) : { background: 'transparent' }
+  const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
 
   const themeStyle = useMemo(
     () => buildDesktopThemeVars(
       desktopConfig.theme,
       desktopScene?.style?.accentColor ?? config.overlayStyle.accentColor,
       desktopScene?.style?.textColor ?? config.overlayStyle.textColor,
+      desktopScene?.style?.fontFamily ?? config.overlayStyle.fontFamily,
     ),
-    [config.overlayStyle.accentColor, config.overlayStyle.textColor, desktopConfig.theme, desktopScene?.style?.accentColor, desktopScene?.style?.textColor],
+    [config.overlayStyle.accentColor, config.overlayStyle.fontFamily, config.overlayStyle.textColor, desktopConfig.theme, desktopScene?.style?.accentColor, desktopScene?.style?.fontFamily, desktopScene?.style?.textColor],
   )
 
   const desktopApps = useMemo(
@@ -383,6 +423,91 @@ export function Desktop({ apps }: DesktopProps) {
 
   const ss = desktopConfig.screenSaver
 
+  const clearDragOverride = useCallback((appId: string) => {
+    setDragPositions((prev) => {
+      if (!(appId in prev)) return prev
+      const next = { ...prev }
+      delete next[appId]
+      return next
+    })
+  }, [])
+
+  const consumeClickSuppression = useCallback(() => {
+    const suppressed = suppressClickRef.current
+    suppressClickRef.current = false
+    return suppressed
+  }, [])
+
+  const resolveIconPosition = useCallback((app: Application) => {
+    return dragPositions[app.id]
+      ?? (autoArrangeIcons ? gridPositions.get(app.id) : (app.iconPosition ?? gridPositions.get(app.id)))
+  }, [autoArrangeIcons, dragPositions, gridPositions])
+
+  useEffect(() => {
+    if (!autoArrangeIcons) return
+    iconDragRef.current = null
+    setDraggingId(null)
+    setDragPositions({})
+  }, [autoArrangeIcons])
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const session = iconDragRef.current
+      const desktopBounds = desktopRef.current?.getBoundingClientRect()
+      if (!session || !desktopBounds || autoArrangeIcons) return
+
+      const movedEnough = Math.hypot(
+        event.clientX - session.pointerStart.x,
+        event.clientY - session.pointerStart.y,
+      ) >= DRAG_THRESHOLD_PX
+
+      if (!session.moved && !movedEnough) return
+      if (!session.moved) {
+        session.moved = true
+        setSelectedId(null)
+        setDraggingId(session.appId)
+      }
+
+      const next = clampIconPosition(
+        {
+          x: event.clientX - desktopBounds.left - session.pointerOffset.x,
+          y: event.clientY - desktopBounds.top - session.pointerOffset.y,
+        },
+        session.iconSize,
+        { width: desktopBounds.width, height: desktopBounds.height },
+      )
+
+      session.currentPosition = next
+      setDragPositions((prev) => {
+        const current = prev[session.appId]
+        if (current && current.x === next.x && current.y === next.y) return prev
+        return { ...prev, [session.appId]: next }
+      })
+    }
+
+    const handleMouseUp = () => {
+      const session = iconDragRef.current
+      if (!session) return
+
+      iconDragRef.current = null
+      setDraggingId(null)
+
+      if (!session.moved) return
+
+      suppressClickRef.current = true
+      patchApplicationConfig(session.appId, { iconPosition: session.currentPosition })
+        .then(() => clearDragOverride(session.appId))
+        .catch(() => clearDragOverride(session.appId))
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [autoArrangeIcons, clearDragOverride])
+
   const handleLaunch = (app: Application) => {
     setSelectedId(null)
     setStartMenuOpen(false)
@@ -416,6 +541,32 @@ export function Desktop({ apps }: DesktopProps) {
     setContextMenu({ x: e.clientX, y: e.clientY, type: 'desktop' })
   }
 
+  const handleIconMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>, app: Application) => {
+    if (event.button !== 0 || autoArrangeIcons) return
+
+    const desktopBounds = desktopRef.current?.getBoundingClientRect()
+    const position = resolveIconPosition(app)
+    if (!desktopBounds || !position) return
+
+    setStartMenuOpen(false)
+    setContextMenu(null)
+
+    iconDragRef.current = {
+      appId: app.id,
+      iconSize: resolveIconSize(app, defaultIconSize),
+      pointerStart: { x: event.clientX, y: event.clientY },
+      pointerOffset: {
+        x: event.clientX - desktopBounds.left - position.x,
+        y: event.clientY - desktopBounds.top - position.y,
+      },
+      currentPosition: position,
+      moved: false,
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+  }, [autoArrangeIcons, defaultIconSize, resolveIconPosition])
+
   const handleIconContextMenu = useCallback((e: React.MouseEvent, app: Application) => {
     e.preventDefault()
     e.stopPropagation()
@@ -435,27 +586,32 @@ export function Desktop({ apps }: DesktopProps) {
     <div
       ref={desktopRef}
       className={`desktop ${THEME_CLASSNAME[desktopConfig.theme]}`}
-      style={{ ...themeStyle, ...wallpaperStyle }}
+      style={themeStyle}
       onMouseDown={handleDesktopMouseDown}
       onContextMenu={handleDesktopContextMenu}
     >
       {/* Desktop icon canvas */}
       <div className="desktop-icons" onMouseDown={(e) => e.stopPropagation()}>
         {desktopApps.map((app, index) => {
-          const resolvedPos = autoArrangeIcons
-            ? gridPositions.get(app.id)
-            : (app.iconPosition ?? gridPositions.get(app.id))
+          const resolvedPos = resolveIconPosition(app)
+          const resolvedSize = resolveIconSize(app, defaultIconSize)
           return (
             <AppIcon
               key={app.id}
               app={app}
               position={resolvedPos}
+              size={resolvedSize}
               selected={selectedId === app.id}
               animationMode={desktopConfig.iconAnimation}
+              motionAmount={desktopConfig.iconMotion}
               animationSeed={index}
               reactive={desktopConfig.iconAnimation === 'reactive' && reactiveIconId === app.id}
+              draggable={!autoArrangeIcons}
+              dragging={draggingId === app.id}
               onSelect={() => { setSelectedId(app.id); closeMenus() }}
               onLaunch={() => handleLaunch(app)}
+              onMouseDown={(event) => handleIconMouseDown(event, app)}
+              consumeClickSuppression={consumeClickSuppression}
               onContextMenu={(e) => handleIconContextMenu(e, app)}
             />
           )
