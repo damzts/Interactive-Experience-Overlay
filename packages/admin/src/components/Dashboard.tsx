@@ -1910,6 +1910,58 @@ function DesktopConfigEditor() {
           </div>
         ))}
       </Panel>
+      <Panel title="Desktop Automation">
+        <div className="text-[10px] text-zinc-500 mb-2">Simulates random user activity by toggling widgets at intervals.</div>
+        <Toggle checked={form.desktopAutomation?.enabled ?? false} onChange={(v) => update((d) => {
+          if (!d.desktopAutomation) d.desktopAutomation = { enabled: false, intervalMin: 30, intervalMax: 120, eligibleWidgets: ['music', 'chat', 'archive', 'sticky-notes'], toggleProbability: 0.7 }
+          d.desktopAutomation.enabled = v
+        })} label="Enable automation" />
+        {(form.desktopAutomation?.enabled ?? false) && (
+          <div className="mt-3 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Min interval (sec)</div>
+                <input type="number" min={5} max={300} value={form.desktopAutomation?.intervalMin ?? 30}
+                  onChange={(e) => update((d) => { if (d.desktopAutomation) d.desktopAutomation.intervalMin = Number(e.target.value) })}
+                  className="w-full font-mono text-xs" />
+              </div>
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Max interval (sec)</div>
+                <input type="number" min={5} max={300} value={form.desktopAutomation?.intervalMax ?? 120}
+                  onChange={(e) => update((d) => { if (d.desktopAutomation) d.desktopAutomation.intervalMax = Number(e.target.value) })}
+                  className="w-full font-mono text-xs" />
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Eligible widgets</div>
+              <div className="flex flex-wrap gap-1">
+                {['music', 'chat', 'archive', 'sticky-notes'].map((widgetId) => (
+                  <button key={widgetId}
+                    onClick={() => update((d) => {
+                      if (!d.desktopAutomation) return
+                      const idx = d.desktopAutomation.eligibleWidgets.indexOf(widgetId)
+                      if (idx >= 0) d.desktopAutomation.eligibleWidgets.splice(idx, 1)
+                      else d.desktopAutomation.eligibleWidgets.push(widgetId)
+                    })}
+                    className={`px-2 py-1 text-[10px] rounded border ${
+                      (form.desktopAutomation?.eligibleWidgets ?? []).includes(widgetId)
+                        ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300'
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-100'
+                    }`}>
+                    {widgetId}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Toggle probability (0-1)</div>
+              <input type="number" min={0} max={1} step={0.1} value={form.desktopAutomation?.toggleProbability ?? 0.7}
+                onChange={(e) => update((d) => { if (d.desktopAutomation) d.desktopAutomation.toggleProbability = Number(e.target.value) })}
+                className="w-20 font-mono text-xs" />
+            </div>
+          </div>
+        )}
+      </Panel>
       <Panel title="Socket Tests">
         <div className="space-y-2">
           <div>
