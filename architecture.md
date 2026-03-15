@@ -172,6 +172,10 @@ The flat `assets/sfx/` and `assets/music/` directories at the repo root are lega
 
 The state machine is the core of the server. It manages two implemented states: **LOBBY** (3D room) and **DESKTOP** (Win98 OS layer). A `TRANSITIONING` sentinel value exists in the enum to block navigating to a transient state, but it is not a real destination.
 
+These fixed states exist because they switch **renderer ownership**, not just scene data. That means when the overlay is settled in **DESKTOP**, LobbyScene is not just hidden, it is not mounted at all, so there is no active R3F canvas, no lobby render loop, and no per-frame Three.js scene traversal for that part, that means the ongoing lobby 3D compute cost is removed.
+
+The current implementation is also not perfectly symmetrical: `Desktop` stays mounted and is CSS-hidden outside **DESKTOP**, so **LOBBY** still carries some background desktop React/UI overhead even though the visible surface is the 3D room.
+
 When a scene change is requested, the server resolves `exit` and `intro` pipeline arrays before touching the machine. Resolution order (first match wins):
 1. App-level `exitTransitions` / `introTransitions` arrays on the matching `Application` record
 2. App-level deprecated single-string `exitTransition` / `introTransition` fields (wrapped into a one-element array)
