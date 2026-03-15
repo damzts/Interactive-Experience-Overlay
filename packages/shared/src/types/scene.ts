@@ -81,6 +81,15 @@ export interface Application {
     /** Milliseconds to wait after firing effects before emitting scene:change */
     delayMs: number
   }
+  /** Optional per-widget settings for the gallery widget runtime behavior. */
+  gallerySettings?: {
+    /** If true, automatic and play-step progression picks random images. */
+    randomOrder?: boolean
+    /** If true, gallery advances automatically by intervalSec. */
+    autoPlay?: boolean
+    /** Auto-play interval in seconds. */
+    intervalSec?: number
+  }
 }
 
 /** A scene is an ordered list of source instances */
@@ -195,14 +204,6 @@ export interface DesktopConfig {
     click: string
     close: string
   }
-  /** Desktop automation settings for simulating user activity. */
-  desktopAutomation: {
-    enabled: boolean
-    intervalMin: number
-    intervalMax: number
-    eligibleWidgets: string[]
-    toggleProbability: number
-  }
 }
 
 // ── Media Library ──────────────────────────────────────────────
@@ -257,6 +258,33 @@ export interface EventConfig {
   auto: AutoTrigger
 }
 
+// ── Desktop Ambiance (AI Simulation) ────────────────────────────
+
+export interface AmbianceWidgetBehavior {
+  /** Is this widget included in the ambiance simulation? */
+  enabled: boolean
+  /** Chance (0-1) to open this widget if it's closed during a tick. */
+  openChance: number
+  /** Chance (0-1) to close this widget if it's open during a tick. */
+  closeChance: number
+}
+
+export interface AmbianceWidgetSimulationConfig {
+  /** Is the widget simulation active? */
+  enabled: boolean
+  /** How often (in seconds) the manager should evaluate actions. */
+  intervalSeconds: number
+  /**
+   * Per-widget behavior overrides. If a widget's ID is not in this map,
+   * it won't be part of the simulation.
+   */
+  behaviors: Record<string, AmbianceWidgetBehavior>
+}
+
+export interface DesktopAmbianceConfig {
+  widgetSimulation: AmbianceWidgetSimulationConfig
+}
+
 // ── Root config ─────────────────────────────────────────────────
 
 /** Root application config — stored in server memory (v1) */
@@ -278,6 +306,7 @@ export interface AppConfig {
   }
   overlayStyle: OverlayStyle
   desktopConfig?: DesktopConfig
+  desktopAmbiance?: DesktopAmbianceConfig
   /** Saved event definitions. Falls back to DEFAULT_CONFIG.events if absent. */
   events?: EventConfig[]
   /** Centralised media asset library (images / videos) used by TransitionPicker. */

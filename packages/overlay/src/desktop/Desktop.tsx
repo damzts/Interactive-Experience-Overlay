@@ -10,12 +10,19 @@ import { MusicWidget } from './MusicWidget'
 import { ArchiveWidget } from './ArchiveWidget'
 import { ChatWidget } from './ChatWidget'
 import { StickyNotesWidget } from './StickyNotesWidget'
+import { GalleryWidget } from './GalleryWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
 import { patchApplicationConfig } from './configPersistence'
+import { CursorOverlayProvider } from './CursorOverlay'
+import { CursorSimExample } from './CursorSimExample'
+import { closeWidgetByWindowButton, runWidgetCursorSimulation } from './cursorSimUtils';
+import { getWidgetSimulationRecipe } from './widgetSimulationRegistry';
+import React from 'react';
 
 interface DesktopWidgetProps {
+  appId?: string
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void
@@ -30,6 +37,14 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>>
   spotify:      MusicWidget,
   chat:         ChatWidget,
   'sticky-notes': StickyNotesWidget,
+  gallery:      GalleryWidget,
+}
+
+const SUPPORTED_WIDGET_IDS = new Set(Object.keys(WIDGET_COMPONENTS))
+
+function resolveWidgetComponent(appId: string) {
+  if (WIDGET_COMPONENTS[appId]) return WIDGET_COMPONENTS[appId]
+  return null
 }
 
 const THEME_CLASSNAME: Record<DesktopTheme, string> = {
@@ -100,9 +115,9 @@ function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textCol
   const customAccent = accentColor.startsWith('#') ? accentColor : '#2f70c8'
   const customText = textColor || '#ffffff'
   const opaqueCustomText = opaqueHexColor(customText, '#ffffff')
-  const hasAccentOverride = theme === 'custom' || customAccent.toLowerCase() !== DEFAULT_DESKTOP_STYLE.accentColor.toLowerCase()
-  const hasTextOverride = theme === 'custom' || customText.toLowerCase() !== DEFAULT_DESKTOP_STYLE.textColor.toLowerCase()
-  const hasFontOverride = fontFamily !== 'default' && fontFamily !== DEFAULT_DESKTOP_STYLE.fontFamily
+  const hasAccentOverride = theme === 'custom' || (DEFAULT_DESKTOP_STYLE && customAccent.toLowerCase() !== DEFAULT_DESKTOP_STYLE.accentColor.toLowerCase())
+  const hasTextOverride = theme === 'custom' || (DEFAULT_DESKTOP_STYLE && customText.toLowerCase() !== DEFAULT_DESKTOP_STYLE.textColor.toLowerCase())
+  const hasFontOverride = fontFamily !== 'default' && (DEFAULT_DESKTOP_STYLE && fontFamily !== DEFAULT_DESKTOP_STYLE.fontFamily)
 
   const vars: Record<string, string> = {
     '--desktop-panel': '#c0c0c0',
@@ -344,10 +359,137 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopRef = useRef<HTMLDivElement>(null)
   const iconDragRef = useRef<IconDragSession | null>(null)
   const suppressClickRef = useRef(false)
+  const simLastActionAtByWidgetRef = useRef<Map<string, number>>(new Map())
+  const simLastWidgetIdRef = useRef<string | null>(null)
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
+  const supportedApps = useMemo(
+    () => apps.filter((app) => app.appType !== 'widget' || SUPPORTED_WIDGET_IDS.has(app.id)),
+    [apps],
+  )
+
+  // Ambiance widget simulation config
+  const widgetSimConfig = config.desktopAmbiance?.widgetSimulation;
+  // Ambiance simulation interval
+  useEffect(() => {
+    const cursor = (window as any).__cursorOverlayController;
+    if (!widgetSimConfig || !widgetSimConfig.enabled) return;
+    if (!cursor) return;
+    cursor.setVisible(true);
+    let stopped = false;
+    let timer: any;
+    const intervalMs = ((widgetSimConfig && widgetSimConfig.intervalSeconds) || 10) * 1000;
+    const minActionGapMs = Math.max(1500, Math.round(intervalMs * 0.8));
+    type SimulationAction = { kind: 'open' | 'close'; widgetId: string; app: Application };
+    const actionQueue: SimulationAction[] = [];
+    const queuedActionKeys = new Set<string>();
+    let processingQueue = false;
+    const lastActionAtByWidget = simLastActionAtByWidgetRef.current;
+
+    const actionKey = (action: SimulationAction) => `${action.kind}:${action.widgetId}`;
+
+    const enqueueAction = (action: SimulationAction) => {
+      const key = actionKey(action);
+      if (queuedActionKeys.has(key)) return;
+      queuedActionKeys.add(key);
+      actionQueue.push(action);
+    };
+
+    async function processQueue() {
+      if (processingQueue || stopped) return;
+      processingQueue = true;
+      try {
+        while (!stopped && actionQueue.length > 0) {
+          const action = actionQueue.shift();
+          if (!action) continue;
+          queuedActionKeys.delete(actionKey(action));
+          let executed = false;
+
+          if (action.kind === 'close') {
+            executed = await closeWidgetByWindowButton(cursor, action.widgetId, action.app.label);
+          } else {
+            const recipe = getWidgetSimulationRecipe(action.app);
+            executed = await runWidgetCursorSimulation(cursor, action.app.label, { menuPath: recipe.menuPath(action.app) });
+          }
+
+          if (executed) {
+            lastActionAtByWidget.set(action.widgetId, Date.now());
+          }
+
+          const humanPauseMs = 220 + Math.floor(Math.random() * 460);
+          await new Promise((resolve) => setTimeout(resolve, humanPauseMs));
+        }
+      } finally {
+        processingQueue = false;
+      }
+    }
+
+    async function tick() {
+      if (stopped) return;
+      const behaviors = widgetSimConfig?.behaviors ?? {};
+      const enabledEntries = Object.entries(behaviors).filter(([, behavior]) => behavior?.enabled) as Array<[string, { openChance?: number; closeChance?: number }]>;
+      const openNow = useAppStore.getState().openWidgets;
+
+      const candidates: SimulationAction[] = [];
+      for (const [widgetId, behavior] of enabledEntries) {
+        const app = supportedApps.find((candidate) => candidate.id === widgetId && candidate.appType === 'widget');
+        if (!app) continue;
+
+        const lastActionAt = lastActionAtByWidget.get(widgetId) ?? 0;
+        if (Date.now() - lastActionAt < minActionGapMs) continue;
+
+        const isOpen = openNow.has(widgetId);
+        if (isOpen) {
+          if (Math.random() < (behavior.closeChance ?? 0)) {
+            candidates.push({ kind: 'close', widgetId, app });
+          }
+        } else if (Math.random() < (behavior.openChance ?? 1)) {
+          candidates.push({ kind: 'open', widgetId, app });
+        }
+      }
+
+      if (candidates.length > 0) {
+        // Weighted random pick: prefer widgets that have been idle longer,
+        // but avoid repeating the same widget too often to feel more human.
+        const now = Date.now();
+        const lastWidgetId = simLastWidgetIdRef.current;
+        const weights = candidates.map((candidate) => {
+          const age = now - (lastActionAtByWidget.get(candidate.widgetId) ?? 0);
+          let weight = Math.max(0.1, age / Math.max(1, minActionGapMs));
+          if (lastWidgetId && candidate.widgetId === lastWidgetId && candidates.some((c) => c.widgetId !== lastWidgetId)) {
+            weight *= 0.2;
+          }
+          weight += Math.random() * 0.75;
+          return weight;
+        });
+
+        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+        let target = Math.random() * totalWeight;
+        let picked = candidates[candidates.length - 1];
+        for (let i = 0; i < candidates.length; i++) {
+          target -= weights[i];
+          if (target <= 0) {
+            picked = candidates[i];
+            break;
+          }
+        }
+
+        enqueueAction(picked);
+        simLastWidgetIdRef.current = picked.widgetId;
+      }
+
+      void processQueue();
+      timer = setTimeout(tick, intervalMs);
+    }
+    timer = setTimeout(tick, intervalMs);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      cursor.setVisible(false);
+    };
+  }, [widgetSimConfig, supportedApps]);
 
   const themeStyle = useMemo(
     () => buildDesktopThemeVars(
@@ -360,14 +502,14 @@ export function Desktop({ apps }: DesktopProps) {
   )
 
   const desktopApps = useMemo(
-    () => apps.map((app) => {
+    () => supportedApps.map((app) => {
       if (app.id !== 'recycle-bin') return app
       return {
         ...app,
         icon: recycleBinFull ? desktopConfig.recycleBin.fullIcon : desktopConfig.recycleBin.emptyIcon,
       }
     }),
-    [apps, desktopConfig.recycleBin.emptyIcon, desktopConfig.recycleBin.fullIcon, recycleBinFull],
+    [supportedApps, desktopConfig.recycleBin.emptyIcon, desktopConfig.recycleBin.fullIcon, recycleBinFull],
   )
 
   const autoArrangeIcons = desktopConfig.autoArrangeIcons
@@ -512,8 +654,13 @@ export function Desktop({ apps }: DesktopProps) {
     setSelectedId(null)
     setStartMenuOpen(false)
 
-    // Widgets are floating windows — toggle open/closed, no state change.
-    if (app.appType === 'widget') { socket.emit('widget:toggle', app.id); return }
+    // Widgets open only during cursor simulation.
+    if (app.appType === 'widget') {
+      if ((window as any).__simulatingCursorClick) {
+        socket.emit('widget:toggle', app.id)
+      }
+      return
+    }
     if (app.appType !== 'scene') return
 
     if (app.launchPipeline && app.launchPipeline.effects.length > 0) {
@@ -583,154 +730,162 @@ export function Desktop({ apps }: DesktopProps) {
   const iconMenuLaunchable = contextMenu?.app?.appType === 'scene' || contextMenu?.app?.appType === 'widget'
 
   return (
-    <div
-      ref={desktopRef}
-      className={`desktop ${THEME_CLASSNAME[desktopConfig.theme]}`}
-      style={themeStyle}
-      onMouseDown={handleDesktopMouseDown}
-      onContextMenu={handleDesktopContextMenu}
-    >
-      {/* Desktop icon canvas */}
-      <div className="desktop-icons" onMouseDown={(e) => e.stopPropagation()}>
-        {desktopApps.map((app, index) => {
-          const resolvedPos = resolveIconPosition(app)
-          const resolvedSize = resolveIconSize(app, defaultIconSize)
-          return (
-            <AppIcon
-              key={app.id}
-              app={app}
-              position={resolvedPos}
-              size={resolvedSize}
-              selected={selectedId === app.id}
-              animationMode={desktopConfig.iconAnimation}
-              motionAmount={desktopConfig.iconMotion}
-              animationSeed={index}
-              reactive={desktopConfig.iconAnimation === 'reactive' && reactiveIconId === app.id}
-              draggable={!autoArrangeIcons}
-              dragging={draggingId === app.id}
-              onSelect={() => { setSelectedId(app.id); closeMenus() }}
-              onLaunch={() => handleLaunch(app)}
-              onMouseDown={(event) => handleIconMouseDown(event, app)}
-              consumeClickSuppression={consumeClickSuppression}
-              onContextMenu={(e) => handleIconContextMenu(e, app)}
-            />
-          )
+    <CursorOverlayProvider>
+      <CursorSimExample />
+      <div
+        ref={desktopRef}
+        className={`desktop ${THEME_CLASSNAME[desktopConfig.theme]}`}
+        style={themeStyle}
+        onMouseDown={handleDesktopMouseDown}
+        onContextMenu={handleDesktopContextMenu}
+      >
+        {/* Desktop icon canvas */}
+        <div className="desktop-icons" onMouseDown={(e) => e.stopPropagation()}>
+          {desktopApps.map((app, index) => {
+            const resolvedPos = resolveIconPosition(app)
+            const resolvedSize = resolveIconSize(app, defaultIconSize)
+            return (
+              <AppIcon
+                key={app.id}
+                app={app}
+                position={resolvedPos}
+                size={resolvedSize}
+                selected={selectedId === app.id}
+                animationMode={desktopConfig.iconAnimation}
+                motionAmount={desktopConfig.iconMotion}
+                animationSeed={index}
+                reactive={desktopConfig.iconAnimation === 'reactive' && reactiveIconId === app.id}
+                draggable={!autoArrangeIcons}
+                dragging={draggingId === app.id}
+                onSelect={() => { setSelectedId(app.id); closeMenus() }}
+                onLaunch={() => handleLaunch(app)}
+                onMouseDown={(event) => handleIconMouseDown(event, app)}
+                consumeClickSuppression={consumeClickSuppression}
+                onContextMenu={(e) => handleIconContextMenu(e, app)}
+              />
+            )
+          })}
+        </div>
+
+        {/* Start Menu */}
+        {startMenuOpen && (
+          <div className="start-menu" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="start-menu-banner">
+              <span className="start-menu-banner-text">IEOM</span>
+            </div>
+            <div className="start-menu-items">
+              {/* Programs sub-list */}
+              <div className="start-menu-item start-menu-item--has-sub">
+                <span className="start-menu-item-icon">📂</span>
+                <span className="start-menu-item-label">Programs</span>
+                <span className="start-menu-item-arrow">▶</span>
+                <div className="start-menu-sub">
+                  {launchableApps.map((app) => (
+                    <button
+                      key={app.id}
+                      className="start-menu-sub-item"
+                      onClick={() => {
+                        // Only allow widget open if a simulation flag is set (by cursor simulation)
+                        if (app.appType === 'widget' && !(window as any).__simulatingCursorClick) return;
+                        handleLaunch(app);
+                      }}
+                    >
+                      <AppGlyph icon={app.icon} label={app.label} size={16} />
+                      <span>{app.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="start-menu-separator" />
+
+              <button
+                className="start-menu-item"
+                onClick={() => { socket.emit('scene:change', STATE.LOBBY); closeMenus() }}
+              >
+                <span className="start-menu-item-icon">🖥</span>
+                <span className="start-menu-item-label">LOBBY</span>
+              </button>
+
+              <div className="start-menu-separator" />
+
+              <button
+                className="start-menu-item start-menu-item--danger"
+                onClick={() => { socket.emit('panic'); closeMenus() }}
+              >
+                <span className="start-menu-item-icon">🔴</span>
+                <span className="start-menu-item-label">PANIC</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <div
+            className="context-menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {contextMenu.type === 'desktop' ? (
+              <>
+                <button className="context-menu-item context-menu-item--disabled">Arrange Icons</button>
+                <button className="context-menu-item" onClick={closeMenus}>Refresh</button>
+                <div className="context-menu-separator" />
+                <button className="context-menu-item context-menu-item--disabled">New Folder</button>
+                <div className="context-menu-separator" />
+                <button className="context-menu-item context-menu-item--disabled">Properties</button>
+              </>
+            ) : (
+              <>
+                <button
+                  className={`context-menu-item context-menu-item--bold${iconMenuLaunchable ? '' : ' context-menu-item--disabled'}`}
+                  onClick={() => { if (contextMenu.app && iconMenuLaunchable) handleLaunch(contextMenu.app) }}
+                >
+                  Open
+                </button>
+                <div className="context-menu-separator" />
+                <button className="context-menu-item context-menu-item--disabled">Create Shortcut</button>
+                <button className="context-menu-item context-menu-item--disabled">Delete</button>
+                <button className="context-menu-item context-menu-item--disabled">Rename</button>
+                <div className="context-menu-separator" />
+                <button className="context-menu-item context-menu-item--disabled">Properties</button>
+              </>
+            )}
+          </div>
+        )}
+
+        <DesktopNotifications />
+
+        <Taskbar
+          startMenuOpen={startMenuOpen}
+          onStartClick={() => { setStartMenuOpen((o) => !o); setContextMenu(null) }}
+        />
+
+        {/* Screen saver — activates after idle timeout if enabled */}
+        {ss && (
+          <ScreenSaver
+            enabled={ss.enabled}
+            timeoutMinutes={ss.timeoutMinutes}
+            preset={ss.preset}
+          />
+        )}
+
+        {/* Widget windows — rendered above desktop content (z=50 within desktop stacking context) */}
+        {visibleWidgets.map((a) => {
+          const WidgetComp = resolveWidgetComponent(a.id)
+          const widgetProps: DesktopWidgetProps = {
+            appId: a.id,
+            onClose: () => socket.emit('widget:toggle', a.id),
+            onMinimize: () => minimizeWidget(a.id),
+            onFocus: () => focusWidget(a.id),
+            windowState: closingWidgets.has(a.id) ? 'closing' : 'open',
+            zIndex: getWidgetZIndex(a.id),
+          }
+          if (WidgetComp) return <WidgetComp key={a.id} {...widgetProps} />
+          return <GenericWidget key={a.id} app={a} {...widgetProps} />
         })}
       </div>
-
-      {/* Start Menu */}
-      {startMenuOpen && (
-        <div className="start-menu" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="start-menu-banner">
-            <span className="start-menu-banner-text">IEOM</span>
-          </div>
-          <div className="start-menu-items">
-            {/* Programs sub-list */}
-            <div className="start-menu-item start-menu-item--has-sub">
-              <span className="start-menu-item-icon">📂</span>
-              <span className="start-menu-item-label">Programs</span>
-              <span className="start-menu-item-arrow">▶</span>
-              <div className="start-menu-sub">
-                {launchableApps.map((app) => (
-                  <button
-                    key={app.id}
-                    className="start-menu-sub-item"
-                    onClick={() => handleLaunch(app)}
-                  >
-                    <AppGlyph icon={app.icon} label={app.label} size={16} />
-                    <span>{app.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="start-menu-separator" />
-
-            <button
-              className="start-menu-item"
-              onClick={() => { socket.emit('scene:change', STATE.LOBBY); closeMenus() }}
-            >
-              <span className="start-menu-item-icon">🖥</span>
-              <span className="start-menu-item-label">LOBBY</span>
-            </button>
-
-            <div className="start-menu-separator" />
-
-            <button
-              className="start-menu-item start-menu-item--danger"
-              onClick={() => { socket.emit('panic'); closeMenus() }}
-            >
-              <span className="start-menu-item-icon">🔴</span>
-              <span className="start-menu-item-label">PANIC</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          className="context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {contextMenu.type === 'desktop' ? (
-            <>
-              <button className="context-menu-item context-menu-item--disabled">Arrange Icons</button>
-              <button className="context-menu-item" onClick={closeMenus}>Refresh</button>
-              <div className="context-menu-separator" />
-              <button className="context-menu-item context-menu-item--disabled">New Folder</button>
-              <div className="context-menu-separator" />
-              <button className="context-menu-item context-menu-item--disabled">Properties</button>
-            </>
-          ) : (
-            <>
-              <button
-                className={`context-menu-item context-menu-item--bold${iconMenuLaunchable ? '' : ' context-menu-item--disabled'}`}
-                onClick={() => { if (contextMenu.app && iconMenuLaunchable) handleLaunch(contextMenu.app) }}
-              >
-                Open
-              </button>
-              <div className="context-menu-separator" />
-              <button className="context-menu-item context-menu-item--disabled">Create Shortcut</button>
-              <button className="context-menu-item context-menu-item--disabled">Delete</button>
-              <button className="context-menu-item context-menu-item--disabled">Rename</button>
-              <div className="context-menu-separator" />
-              <button className="context-menu-item context-menu-item--disabled">Properties</button>
-            </>
-          )}
-        </div>
-      )}
-
-      <DesktopNotifications />
-
-      <Taskbar
-        startMenuOpen={startMenuOpen}
-        onStartClick={() => { setStartMenuOpen((o) => !o); setContextMenu(null) }}
-      />
-
-      {/* Screen saver — activates after idle timeout if enabled */}
-      {ss && (
-        <ScreenSaver
-          enabled={ss.enabled}
-          timeoutMinutes={ss.timeoutMinutes}
-          preset={ss.preset}
-        />
-      )}
-
-      {/* Widget windows — rendered above desktop content (z=50 within desktop stacking context) */}
-      {visibleWidgets.map((a) => {
-        const WidgetComp = WIDGET_COMPONENTS[a.id]
-        const widgetProps: DesktopWidgetProps = {
-          onClose: () => socket.emit('widget:toggle', a.id),
-          onMinimize: () => minimizeWidget(a.id),
-          onFocus: () => focusWidget(a.id),
-          windowState: closingWidgets.has(a.id) ? 'closing' : 'open',
-          zIndex: getWidgetZIndex(a.id),
-        }
-        if (WidgetComp) return <WidgetComp key={a.id} {...widgetProps} />
-        return <GenericWidget key={a.id} app={a} {...widgetProps} />
-      })}
-    </div>
+    </CursorOverlayProvider>
   )
 }

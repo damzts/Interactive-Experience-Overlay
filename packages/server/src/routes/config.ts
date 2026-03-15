@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, STATE, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
@@ -39,6 +39,7 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     },
     overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
     desktopConfig: withDesktopConfigDefaults(next.desktopConfig),
+    desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance),
     events: next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events),
     mediaLibrary: next.mediaLibrary ?? [],
   }
@@ -116,7 +117,6 @@ export async function configRoute(
             ...currentDesktop.widgetPositions,
             ...req.body.widgetPositions,
           },
-          desktopAutomation: req.body.desktopAutomation ?? currentDesktop.desktopAutomation,
         })
         save({ ...config, desktopConfig: nextDesktop })
         return { ok: true }

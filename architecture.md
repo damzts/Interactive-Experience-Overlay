@@ -176,8 +176,11 @@ Registered widgets (`WIDGET_COMPONENTS` in `Desktop.tsx`):
 | `archive` | ArchiveWidget | Session timer, state-change log |
 | `chat` | ChatWidget | Draggable chat window with message list |
 | `sticky-notes` | StickyNotesWidget | Persistent note text and color saved in DesktopConfig |
+| `gallery` | GalleryWidget | Random image gallery with manual next and auto-rotate |
 
 Any `appType: 'widget'` app with an unregistered ID falls back to `GenericWidget` — a minimal draggable Win98 window that shows the app icon and label.
+
+The admin widget-creation UX is template-based: operators add predefined widget IDs (for example `music`, `archive`, `chat`, `sticky-notes`, `gallery`) instead of creating arbitrary custom widget IDs.
 
 ### Transition Engine
 
@@ -286,7 +289,7 @@ The visual output is built from a fixed set of layers rendered in z-order. **Eac
 
 **Desktop** — The OS simulation shown in DESKTOP state. It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations (`pulse`, `float`, `jiggle`, `drift`, `orbit`, `breathe`, `reactive`) with a 0–300% motion-strength scalar, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images. Styled with 98.css plus desktop-specific CSS variables and overrides. Theme presets style only chrome; the desktop layer itself stays transparent unless the desktop scene Background config explicitly provides wallpaper/color through BackgroundLayer. When auto-arrange is off, icons can be dragged directly on the desktop and positions persist per application via `Application.iconPosition`; when no per-app `iconSize` is set, the desktop-wide default size from `DesktopConfig` is applied at render time. Desktop text color can still be authored with 8-digit hex for chrome, but icon labels and text-style glyph icons intentionally use the opaque RGB portion of that color so non-image icons do not disappear when alpha is zero. Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
 
-The built-in desktop widgets currently include Music, Archive, Chat, and Sticky Notes. The built-in decoration app is Recycle Bin.
+The built-in desktop widgets currently include Music, Archive, Chat, Sticky Notes, and Gallery. The built-in decoration app is Recycle Bin.
 
 **CSSEffectsLayer** — Overlays CSS effects across the entire frame: CRT scanlines, vignette, Perlin noise grain, opacity flicker, and chromatic aberration via mix-blend-mode.
 

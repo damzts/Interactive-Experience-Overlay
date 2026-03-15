@@ -3,6 +3,8 @@ dist/
 .env
 ieom.db
 *.db-journal
+*.db-wal
+*.db-shm
 *.log
 *.mp4
 *.mp3

@@ -1,3 +1,55 @@
+// Deep compare for config objects
+export function isSameDraft(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object' || a == null || b == null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!isSameDraft(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (!bKeys.includes(k)) return false;
+    if (!isSameDraft(a[k], b[k])) return false;
+  }
+  return true;
+}
+
+// Simple icon renderer for app icons
+export function IconGlyph({ icon, label, size = 24 }: { icon: string; label: string; size?: number }) {
+  return (
+    <span
+      title={label}
+      style={{ fontSize: size, display: 'inline-block', verticalAlign: 'middle' }}
+      aria-label={label}
+    >
+      {icon}
+    </span>
+  );
+}
+
+// ConfigApplyBar: wrapper for SaveBar with custom labels
+export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset }: {
+  label: string;
+  dirty: boolean;
+  saving: boolean;
+  saved: boolean;
+  onApply: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 mt-2 mb-2">
+      <span className="text-xs text-zinc-400 font-semibold">{label}</span>
+      <SaveBar dirty={dirty} saving={saving} saved={saved} onSave={onApply} onRevert={onReset} />
+    </div>
+  );
+}
 import { useEffect, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/

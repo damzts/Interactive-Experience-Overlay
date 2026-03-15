@@ -15,6 +15,7 @@ import { clearMediaCaches, mediaRoute } from './routes/media.js'
 import { archiveRoute } from './routes/archive.js'
 import { ObsBridge } from './obs/bridge.js'
 import { EventScheduler } from './events/scheduler.js'
+import { AmbianceManager } from './ambiance/manager.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -103,11 +104,12 @@ const io = new SocketIO(app.server, {
   transports: ['websocket', 'polling'],
 })
 
-// Auto-event scheduler — created before socket handlers so it can be passed in
-const scheduler = new EventScheduler(machine, io)
+// Managers for automated behaviors
+const scheduler = new EventScheduler(machine)
+const ambianceManager = new AmbianceManager(io)
 
-// Socket handlers receive scheduler reference so scene:change resets idle timer
-setupSocketHandlers(io, machine, scheduler)
+// Socket handlers wire up all managers
+setupSocketHandlers(io, machine, scheduler, ambianceManager)
 
 // REST routes
 await app.register(configRoute, { machine })
@@ -146,11 +148,13 @@ obsBridge.connect(getConfig().obs.url, getConfig().obs.password)
 
 machine.on('config:update', (config) => {
   obsBridge.updateConnection(config.obs.url, config.obs.password)
-  scheduler.restartDesktopAutomation()
+  scheduler.start()
+  ambianceManager.start()
 })
 
-// Start scheduler after all handlers are wired
+// Start managers after all handlers are wired
 scheduler.start()
+ambianceManager.start()
 
 await app.listen({ port: PORT, host: '0.0.0.0' })
 

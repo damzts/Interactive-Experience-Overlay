@@ -475,6 +475,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 /* Sub-menu */
 .start-menu-item--has-sub:hover .start-menu-sub { display: flex; }
+.start-menu-item--sim-open .start-menu-sub { display: flex; }
 .start-menu-sub {
   display: none;
   flex-direction: column;
@@ -505,6 +506,12 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   width: 100%;
 }
 .start-menu-sub-item:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+.start-menu-item--sim-hover,
+.start-menu-sub-item--sim-hover {
   background: #000080;
   color: #ffffff;
 }

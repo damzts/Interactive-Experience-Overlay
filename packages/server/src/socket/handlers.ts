@@ -17,6 +17,7 @@ import {
 import type { AppConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
+import type { AmbianceManager } from '../ambiance/manager.js'
 import { getConfig } from '../routes/config.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -83,9 +84,17 @@ function resolvePipelines(
   return { exit: exit ?? [], intro: intro ?? [] }
 }
 
-export function setupSocketHandlers(io: IO, machine: SceneMachine, scheduler?: EventScheduler) {
+export function setupSocketHandlers(
+  io: IO,
+  machine: SceneMachine,
+  scheduler: EventScheduler,
+  ambianceManager: AmbianceManager,
+) {
   const openWidgetIds = new Set<string>()
   let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
+
+  // Give managers access to live widget state
+  ambianceManager.setOpenWidgetIdsGetter(() => openWidgetIds)
 
   const getDesktopRuntimeState = (): DesktopRuntimeStatePayload => ({
     openWidgetIds: [...openWidgetIds],
