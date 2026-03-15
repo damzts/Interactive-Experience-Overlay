@@ -104,7 +104,7 @@ const io = new SocketIO(app.server, {
 })
 
 // Auto-event scheduler — created before socket handlers so it can be passed in
-const scheduler = new EventScheduler(machine)
+const scheduler = new EventScheduler(machine, io)
 
 // Socket handlers receive scheduler reference so scene:change resets idle timer
 setupSocketHandlers(io, machine, scheduler)
@@ -146,6 +146,7 @@ obsBridge.connect(getConfig().obs.url, getConfig().obs.password)
 
 machine.on('config:update', (config) => {
   obsBridge.updateConnection(config.obs.url, config.obs.password)
+  scheduler.restartDesktopAutomation()
 })
 
 // Start scheduler after all handlers are wired

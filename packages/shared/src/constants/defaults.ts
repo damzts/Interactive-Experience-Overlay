@@ -134,6 +134,13 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
     click: '',
     close: '',
   },
+  desktopAutomation: {
+    enabled: false,
+    intervalMin: 30,
+    intervalMax: 120,
+    eligibleWidgets: ['music', 'chat', 'archive', 'sticky-notes'],
+    toggleProbability: 0.7,
+  },
 }
 
 export const DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS = 6500
@@ -162,6 +169,10 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
     systemSounds: {
       ...DEFAULT_DESKTOP_CONFIG.systemSounds,
       ...source.systemSounds,
+    },
+    desktopAutomation: {
+      ...DEFAULT_DESKTOP_CONFIG.desktopAutomation,
+      ...source.desktopAutomation,
     },
   }
 }

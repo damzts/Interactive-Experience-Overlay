@@ -116,6 +116,7 @@ export async function configRoute(
             ...currentDesktop.widgetPositions,
             ...req.body.widgetPositions,
           },
+          desktopAutomation: req.body.desktopAutomation ?? currentDesktop.desktopAutomation,
         })
         save({ ...config, desktopConfig: nextDesktop })
         return { ok: true }

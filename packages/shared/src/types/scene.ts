@@ -195,6 +195,14 @@ export interface DesktopConfig {
     click: string
     close: string
   }
+  /** Desktop automation settings for simulating user activity. */
+  desktopAutomation: {
+    enabled: boolean
+    intervalMin: number
+    intervalMax: number
+    eligibleWidgets: string[]
+    toggleProbability: number
+  }
 }
 
 // ── Media Library ──────────────────────────────────────────────

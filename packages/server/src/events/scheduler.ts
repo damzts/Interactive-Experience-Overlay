@@ -3,6 +3,7 @@ import { STATE } from '@ieom/shared'
 import type { EventConfig } from '@ieom/shared'
 import { appendLog } from '../db/db.js'
 import { getConfig } from '../routes/config.js'
+import { Server } from 'socket.io'
 
 const TICK_MS = 5_000
 
@@ -20,8 +21,9 @@ export class EventScheduler {
   private lastActivityAt = Date.now()
   private intervalNextRunAt = new Map<string, number>()
   private idleTriggered = new Set<string>()
+  private desktopAutomationTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor(private machine: SceneMachine) {}
+  constructor(private machine: SceneMachine, private io: Server) {}
 
   /** Call this when the server is ready to start scheduling. */
   start() {
@@ -30,6 +32,7 @@ export class EventScheduler {
     this.intervalNextRunAt.clear()
     this.idleTriggered.clear()
     this.tickTimer = setInterval(() => this.evaluateEvents(), TICK_MS)
+    this.startDesktopAutomation()
     this.evaluateEvents()
     console.log('[scheduler] auto-event scheduler started')
   }
@@ -37,11 +40,17 @@ export class EventScheduler {
   stop() {
     if (this.tickTimer) clearInterval(this.tickTimer)
     this.tickTimer = null
+    this.stopDesktopAutomation()
   }
 
   noteActivity() {
     this.lastActivityAt = Date.now()
     this.idleTriggered.clear()
+  }
+
+  restartDesktopAutomation() {
+    this.stopDesktopAutomation()
+    this.startDesktopAutomation()
   }
 
   private fireEvent(eventDef: EventConfig) {
@@ -84,5 +93,38 @@ export class EventScheduler {
       this.fireEvent(eventDef)
       this.idleTriggered.add(eventDef.id)
     })
+  }
+
+  private startDesktopAutomation() {
+    this.stopDesktopAutomation()
+    const config = getConfig()
+    if (!config.desktopConfig?.desktopAutomation?.enabled) return
+
+    const scheduleNext = () => {
+      const delay = Math.random() * (config.desktopConfig!.desktopAutomation!.intervalMax - config.desktopConfig!.desktopAutomation!.intervalMin) + config.desktopConfig!.desktopAutomation!.intervalMin
+      this.desktopAutomationTimer = setTimeout(() => {
+        this.performDesktopAutomation()
+        scheduleNext()
+      }, delay * 1000)
+    }
+    scheduleNext()
+    console.log('[scheduler] desktop automation started')
+  }
+
+  private stopDesktopAutomation() {
+    if (this.desktopAutomationTimer) {
+      clearTimeout(this.desktopAutomationTimer)
+      this.desktopAutomationTimer = null
+    }
+  }
+
+  private performDesktopAutomation() {
+    const config = getConfig()
+    if (!config.desktopConfig?.desktopAutomation?.enabled || config.desktopConfig.desktopAutomation.eligibleWidgets.length === 0) return
+
+    const widgetId = config.desktopConfig.desktopAutomation.eligibleWidgets[Math.floor(Math.random() * config.desktopConfig.desktopAutomation.eligibleWidgets.length)]
+    // Emit toggle to simulate user interaction
+    this.io.emit('widget:toggle', widgetId)
+    console.log(`[scheduler] auto-toggled widget: ${widgetId}`)
   }
 }
