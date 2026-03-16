@@ -400,13 +400,13 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   overlayStyle: {
     background: {
-      type: 'gradient',
+      type: 'none',
       color: '#000000',
       gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
       imageUrl: '',
       videoUrl: '',
       pattern: 'none',
-      opacity: 1,
+      opacity: 0,
       blur: 0,
     },
     effects: {
