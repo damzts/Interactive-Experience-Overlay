@@ -4,20 +4,45 @@ import { DEFAULT_CONFIG, STATE, withDesktopAmbianceDefaults, withDesktopConfigDe
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
-const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes', 'chat'])
+const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes', 'chat', 'gallery'])
 
 function withConfigDefaults(next: AppConfig): AppConfig {
   const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
-  const applications = [...next.applications]
+  let applications = [...next.applications]
   const lobbyScene = next.scenes[STATE.LOBBY] ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
   const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
   const defaultLobbyStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style ?? DEFAULT_CONFIG.overlayStyle)
   const defaultDesktopStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.DESKTOP].style ?? DEFAULT_CONFIG.overlayStyle)
 
+  // Legacy migration: old configs used `browser` widget id. Replace with `gallery`.
+  const hasGallery = applications.some((app) => app.id === 'gallery' && app.appType === 'widget')
+  if (!hasGallery) {
+    applications = applications.map((app) => {
+      if (app.id !== 'browser' || app.appType !== 'widget') return app
+      return {
+        ...app,
+        id: 'gallery',
+        label: app.label === 'Browser.exe' ? 'GALLERY.exe' : app.label,
+        icon: app.icon === '🌐' ? '🖼' : app.icon,
+      }
+    })
+  } else {
+    applications = applications.filter((app) => !(app.id === 'browser' && app.appType === 'widget'))
+  }
+
   for (const app of requiredApps) {
     if (!applications.some((existing) => existing.id === app.id)) {
       applications.push(structuredClone(app))
     }
+  }
+
+  const migratedAmbiance = structuredClone(next.desktopAmbiance ?? {}) as Partial<NonNullable<AppConfig['desktopAmbiance']>>
+  const behaviors = migratedAmbiance.widgetSimulation?.behaviors
+  if (behaviors?.browser && !behaviors.gallery) {
+    behaviors.gallery = behaviors.browser
+  }
+  if (behaviors?.browser) {
+    delete behaviors.browser
   }
 
   return {
@@ -39,7 +64,7 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     },
     overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
     desktopConfig: withDesktopConfigDefaults(next.desktopConfig),
-    desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance),
+    desktopAmbiance: withDesktopAmbianceDefaults(migratedAmbiance),
     events: next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events),
     mediaLibrary: next.mediaLibrary ?? [],
   }
@@ -116,6 +141,10 @@ export async function configRoute(
           widgetPositions: {
             ...currentDesktop.widgetPositions,
             ...req.body.widgetPositions,
+          },
+          widgetSizes: {
+            ...currentDesktop.widgetSizes,
+            ...req.body.widgetSizes,
           },
         })
         save({ ...config, desktopConfig: nextDesktop })

@@ -92,6 +92,9 @@ export function setupSocketHandlers(
 ) {
   const openWidgetIds = new Set<string>()
   let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
+  let simulationLeaderSocketId: string | null = null
+  let acceptedSimulatedToggles = 0
+  let rejectedSimulatedToggles = 0
 
   // Give managers access to live widget state
   ambianceManager.setOpenWidgetIdsGetter(() => openWidgetIds)
@@ -105,6 +108,26 @@ export function setupSocketHandlers(
     if (openWidgetIds.has(widgetId)) openWidgetIds.delete(widgetId)
     else openWidgetIds.add(widgetId)
     io.emit('widget:toggle', widgetId)
+  }
+
+  const emitSimulationLeader = () => {
+    io.emit('ambiance:leader', { socketId: simulationLeaderSocketId })
+  }
+
+  const emitSimulationMetrics = () => {
+    io.emit('ambiance:metrics', {
+      accepted: acceptedSimulatedToggles,
+      rejected: rejectedSimulatedToggles,
+    })
+  }
+
+  const electSimulationLeaderIfNeeded = () => {
+    if (simulationLeaderSocketId && io.sockets.sockets.has(simulationLeaderSocketId)) {
+      return
+    }
+    const next = io.sockets.sockets.keys().next()
+    simulationLeaderSocketId = next.done ? null : next.value
+    emitSimulationLeader()
   }
 
   const triggerConfiguredEvent = (eventId: string): { ok: boolean; error?: string } => {
@@ -193,8 +216,23 @@ export function setupSocketHandlers(
   io.on('connection', (socket: AppSocket) => {
     console.log(`[socket] connected: ${socket.id}`)
 
+    if (!simulationLeaderSocketId) {
+      simulationLeaderSocketId = socket.id
+      emitSimulationLeader()
+    } else {
+      socket.emit('ambiance:leader', { socketId: simulationLeaderSocketId })
+    }
+    socket.emit('ambiance:metrics', {
+      accepted: acceptedSimulatedToggles,
+      rejected: rejectedSimulatedToggles,
+    })
+
     socket.on('state:request', (callback) => {
       callback(machine.currentState)
+    })
+
+    socket.on('ambiance:leader:request', (callback) => {
+      callback({ socketId: simulationLeaderSocketId })
     })
 
     socket.on('desktop:state:request', (callback) => {
@@ -235,6 +273,32 @@ export function setupSocketHandlers(
       toggleWidgetRuntime(widgetId)
     })
 
+    socket.on('widget:simulate', (widgetId: string) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        rejectedSimulatedToggles += 1
+        emitSimulationMetrics()
+        console.warn(`[ambiance] Ignored simulated widget toggle from non-leader ${socket.id} for ${widgetId}`)
+        return
+      }
+      acceptedSimulatedToggles += 1
+      emitSimulationMetrics()
+      toggleWidgetRuntime(widgetId)
+    })
+
+    socket.on('cursor:mirror', (payload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      socket.broadcast.emit('cursor:mirror', payload)
+    })
+
+    socket.on('cursor:mirror:menu-timeline', (payload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      socket.broadcast.emit('cursor:mirror:menu-timeline', payload)
+    })
+
     socket.on('desktop:notify', (payload: DesktopNotificationPayload) => {
       scheduler?.noteActivity()
       io.emit('desktop:notify', payload)
@@ -261,6 +325,10 @@ export function setupSocketHandlers(
 
     socket.on('disconnect', () => {
       console.log(`[socket] disconnected: ${socket.id}`)
+      if (socket.id === simulationLeaderSocketId) {
+        simulationLeaderSocketId = null
+        electSimulationLeaderIfNeeded()
+      }
     })
   })
 }

@@ -87,8 +87,8 @@ export function MusicWidget({ onClose, onMinimize, onFocus, windowState = 'open'
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8 }}>
-            {['|◀', '■', '▶', '▶|', '↺'].map((label, i) => (
-              <button key={i} style={{ width: 30, height: 22, fontFamily: 'Arial', fontSize: 11, cursor: 'pointer' }}>{label}</button>
+            {[['|◀', 'music-prev'], ['■', 'music-stop'], ['▶', 'music-play'], ['▶|', 'music-next'], ['↺', 'music-loop']].map(([label, simAction], i) => (
+              <button key={i} data-sim-action={simAction} style={{ width: 30, height: 22, fontFamily: 'Arial', fontSize: 11, cursor: 'pointer' }}>{label}</button>
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

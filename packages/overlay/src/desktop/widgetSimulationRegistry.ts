@@ -1,16 +1,97 @@
 import type { Application } from '@ieom/shared'
 
+export interface WidgetInteractionStep {
+  selectors: string[]
+  weight?: number
+  moveMinMs?: number
+  moveMaxMs?: number
+  postDelayMinMs?: number
+  postDelayMaxMs?: number
+}
+
 export interface WidgetSimulationRecipe {
   menuPath: (app: Application) => string[]
+  interactionPlan: WidgetInteractionStep[]
+  interactionChance: number
 }
 
 const DEFAULT_RECIPE: WidgetSimulationRecipe = {
   menuPath: (app) => ['Programs', app.label],
+  interactionPlan: [],
+  interactionChance: 0.65,
 }
 
 const RECIPES: Partial<Record<string, Partial<WidgetSimulationRecipe>>> = {
   browser: {
+    menuPath: () => ['Programs', 'GALLERY.exe'],
+    interactionPlan: [
+      { selectors: ['button[data-sim-action="gallery-play"]'], weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-next"]'], weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-prev"]'], weight: 0.2 },
+    ],
+    interactionChance: 0.85,
+  },
+  gallery: {
     menuPath: (app) => ['Programs', app.label],
+    interactionPlan: [
+      { selectors: ['button[data-sim-action="gallery-play"]'], weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-next"]'], weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-prev"]'], weight: 0.2 },
+    ],
+    interactionChance: 0.85,
+  },
+  music: {
+    menuPath: (app) => ['Programs', app.label],
+    interactionPlan: [
+      { selectors: ['button[data-sim-action="music-play"]'], weight: 0.45 },
+      { selectors: ['button[data-sim-action="music-next"]'], weight: 0.35 },
+      { selectors: ['button[data-sim-action="music-prev"]'], weight: 0.2 },
+    ],
+    interactionChance: 0.8,
+  },
+  spotify: {
+    menuPath: (app) => ['Programs', app.label],
+    interactionPlan: [
+      { selectors: ['button[data-sim-action="music-play"]'], weight: 0.55 },
+      { selectors: ['button[data-sim-action="music-next"]'], weight: 0.45 },
+    ],
+    interactionChance: 0.8,
+  },
+  archive: {
+    menuPath: (app) => ['Programs', app.label],
+    interactionPlan: [
+      {
+        selectors: ['[data-sim-action="archive-log"]'],
+        weight: 1,
+        moveMinMs: 520,
+        moveMaxMs: 980,
+        postDelayMinMs: 280,
+        postDelayMaxMs: 640,
+      },
+    ],
+    interactionChance: 0.55,
+  },
+  chat: {
+    menuPath: (app) => ['Programs', app.label],
+    interactionPlan: [
+      { selectors: ['button[data-sim-action="chat-send"]'], weight: 1 },
+    ],
+    interactionChance: 0.6,
+  },
+  'sticky-notes': {
+    menuPath: (app) => ['Programs', app.label],
+    interactionPlan: [
+      {
+        selectors: [
+          'button[data-sim-action="sticky-color-fff2a8"]',
+          'button[data-sim-action="sticky-color-ffd3e0"]',
+          'button[data-sim-action="sticky-color-d8f8d0"]',
+          'button[data-sim-action="sticky-color-cde8ff"]',
+        ],
+        weight: 1,
+      },
+    ],
+    interactionChance: 0.55,
   },
 }
 
@@ -18,5 +99,20 @@ export function getWidgetSimulationRecipe(app: Application): WidgetSimulationRec
   const override = RECIPES[app.id]
   return {
     menuPath: override?.menuPath ?? DEFAULT_RECIPE.menuPath,
+    interactionPlan: override?.interactionPlan ?? DEFAULT_RECIPE.interactionPlan,
+    interactionChance: override?.interactionChance ?? DEFAULT_RECIPE.interactionChance,
   }
+}
+
+export function pickWidgetInteractionStep(recipe: WidgetSimulationRecipe): WidgetInteractionStep | null {
+  const steps = recipe.interactionPlan
+  if (!steps.length) return null
+  const weights = steps.map((step) => Math.max(0.01, step.weight ?? 1))
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  let target = Math.random() * totalWeight
+  for (let i = 0; i < steps.length; i++) {
+    target -= weights[i]
+    if (target <= 0) return steps[i]
+  }
+  return steps[steps.length - 1]
 }

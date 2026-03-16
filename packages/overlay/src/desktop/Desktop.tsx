@@ -17,8 +17,8 @@ import { AppGlyph } from './AppGlyph'
 import { patchApplicationConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
 import { CursorSimExample } from './CursorSimExample'
-import { closeWidgetByWindowButton, runWidgetCursorSimulation } from './cursorSimUtils';
-import { getWidgetSimulationRecipe } from './widgetSimulationRegistry';
+import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, focusWidgetFromTaskbar, focusWidgetWindow, interactWithWidgetByRecipe, runWidgetCursorSimulation } from './cursorSimUtils';
+import { getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
 import React from 'react';
 
 interface DesktopWidgetProps {
@@ -32,6 +32,7 @@ interface DesktopWidgetProps {
 
 /** Maps widget app IDs to their component. Add new widgets here. */
 const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>> = {
+  browser:      GalleryWidget,
   music:        MusicWidget,
   archive:      ArchiveWidget,
   spotify:      MusicWidget,
@@ -41,6 +42,8 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>>
 }
 
 const SUPPORTED_WIDGET_IDS = new Set(Object.keys(WIDGET_COMPONENTS))
+const MAX_SIM_OPEN_WIDGETS = 2
+const OPEN_WHILE_ONE_OPEN_CHANCE = 0.35
 
 function resolveWidgetComponent(appId: string) {
   if (WIDGET_COMPONENTS[appId]) return WIDGET_COMPONENTS[appId]
@@ -348,6 +351,7 @@ export function Desktop({ apps }: DesktopProps) {
   const [windowOrder, setWindowOrder]     = useState<string[]>([])
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [draggingId, setDraggingId]       = useState<string | null>(null)
+  const [simulationLeaderId, setSimulationLeaderId] = useState<string | null>(null)
 
   const openWidgets = useAppStore((s) => s.openWidgets)
   const closingWidgets = useAppStore((s) => s.closingWidgets)
@@ -361,6 +365,7 @@ export function Desktop({ apps }: DesktopProps) {
   const suppressClickRef = useRef(false)
   const simLastActionAtByWidgetRef = useRef<Map<string, number>>(new Map())
   const simLastWidgetIdRef = useRef<string | null>(null)
+  const simEmittingRef = useRef(false)
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
@@ -372,9 +377,41 @@ export function Desktop({ apps }: DesktopProps) {
 
   // Ambiance widget simulation config
   const widgetSimConfig = config.desktopAmbiance?.widgetSimulation;
+  const isSimulationLeader = simulationLeaderId !== null && simulationLeaderId === socket.id;
+  const isEmbeddedPreview = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  }, []);
+
+  useEffect(() => {
+    const onLeader = (payload: { socketId: string | null }) => {
+      setSimulationLeaderId(payload.socketId)
+    }
+
+    const requestLeader = () => {
+      socket.emit('ambiance:leader:request', (payload: { socketId: string | null }) => {
+        setSimulationLeaderId(payload.socketId)
+      })
+    }
+
+    socket.on('ambiance:leader', onLeader)
+    socket.on('connect', requestLeader)
+    if (socket.connected) requestLeader()
+    return () => {
+      socket.off('ambiance:leader', onLeader)
+      socket.off('connect', requestLeader)
+    }
+  }, [])
+
   // Ambiance simulation interval
   useEffect(() => {
     const cursor = (window as any).__cursorOverlayController;
+    if (isEmbeddedPreview) return;
+    if (!isSimulationLeader) return;
     if (!widgetSimConfig || !widgetSimConfig.enabled) return;
     if (!cursor) return;
     cursor.setVisible(true);
@@ -382,18 +419,23 @@ export function Desktop({ apps }: DesktopProps) {
     let timer: any;
     const intervalMs = ((widgetSimConfig && widgetSimConfig.intervalSeconds) || 10) * 1000;
     const minActionGapMs = Math.max(1500, Math.round(intervalMs * 0.8));
-    type SimulationAction = { kind: 'open' | 'close'; widgetId: string; app: Application };
+    const maxOpenWidgets = Math.max(1, widgetSimConfig?.maxOpenWidgets ?? MAX_SIM_OPEN_WIDGETS);
+    const openWhileOneOpenChance = Math.max(0, Math.min(1, widgetSimConfig?.openWhileOneOpenChance ?? OPEN_WHILE_ONE_OPEN_CHANCE));
+    type SimulationAction = { kind: 'open' | 'close' | 'interact'; widgetId: string; app: Application };
     const actionQueue: SimulationAction[] = [];
     const queuedActionKeys = new Set<string>();
+    const busyWidgetIds = new Set<string>();
     let processingQueue = false;
     const lastActionAtByWidget = simLastActionAtByWidgetRef.current;
 
-    const actionKey = (action: SimulationAction) => `${action.kind}:${action.widgetId}`;
+    const actionKey = (action: SimulationAction) => action.widgetId;
 
     const enqueueAction = (action: SimulationAction) => {
+      if (busyWidgetIds.has(action.widgetId)) return;
       const key = actionKey(action);
       if (queuedActionKeys.has(key)) return;
       queuedActionKeys.add(key);
+      busyWidgetIds.add(action.widgetId);
       actionQueue.push(action);
     };
 
@@ -404,19 +446,78 @@ export function Desktop({ apps }: DesktopProps) {
         while (!stopped && actionQueue.length > 0) {
           const action = actionQueue.shift();
           if (!action) continue;
-          queuedActionKeys.delete(actionKey(action));
           let executed = false;
+          const openNow = useAppStore.getState().openWidgets;
+
+          // Skip stale actions to avoid accidental toggle closes/opens.
+          if (action.kind === 'open' && openNow.has(action.widgetId)) {
+            queuedActionKeys.delete(actionKey(action));
+            busyWidgetIds.delete(action.widgetId);
+            continue;
+          }
+          if (action.kind === 'close' && !openNow.has(action.widgetId)) {
+            queuedActionKeys.delete(actionKey(action));
+            busyWidgetIds.delete(action.widgetId);
+            continue;
+          }
+          if (action.kind === 'interact' && !openNow.has(action.widgetId)) {
+            queuedActionKeys.delete(actionKey(action));
+            busyWidgetIds.delete(action.widgetId);
+            continue;
+          }
 
           if (action.kind === 'close') {
-            executed = await closeWidgetByWindowButton(cursor, action.widgetId, action.app.label);
+            simEmittingRef.current = true;
+            try {
+              executed = await closeWidgetByWindowButton(cursor, action.widgetId, action.app.label);
+            } finally {
+              simEmittingRef.current = false;
+            }
+          } else if (action.kind === 'open') {
+            const recipe = getWidgetSimulationRecipe(action.app);
+            const menuPath = recipe.menuPath(action.app);
+            const timeline = buildOpenWidgetMenuTimeline(action.app.label, menuPath);
+            socket.emit('cursor:mirror:menu-timeline', timeline);
+            simEmittingRef.current = true;
+            try {
+              executed = await runWidgetCursorSimulation(cursor, action.app.label, {
+                menuPath,
+                timingPlan: {
+                  startMoveMs: timeline.startMoveMs,
+                  startPostMs: timeline.startPostMs,
+                  steps: timeline.steps,
+                },
+              });
+            } finally {
+              simEmittingRef.current = false;
+            }
           } else {
             const recipe = getWidgetSimulationRecipe(action.app);
-            executed = await runWidgetCursorSimulation(cursor, action.app.label, { menuPath: recipe.menuPath(action.app) });
+            const step = pickWidgetInteractionStep(recipe);
+            if (!step) {
+              queuedActionKeys.delete(actionKey(action));
+              busyWidgetIds.delete(action.widgetId);
+              continue;
+            }
+            // Focus visible window directly; restore from taskbar only if minimized.
+            const focused = await focusWidgetWindow(cursor, action.widgetId, 520);
+            if (!focused) {
+              await focusWidgetFromTaskbar(cursor, action.app.label, 520);
+            }
+            executed = await interactWithWidgetByRecipe(cursor, action.widgetId, step.selectors, {
+              moveMinMs: step.moveMinMs,
+              moveMaxMs: step.moveMaxMs,
+              postDelayMinMs: step.postDelayMinMs,
+              postDelayMaxMs: step.postDelayMaxMs,
+            });
           }
 
           if (executed) {
             lastActionAtByWidget.set(action.widgetId, Date.now());
           }
+
+          queuedActionKeys.delete(actionKey(action));
+          busyWidgetIds.delete(action.widgetId);
 
           const humanPauseMs = 220 + Math.floor(Math.random() * 460);
           await new Promise((resolve) => setTimeout(resolve, humanPauseMs));
@@ -428,14 +529,26 @@ export function Desktop({ apps }: DesktopProps) {
 
     async function tick() {
       if (stopped) return;
-      const behaviors = widgetSimConfig?.behaviors ?? {};
-      const enabledEntries = Object.entries(behaviors).filter(([, behavior]) => behavior?.enabled) as Array<[string, { openChance?: number; closeChance?: number }]>;
-      const openNow = useAppStore.getState().openWidgets;
+      // Keep simulation human-like: only one queued/executing action globally.
+      if (processingQueue || actionQueue.length > 0) {
+        timer = setTimeout(tick, intervalMs);
+        return;
+      }
 
-      const candidates: SimulationAction[] = [];
+      const behaviors = widgetSimConfig?.behaviors ?? {};
+      const enabledEntries = Object.entries(behaviors).filter(([, behavior]) => behavior?.enabled) as Array<[string, { openChance?: number; closeChance?: number; interactChance?: number }]>;
+      const openNow = useAppStore.getState().openWidgets;
+      const openCount = openNow.size;
+      const allowOpenActions = openCount < maxOpenWidgets;
+
+      const closeCandidates: SimulationAction[] = [];
+      const interactCandidates: SimulationAction[] = [];
+      const openCandidates: SimulationAction[] = [];
       for (const [widgetId, behavior] of enabledEntries) {
+        if (busyWidgetIds.has(widgetId)) continue;
         const app = supportedApps.find((candidate) => candidate.id === widgetId && candidate.appType === 'widget');
         if (!app) continue;
+        const recipe = getWidgetSimulationRecipe(app);
 
         const lastActionAt = lastActionAtByWidget.get(widgetId) ?? 0;
         if (Date.now() - lastActionAt < minActionGapMs) continue;
@@ -443,10 +556,30 @@ export function Desktop({ apps }: DesktopProps) {
         const isOpen = openNow.has(widgetId);
         if (isOpen) {
           if (Math.random() < (behavior.closeChance ?? 0)) {
-            candidates.push({ kind: 'close', widgetId, app });
+            closeCandidates.push({ kind: 'close', widgetId, app });
+          } else if (recipe.interactionPlan.length > 0 && Math.random() < (behavior.interactChance ?? recipe.interactionChance)) {
+            interactCandidates.push({ kind: 'interact', widgetId, app });
           }
-        } else if (Math.random() < (behavior.openChance ?? 1)) {
-          candidates.push({ kind: 'open', widgetId, app });
+        } else if (allowOpenActions && Math.random() < (behavior.openChance ?? 1)) {
+          openCandidates.push({ kind: 'open', widgetId, app });
+        }
+      }
+
+      let candidates: SimulationAction[] = [];
+      if (openCount === 0) {
+        candidates = openCandidates;
+      } else if (openCount >= maxOpenWidgets) {
+        candidates = interactCandidates.length > 0 ? interactCandidates : closeCandidates;
+      } else {
+        const shouldOpenSecondWidget = openCandidates.length > 0 && Math.random() < openWhileOneOpenChance;
+        if (shouldOpenSecondWidget) {
+          candidates = openCandidates;
+        } else {
+          candidates = interactCandidates.length > 0
+            ? interactCandidates
+            : closeCandidates.length > 0
+              ? closeCandidates
+              : openCandidates;
         }
       }
 
@@ -487,9 +620,10 @@ export function Desktop({ apps }: DesktopProps) {
     return () => {
       stopped = true;
       clearTimeout(timer);
+      simEmittingRef.current = false;
       cursor.setVisible(false);
     };
-  }, [widgetSimConfig, supportedApps]);
+  }, [isEmbeddedPreview, isSimulationLeader, widgetSimConfig, supportedApps]);
 
   const themeStyle = useMemo(
     () => buildDesktopThemeVars(
@@ -654,11 +788,13 @@ export function Desktop({ apps }: DesktopProps) {
     setSelectedId(null)
     setStartMenuOpen(false)
 
-    // Widgets open only during cursor simulation.
+    if ((window as any).__cursorMirrorVisualOnly) {
+      return
+    }
+
     if (app.appType === 'widget') {
-      if ((window as any).__simulatingCursorClick) {
-        socket.emit('widget:toggle', app.id)
-      }
+      if (simEmittingRef.current) socket.emit('widget:simulate', app.id)
+      else socket.emit('widget:toggle', app.id)
       return
     }
     if (app.appType !== 'scene') return
@@ -785,8 +921,6 @@ export function Desktop({ apps }: DesktopProps) {
                       key={app.id}
                       className="start-menu-sub-item"
                       onClick={() => {
-                        // Only allow widget open if a simulation flag is set (by cursor simulation)
-                        if (app.appType === 'widget' && !(window as any).__simulatingCursorClick) return;
                         handleLaunch(app);
                       }}
                     >
@@ -876,7 +1010,11 @@ export function Desktop({ apps }: DesktopProps) {
           const WidgetComp = resolveWidgetComponent(a.id)
           const widgetProps: DesktopWidgetProps = {
             appId: a.id,
-            onClose: () => socket.emit('widget:toggle', a.id),
+            onClose: () => {
+              if ((window as any).__cursorMirrorVisualOnly) return
+              if (simEmittingRef.current) socket.emit('widget:simulate', a.id)
+              else socket.emit('widget:toggle', a.id)
+            },
             onMinimize: () => minimizeWidget(a.id),
             onFocus: () => focusWidget(a.id),
             windowState: closingWidgets.has(a.id) ? 'closing' : 'open',

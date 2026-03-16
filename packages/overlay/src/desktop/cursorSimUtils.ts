@@ -1,25 +1,74 @@
 import { CursorOverlayController } from './CursorOverlay';
+import type { MenuPathTimingStep, OpenWidgetMenuTimelinePayload } from '@ieom/shared';
 
 function randomRange(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
+export function buildOpenWidgetMenuTimeline(widgetLabel: string, menuPath: string[]): OpenWidgetMenuTimelinePayload {
+  const steps: MenuPathTimingStep[] = menuPath.map(() => ({
+    moveMs: Math.round(randomRange(650, 1050)),
+    hoverMs: Math.round(randomRange(180, 320)),
+    postMs: Math.round(500 + randomRange(30, 160)),
+  }));
+  return {
+    widgetLabel,
+    menuPath,
+    startMoveMs: Math.round(randomRange(700, 1100)),
+    startPostMs: Math.round(500 + randomRange(40, 180)),
+    steps,
+  };
+}
+
 // Generalized: Simulate cursor following a menu path (e.g., ['Programs', 'Browser'])
-export async function openMenuPath(cursor: CursorOverlayController, path: string[], options: { startMenu?: boolean, delay?: number } = {}): Promise<boolean> {
-  const { startMenu = true, delay = 500 } = options;
+export async function openMenuPath(
+  cursor: CursorOverlayController,
+  path: string[],
+  options: {
+    startMenu?: boolean,
+    delay?: number,
+    visualOnly?: boolean,
+    driveCursorVisualOnly?: boolean,
+    timingPlan?: Pick<OpenWidgetMenuTimelinePayload, 'startMoveMs' | 'startPostMs' | 'steps'>,
+  } = {},
+): Promise<boolean> {
+  const { startMenu = true, delay = 500, visualOnly = false, driveCursorVisualOnly = false, timingPlan } = options;
   let success = true;
   const simOpenedMenus: HTMLElement[] = [];
   const simHighlightedItems: HTMLElement[] = [];
   (window as any).__simulatingCursorClick = true;
+  if (visualOnly) {
+    (window as any).__cursorMirrorVisualOnly = true;
+  }
   try {
     if (startMenu) {
       // Open Start menu first
       const startBtn = document.querySelector('.taskbar-start-btn');
       if (startBtn instanceof HTMLElement) {
-        await moveCursorAndClick(cursor, startBtn, randomRange(560, 860));
-        startBtn.click();
+        const startDelay = timingPlan?.startMoveMs ?? randomRange(700, 1100);
+        if (visualOnly) {
+          if (driveCursorVisualOnly) {
+            const rect = startBtn.getBoundingClientRect();
+            await cursor.moveTo(rect.left + rect.width / 2, rect.top + rect.height / 2, { duration: startDelay });
+          } else {
+            await new Promise((r) => setTimeout(r, startDelay));
+          }
+          const startHoverDelay = timingPlan?.steps?.[0]?.hoverMs ?? randomRange(140, 240);
+          await new Promise((r) => setTimeout(r, startHoverDelay));
+          if (driveCursorVisualOnly) {
+            await cursor.click();
+          }
+          // Keep the menu visibly open in mirrored clients without re-triggering widget actions.
+          startBtn.click();
+        } else {
+          await moveCursorAndClick(cursor, startBtn, startDelay);
+          const startHoverDelay = timingPlan?.steps?.[0]?.hoverMs ?? randomRange(140, 240);
+          await new Promise((r) => setTimeout(r, startHoverDelay));
+          startBtn.click();
+        }
       }
-      await new Promise((r) => setTimeout(r, delay + randomRange(40, 180)));
+      const startPostDelay = timingPlan?.startPostMs ?? (delay + randomRange(40, 180));
+      await new Promise((r) => setTimeout(r, startPostDelay));
     }
     for (let i = 0; i < path.length; ++i) {
       const label = path[i];
@@ -43,17 +92,46 @@ export async function openMenuPath(cursor: CursorOverlayController, path: string
       }
       if (el) {
         if (i === 0) {
-          el.classList.add('start-menu-item--sim-open', 'start-menu-item--sim-hover');
+          el.classList.add('start-menu-item--sim-open');
           simOpenedMenus.push(el);
-          simHighlightedItems.push(el);
         }
-        if (i > 0) {
-          el.classList.add('start-menu-sub-item--sim-hover');
-          simHighlightedItems.push(el);
+        const stepPlan = timingPlan?.steps?.[i];
+        const moveDelay = stepPlan?.moveMs ?? randomRange(650, 1050);
+        const hoverDelay = stepPlan?.hoverMs ?? randomRange(180, 320);
+        if (visualOnly) {
+          if (driveCursorVisualOnly) {
+            const rect = el.getBoundingClientRect();
+            await cursor.moveTo(rect.left + rect.width / 2, rect.top + rect.height / 2, { duration: moveDelay });
+          } else {
+            await new Promise((r) => setTimeout(r, moveDelay));
+          }
+          if (i === 0) {
+            el.classList.add('start-menu-item--sim-hover');
+            simHighlightedItems.push(el);
+          } else {
+            el.classList.add('start-menu-sub-item--sim-hover');
+            simHighlightedItems.push(el);
+          }
+          // Show hover state briefly so mirrored previews can see the menu navigation.
+          await new Promise((r) => setTimeout(r, hoverDelay));
+          if (driveCursorVisualOnly) {
+            await cursor.click();
+          }
+          el.click();
+        } else {
+          await moveCursorAndClick(cursor, el, moveDelay);
+          if (i === 0) {
+            el.classList.add('start-menu-item--sim-hover');
+            simHighlightedItems.push(el);
+          } else {
+            el.classList.add('start-menu-sub-item--sim-hover');
+            simHighlightedItems.push(el);
+          }
+          await new Promise((r) => setTimeout(r, hoverDelay));
+          el.click();
         }
-        await moveCursorAndClick(cursor, el, randomRange(520, 920));
-        el.click();
-        await new Promise((r) => setTimeout(r, delay + randomRange(30, 160)));
+        const postDelay = timingPlan?.steps?.[i]?.postMs ?? (delay + randomRange(30, 160));
+        await new Promise((r) => setTimeout(r, postDelay));
       } else {
         // Not found, abort
         success = false;
@@ -67,6 +145,9 @@ export async function openMenuPath(cursor: CursorOverlayController, path: string
     for (const menu of simOpenedMenus) {
       menu.classList.remove('start-menu-item--sim-open');
     }
+    if (visualOnly) {
+      (window as any).__cursorMirrorVisualOnly = false;
+    }
     (window as any).__simulatingCursorClick = false;
   }
   return success;
@@ -76,11 +157,19 @@ export async function openMenuPath(cursor: CursorOverlayController, path: string
 export async function runWidgetCursorSimulation(
   cursor: CursorOverlayController,
   widgetLabel: string,
-  options: { hideAfterMs?: number; menuPath?: string[] } = {},
+  options: {
+    hideAfterMs?: number;
+    menuPath?: string[];
+    visualOnly?: boolean;
+    driveCursorVisualOnly?: boolean;
+    timingPlan?: Pick<OpenWidgetMenuTimelinePayload, 'startMoveMs' | 'startPostMs' | 'steps'>;
+  } = {},
 ) {
-  const { hideAfterMs, menuPath } = options;
-  cursor.setVisible(true);
-  const opened = await openMenuPath(cursor, menuPath ?? ['Programs', widgetLabel]);
+  const { hideAfterMs, menuPath, visualOnly = false, driveCursorVisualOnly = false, timingPlan } = options;
+  if (!visualOnly || driveCursorVisualOnly) {
+    cursor.setVisible(true);
+  }
+  const opened = await openMenuPath(cursor, menuPath ?? ['Programs', widgetLabel], { visualOnly, driveCursorVisualOnly, timingPlan });
   if (typeof hideAfterMs === 'number') {
     setTimeout(() => cursor.setVisible(false), hideAfterMs);
   }
@@ -95,8 +184,21 @@ export async function focusWidgetFromTaskbar(cursor: CursorOverlayController, wi
     return label === widgetLabel;
   });
   if (!btn) return false;
+  const title = btn.getAttribute('title')?.toLowerCase() ?? '';
+  const minimized = title.includes('restore');
+  if (!minimized) return false;
   await moveCursorAndClick(cursor, btn, duration);
   btn.click();
+  return true;
+}
+
+// Focus widget by clicking inside its window (does not toggle minimize state).
+export async function focusWidgetWindow(cursor: CursorOverlayController, widgetId: string, duration = 520) {
+  const root = document.querySelector(`[data-widget-id="${widgetId}"]`) as HTMLElement | null;
+  if (!root) return false;
+  const target = (root.querySelector('.window-body') as HTMLElement | null) ?? root;
+  await moveCursorAndClick(cursor, target, duration);
+  target.click();
   return true;
 }
 
@@ -114,6 +216,48 @@ export async function closeWidgetByWindowButton(cursor: CursorOverlayController,
   if (!closeBtn) return false;
   await moveCursorAndClick(cursor, closeBtn, 650);
   closeBtn.click();
+  return true;
+}
+
+// Interact with one control inside a widget window using recipe selectors.
+export async function interactWithWidgetByRecipe(
+  cursor: CursorOverlayController,
+  widgetId: string,
+  selectors: string[],
+  options: {
+    moveMinMs?: number
+    moveMaxMs?: number
+    postDelayMinMs?: number
+    postDelayMaxMs?: number
+  } = {},
+) {
+  if (!selectors.length) return false;
+  const {
+    moveMinMs = 480,
+    moveMaxMs = 860,
+    postDelayMinMs = 140,
+    postDelayMaxMs = 420,
+  } = options;
+  const root = document.querySelector(`[data-widget-id="${widgetId}"]`) as HTMLElement | null;
+  if (!root) return false;
+  const body = root.querySelector('.window-body') as HTMLElement | null;
+  if (!body) return false;
+
+  const candidates: HTMLElement[] = [];
+  for (const selector of selectors) {
+    const elements = Array.from(body.querySelectorAll(selector)) as HTMLElement[];
+    for (const element of elements) {
+      if (element.offsetParent === null) continue;
+      if (element.hasAttribute('disabled')) continue;
+      candidates.push(element);
+    }
+  }
+
+  if (!candidates.length) return false;
+  const target = candidates[Math.floor(Math.random() * candidates.length)];
+  await moveCursorAndClick(cursor, target, randomRange(moveMinMs, moveMaxMs));
+  target.click();
+  await new Promise((resolve) => setTimeout(resolve, randomRange(postDelayMinMs, postDelayMaxMs)));
   return true;
 }
 

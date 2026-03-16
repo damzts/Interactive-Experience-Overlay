@@ -60,7 +60,7 @@ export function ArchiveWidget({ onClose, onMinimize, onFocus, windowState = 'ope
         <div style={{ marginBottom: 4, fontFamily: 'MS Sans Serif, Arial', fontSize: 11, fontWeight: 'bold' }}>State Log:</div>
         <div style={{ background: '#fff', border: '2px inset', height: 120, overflowY: 'auto', padding: '2px 4px', fontFamily: 'VT323, monospace', fontSize: 12 }}>
           {log.map((entry, i) => (
-            <div key={i} style={{ color: i === 0 ? '#000080' : '#666', lineHeight: 1.4 }}>
+            <div key={i} data-sim-action="archive-log" style={{ color: i === 0 ? '#000080' : '#666', lineHeight: 1.4 }}>
               [{entry.time}] {entry.state}
             </div>
           ))}

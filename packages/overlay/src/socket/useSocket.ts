@@ -5,6 +5,8 @@ import {
   withDesktopConfigDefaults,
   type DesktopNotificationPayload,
   type DesktopRecycleBinPayload,
+  type CursorMirrorPayload,
+  type OpenWidgetMenuTimelinePayload,
   type EffectConfig,
   type TransitionPlayPayload,
 } from '@ieom/shared'
@@ -14,6 +16,7 @@ import { useAppStore } from '../store/useAppStore'
 import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
+import { runWidgetCursorSimulation } from '../desktop/cursorSimUtils'
 
 const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngine.play>[0]>> = {
   'death-overlay':    'death',
@@ -38,6 +41,7 @@ export function useSocket() {
   const syncDesktopRuntimeState = useAppStore((s) => s.syncDesktopRuntimeState)
   const audioUnlocked = useRef(false)
   const reactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const menuTimelineLockUntil = useRef(0)
 
   useEffect(() => {
     const pulseReactiveIcon = (state: STATE) => {
@@ -135,6 +139,55 @@ export function useSocket() {
       setRecycleBinFull(payload.full)
     }
 
+    const onCursorMirror = (payload: CursorMirrorPayload) => {
+      const cursor = (window as any).__cursorOverlayController
+      if (!cursor) return
+      const now = Date.now()
+      const locked = now < menuTimelineLockUntil.current
+      if (locked && (payload.kind === 'move' || payload.kind === 'click')) {
+        return
+      }
+
+      if (payload.kind === 'move') {
+        ;(window as any).__cursorMirrorApplying = true
+        void cursor.moveTo(payload.x, payload.y, { duration: payload.duration ?? 600 }).finally(() => {
+          ;(window as any).__cursorMirrorApplying = false
+        })
+        return
+      }
+
+      if (payload.kind === 'click') {
+        ;(window as any).__cursorMirrorApplying = true
+        void cursor.click().finally(() => {
+          ;(window as any).__cursorMirrorApplying = false
+        })
+        return
+      }
+
+      ;(window as any).__cursorMirrorApplying = true
+      cursor.setVisible(payload.visible)
+      ;(window as any).__cursorMirrorApplying = false
+    }
+
+    const onMirrorMenuTimeline = (payload: OpenWidgetMenuTimelinePayload) => {
+      const cursor = (window as any).__cursorOverlayController
+      if (!cursor) return
+      const totalMs = payload.startMoveMs
+        + payload.startPostMs
+        + payload.steps.reduce((sum, step) => sum + step.moveMs + step.hoverMs + step.postMs, 0)
+      menuTimelineLockUntil.current = Date.now() + totalMs + 400
+      void runWidgetCursorSimulation(cursor, payload.widgetLabel, {
+        menuPath: payload.menuPath,
+        visualOnly: true,
+        driveCursorVisualOnly: true,
+        timingPlan: {
+          startMoveMs: payload.startMoveMs,
+          startPostMs: payload.startPostMs,
+          steps: payload.steps,
+        },
+      })
+    }
+
     const onAny = () => {
       markSocketActivity()
     }
@@ -147,6 +200,8 @@ export function useSocket() {
     socket.on('widget:toggle', onWidgetToggle)
     socket.on('desktop:notify', onDesktopNotify)
     socket.on('desktop:recycle-bin', onDesktopRecycleBin)
+    socket.on('cursor:mirror', onCursorMirror)
+    socket.on('cursor:mirror:menu-timeline', onMirrorMenuTimeline)
     socket.onAny(onAny)
 
     return () => {
@@ -160,6 +215,8 @@ export function useSocket() {
       socket.off('widget:toggle', onWidgetToggle)
       socket.off('desktop:notify', onDesktopNotify)
       socket.off('desktop:recycle-bin', onDesktopRecycleBin)
+      socket.off('cursor:mirror', onCursorMirror)
+      socket.off('cursor:mirror:menu-timeline', onMirrorMenuTimeline)
       socket.offAny(onAny)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

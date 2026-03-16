@@ -144,9 +144,9 @@ export function GalleryWidget({ appId, onClose, onMinimize, onFocus, windowState
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" onClick={showPrevious} disabled={assets.length < 2}>◀ Previous</button>
-          <button type="button" onClick={showNext} disabled={assets.length < 2}>▶ Play</button>
-          <button type="button" onClick={showNext} disabled={assets.length < 2}>Next ▶</button>
+          <button data-sim-action="gallery-prev" type="button" onClick={showPrevious} disabled={assets.length < 2}>◀ Previous</button>
+          <button data-sim-action="gallery-play" type="button" onClick={showNext} disabled={assets.length < 2}>▶ Play</button>
+          <button data-sim-action="gallery-next" type="button" onClick={showNext} disabled={assets.length < 2}>Next ▶</button>
         </div>
       </div>
     </DesktopWindow>

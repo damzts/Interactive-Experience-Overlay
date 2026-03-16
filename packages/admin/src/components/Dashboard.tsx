@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { STATE, OVERLAY_EVENT, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_WIDGET_WINDOW_SIZES, STATE, OVERLAY_EVENT, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
@@ -64,6 +64,24 @@ const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', 
 
 
 type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
+
+function clampWidgetDimension(value: number, min: number, max: number, fallback: number) {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+function getDefaultWidgetSize(widgetId: string) {
+  return DEFAULT_WIDGET_WINDOW_SIZES[widgetId] ?? { width: 260, height: 240 }
+}
+
+function resolveWidgetSizeFromConfig(widgetId: string, desktopConfig: DesktopConfig) {
+  const defaults = getDefaultWidgetSize(widgetId)
+  const raw = desktopConfig.widgetSizes?.[widgetId]
+  return {
+    width: clampWidgetDimension(raw?.width ?? defaults.width, 180, 1400, defaults.width),
+    height: clampWidgetDimension(raw?.height ?? defaults.height, 140, 1000, defaults.height),
+  }
+}
 
 function ThemeAppearanceFields({
   appearance,
@@ -1770,16 +1788,26 @@ function DesktopConfigEditor() {
 function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
+  const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
+  const initialWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
   const [form, setForm] = useState<Application>(app)
+  const [widgetSize, setWidgetSize] = useState(initialWidgetSize)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const dirty = !isSameDraft(form, app)
+  const appDirty = !isSameDraft(form, app)
+  const sourceWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
+  const widgetSizeDirty = form.appType === 'widget' && (
+    widgetSize.width !== sourceWidgetSize.width
+    || widgetSize.height !== sourceWidgetSize.height
+  )
+  const dirty = appDirty || widgetSizeDirty
 
   useEffect(() => {
     setForm(app)
+    setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
-  }, [app])
+  }, [app, config.desktopConfig])
 
   const update = (updater: (d: Application) => void) => {
     const next = { ...form }
@@ -1797,12 +1825,32 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     else apps.push(form)
 
     const scene = config.scenes[form.targetSceneId]
+    const updates: Partial<typeof config> = { applications: apps }
     if (scene) {
       const updatedScene = { ...scene, label: form.label }
-      await saveConfig({ applications: apps, scenes: { ...config.scenes, [form.targetSceneId]: updatedScene } })
-    } else {
-      await saveConfig({ applications: apps })
+      updates.scenes = { ...config.scenes, [form.targetSceneId]: updatedScene }
     }
+
+    if (form.appType === 'widget') {
+      const nextDesktop = withDesktopConfigDefaults(config.desktopConfig)
+      const normalizedWidth = clampWidgetDimension(widgetSize.width, 180, 1400, sourceWidgetSize.width)
+      const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
+      const defaults = getDefaultWidgetSize(form.id)
+      const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
+
+      if (normalizedWidth === defaults.width && normalizedHeight === defaults.height) {
+        delete nextWidgetSizes[form.id]
+      } else {
+        nextWidgetSizes[form.id] = { width: normalizedWidth, height: normalizedHeight }
+      }
+
+      updates.desktopConfig = {
+        ...nextDesktop,
+        widgetSizes: Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined,
+      }
+    }
+
+    await saveConfig(updates)
 
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -1812,8 +1860,12 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
   const reset = () => {
     setForm(app)
+    setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }
+
+  const defaultWidgetSize = getDefaultWidgetSize(form.id)
+  const hasWidgetSizeOverride = !!desktopConfig.widgetSizes?.[form.id]
 
   return (
     <div className="space-y-3">
@@ -1902,6 +1954,49 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
         <div className="text-[10px] text-zinc-600 mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
       </Panel>
+
+      {form.appType === 'widget' && (
+        <Panel title="Widget Window Size">
+          <div className="text-[10px] text-zinc-600 mb-2">Configure default window size for this widget.</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Width</div>
+              <input
+                type="number"
+                min={180}
+                max={1400}
+                value={widgetSize.width}
+                onChange={(e) => setWidgetSize((prev) => ({ ...prev, width: Number(e.target.value) }))}
+                className="w-full font-mono text-xs"
+              />
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Height</div>
+              <input
+                type="number"
+                min={140}
+                max={1000}
+                value={widgetSize.height}
+                onChange={(e) => setWidgetSize((prev) => ({ ...prev, height: Number(e.target.value) }))}
+                className="w-full font-mono text-xs"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <div className="text-[10px] text-zinc-600">
+              Default: {defaultWidgetSize.width}x{defaultWidgetSize.height}px
+              {hasWidgetSizeOverride ? ' (override active)' : ''}
+            </div>
+            <button
+              type="button"
+              onClick={() => setWidgetSize(defaultWidgetSize)}
+              className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            >
+              Reset to Default
+            </button>
+          </div>
+        </Panel>
+      )}
 
       <Panel title="Launch Pipeline">
         <div className="text-[10px] text-zinc-500 mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
@@ -2119,7 +2214,7 @@ function EventForm({ def, onUpdate, onDelete }: {
               <div className="text-[10px] text-zinc-400 mb-1">Available Widgets</div>
               <div className="text-[10px] text-zinc-500 mb-2">Leave empty to include all widgets</div>
               <div className="flex flex-wrap gap-1">
-                {['music', 'chat', 'archive', 'sticky-notes'].map((widgetId) => (
+                {['music', 'chat', 'archive', 'sticky-notes', 'gallery'].map((widgetId) => (
                   <button key={widgetId}
                     onClick={() => update((d) => {
                       if (!d.widgetAutomation) d.widgetAutomation = { availableWidgets: [], toggleChance: 0.8, openBias: 0.6 }
@@ -2841,7 +2936,7 @@ function SectionLabel({ children }: { children: string }) {
   )
 }
 
-const SUPPORTED_WIDGET_IDS = new Set(['music', 'archive', 'chat', 'sticky-notes', 'gallery', 'spotify'])
+const SUPPORTED_WIDGET_IDS = new Set(['music', 'archive', 'chat', 'sticky-notes', 'gallery', 'spotify', 'browser'])
 
 function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
   selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
@@ -2990,6 +3085,9 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
   const clientCount  = useAdminStore((s) => s.clientCount)
   const lastError    = useAdminStore((s) => s.lastError)
   const setLastError = useAdminStore((s) => s.setLastError)
+  const simulationLeaderId = useAdminStore((s) => s.simulationLeaderId)
+  const ambianceAcceptedCount = useAdminStore((s) => s.ambianceAcceptedCount)
+  const ambianceRejectedCount = useAdminStore((s) => s.ambianceRejectedCount)
 
   const handlePanic = () => {
     setLastError(null)
@@ -3009,6 +3107,14 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
         <span className="text-[10px] text-zinc-600 font-mono">{clientCount}c</span>
       )}
       <span className="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded">{currentState}</span>
+      <div className="inline-flex items-center gap-2 rounded border border-zinc-800 bg-zinc-950/65 px-2 py-0.5">
+        <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500">SIM</span>
+        <span className="text-[10px] font-mono text-zinc-300" title={simulationLeaderId ?? 'none'}>
+          L:{simulationLeaderId ? simulationLeaderId.slice(0, 8) : 'none'}
+        </span>
+        <span className="text-[10px] font-mono text-emerald-300">A:{ambianceAcceptedCount}</span>
+        <span className="text-[10px] font-mono text-rose-300">R:{ambianceRejectedCount}</span>
+      </div>
       {lastError && (
         <span className="text-[10px] text-red-400 font-mono truncate max-w-[200px]" title={lastError}>{lastError}</span>
       )}

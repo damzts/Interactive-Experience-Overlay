@@ -76,6 +76,7 @@ export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open',
         {/* Input row */}
         <div style={{ display: 'flex', gap: 4 }}>
           <input
+            data-sim-action="chat-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -83,7 +84,7 @@ export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open',
             placeholder="Say something…"
             style={{ flex: 1, fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 11 }}
           />
-          <button onClick={handleSend} style={{ fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 11 }}>Send</button>
+          <button data-sim-action="chat-send" onClick={handleSend} style={{ fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 11 }}>Send</button>
         </div>
     </DesktopWindow>
   )

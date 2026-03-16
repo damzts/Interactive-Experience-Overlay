@@ -64,6 +64,7 @@ export function StickyNotesWidget({
         {NOTE_COLORS.map((swatch) => (
           <button
             key={swatch}
+            data-sim-action={`sticky-color-${swatch.replace('#', '')}`}
             onClick={() => {
               setColor(swatch)
               scheduleSave(text, swatch)

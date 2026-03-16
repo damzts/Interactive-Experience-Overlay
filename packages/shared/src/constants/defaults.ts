@@ -136,8 +136,36 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   },
 }
 
+export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height: number }> = {
+  music: { width: 280, height: 250 },
+  spotify: { width: 280, height: 250 },
+  archive: { width: 300, height: 260 },
+  chat: { width: 280, height: 290 },
+  'sticky-notes': { width: 260, height: 290 },
+  gallery: { width: 430, height: 320 },
+  browser: { width: 430, height: 320 },
+}
+
 export const DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS = 6500
 export const DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE = 3
+
+function normalizeWidgetDimension(value: number | undefined, min: number, max: number) {
+  if (!Number.isFinite(value)) return undefined
+  const rounded = Math.round(value as number)
+  return Math.min(max, Math.max(min, rounded))
+}
+
+function normalizeWidgetSizes(value?: DesktopConfig['widgetSizes']) {
+  if (!value) return undefined
+  const entries = Object.entries(value).reduce<Record<string, { width?: number; height?: number }>>((acc, [widgetId, size]) => {
+    const width = normalizeWidgetDimension(size?.width, 180, 1400)
+    const height = normalizeWidgetDimension(size?.height, 140, 1000)
+    if (width === undefined && height === undefined) return acc
+    acc[widgetId] = { width, height }
+    return acc
+  }, {})
+  return Object.keys(entries).length ? entries : undefined
+}
 
 export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null): DesktopConfig {
   const source = (config ?? {}) as Partial<DesktopConfig> & { notifications?: unknown }
@@ -163,6 +191,7 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
       ...DEFAULT_DESKTOP_CONFIG.systemSounds,
       ...source.systemSounds,
     },
+    widgetSizes: normalizeWidgetSizes(source.widgetSizes),
   }
 }
 
@@ -170,6 +199,8 @@ export const DEFAULT_DESKTOP_AMBIANCE_CONFIG: DesktopAmbianceConfig = {
   widgetSimulation: {
     enabled: false,
     intervalSeconds: 30,
+    maxOpenWidgets: 2,
+    openWhileOneOpenChance: 0.35,
     behaviors: {},
   },
 }
@@ -281,14 +312,19 @@ export const DEFAULT_CONFIG: AppConfig = {
       iconSize: 'normal' as const,
     },
     {
-      id: 'browser',
-      label: 'Browser.exe',
-      icon: '🌐',
+      id: 'gallery',
+      label: 'GALLERY.exe',
+      icon: '🖼',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 96 },
       iconSize: 'normal' as const,
+      gallerySettings: {
+        randomOrder: true,
+        autoPlay: false,
+        intervalSec: 8,
+      },
     },
     {
       id: 'music',

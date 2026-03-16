@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
 import { withDesktopAmbianceDefaults, type DesktopAmbianceConfig, type Application } from '@ieom/shared'
 import { Panel, Toggle, Slider, isSameDraft, IconGlyph, ConfigApplyBar } from '../components/ui'
@@ -44,6 +44,15 @@ function WidgetBehaviorEditor({
             onChange={(val) => onChange((d) => { d.closeChance = val })}
             unit="%"
           />
+          <Slider
+            label="Interact Chance"
+            value={behavior.interactChance ?? 0.65}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(val) => onChange((d) => { d.interactChance = val })}
+            unit="%"
+          />
         </div>
       )}
     </div>
@@ -52,8 +61,12 @@ function WidgetBehaviorEditor({
 
 export function AmbiancePanel() {
   const allApps      = useAdminStore((s) => s.config.applications)
-  const sourceConfig = useAdminStore((s) => withDesktopAmbianceDefaults(s.config.desktopAmbiance))
+  const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance)
   const saveConfig   = useAdminStore((s) => s.saveConfig)
+  const sourceConfig = useMemo(
+    () => withDesktopAmbianceDefaults(rawDesktopAmbiance),
+    [rawDesktopAmbiance],
+  )
 
   const [form, setForm] = useState<DesktopAmbianceConfig>(() => structuredClone(sourceConfig))
   const [saving, setSaving] = useState(false)
@@ -63,36 +76,34 @@ export function AmbiancePanel() {
   const dirty = !isSameDraft(form, sourceConfig)
 
   useEffect(() => {
-    setForm(structuredClone(sourceConfig))
+    // Do not clobber in-progress edits when remote config updates arrive.
+    if (dirty) return
+    setForm((prev) => (isSameDraft(prev, sourceConfig) ? prev : structuredClone(sourceConfig)))
     setSaved(false)
-  }, [sourceConfig])
+  }, [dirty, sourceConfig])
 
-  const update = useCallback(<K extends keyof DesktopAmbianceConfig>(key: K, updater: (d: DesktopAmbianceConfig[K]) => void, autoSave?: boolean) => {
+  useEffect(() => {
+    return () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+    }
+  }, [])
+
+  const update = useCallback(<K extends keyof DesktopAmbianceConfig>(key: K, updater: (d: DesktopAmbianceConfig[K]) => void) => {
     setForm((prev) => {
       const next = structuredClone(prev)
       updater(next[key])
-      if (autoSave) {
-        setSaving(true)
-        saveConfig({ desktopAmbiance: next }).then(() => {
-          setSaving(false)
-          setSaved(true)
-          if (savedTimer.current) clearTimeout(savedTimer.current)
-          savedTimer.current = setTimeout(() => setSaved(false), 1500)
-        })
-      } else {
-        setSaved(false)
-      }
+      setSaved(false)
       return next
     })
-  }, [saveConfig])
+  }, [])
   
   const updateBehavior = useCallback((widgetId: string, updater: (d: DesktopAmbianceConfig['widgetSimulation']['behaviors'][string]) => void) => {
     update('widgetSimulation', (ws) => {
       if (!ws.behaviors[widgetId]) {
-        ws.behaviors[widgetId] = { enabled: false, openChance: 0.1, closeChance: 0.1 }
+        ws.behaviors[widgetId] = { enabled: false, openChance: 0.1, closeChance: 0.1, interactChance: 0.65 }
       }
       updater(ws.behaviors[widgetId])
-    }, true)
+    })
   }, [update])
 
   const apply = useCallback(async () => {
@@ -120,12 +131,15 @@ export function AmbiancePanel() {
         Configure background AI simulations to make the desktop feel more alive and dynamic.
         This system can perform actions automatically, like opening and closing widgets.
       </div>
-      <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
+      <div className="text-[11px] text-amber-300/90">
+        Changes are staged locally. Use Save Changes to apply them.
+      </div>
+      <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <Panel title="Widget Simulation">
         <div className="space-y-4">
           <Toggle
             checked={simConfig.enabled}
-            onChange={(checked) => update('widgetSimulation', (d) => { d.enabled = checked }, true)}
+            onChange={(checked) => update('widgetSimulation', (d) => { d.enabled = checked })}
             label="Enable Widget Simulation"
           />
           {simConfig.enabled && (
@@ -136,7 +150,7 @@ export function AmbiancePanel() {
                   <input
                     type="number"
                     value={simConfig.intervalSeconds}
-                    onChange={(e) => update('widgetSimulation', (d) => { d.intervalSeconds = Number(e.target.value) }, true)}
+                    onChange={(e) => update('widgetSimulation', (d) => { d.intervalSeconds = Number(e.target.value) })}
                     className="w-24 text-sm"
                     min={1}
                   />
@@ -146,6 +160,30 @@ export function AmbiancePanel() {
                   How often the AI should consider performing an action.
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-zinc-400 mb-1">Max Open Widgets</div>
+                  <input
+                    type="number"
+                    value={simConfig.maxOpenWidgets ?? 2}
+                    onChange={(e) => update('widgetSimulation', (d) => { d.maxOpenWidgets = Math.max(1, Math.min(6, Number(e.target.value) || 2)) })}
+                    className="w-24 text-sm"
+                    min={1}
+                    max={6}
+                  />
+                </div>
+                <div>
+                  <Slider
+                    label="Open While One Open"
+                    value={simConfig.openWhileOneOpenChance ?? 0.35}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={(val) => update('widgetSimulation', (d) => { d.openWhileOneOpenChance = val })}
+                    unit="%"
+                  />
+                </div>
+              </div>
               <div>
                 <div className="text-xs text-zinc-400 mb-2">Widget Behaviors</div>
                 <div className="space-y-2">
@@ -153,7 +191,7 @@ export function AmbiancePanel() {
                     <WidgetBehaviorEditor
                       key={app.id}
                       app={app}
-                      behavior={simConfig.behaviors[app.id] ?? { enabled: false, openChance: 0.1, closeChance: 0.1 }}
+                      behavior={simConfig.behaviors[app.id] ?? { enabled: false, openChance: 0.1, closeChance: 0.1, interactChance: 0.65 }}
                       onChange={(updater) => updateBehavior(app.id, updater)}
                     />
                   ))}

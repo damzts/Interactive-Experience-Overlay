@@ -35,18 +35,19 @@ export function IconGlyph({ icon, label, size = 24 }: { icon: string; label: str
 }
 
 // ConfigApplyBar: wrapper for SaveBar with custom labels
-export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset }: {
+export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, alwaysShow = false }: {
   label: string;
   dirty: boolean;
   saving: boolean;
   saved: boolean;
   onApply: () => void;
   onReset: () => void;
+  alwaysShow?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3 mt-2 mb-2">
       <span className="text-xs text-zinc-400 font-semibold">{label}</span>
-      <SaveBar dirty={dirty} saving={saving} saved={saved} onSave={onApply} onRevert={onReset} />
+      <SaveBar dirty={dirty} saving={saving} saved={saved} onSave={onApply} onRevert={onReset} alwaysShow={alwaysShow} />
     </div>
   );
 }
@@ -285,23 +286,25 @@ export function SaveBar({
   saved,
   onSave,
   onRevert,
+  alwaysShow = false,
 }: {
   dirty: boolean
   saving: boolean
   saved: boolean
   onSave: () => void
   onRevert?: () => void
+  alwaysShow?: boolean
 }) {
-  if (!dirty && !saved) return null
+  if (!alwaysShow && !dirty && !saved) return null
   return (
     <div className="flex items-center gap-3 mt-4 pt-3 border-t border-zinc-700">
       {saved && <span className="text-xs text-emerald-400">✔ Saved</span>}
-      {dirty && (
+      {(dirty || alwaysShow) && (
         <>
-          <Btn variant="primary" onClick={onSave} disabled={saving}>
+          <Btn variant="primary" onClick={onSave} disabled={saving || !dirty}>
             {saving ? 'Saving…' : '💾 Save Changes'}
           </Btn>
-          {onRevert && (
+          {onRevert && dirty && (
             <Btn variant="ghost" onClick={onRevert}>↺ Revert</Btn>
           )}
         </>

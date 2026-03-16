@@ -51,6 +51,13 @@ export type ApplicationType = 'scene' | 'widget' | 'decoration'
 export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
 export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
 
+export interface WidgetWindowSize {
+  /** Width in pixels for the widget window chrome. */
+  width?: number
+  /** Height in pixels for the widget window chrome. */
+  height?: number
+}
+
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
@@ -177,6 +184,8 @@ export interface DesktopConfig {
   iconMotion: number
   /** Persisted widget window positions, keyed by widget id (e.g. 'music', 'archive') */
   widgetPositions?: Record<string, { x: number; y: number }>
+  /** Optional per-widget window size overrides, keyed by widget id. */
+  widgetSizes?: Record<string, WidgetWindowSize>
   /** Visual state for the recycle bin decoration app */
   recycleBin: {
     emptyIcon: string
@@ -267,6 +276,8 @@ export interface AmbianceWidgetBehavior {
   openChance: number
   /** Chance (0-1) to close this widget if it's open during a tick. */
   closeChance: number
+  /** Chance (0-1) to interact with this widget while open. Falls back to recipe default when omitted. */
+  interactChance?: number
 }
 
 export interface AmbianceWidgetSimulationConfig {
@@ -274,6 +285,10 @@ export interface AmbianceWidgetSimulationConfig {
   enabled: boolean
   /** How often (in seconds) the manager should evaluate actions. */
   intervalSeconds: number
+  /** Maximum number of simultaneously open widgets the simulator can keep. */
+  maxOpenWidgets?: number
+  /** When exactly one widget is open, chance (0-1) to open a second one instead of interacting/closing. */
+  openWhileOneOpenChance?: number
   /**
    * Per-widget behavior overrides. If a widget's ID is not in this map,
    * it won't be part of the simulation.

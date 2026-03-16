@@ -35,6 +35,9 @@ interface AdminStore {
   previewTarget: PreviewTarget
   openWidgetIds: string[]
   recycleBinFull: boolean
+  simulationLeaderId: string | null
+  ambianceAcceptedCount: number
+  ambianceRejectedCount: number
 
   setCurrentState: (s: STATE) => void
   setObsConnected: (b: boolean) => void
@@ -45,6 +48,8 @@ interface AdminStore {
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
   setRecycleBinFull: (full: boolean) => void
+  setSimulationLeaderId: (id: string | null) => void
+  setAmbianceMetrics: (payload: { accepted: number; rejected: number }) => void
   fetchConfig: () => Promise<void>
   saveConfig: (updates: Partial<AppConfig>) => Promise<void>
 }
@@ -59,6 +64,9 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   previewTarget: getStoredPreviewTarget(),
   openWidgetIds: [],
   recycleBinFull: false,
+  simulationLeaderId: null,
+  ambianceAcceptedCount: 0,
+  ambianceRejectedCount: 0,
 
   setCurrentState: (s) => set({ currentState: s }),
   setObsConnected: (b) => set({ obsConnected: b }),
@@ -79,6 +87,8 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       : [...state.openWidgetIds, widgetId],
   })),
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
+  setSimulationLeaderId: (id) => set({ simulationLeaderId: id }),
+  setAmbianceMetrics: (payload) => set({ ambianceAcceptedCount: payload.accepted, ambianceRejectedCount: payload.rejected }),
 
   fetchConfig: async () => {
     try {

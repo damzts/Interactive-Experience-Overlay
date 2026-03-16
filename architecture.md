@@ -69,6 +69,7 @@ The type system is the backbone of the entire protocol. Key structures:
 | client → server | `scene:change` | target STATE |
 | client → server | `desktop:state:request` | callback |
 | client → server | `widget:toggle` | widget app id (string) |
+| client → server | `widget:simulate` | widget app id (string, leader-only) |
 | client → server | `desktop:notify` | `{ title, body, icon?, durationMs? }` |
 | client → server | `desktop:recycle-bin` | `{ full }` |
 | client → server | `keybind:execute` | `{ scope, key?, action? }` |
@@ -81,6 +82,8 @@ The type system is the backbone of the entire protocol. Key structures:
 | server → client | `overlay:show` | OverlayTriggerPayload |
 | server → client | `config:update` | AppConfig |
 | server → client | `obs:status` | `{ connected }` |
+| server → client | `ambiance:leader` | `{ socketId: string \\| null }` |
+| server → client | `ambiance:metrics` | `{ accepted, rejected }` |
 | server → client | `widget:toggle` | widget app id (string) |
 | server → client | `desktop:notify` | `{ title, body, icon?, durationMs? }` |
 | server → client | `desktop:recycle-bin` | `{ full }` |
@@ -108,8 +111,9 @@ The scene machine does **not** own widget visibility or recycle-bin fullness. Th
 The server maintains:
 - the set of currently open widget IDs
 - the current recycle-bin fullness flag
+- the current simulation leader socket ID (single cursor-authoritative client)
 
-When a client emits `widget:toggle`, the server updates its widget set and broadcasts the toggle. When a client emits `desktop:recycle-bin`, the server updates the recycle-bin flag and broadcasts it. When a new overlay client connects, it requests the current desktop runtime snapshot so it can render the same desktop state as already-connected clients.
+When a client emits `widget:toggle`, the server updates its widget set and broadcasts the toggle. `widget:toggle` is used for manual operator actions (admin/runtime UI). For automated ambient cursor actions, clients emit `widget:simulate`; the server only accepts this event from the elected simulation leader socket and ignores it from all other clients. The elected leader is broadcast via `ambiance:leader`. When a client emits `desktop:recycle-bin`, the server updates the recycle-bin flag and broadcasts it. When a new overlay client connects, it requests the current desktop runtime snapshot so it can render the same desktop state as already-connected clients.
 
 ### REST API
 
@@ -133,6 +137,30 @@ SQLite with WAL mode. Three tables: a key-value stats store for stream metrics, 
 ## Assets
 
 Game images are scanned from `imagescrap/output/` or symlinked into `assets/images/games/`. The media API abstracts the source. Backgrounds, video loops, SFX, and music are served statically from the `assets/` directory.
+
+### Gallery Image Organization (Current Workflow)
+
+The Gallery widget reads from `GET /api/assets/catalog` and filters all entries with `kind: 'image'`. It is not limited to a single folder, so large image libraries can stay organized across nested folders.
+
+Recommended structure for bulk image sets:
+
+- `assets/images/games/<game-name>/...` (preferred for game-specific screenshots)
+- `assets/images/gallery/<collection-name>/...` (optional for non-game collections)
+
+Keeping images grouped by game/collection is recommended over a single flat folder. It improves maintenance, replacement, and cleanup without changing Gallery behavior.
+
+After adding/removing image files, refresh the server catalog:
+
+- `POST /api/assets/refresh`
+
+Then reload overlay/admin clients if needed so the updated catalog is reflected immediately.
+
+Performance guidance for large libraries:
+
+- Prefer `.webp` or optimized `.jpg` for large collections.
+- Avoid very large PNGs when possible.
+- Keep practical stream-facing resolutions (for example 1280x720 or 1920x1080).
+- Large total libraries are supported; only the currently displayed gallery image is decoded/rendered at once.
 
 The canonical audio layout is:
 - `assets/audio/sfx/` — sound effects (loaded by AudioEngine)
