@@ -9,6 +9,7 @@ import { VideoLoopRenderer }      from './VideoLoop'
 import { VignetteRenderer }       from './Vignette'
 import { NoiseGrainRenderer }     from './NoiseGrain'
 import { ClockWidgetRenderer }    from './ClockWidget'
+import { CameraRenderer }         from './Camera'
 
 export interface PluginDefinition {
   Renderer: ComponentType<{ config: Record<string, unknown> }>
@@ -25,4 +26,5 @@ export const pluginRegistry: Record<string, PluginDefinition> = {
   'vignette':        { Renderer: VignetteRenderer       },
   'noise-grain':     { Renderer: NoiseGrainRenderer     },
   'clock-widget':    { Renderer: ClockWidgetRenderer    },
+  'camera':          { Renderer: CameraRenderer         },
 }

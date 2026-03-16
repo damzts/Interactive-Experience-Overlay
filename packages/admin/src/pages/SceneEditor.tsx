@@ -62,6 +62,21 @@ const PLUGIN_TYPES = [
   { type: 'image-slideshow', label: 'Image Slideshow', defaultConfig: { source: 'scraped-games', interval: 8, transition: 'crossfade' } },
   { type: 'crt-effect',      label: 'CRT Effect',       defaultConfig: { scanlineIntensity: 0.25, flickerRate: 0.015, vignetteStrength: 0.5 } },
   { type: 'text-widget',     label: 'Text Widget',      defaultConfig: { content: 'Hello', font: 'vt323', fontSize: 24, color: '#ffffff', typewriterMode: false } },
+  {
+    type: 'camera',
+    label: '📷 Camera',
+    defaultConfig: {
+      deviceLabel: 'default',
+      mirror:      true,
+      shape:       'circle',
+      frameUrl:    '',
+      brightness:  1,
+      contrast:    1,
+      saturation:  1,
+      opacity:     1,
+      objectFit:   'cover',
+    },
+  },
 ]
 
 export function SceneEditor() {
