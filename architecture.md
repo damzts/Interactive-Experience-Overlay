@@ -266,7 +266,7 @@ The admin now has a shared asset-library surface instead of separate per-form pi
 
 **DesktopConfigEditor** — The desktop-specific editor inside the dashboard. It controls theme presets, desktop font/accent/text appearance, merged icon controls (default size slider, auto-arrange toggle, ambient motion preset, motion-strength slider up to 300%), sticky notes defaults, recycle-bin icons/state, screensaver settings, and system sound paths. It also includes runtime test buttons for desktop notification and recycle-bin events. Wallpaper/background remains in the desktop scene Background editor so the overlay stays transparent unless operators explicitly configure a background.
 
-**SceneEditor** — Create and edit scenes. Add, position, and configure plugin sources. Each scene has a **Background Music** field — a URL or `/assets/audio/music/` path that the overlay will loop while the scene is active, with a 1.5 s crossfade on entry. The config form is generated dynamically from the plugin type. Each scene's **Transitions** panel shows a `TransitionList` for both Intro and Exit — an ordered pipeline editor where each row is a full `TransitionPicker`. Steps can be added, removed, and reordered (↑↓) to compose multi-step transition sequences.
+**SceneEditor** — Create and edit scenes. Add, position, and configure plugin sources. Each scene has a `Background Music` field — a URL or `/assets/audio/music/` path that the overlay will loop while the scene is active, with a 1.5 s crossfade on entry. The config form is generated dynamically from the plugin type. Each scene's `Transitions` panel shows a `TransitionList` for both Intro and Exit — an ordered pipeline editor where each row is a full `TransitionPicker`. Steps can be added, removed, and reordered (↑↓) to compose multi-step transition sequences.
 
 **LobbyConfigEditor** — The lobby editor inside the dashboard. It now owns the bright white “time chamber” baseline, per-lobby style settings, open-sky world controls (sky top color, horizon color, floor color, floor reflectivity), and the “Room Life” props: virtual pet, lava lamp, and fish tank.
 
@@ -309,7 +309,9 @@ The overlay is a React application that renders entirely inside a 1920x1080 div 
 
 ### Layer Stack
 
-The visual output is built from a fixed set of layers rendered in z-order. **Each layer is wrapped in a `LayerErrorBoundary`** — if a layer throws a React error, it silently renders nothing and the rest of the overlay continues running. Nothing goes white mid-stream.
+The full layer stack is per-scene. Each `Scene` definition carries an optional `style: OverlayStyle` that independently configures `BackgroundLayer`, `ParticlesLayer`, and `CSSEffectsLayer`. If a scene defines no `style`, `AppConfig.overlayStyle` is the global fallback. Environments and application scenes each have their own complete visual configuration.
+
+The visual output is built from a fixed set of layers rendered in z-order. Each layer is wrapped in a `LayerErrorBoundary` — if a layer throws a React error, it silently renders nothing and the rest of the overlay continues running. Nothing goes white mid-stream.
 
 **BackgroundLayer** — CSS only. Renders the scene background: gradient, image URL, looping video, or one of several CSS pattern presets. Older solid-color configs are normalized to solid gradients.
 
@@ -317,17 +319,27 @@ The visual output is built from a fixed set of layers rendered in z-order. **Eac
 
 **LayerStack** — Renders all SourceInstances for the current scene. Each plugin is mounted inside an absolutely-positioned div at its configured coordinates and z-index.
 
-**LobbyScene** — A React Three Fiber scene, mounted only when the state is LOBBY. It now renders as an open, uncontained space rather than a closed room: a large reflective floor plane under a configurable sky gradient (top color + horizon color), plus the desk cluster, optional room-life props, dust motes, and fog. The old bookshelf and neon room-strip framing are gone so the scene reads as floor-and-sky void space rather than a contained room, and the camera/light rig now frames the desk cluster with a slower cinematic quarter-orbit instead of the older room-centered sway. It owns its own scene style instead of inheriting the purple CRT global fallback.
+**LobbyScene** — A React Three Fiber scene, mounted only when the machine state is LOBBY. Configurable over `LobbyConfigEditor` for specfic 3D parameters, and `SceneEditor` like any other scene.
 
-**Desktop** — The OS simulation shown in DESKTOP state. It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations (`pulse`, `float`, `jiggle`, `drift`, `orbit`, `breathe`, `reactive`) with a 0–300% motion-strength scalar, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images. Styled with 98.css plus desktop-specific CSS variables and overrides. Theme presets style only chrome; the desktop layer itself stays transparent unless the desktop scene Background config explicitly provides wallpaper/color through BackgroundLayer. When auto-arrange is off, icons can be dragged directly on the desktop and positions persist per application via `Application.iconPosition`; when no per-app `iconSize` is set, the desktop-wide default size from `DesktopConfig` is applied at render time. Desktop text color can still be authored with 8-digit hex for chrome, but icon labels and text-style glyph icons intentionally use the opaque RGB portion of that color so non-image icons do not disappear when alpha is zero. Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
+**Desktop** — The OS simulation shown in DESKTOP state. Styled with 98.css plus desktop-specific CSS variables and overrides.
+
+It now includes theme presets (Win98, Frutiger Aero, Y2K Candy, Midnight Chrome, Sunset Boulevard, Coastal Glass, Amber Terminal, custom), ambient icon animations (`pulse`, `float`, `jiggle`, `drift`, `orbit`, `breathe`, `reactive`) with a 0–300% motion-strength scalar, a taskbar with widget buttons, a system tray network pulse, notification badge, volume popup, balloon/toast notifications, context menus, and floating desktop windows with open/close animation. App icons can be emoji or uploaded images.
+
+Theme presets style only chrome; the desktop layer itself stays transparent unless the desktop scene Background config explicitly provides wallpaper/color through `BackgroundLayer`.
+
+When auto-arrange is off, icons can be dragged directly on the desktop and positions persist per application via `Application.iconPosition`; when no per-app `iconSize` is set, the desktop-wide default size from `DesktopConfig` is applied at render time.
+
+Desktop text color can still be authored with 8-digit hex for chrome, but icon labels and text-style glyph icons intentionally use the opaque RGB portion of that color so non-image icons do not disappear when alpha is zero.
+
+Widget open/close state is mirrored from the server-owned desktop runtime snapshot into the global Zustand store; minimize/restore and close animations are local overlay concerns. 
+
+When a scene-type application icon is double-clicked, the `launchPipeline` fires first — effects run, a delay elapses, then the scene change is emitted.
 
 The built-in desktop widgets currently include Music, Archive, Chat, Sticky Notes, and Gallery. The built-in decoration app is Recycle Bin.
 
 **CSSEffectsLayer** — Overlays CSS effects across the entire frame: CRT scanlines, vignette, Perlin noise grain, opacity flicker, and chromatic aberration via mix-blend-mode.
 
 **TransitionLayer** — A set of persistent invisible DOM elements that GSAP animations target during scene transitions. These divs stay in the DOM at all times; GSAP reads and writes them.
-
-The full layer stack is **per-scene**. Each `Scene` definition carries an optional `style: OverlayStyle` that independently configures `BackgroundLayer`, `ParticlesLayer`, and `CSSEffectsLayer`. If a scene defines no `style`, `AppConfig.overlayStyle` is the global fallback. Environments and application scenes each have their own complete visual configuration.
 
 ### Effect System
 
@@ -337,17 +349,17 @@ Each effect can have a delay and multiple effects can be stacked in one event pa
 
 Available effects: death overlay, victory overlay, revive overlay, network glitch, notification box (Win98 dialog), terminal toast, typewriter text, vignette pulse, floaties, screen shake, archive corruption, static burst, image overlay, video overlay.
 
-### Audio Engine
-
-A singleton Web Audio API class. It preloads SFX from `/assets/audio/sfx/` and plays them in response to overlay events. If a file is missing, it synthesizes a fallback sound using oscillators. Synthesis covers startup, transition, death, victory, revive, and glitch sounds. The engine handles AudioContext unlock (required for OBS Browser Sources) and fails gracefully if the context is unavailable.
-
-`playMusic(url, crossfadeMs)` manages a looping `<audio>` element for background music. Calling it with a new URL fades the previous track out over 1.5 s while fading the new track in. Passing `null` fades to silence. `setMusicVolume(v)` adjusts the music gain independently of SFX. The overlay calls `playMusic` on every state change using the current scene's `musicTrack` field.
-
 ### Plugin System
 
 Plugins are self-contained React components registered in a central registry. Each plugin receives a freeform config object and renders itself. Currently available plugins: image slideshow, CRT effect, solid color, text widget, static image, video loop, vignette, noise grain, and clock widget.
 
 Plugins can be added to any scene via the admin panel and positioned anywhere on the canvas.
+
+### Audio Engine
+
+A singleton Web Audio API class. It preloads SFX from `/assets/audio/sfx/` and plays them in response to overlay events. If a file is missing, it synthesizes a fallback sound using oscillators. Synthesis covers startup, transition, death, victory, revive, and glitch sounds. The engine handles AudioContext unlock (required for OBS Browser Sources) and fails gracefully if the context is unavailable.
+
+`playMusic(url, crossfadeMs)` manages a looping `<audio>` element for background music. Calling it with a new URL fades the previous track out over 1.5 s while fading the new track in. Passing `null` fades to silence. `setMusicVolume(v)` adjusts the music gain independently of SFX. The overlay calls `playMusic` on every state change using the current scene's `musicTrack` field.
 
 ---
 
