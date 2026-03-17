@@ -11,6 +11,7 @@ import { ArchiveWidget } from './ArchiveWidget'
 import { ChatWidget } from './ChatWidget'
 import { StickyNotesWidget } from './StickyNotesWidget'
 import { GalleryWidget } from './GalleryWidget'
+import { CameraWidget } from './CameraWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
@@ -39,6 +40,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>>
   chat:         ChatWidget,
   'sticky-notes': StickyNotesWidget,
   gallery:      GalleryWidget,
+  camera:       CameraWidget,
 }
 
 const SUPPORTED_WIDGET_IDS = new Set(Object.keys(WIDGET_COMPONENTS))

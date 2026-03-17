@@ -1,5 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
 
+function isAdminPreviewFrame() {
+  if (typeof window === 'undefined') return false
+  if (window.top === window.self) return false
+  try {
+    const referrer = document.referrer
+    if (!referrer) return false
+    const refUrl = new URL(referrer)
+    return refUrl.hostname === window.location.hostname && refUrl.port === '3002'
+  } catch {
+    return false
+  }
+}
+
+function isLikelyObsBrowserSource() {
+  if (typeof navigator === 'undefined') return false
+  return /\bOBS\//i.test(navigator.userAgent)
+}
+
+function shouldBlockCameraCapture() {
+  if (isAdminPreviewFrame()) return true
+  if (typeof window === 'undefined') return false
+  // Prevent local browser preview on runtime URL from grabbing the camera.
+  if (window.location.port === '3000' && !isLikelyObsBrowserSource()) return true
+  return false
+}
+
 /**
  * CameraRenderer — Plugin que captura un dispositivo de video (cámara física o
  * virtual como NVIDIA Broadcast) via getUserMedia y lo renderiza en la escena.
@@ -33,6 +59,11 @@ export function CameraRenderer({ config }: { config: Record<string, unknown> }) 
   useEffect(() => {
     let stream: MediaStream | null = null
     let cancelled = false
+
+    if (shouldBlockCameraCapture()) {
+      setError('Camara desactivada en vista previa para evitar conflicto de dispositivo.')
+      return
+    }
 
     async function startCamera() {
       try {

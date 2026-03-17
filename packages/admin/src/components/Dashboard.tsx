@@ -2711,6 +2711,7 @@ function LivePreview() {
         src={previewUrl}
         width={1920}
         height={1080}
+        allow="camera; microphone"
         style={{ position: 'absolute', border: 'none', display: 'block' }}
         title="Overlay Preview"
       />
@@ -3045,7 +3046,7 @@ function SectionLabel({ children }: { children: string }) {
   )
 }
 
-const SUPPORTED_WIDGET_IDS = new Set(['music', 'archive', 'chat', 'sticky-notes', 'gallery', 'spotify', 'browser'])
+const SUPPORTED_WIDGET_IDS = new Set(['music', 'archive', 'chat', 'sticky-notes', 'gallery', 'camera', 'spotify', 'browser'])
 
 function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
   selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
@@ -3154,6 +3155,11 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       }} />}
       {!hasWidget('gallery') && <AddBtn label="Add Gallery Widget" onClick={() => {
         const a: Application = { id: 'gallery', label: 'Gallery', icon: '🖼', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
+        saveConfig({ applications: [...applications, a] })
+        onSelect({ kind: 'app', appId: a.id })
+      }} />}
+      {!hasWidget('camera') && <AddBtn label="Add Camera Widget" onClick={() => {
+        const a: Application = { id: 'camera', label: 'Camera', icon: '📷', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
         saveConfig({ applications: [...applications, a] })
         onSelect({ kind: 'app', appId: a.id })
       }} />}

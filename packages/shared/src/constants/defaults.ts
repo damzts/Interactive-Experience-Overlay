@@ -366,6 +366,16 @@ export const DEFAULT_CONFIG: AppConfig = {
       iconPosition: { x: 16, y: 416 },
       iconSize: 'normal' as const,
     },
+    {
+      id: 'camera',
+      label: 'CAMERA.exe',
+      icon: '📷',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 496 },
+      iconSize: 'normal' as const,
+    },
   ],
 
   keybinds: {
