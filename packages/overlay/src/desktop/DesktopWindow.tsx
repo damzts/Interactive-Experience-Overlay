@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { patchDesktopConfig } from './configPersistence'
 
+const TASKBAR_HEIGHT_PX = 40
+
 function clampDimension(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)))
 }
@@ -14,6 +16,22 @@ function resolveWidth(value: number | undefined, fallback: number) {
 function resolveHeight(value: number | undefined) {
   if (!Number.isFinite(value)) return undefined
   return clampDimension(value as number, 140, 1000)
+}
+
+function clampWindowPosition(
+  position: { x: number; y: number },
+  dimensions: { width: number; height: number },
+) {
+  if (typeof window === 'undefined') return position
+
+  const maxX = Math.max(0, window.innerWidth - dimensions.width)
+  const workAreaHeight = Math.max(0, window.innerHeight - TASKBAR_HEIGHT_PX)
+  const maxY = Math.max(0, workAreaHeight - dimensions.height)
+
+  return {
+    x: clampDimension(position.x, 0, maxX),
+    y: clampDimension(position.y, 0, maxY),
+  }
 }
 
 function saveWidgetPosition(key: string, pos: { x: number; y: number }) {
@@ -62,10 +80,8 @@ export function DesktopWindow({
   const configPos = useAppStore((store) => store.config.desktopConfig?.widgetPositions?.[id])
   const sizeOverride = useAppStore((store) => store.config.desktopConfig?.widgetSizes?.[id])
   const frameRef = useRef<HTMLDivElement | null>(null)
-  const [pos, setPos] = useState(() => configPos ?? defaultPosition)
   const dragging = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
-  const posRef = useRef(pos)
   const resizing = useRef(false)
   const resizeStartPointer = useRef({ x: 0, y: 0 })
   const resizeStartSize = useRef({ width: width, height: 0 })
@@ -73,6 +89,15 @@ export function DesktopWindow({
   const resolvedHeight = resolveHeight(sizeOverride?.height)
   const [liveSize, setLiveSize] = useState(() => ({ width: resolvedWidth, height: resolvedHeight }))
   const sizeRef = useRef(liveSize)
+  const measureWindowHeight = () => frameRef.current?.offsetHeight ?? liveSize.height ?? 260
+  const clampPosition = (nextPos: { x: number; y: number }, nextSize = sizeRef.current) => {
+    return clampWindowPosition(nextPos, {
+      width: nextSize.width,
+      height: nextSize.height ?? measureWindowHeight(),
+    })
+  }
+  const [pos, setPos] = useState(() => clampPosition(configPos ?? defaultPosition, liveSize))
+  const posRef = useRef(pos)
 
   useEffect(() => {
     if (resizing.current) return
@@ -82,16 +107,33 @@ export function DesktopWindow({
   }, [resolvedWidth, resolvedHeight])
 
   useEffect(() => {
-    if (!dragging.current && configPos) {
-      setPos(configPos)
-      posRef.current = configPos
+    if (dragging.current) return
+
+    const next = clampPosition(configPos ?? defaultPosition)
+    if (next.x === posRef.current.x && next.y === posRef.current.y) return
+
+    setPos(next)
+    posRef.current = next
+  }, [configPos, defaultPosition.x, defaultPosition.y, liveSize.height, liveSize.width])
+
+  useEffect(() => {
+    const syncToViewport = () => {
+      const next = clampPosition(posRef.current)
+      if (next.x === posRef.current.x && next.y === posRef.current.y) return
+
+      posRef.current = next
+      setPos(next)
     }
-  }, [configPos])
+
+    syncToViewport()
+    window.addEventListener('resize', syncToViewport)
+    return () => window.removeEventListener('resize', syncToViewport)
+  }, [liveSize.height, liveSize.width])
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return
-      const next = { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y }
+      const next = clampPosition({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
       posRef.current = next
       setPos(next)
     }
@@ -99,12 +141,19 @@ export function DesktopWindow({
       if (!resizing.current) return
       const dx = e.clientX - resizeStartPointer.current.x
       const dy = e.clientY - resizeStartPointer.current.y
+        const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
       const next = {
         width: clampDimension(resizeStartSize.current.width + dx, 180, 1400),
-        height: clampDimension(resizeStartSize.current.height + dy, 140, 1000),
+          height: clampDimension(resizeStartSize.current.height + dy, 140, maxResizableHeight),
       }
       sizeRef.current = next
       setLiveSize(next)
+
+      const clampedPos = clampPosition(posRef.current, next)
+      if (clampedPos.x !== posRef.current.x || clampedPos.y !== posRef.current.y) {
+        posRef.current = clampedPos
+        setPos(clampedPos)
+      }
     }
     const onUp = () => {
       if (dragging.current) {
@@ -113,6 +162,7 @@ export function DesktopWindow({
       }
       if (resizing.current) {
         resizing.current = false
+        saveWidgetPosition(id, posRef.current)
         saveWidgetSize(id, {
           width: sizeRef.current.width,
           height: sizeRef.current.height ?? resizeStartSize.current.height,

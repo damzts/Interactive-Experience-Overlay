@@ -83,6 +83,12 @@ function resolveWidgetSizeFromConfig(widgetId: string, desktopConfig: DesktopCon
   }
 }
 
+/** Returns the persisted z-index for a widget, or undefined if not set. */
+function resolveWidgetZIndexFromConfig(widgetId: string, desktopConfig: DesktopConfig): number | undefined {
+  const v = desktopConfig.widgetZIndices?.[widgetId]
+  return Number.isFinite(v) ? (v as number) : undefined
+}
+
 function ThemeAppearanceFields({
   appearance,
   onChange,
@@ -1901,20 +1907,56 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const initialWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
   const [form, setForm] = useState<Application>(app)
   const [widgetSize, setWidgetSize] = useState(initialWidgetSize)
+  const [widgetZIndex, setWidgetZIndex] = useState<number | undefined>(
+    () => resolveWidgetZIndexFromConfig(app.id, desktopConfig),
+  )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [detectedCameras, setDetectedCameras] = useState<{ deviceId: string; label: string }[]>([])
+  const [detectingCameras, setDetectingCameras] = useState(false)
+  const [cameraLabelsGranted, setCameraLabelsGranted] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const enumerateCameras = useCallback(async (requestPermission = false) => {
+    setDetectingCameras(true)
+    try {
+      if (requestPermission) {
+        const probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        probe.getTracks().forEach((t) => t.stop())
+        setCameraLabelsGranted(true)
+      }
+      const all = await navigator.mediaDevices.enumerateDevices()
+      const cams = all
+        .filter((d) => d.kind === 'videoinput')
+        .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Cámara ${i + 1}` }))
+      setDetectedCameras(cams)
+      if (cams.some((c) => !c.label.startsWith('Cámara '))) setCameraLabelsGranted(true)
+    } catch {
+      // permission denied or unavailable — keep whatever we have
+    } finally {
+      setDetectingCameras(false)
+    }
+  }, [])
+
+  // Auto-enumerate video devices when this is a camera widget
+  useEffect(() => {
+    if (app.appType !== 'widget' || !isCameraWidgetId(app.id)) return
+    void enumerateCameras(false)
+  }, [app.id, app.appType, enumerateCameras])
   const appDirty = !isSameDraft(form, app)
   const sourceWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
+  const sourceWidgetZIndex = resolveWidgetZIndexFromConfig(app.id, desktopConfig)
   const widgetSizeDirty = form.appType === 'widget' && (
     widgetSize.width !== sourceWidgetSize.width
     || widgetSize.height !== sourceWidgetSize.height
   )
-  const dirty = appDirty || widgetSizeDirty
+  const widgetZIndexDirty = form.appType === 'widget' && widgetZIndex !== sourceWidgetZIndex
+  const dirty = appDirty || widgetSizeDirty || widgetZIndexDirty
 
   useEffect(() => {
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetZIndex(resolveWidgetZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }, [app, config.desktopConfig])
 
@@ -1946,6 +1988,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
       const defaults = getDefaultWidgetSize(form.id)
       const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
+      const nextWidgetZIndices = { ...(nextDesktop.widgetZIndices ?? {}) }
 
       if (normalizedWidth === defaults.width && normalizedHeight === defaults.height) {
         delete nextWidgetSizes[form.id]
@@ -1953,9 +1996,16 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         nextWidgetSizes[form.id] = { width: normalizedWidth, height: normalizedHeight }
       }
 
+      if (widgetZIndex === undefined) {
+        delete nextWidgetZIndices[form.id]
+      } else {
+        nextWidgetZIndices[form.id] = Math.max(0, Math.round(widgetZIndex))
+      }
+
       updates.desktopConfig = {
         ...nextDesktop,
         widgetSizes: Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined,
+        widgetZIndices: Object.keys(nextWidgetZIndices).length ? nextWidgetZIndices : undefined,
       }
     }
 
@@ -1970,6 +2020,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const reset = () => {
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetZIndex(resolveWidgetZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }
 
@@ -2103,6 +2154,107 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
             >
               Reset to Default
             </button>
+          </div>
+          <div className="mt-3 pt-3 border-t border-zinc-700/50">
+            <div className="text-[10px] text-zinc-500 mb-1">
+              Z-Index
+              <span className="text-zinc-600 ml-1">(stacking order — higher = in front; widgets start at 60)</span>
+            </div>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                min={0}
+                max={999}
+                placeholder="auto"
+                value={widgetZIndex ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  setWidgetZIndex(raw === '' ? undefined : Math.max(0, Math.min(999, Math.round(Number(raw)))))
+                }}
+                className="w-24 font-mono text-xs"
+              />
+              {widgetZIndex !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => setWidgetZIndex(undefined)}
+                  className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="text-[10px] text-zinc-600 mt-1">
+              Leave blank for automatic order (last focused = frontmost). Set a fixed value to pin this widget in the stack — e.g. camera PiP at 65, background widget at 61.
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      {form.appType === 'widget' && isCameraWidgetId(form.id) && (
+        <Panel title="Camera Defaults">
+          <div className="space-y-3">
+            <div className="text-[10px] text-zinc-400">
+              Configura la cámara para este widget. El widget solo muestra el video — sin controles. Abre OBS con <span className="font-mono text-zinc-300">?obs=1</span> en la URL del browser source.
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[10px] text-zinc-500">Dispositivo de cámara</div>
+                {!cameraLabelsGranted && (
+                  <button
+                    type="button"
+                    disabled={detectingCameras}
+                    onClick={() => void enumerateCameras(true)}
+                    className="text-[10px] px-2 py-0.5 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  >
+                    {detectingCameras ? 'Detectando...' : '🔓 Obtener nombres reales'}
+                  </button>
+                )}
+              </div>
+              {detectingCameras && detectedCameras.length === 0 ? (
+                <div className="text-[10px] text-zinc-500 italic">Detectando dispositivos...</div>
+              ) : (
+                <select
+                  value={form.cameraSettings?.preferredDeviceLabel ?? ''}
+                  onChange={(e) => update((d) => {
+                    d.cameraSettings = { ...(d.cameraSettings ?? {}), preferredDeviceLabel: e.target.value }
+                  })}
+                  className="w-full text-xs"
+                >
+                  <option value="">— Sin preferencia (primer dispositivo) —</option>
+                  {detectedCameras.map((cam) => (
+                    <option key={cam.deviceId} value={cam.label}>{cam.label}</option>
+                  ))}
+                  {/* Keep saved label as option even if not in current list */}
+                  {form.cameraSettings?.preferredDeviceLabel &&
+                    !detectedCameras.some((c) => c.label === form.cameraSettings?.preferredDeviceLabel) && (
+                    <option value={form.cameraSettings.preferredDeviceLabel}>
+                      {form.cameraSettings.preferredDeviceLabel} (guardado)
+                    </option>
+                  )}
+                </select>
+              )}
+              <div className="text-[10px] text-zinc-600 mt-1">
+                {!cameraLabelsGranted && detectedCameras.length > 0
+                  ? 'Nombres genéricos — pulsa "Obtener nombres reales" para ver los labels reales del sistema.'
+                  : 'El label se guarda en el servidor. OBS lo usa para encontrar la misma cámara automáticamente.'}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id={`cam-mirror-${form.id}`}
+                type="checkbox"
+                checked={form.cameraSettings?.mirror ?? false}
+                onChange={(e) => update((d) => {
+                  d.cameraSettings = {
+                    ...(d.cameraSettings ?? {}),
+                    mirror: e.target.checked,
+                  }
+                })}
+              />
+              <label htmlFor={`cam-mirror-${form.id}`} className="text-[11px] text-zinc-300 cursor-pointer">
+                Espejo (voltear horizontalmente)
+              </label>
+            </div>
           </div>
         </Panel>
       )}
@@ -3048,6 +3200,15 @@ function SectionLabel({ children }: { children: string }) {
 
 const SUPPORTED_WIDGET_IDS = new Set(['music', 'archive', 'chat', 'sticky-notes', 'gallery', 'camera', 'spotify', 'browser'])
 
+function isSupportedWidgetId(widgetId: string) {
+  if (SUPPORTED_WIDGET_IDS.has(widgetId)) return true
+  return /^camera(?:[-:_].+)?$/.test(widgetId)
+}
+
+function isCameraWidgetId(widgetId: string) {
+  return /^camera(?:[-:_].+)?$/.test(widgetId)
+}
+
 function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
   selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
   onLibrary: () => void
@@ -3061,9 +3222,33 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
 
   const sceneApps      = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
-  const widgetApps     = applications.filter((a) => a.appType === 'widget' && SUPPORTED_WIDGET_IDS.has(a.id))
+  const widgetApps     = applications.filter((a) => a.appType === 'widget' && isSupportedWidgetId(a.id))
   const decorationApps = applications.filter((a) => a.appType === 'decoration')
-  const hasWidget = (id: string) => applications.some((app) => app.id === id && app.appType === 'widget' && SUPPORTED_WIDGET_IDS.has(app.id))
+  const hasWidget = (id: string) => applications.some((app) => app.id === id && app.appType === 'widget' && isSupportedWidgetId(app.id))
+
+  const createNextCameraWidget = () => {
+    const existingIds = new Set(applications.filter((app) => app.appType === 'widget').map((app) => app.id))
+
+    let id = 'camera'
+    let suffix = 2
+    while (existingIds.has(id)) {
+      id = `camera-${suffix}`
+      suffix += 1
+    }
+
+    const labelSuffix = id === 'camera' ? '' : ` ${id.replace('camera-', '')}`
+    const app: Application = {
+      id,
+      label: `Camera${labelSuffix}`,
+      icon: '📷',
+      appType: 'widget',
+      targetSceneId: STATE.DESKTOP,
+      transitionType: 'default',
+    }
+
+    saveConfig({ applications: [...applications, app] })
+    onSelect({ kind: 'app', appId: app.id })
+  }
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
@@ -3158,11 +3343,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
         saveConfig({ applications: [...applications, a] })
         onSelect({ kind: 'app', appId: a.id })
       }} />}
-      {!hasWidget('camera') && <AddBtn label="Add Camera Widget" onClick={() => {
-        const a: Application = { id: 'camera', label: 'Camera', icon: '📷', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        saveConfig({ applications: [...applications, a] })
-        onSelect({ kind: 'app', appId: a.id })
-      }} />}
+      <AddBtn label="Add Camera Widget" onClick={createNextCameraWidget} />
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 

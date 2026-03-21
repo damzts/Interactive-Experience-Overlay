@@ -146,6 +146,10 @@ export async function configRoute(
             ...currentDesktop.widgetSizes,
             ...req.body.widgetSizes,
           },
+          widgetZIndices: {
+            ...currentDesktop.widgetZIndices,
+            ...req.body.widgetZIndices,
+          },
         })
         save({ ...config, desktopConfig: nextDesktop })
         return { ok: true }

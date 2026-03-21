@@ -15,7 +15,7 @@ import { CameraWidget } from './CameraWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
-import { patchApplicationConfig } from './configPersistence'
+import { patchApplicationConfig, patchDesktopConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
 import { CursorSimExample } from './CursorSimExample'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, focusWidgetFromTaskbar, focusWidgetWindow, interactWithWidgetByRecipe, runWidgetCursorSimulation } from './cursorSimUtils';
@@ -24,6 +24,8 @@ import React from 'react';
 
 interface DesktopWidgetProps {
   appId?: string
+  defaultCameraLabel?: string
+  defaultMirror?: boolean
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void
@@ -43,13 +45,29 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>>
   camera:       CameraWidget,
 }
 
-const SUPPORTED_WIDGET_IDS = new Set(Object.keys(WIDGET_COMPONENTS))
 const MAX_SIM_OPEN_WIDGETS = 2
 const OPEN_WHILE_ONE_OPEN_CHANCE = 0.35
 
-function resolveWidgetComponent(appId: string) {
-  if (WIDGET_COMPONENTS[appId]) return WIDGET_COMPONENTS[appId]
+type WidgetLayoutPresetId =
+  | 'camera-corner'
+  | 'camera-stage'
+  | 'camera-stage-3up'
+  | 'camera-presentation'
+  | 'camera-direct-talk'
+  | 'camera-source-a-center'
+  | 'camera-source-b-center'
+
+function resolveWidgetType(appId: string) {
+  if (WIDGET_COMPONENTS[appId]) return appId
+  // Allow camera aliases like camera-2 or camera:main while reusing CameraWidget.
+  if (/^camera(?:[-:_].+)?$/.test(appId)) return 'camera'
   return null
+}
+
+function resolveWidgetComponent(appId: string) {
+  const type = resolveWidgetType(appId)
+  if (!type) return null
+  return WIDGET_COMPONENTS[type] ?? null
 }
 
 const THEME_CLASSNAME: Record<DesktopTheme, string> = {
@@ -276,6 +294,34 @@ const DESKTOP_PAD  = 16
 const TASKBAR_H    = 40
 const CANVAS_H     = 1080
 const DRAG_THRESHOLD_PX = 4
+const PRESET_MARGIN_PX = 16
+const PRESET_PIP_WIDTH = 400
+const PRESET_PIP_HEIGHT = 300
+
+function getPresetStageSize(viewportWidth: number, workAreaHeight: number) {
+  return {
+    width: Math.max(600, Math.floor(viewportWidth - PRESET_MARGIN_PX * 2)),
+    height: Math.max(360, Math.floor(workAreaHeight - PRESET_MARGIN_PX * 2)),
+  }
+}
+
+function getPresetCenteredStageRect(viewportWidth: number, workAreaHeight: number) {
+  const width = clamp(Math.floor(viewportWidth * 0.78), 600, Math.max(600, viewportWidth - PRESET_MARGIN_PX * 2))
+  const height = clamp(Math.floor(workAreaHeight * 0.78), 360, Math.max(360, workAreaHeight - PRESET_MARGIN_PX * 2))
+  return {
+    width,
+    height,
+    x: Math.floor((viewportWidth - width) / 2),
+    y: Math.floor((workAreaHeight - height) / 2),
+  }
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
@@ -359,6 +405,8 @@ export function Desktop({ apps }: DesktopProps) {
   const closingWidgets = useAppStore((s) => s.closingWidgets)
   const minimizedWidgets = useAppStore((s) => s.minimizedWidgets)
   const minimizeWidget = useAppStore((s) => s.minimizeWidget)
+  const restoreWidget = useAppStore((s) => s.restoreWidget)
+  const enqueueDesktopNotification = useAppStore((s) => s.enqueueDesktopNotification)
   const recycleBinFull = useAppStore((s) => s.recycleBinFull)
   const reactiveIconId = useAppStore((s) => s.reactiveIconId)
 
@@ -368,12 +416,16 @@ export function Desktop({ apps }: DesktopProps) {
   const simLastActionAtByWidgetRef = useRef<Map<string, number>>(new Map())
   const simLastWidgetIdRef = useRef<string | null>(null)
   const simEmittingRef = useRef(false)
+  const suppressZIndexPersistRef = useRef(false)
+  const sourceCenterToggleRef = useRef<'camera-source-a-center' | 'camera-source-b-center'>('camera-source-a-center')
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
+  const desktopConfigRef = useRef(desktopConfig)
+  desktopConfigRef.current = desktopConfig
   const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
   const supportedApps = useMemo(
-    () => apps.filter((app) => app.appType !== 'widget' || SUPPORTED_WIDGET_IDS.has(app.id)),
+    () => apps.filter((app) => app.appType !== 'widget' || !!resolveWidgetComponent(app.id)),
     [apps],
   )
 
@@ -679,8 +731,20 @@ export function Desktop({ apps }: DesktopProps) {
     setWindowOrder((prev) => {
       const ids = visibleWidgets.map((widget) => widget.id)
       const next = prev.filter((id) => ids.includes(id))
-      for (const id of ids) {
-        if (!next.includes(id)) next.push(id)
+      const newIds = ids.filter((id) => !next.includes(id))
+      if (newIds.length === 0) return next.length === prev.length ? prev : next
+      const persistedZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+      const hasPersistedOrder = newIds.some((id) => persistedZIndices[id] !== undefined)
+      if (hasPersistedOrder) {
+        // Restore saved stack order (lower persisted value = further behind = added first)
+        const sortedNewIds = [...newIds].sort((a, b) => (persistedZIndices[a] ?? -1) - (persistedZIndices[b] ?? -1))
+        for (const id of sortedNewIds) next.push(id)
+      } else {
+        // Fallback: camera widgets go last (frontmost) among new arrivals
+        const newNonCameras = newIds.filter((id) => !/^camera(?:[-:_].+)?$/.test(id))
+        const newCameras = newIds.filter((id) => /^camera(?:[-:_].+)?$/.test(id))
+        for (const id of newNonCameras) next.push(id)
+        for (const id of newCameras) next.push(id)
       }
       return next
     })
@@ -690,6 +754,14 @@ export function Desktop({ apps }: DesktopProps) {
     setWindowOrder((prev) => {
       const next = prev.filter((id) => id !== widgetId)
       next.push(widgetId)
+      if (suppressZIndexPersistRef.current) {
+        return next
+      }
+      // Persist updated z-order so it survives reconnects
+      const currentZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+      const nextOpenWidgetZIndices = Object.fromEntries(next.map((id, idx) => [id, idx]))
+      const zIndices = { ...currentZIndices, ...nextOpenWidgetZIndices }
+      patchDesktopConfig({ widgetZIndices: zIndices }).catch(() => {})
       return next
     })
   }, [])
@@ -865,6 +937,239 @@ export function Desktop({ apps }: DesktopProps) {
     setContextMenu(null)
   }
 
+  const applyWidgetLayoutPreset = async (preset: WidgetLayoutPresetId) => {
+    if (typeof window === 'undefined') return
+    suppressZIndexPersistRef.current = true
+
+    const cameraWidgets = desktopApps
+      .filter((app) => app.appType === 'widget' && resolveWidgetType(app.id) === 'camera')
+      .sort((a, b) => {
+        // 'camera' (exact id) is always the primary host camera — keep it first.
+        if (a.id === 'camera') return -1
+        if (b.id === 'camera') return 1
+        return 0
+      })
+    if (cameraWidgets.length === 0) {
+      enqueueDesktopNotification({
+        title: 'Widget Layouts',
+        body: 'No hay widgets de camara configurados.',
+        durationMs: 2400,
+      })
+      closeMenus()
+      return
+    }
+
+    const viewportWidth = window.innerWidth
+    const workAreaHeight = Math.max(0, window.innerHeight - TASKBAR_H)
+    const nextPositions = { ...(desktopConfig.widgetPositions ?? {}) }
+    const nextSizes = { ...(desktopConfig.widgetSizes ?? {}) }
+
+    const ensureOpenAndRestored = (widgetId: string) => {
+      if (!openWidgets.has(widgetId)) socket.emit('widget:toggle', widgetId)
+      if (minimizedWidgets.has(widgetId)) restoreWidget(widgetId)
+    }
+
+    const closeIfOpen = (widgetId: string) => {
+      if (!openWidgets.has(widgetId)) return
+      socket.emit('widget:toggle', widgetId)
+    }
+
+    const placeWidget = (widgetId: string, width: number, height: number, x: number, y: number) => {
+      const clampedWidth = clamp(width, 180, Math.max(180, viewportWidth - PRESET_MARGIN_PX * 2))
+      const clampedHeight = clamp(height, 140, Math.max(140, workAreaHeight - PRESET_MARGIN_PX * 2))
+      const maxX = Math.max(PRESET_MARGIN_PX, viewportWidth - clampedWidth - PRESET_MARGIN_PX)
+      const maxY = Math.max(PRESET_MARGIN_PX, workAreaHeight - clampedHeight - PRESET_MARGIN_PX)
+      nextSizes[widgetId] = { width: clampedWidth, height: clampedHeight }
+      nextPositions[widgetId] = {
+        x: clamp(x, PRESET_MARGIN_PX, maxX),
+        y: clamp(y, PRESET_MARGIN_PX, maxY),
+      }
+      ensureOpenAndRestored(widgetId)
+    }
+
+    const primaryCamera = cameraWidgets[0]
+    const secondaryCamera = cameraWidgets[1]
+    const thirdCamera = cameraWidgets[2]
+    const stageSize = getPresetStageSize(viewportWidth, workAreaHeight)
+    const centeredStageRect = getPresetCenteredStageRect(viewportWidth, workAreaHeight)
+
+    if (preset === 'camera-corner') {
+      placeWidget(
+        primaryCamera.id,
+        PRESET_PIP_WIDTH,
+        PRESET_PIP_HEIGHT,
+        viewportWidth - PRESET_PIP_WIDTH - PRESET_MARGIN_PX,
+        workAreaHeight - PRESET_PIP_HEIGHT - PRESET_MARGIN_PX,
+      )
+      if (secondaryCamera) closeIfOpen(secondaryCamera.id)
+      if (thirdCamera) closeIfOpen(thirdCamera.id)
+    } else if (preset === 'camera-source-a-center' || preset === 'camera-source-b-center') {
+      if (!secondaryCamera || !thirdCamera) {
+        enqueueDesktopNotification({
+          title: 'Widget Layouts',
+          body: 'Este modo requiere 3 camaras: host + Fuente A + Fuente B.',
+          durationMs: 2600,
+        })
+        closeMenus()
+        return
+      }
+
+      // Host camera stays as fixed PiP bottom-right.
+      placeWidget(
+        primaryCamera.id,
+        PRESET_PIP_WIDTH,
+        PRESET_PIP_HEIGHT,
+        viewportWidth - PRESET_PIP_WIDTH - PRESET_MARGIN_PX,
+        workAreaHeight - PRESET_PIP_HEIGHT - PRESET_MARGIN_PX,
+      )
+
+      const centerCamera = preset === 'camera-source-a-center' ? secondaryCamera : thirdCamera
+      const hiddenCamera = preset === 'camera-source-a-center' ? thirdCamera : secondaryCamera
+
+      placeWidget(
+        centerCamera.id,
+        centeredStageRect.width,
+        centeredStageRect.height,
+        centeredStageRect.x,
+        centeredStageRect.y,
+      )
+      closeIfOpen(hiddenCamera.id)
+
+      sourceCenterToggleRef.current = preset === 'camera-source-a-center'
+        ? 'camera-source-b-center'
+        : 'camera-source-a-center'
+    } else if (preset === 'camera-direct-talk') {
+      placeWidget(
+        primaryCamera.id,
+        centeredStageRect.width,
+        centeredStageRect.height,
+        centeredStageRect.x,
+        centeredStageRect.y,
+      )
+      if (secondaryCamera) closeIfOpen(secondaryCamera.id)
+      if (thirdCamera) closeIfOpen(thirdCamera.id)
+    } else if (preset === 'camera-presentation') {
+      if (!secondaryCamera) {
+        enqueueDesktopNotification({
+          title: 'Widget Layouts',
+          body: 'Camera Presentation requiere al menos 2 camaras (camera y camera-2).',
+          durationMs: 2600,
+        })
+        closeMenus()
+        return
+      }
+
+      // Presentation set: source camera in center, host camera as PiP bottom-right.
+      placeWidget(
+        secondaryCamera.id,
+        centeredStageRect.width,
+        centeredStageRect.height,
+        centeredStageRect.x,
+        centeredStageRect.y,
+      )
+      placeWidget(
+        primaryCamera.id,
+        PRESET_PIP_WIDTH,
+        PRESET_PIP_HEIGHT,
+        viewportWidth - PRESET_PIP_WIDTH - PRESET_MARGIN_PX,
+        workAreaHeight - PRESET_PIP_HEIGHT - PRESET_MARGIN_PX,
+      )
+      if (thirdCamera) closeIfOpen(thirdCamera.id)
+    } else {
+      placeWidget(primaryCamera.id, stageSize.width, stageSize.height, PRESET_MARGIN_PX, PRESET_MARGIN_PX)
+
+      if (secondaryCamera) {
+        placeWidget(
+          secondaryCamera.id,
+          PRESET_PIP_WIDTH,
+          PRESET_PIP_HEIGHT,
+          viewportWidth - PRESET_PIP_WIDTH - PRESET_MARGIN_PX,
+          workAreaHeight - PRESET_PIP_HEIGHT - PRESET_MARGIN_PX,
+        )
+      }
+
+      if (preset === 'camera-stage-3up' && thirdCamera) {
+        placeWidget(
+          thirdCamera.id,
+          PRESET_PIP_WIDTH,
+          PRESET_PIP_HEIGHT,
+          PRESET_MARGIN_PX,
+          workAreaHeight - PRESET_PIP_HEIGHT - PRESET_MARGIN_PX,
+        )
+      } else if (thirdCamera) {
+        closeIfOpen(thirdCamera.id)
+      }
+    }
+
+    try {
+      // Preserve configured widgetZIndices from Dashboard; layout presets should only change geometry.
+      await patchDesktopConfig({ widgetPositions: nextPositions, widgetSizes: nextSizes })
+      enqueueDesktopNotification({
+        title: 'Widget Layouts',
+        body:
+          preset === 'camera-corner'
+            ? 'Layout aplicado: camara en esquina inferior derecha.'
+            : preset === 'camera-source-a-center'
+              ? 'Layout aplicado: Fuente A al centro + host fijo.'
+              : preset === 'camera-source-b-center'
+                ? 'Layout aplicado: Fuente B al centro + host fijo.'
+            : preset === 'camera-presentation'
+              ? 'Layout aplicado: presentacion (centro + camara en esquina).' 
+              : preset === 'camera-direct-talk'
+                ? 'Layout aplicado: hablando directo (camara al centro).'
+            : preset === 'camera-stage'
+              ? 'Layout aplicado: camara principal + PiP.'
+              : 'Layout aplicado: Main + PiP derecha + PiP izquierda.',
+        durationMs: 2200,
+      })
+    } catch {
+      enqueueDesktopNotification({
+        title: 'Widget Layouts',
+        body: 'No se pudo guardar el layout.',
+        durationMs: 2400,
+      })
+    }
+
+    // Ignore focus side effects caused by opening/restoring layout widgets.
+    setTimeout(() => {
+      suppressZIndexPersistRef.current = false
+    }, 500)
+
+    closeMenus()
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || !event.ctrlKey) return
+      if (event.repeat) return
+      if (isTypingTarget(event.target)) return
+
+      const key = event.key
+      if (key === '1') {
+        event.preventDefault()
+        void applyWidgetLayoutPreset('camera-source-a-center')
+        return
+      }
+      if (key === '2') {
+        event.preventDefault()
+        void applyWidgetLayoutPreset('camera-source-b-center')
+        return
+      }
+      if (key === '3') {
+        event.preventDefault()
+        void applyWidgetLayoutPreset(sourceCenterToggleRef.current)
+        return
+      }
+      if (key === '0') {
+        event.preventDefault()
+        void applyWidgetLayoutPreset('camera-direct-talk')
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [applyWidgetLayoutPreset])
+
   const iconMenuLaunchable = contextMenu?.app?.appType === 'scene' || contextMenu?.app?.appType === 'widget'
 
   return (
@@ -930,6 +1235,62 @@ export function Desktop({ apps }: DesktopProps) {
                       <span>{app.label}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="start-menu-item start-menu-item--has-sub">
+                <span className="start-menu-item-icon">📐</span>
+                <span className="start-menu-item-label">Widget Layouts</span>
+                <span className="start-menu-item-arrow">▶</span>
+                <div className="start-menu-sub">
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-corner') }}
+                  >
+                    <span>Camera: Bottom Right</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-presentation') }}
+                  >
+                    <span>Presentation: Center + Host PiP</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-source-a-center') }}
+                  >
+                    <span>Source A: Center + Host PiP</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-source-b-center') }}
+                  >
+                    <span>Source B: Center + Host PiP</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset(sourceCenterToggleRef.current) }}
+                  >
+                    <span>Toggle Source A/B</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-direct-talk') }}
+                  >
+                    <span>Direct Talk: Host Center</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-stage') }}
+                  >
+                    <span>Camera Stage + PiP</span>
+                  </button>
+                  <button
+                    className="start-menu-sub-item"
+                    onClick={() => { void applyWidgetLayoutPreset('camera-stage-3up') }}
+                  >
+                    <span>Camera Stage + 2x PiP</span>
+                  </button>
                 </div>
               </div>
 
@@ -1012,6 +1373,12 @@ export function Desktop({ apps }: DesktopProps) {
           const WidgetComp = resolveWidgetComponent(a.id)
           const widgetProps: DesktopWidgetProps = {
             appId: a.id,
+            defaultCameraLabel: /^camera(?:[-:_].+)?$/.test(a.id)
+              ? (a.cameraSettings?.preferredDeviceLabel ?? '')
+              : undefined,
+            defaultMirror: /^camera(?:[-:_].+)?$/.test(a.id)
+              ? (a.cameraSettings?.mirror ?? false)
+              : undefined,
             onClose: () => {
               if ((window as any).__cursorMirrorVisualOnly) return
               if (simEmittingRef.current) socket.emit('widget:simulate', a.id)

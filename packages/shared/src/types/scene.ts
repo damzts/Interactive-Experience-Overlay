@@ -97,6 +97,13 @@ export interface Application {
     /** Auto-play interval in seconds. */
     intervalSec?: number
   }
+  /** Optional per-widget defaults for camera widget runtime behavior. */
+  cameraSettings?: {
+    /** Preferred camera device label (or partial label) used as fallback default for this widget. */
+    preferredDeviceLabel?: string
+    /** Mirror the video horizontally. Default: false. */
+    mirror?: boolean
+  }
 }
 
 /** A scene is an ordered list of source instances */
@@ -186,6 +193,8 @@ export interface DesktopConfig {
   widgetPositions?: Record<string, { x: number; y: number }>
   /** Optional per-widget window size overrides, keyed by widget id. */
   widgetSizes?: Record<string, WidgetWindowSize>
+  /** Persisted widget window z-index order, keyed by widget id. Higher value = rendered on top. */
+  widgetZIndices?: Record<string, number>
   /** Visual state for the recycle bin decoration app */
   recycleBin: {
     emptyIcon: string
