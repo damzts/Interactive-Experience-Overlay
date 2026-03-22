@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Btn, ConfigSectionPanel } from '../components/ui'
+import { Btn, ConfigNotice, ConfigPageIntro, ConfigSectionPanel, ConfigTable, ConfigToolbar } from '../components/ui'
 
 interface Stats {
   wins: number
@@ -61,61 +61,68 @@ export function ArchivePanel() {
   }
 
   return (
-    <div className="max-w-2xl space-y-3">
+    <div className="w-full max-w-none space-y-0 pt-1">
+      <ConfigPageIntro title="Archive Control">
+        Review tracked session metrics, inspect recent archive events, and run maintenance actions from the same configuration surface.
+      </ConfigPageIntro>
 
-      {error && (
-        <div className="text-red-400 bg-red-950/40 border border-red-800/40 rounded px-3 py-2 text-xs">⚠ {error}</div>
-      )}
+      {error && <ConfigNotice tone="danger" className="mb-4">{error}</ConfigNotice>}
 
-      <div className="space-y-0 pt-1">
       <ConfigSectionPanel label="System Archive" first>
-        {!stats && !error && <div className="text-sm text-zinc-500">Loading archive…</div>}
+        {!stats && !error && <ConfigNotice tone="info">Loading archive…</ConfigNotice>}
         {stats && (
-          <table className="w-full text-sm border-collapse">
-            <tbody>
-              {(Object.entries(stats) as [keyof Stats, number][]).map(([key, val]) => (
-                <tr key={key} className="border-b border-zinc-700/60">
-                  <td className="py-2 text-cyan-400 font-medium w-36 capitalize">{key}</td>
-                  <td className="py-2 font-mono font-bold text-base text-zinc-100">{val}</td>
-                  <td className="py-2">
-                    <Btn onClick={() => handleIncrement(key)} className="text-xs py-0.5 px-2">+1</Btn>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ConfigTable compact>
+            <table>
+              <tbody>
+                {(Object.entries(stats) as [keyof Stats, number][]).map(([key, val]) => (
+                  <tr key={key}>
+                    <td className="w-40 capitalize text-sm font-medium text-cyan-300">{key}</td>
+                    <td className="font-mono text-base font-bold text-zinc-100">{val}</td>
+                    <td className="w-24 text-right">
+                      <Btn onClick={() => handleIncrement(key)} className="px-2 py-1 text-xs">+1</Btn>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ConfigTable>
         )}
       </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Event Log">
         {log.length === 0 ? (
-          <div className="text-sm text-zinc-500">No events recorded yet.</div>
+          <ConfigNotice tone="info">No events recorded yet.</ConfigNotice>
         ) : (
-          <div className="overflow-auto max-h-52">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0">
-                <tr className="border-b border-zinc-700 bg-zinc-800">
-                  <th className="py-1.5 text-left text-zinc-400 font-medium pr-4 w-40">Date</th>
-                  <th className="py-1.5 text-left text-zinc-400 font-medium pr-4 w-28">Event</th>
-                  <th className="py-1.5 text-left text-zinc-400 font-medium">Detail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {log.map((e) => (
-                  <tr key={e.id} className="border-b border-zinc-800/60">
-                    <td className="py-1 font-mono text-zinc-400">{e.date}</td>
-                    <td className="py-1 text-cyan-400">{e.event}</td>
-                    <td className="py-1 text-zinc-400">{e.detail ?? '—'}</td>
+          <div className="max-h-52 overflow-auto">
+            <ConfigTable compact>
+              <table>
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th className="w-40">Date</th>
+                    <th className="w-28">Event</th>
+                    <th>Detail</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {log.map((e) => (
+                    <tr key={e.id}>
+                      <td className="font-mono text-zinc-400">{e.date}</td>
+                      <td className="text-cyan-300">{e.event}</td>
+                      <td className="text-zinc-400">{e.detail ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ConfigTable>
           </div>
         )}
       </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Actions">
-        <div className="flex gap-3 items-center flex-wrap">
+        <ConfigNotice tone="warning">
+          Resetting archive stats clears the operator counters below and refreshes the visible log data.
+        </ConfigNotice>
+        <ConfigToolbar className="mt-3">
           {resetDone && <span className="text-xs text-emerald-400">✔ Stats reset.</span>}
           {!confirmReset ? (
             <Btn variant="danger" onClick={() => setConfirmReset(true)}>Reset All Stats</Btn>
@@ -126,10 +133,10 @@ export function ArchivePanel() {
               <Btn onClick={() => setConfirmReset(false)}>Cancel</Btn>
             </>
           )}
+          <div className="flex-1" />
           <span className="text-xs text-zinc-500">(v1 — stats persist per session; SQLite in v2)</span>
-        </div>
+        </ConfigToolbar>
       </ConfigSectionPanel>
-      </div>
     </div>
   )
 }

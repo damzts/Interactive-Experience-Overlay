@@ -510,7 +510,12 @@ The **ChatWidget** currently only displays seeded demo messages - it has no live
 
 The **MusicWidget** (used by both `music` and `spotify` IDs) shows a simulated elapsed timer and static track name. It does not track real playback. To make it useful it needs a data source - either the server polling the Spotify Web API and broadcasting current track info, or the overlay reading from a local file written by a Spotify integration tool.
 
-### Bugs
+
+---
+
+## 2026 Update: Admin Styling and Typography
+
+The admin panel now uses a unified configuration styling system and a global typography scale for all configuration surfaces, dashboard editors, and asset pickers. Shared primitives (`ConfigPageIntro`, `ConfigNotice`, `ConfigToolbar`, `ConfigCard`, `ConfigTable`, and selector/button components) are defined in `packages/admin/src/components/ui.tsx` and styled via `admin.css`. All font sizes, labels, and metadata are normalized through a root type scale, so the admin/config experience is visually consistent and easy to extend. The dashboard, right-pane editors, and modal surfaces now use these primitives everywhere, and legacy text-size utilities are mapped to the new scale automatically. The desktop theme font picker is compact and consistent with the rest of the admin.
 
 - obs-websocket still does not emit arbitrary OBS hotkey keypress events back to IEOM. OBS-scoped bindings are now executable and testable through the server-side `keybind:execute` path, but fully passive "press key inside OBS and let the bridge observe it" support still needs an OBS-side helper, plugin, or manual mirroring workflow.
 - Lobby background handling is still split by renderer: color and gradient backgrounds can tint the 3D sky hall, but image/video/pattern backgrounds remain CSS-only behind the lobby canvas. If operators expect every background type to appear directly in the 3D lobby, that still needs dedicated implementation.

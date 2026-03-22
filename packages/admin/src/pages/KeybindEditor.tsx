@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
-import { Btn, ConfigSectionPanel } from '../components/ui'
+import { Btn, ConfigNotice, ConfigPageIntro, ConfigSectionPanel, ConfigTable, ConfigToolbar } from '../components/ui'
 import { socket } from '../socket/client'
 
 type BindingScope = 'obs' | 'admin'
@@ -132,101 +132,110 @@ export function KeybindEditor() {
 
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
-      <ConfigSectionPanel label="Keybind Editor" first>
-        <p className="text-xs text-zinc-400 mb-4">
-          Add as many bindings as you want. Choose whether the binding belongs to OBS or the focused admin panel,
-          capture the key, then map it to a scene, widget, event, or panic action. Use Run to validate a row before saving.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left border-b border-zinc-700">
-                <th className="pb-2 text-zinc-400 font-medium w-24">Scope</th>
-                <th className="pb-2 text-zinc-400 font-medium w-32">Key</th>
-                <th className="pb-2 text-zinc-400 font-medium">Action</th>
-                <th className="pb-2 text-zinc-400 font-medium w-24 text-right">Test</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const selectedAction = actionOptions.find((option) => option.value === row.action)
-                const capturing = capturingRowId === row.id
+      <ConfigPageIntro title="Keybind Configuration">
+        Capture admin and OBS shortcuts, map them to scenes, widgets, or events, and validate each row before you persist the change.
+      </ConfigPageIntro>
 
-                return (
-                  <tr key={row.id} className="border-b border-zinc-800/60 align-top">
-                    <td className="py-2 pr-2">
-                      <select
-                        value={row.scope}
-                        onChange={(e) => updateRow(row.id, (current) => ({ ...current, scope: e.target.value as BindingScope }))}
-                        className="text-xs"
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="obs">OBS</option>
-                      </select>
-                    </td>
-                    <td className="py-2 pr-2">
-                      <button
-                        onClick={() => setCapturingRowId(row.id)}
-                        className={`px-2 py-1 rounded text-xs border transition-colors min-w-24 ${
-                          capturing
-                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
-                            : 'bg-zinc-700 border-zinc-600 text-zinc-200 hover:bg-zinc-600'
-                        }`}
-                      >
-                        {capturing ? '⌨ Press…' : row.key || 'Set key'}
-                      </button>
-                    </td>
-                    <td className="py-2 pr-2">
-                      <select
-                        value={row.action}
-                        onChange={(e) => updateRow(row.id, (current) => ({ ...current, action: e.target.value }))}
-                        className="text-xs"
-                      >
-                        {actionOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.detail} — {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedAction && (
-                        <div className="text-[10px] text-zinc-500 mt-1">{selectedAction.detail}</div>
-                      )}
-                    </td>
-                    <td className="py-2 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => runBinding(row)}
-                          className="px-2 py-1 rounded text-[10px] border border-cyan-700/50 text-cyan-300 hover:border-cyan-500/60 hover:text-cyan-200 transition-colors"
-                          title="Run binding"
+      <ConfigSectionPanel label="Keybind Editor" first>
+        <ConfigNotice>
+          Choose the execution scope, capture a key, and use Run to validate the mapping before you save it.
+        </ConfigNotice>
+        <div className="mt-4 overflow-x-auto">
+          <ConfigTable>
+            <table>
+              <thead>
+                <tr>
+                  <th className="w-24">Scope</th>
+                  <th className="w-36">Key</th>
+                  <th>Action</th>
+                  <th className="w-44 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const selectedAction = actionOptions.find((option) => option.value === row.action)
+                  const capturing = capturingRowId === row.id
+
+                  return (
+                    <tr key={row.id} className="align-top">
+                      <td>
+                        <select
+                          value={row.scope}
+                          onChange={(e) => updateRow(row.id, (current) => ({ ...current, scope: e.target.value as BindingScope }))}
+                          className="text-xs"
                         >
-                          Run
-                        </button>
-                        <button
-                          onClick={() => setRows((prev) => prev.filter((current) => current.id !== row.id))}
-                          className="text-[10px] text-zinc-500 hover:text-red-400 px-1 transition-colors"
-                          title="Remove binding"
+                          <option value="admin">Admin</option>
+                          <option value="obs">OBS</option>
+                        </select>
+                      </td>
+                      <td>
+                        <Btn
+                          type="button"
+                          variant={capturing ? 'warning' : 'default'}
+                          onClick={() => setCapturingRowId(row.id)}
+                          className="min-w-28 justify-center px-2.5 py-1 text-xs"
                         >
-                          ✕
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                          {capturing ? 'Press Key…' : row.key || 'Set Key'}
+                        </Btn>
+                      </td>
+                      <td>
+                        <select
+                          value={row.action}
+                          onChange={(e) => updateRow(row.id, (current) => ({ ...current, action: e.target.value }))}
+                          className="text-xs"
+                        >
+                          {actionOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.detail} — {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedAction && (
+                          <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{selectedAction.detail}</div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          <Btn
+                            type="button"
+                            variant="primary"
+                            onClick={() => runBinding(row)}
+                            className="px-2.5 py-1 text-xs"
+                            title="Run binding"
+                          >
+                            Run
+                          </Btn>
+                          <Btn
+                            type="button"
+                            variant="danger"
+                            onClick={() => setRows((prev) => prev.filter((current) => current.id !== row.id))}
+                            className="px-2.5 py-1 text-xs"
+                            title="Remove binding"
+                          >
+                            Delete
+                          </Btn>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </ConfigTable>
         </div>
         {rows.length === 0 && (
-          <div className="text-xs text-zinc-600 italic py-3 text-center">No bindings configured yet.</div>
+          <ConfigNotice tone="info" className="mt-4">
+            No bindings configured yet. Add an Admin or OBS binding to begin.
+          </ConfigNotice>
         )}
-        <div className="flex flex-wrap gap-2 mt-4">
+        <ConfigToolbar className="mt-4">
           <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('admin')])}>+ Add Admin Binding</Btn>
           <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('obs')])}>+ Add OBS Binding</Btn>
           <Btn variant="primary" onClick={handleSave} disabled={saving}>
             {saved ? '✔ Saved' : saving ? 'Saving…' : '💾 Save Keybinds'}
           </Btn>
           <Btn onClick={handleReset}>↺ Revert</Btn>
-        </div>
+        </ConfigToolbar>
       </ConfigSectionPanel>
     </div>
   )

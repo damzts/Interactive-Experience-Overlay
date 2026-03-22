@@ -66,9 +66,20 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
   alwaysShow?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 mt-2 mb-2">
-      <span className="text-xs text-zinc-400 font-semibold">{label}</span>
-      <SaveBar dirty={dirty} saving={saving} saved={saved} onSave={onApply} onRevert={onReset} alwaysShow={alwaysShow} />
+    <div className="my-3 rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
+        <div className="flex-1" />
+        <SaveBar
+          dirty={dirty}
+          saving={saving}
+          saved={saved}
+          onSave={onApply}
+          onRevert={onReset}
+          alwaysShow={alwaysShow}
+          showDivider={false}
+        />
+      </div>
     </div>
   );
 }
@@ -206,10 +217,13 @@ export function FloatingWindowHeader({
   return (
     <div className="flex items-center gap-2.5 border-b border-zinc-800 px-5 py-3.5 shrink-0">
       {icon && <span className="text-base shrink-0">{icon}</span>}
-      <span className="text-sm font-semibold text-zinc-100 min-w-0 truncate">{title}</span>
+      <span className="admin-text-title font-semibold text-zinc-100 min-w-0 truncate">{title}</span>
       <div className="flex-1" />
       {actions}
-      <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-xl leading-none transition-colors">
+      <button
+        onClick={onClose}
+        className="admin-text-body rounded-md border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 leading-none text-zinc-500 transition-colors hover:border-zinc-700/80 hover:text-zinc-100"
+      >
         ✕
       </button>
     </div>
@@ -229,9 +243,9 @@ export function Panel({
   bodyClassName?: string
 }) {
   return (
-    <div className={`rounded-lg bg-zinc-800/60 border border-zinc-700/60 overflow-hidden ${className}`}>
+    <div className={`overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/70 shadow-lg shadow-black/20 backdrop-blur-sm ${className}`}>
       {title && (
-        <div className="px-3 py-2 bg-zinc-800 border-b border-zinc-700/60 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+        <div className="admin-text-kicker border-b border-zinc-800/80 bg-zinc-950/50 px-3.5 py-2 font-semibold uppercase tracking-[0.2em] text-zinc-500">
           {title}
         </div>
       )}
@@ -253,8 +267,8 @@ export function ConfigSectionPanel({
 }) {
   return (
     <section className={first ? 'px-0.5 pt-0.5' : 'mt-6 px-0.5'}>
-      <div className={first ? 'mb-2 px-0.5' : 'mb-2 border-t border-cyan-500/25 px-0.5 pt-2'}>
-        <span className="inline-flex rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+      <div className={first ? 'mb-2 px-0.5' : 'mb-2 border-t border-cyan-500/20 px-0.5 pt-2'}>
+        <span className="admin-text-kicker inline-flex rounded-md border border-cyan-400/35 bg-cyan-500/12 px-2.5 py-0.5 font-semibold uppercase tracking-[0.22em] text-cyan-200">
           {label}
         </span>
       </div>
@@ -263,14 +277,154 @@ export function ConfigSectionPanel({
   )
 }
 
-type BtnVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'active'
+type ConfigNoticeTone = 'info' | 'warning' | 'danger' | 'success'
+
+const CONFIG_NOTICE_TONES: Record<ConfigNoticeTone, string> = {
+  info: 'border-cyan-500/25 bg-cyan-500/10 text-cyan-50',
+  warning: 'border-amber-500/30 bg-amber-500/12 text-amber-50',
+  danger: 'border-red-500/30 bg-red-500/12 text-red-50',
+  success: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-50',
+}
+
+export function ConfigPageIntro({
+  title,
+  children,
+  eyebrow = 'Control Surface',
+  className = '',
+}: {
+  title: string
+  children: ReactNode
+  eyebrow?: string
+  className?: string
+}) {
+  return (
+    <div className={`mb-4 rounded-xl border border-cyan-500/18 bg-zinc-950/65 px-4 py-3 shadow-lg shadow-black/20 ${className}`.trim()}>
+      <div className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/80">{eyebrow}</div>
+      <div className="admin-text-display mt-1 font-semibold text-zinc-100">{title}</div>
+      <div className="admin-text-body mt-1 max-w-prose text-zinc-400">{children}</div>
+    </div>
+  )
+}
+
+export function ConfigNotice({
+  tone = 'info',
+  children,
+  className = '',
+}: {
+  tone?: ConfigNoticeTone
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`admin-text-body rounded-lg border px-3 py-2 ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
+export function ConfigToolbar({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`flex flex-wrap items-center gap-2.5 rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
+export function ConfigCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-lg border border-zinc-800/80 bg-zinc-950/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
+export function ConfigTable({
+  children,
+  className = '',
+  compact = false,
+}: {
+  children: ReactNode
+  className?: string
+  compact?: boolean
+}) {
+  return (
+    <div className={`admin-config-table ${compact ? 'admin-config-table--compact' : ''} ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
+export function ConfigChoiceButton({
+  selected = false,
+  className = '',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean }) {
+  return (
+    <button
+      className={[
+        'admin-text-body inline-flex items-center justify-center rounded-lg border px-2.5 py-1.5 font-medium capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        selected
+          ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+          : 'border-zinc-800/80 bg-zinc-950/55 text-zinc-400 hover:border-zinc-700/80 hover:bg-zinc-900/75 hover:text-zinc-100',
+        className,
+      ].join(' ').trim()}
+      {...props}
+    />
+  )
+}
+
+export function ConfigPreviewButton({
+  selected = false,
+  className = '',
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean; children: ReactNode }) {
+  return (
+    <button
+      className={[
+        'relative overflow-hidden rounded-xl border p-0 text-left transition-all disabled:cursor-not-allowed disabled:opacity-40',
+        selected
+          ? 'border-cyan-400/45 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]'
+          : 'border-zinc-800/80 hover:border-zinc-700/80',
+        className,
+      ].join(' ').trim()}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+
+export function ConfigSwatchButton({
+  color,
+  selected = false,
+  className = '',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { color: string; selected?: boolean }) {
+  return (
+    <button
+      className={[
+        'h-7 w-7 rounded-full border-2 transition-all',
+        selected
+          ? 'border-cyan-200 shadow-[0_0_0_1px_rgba(34,211,238,0.35)] scale-105'
+          : 'border-zinc-900/70 hover:border-zinc-500',
+        className,
+      ].join(' ').trim()}
+      style={{ backgroundColor: color }}
+      {...props}
+    />
+  )
+}
+
+type BtnVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'active' | 'warning'
 
 const BTN_VARIANTS: Record<BtnVariant, string> = {
-  default: 'bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 text-zinc-100',
-  primary: 'bg-cyan-700 hover:bg-cyan-600 border border-cyan-600 text-white font-semibold',
-  danger:  'bg-red-800 hover:bg-red-700 border border-red-700 text-white font-semibold',
-  ghost:   'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border border-transparent',
-  active:  'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300',
+  default: 'border border-zinc-700/80 bg-zinc-950/70 text-zinc-100 hover:border-zinc-600/90 hover:bg-zinc-800/80',
+  primary: 'border border-cyan-400/35 bg-cyan-500/12 text-cyan-50 font-semibold hover:border-cyan-300/45 hover:bg-cyan-500/20',
+  danger:  'border border-red-500/30 bg-red-500/10 text-red-50 font-semibold hover:border-red-400/40 hover:bg-red-500/18',
+  ghost:   'border border-transparent text-zinc-400 hover:border-zinc-700/60 hover:bg-zinc-900/75 hover:text-zinc-100',
+  active:  'border border-cyan-400/40 bg-cyan-500/18 text-cyan-200',
+  warning: 'border border-amber-400/35 bg-amber-500/14 text-amber-100 font-semibold hover:border-amber-300/45 hover:bg-amber-500/22',
 }
 
 export function Btn({
@@ -280,7 +434,7 @@ export function Btn({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
   return (
     <button
-      className={`px-3 py-1.5 text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${BTN_VARIANTS[variant]} ${className}`}
+      className={`admin-text-body inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${BTN_VARIANTS[variant]} ${className}`}
       {...props}
     />
   )
@@ -288,7 +442,7 @@ export function Btn({
 
 export function Label({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`text-xs text-zinc-400 mb-1 ${className}`}>{children}</div>
+    <div className={`admin-text-meta text-zinc-400 mb-1 ${className}`}>{children}</div>
   )
 }
 
@@ -320,7 +474,7 @@ export function Toggle({
           className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`}
         />
       </div>
-      {label && <span className="text-sm text-zinc-300">{label}</span>}
+      {label && <span className="admin-text-body text-zinc-300">{label}</span>}
     </label>
   )
 }
@@ -343,9 +497,10 @@ export function Slider({
   onChange: (v: number) => void
 }) {
   const display = step >= 1 ? value.toFixed(0) : max <= 1 ? `${Math.round(value * 100)}%` : value.toFixed(1)
+  const renderedDisplay = unit && display.endsWith(unit) ? display : `${display}${unit}`
   return (
     <div className="flex items-center gap-3 mb-2">
-      <span className="text-xs text-zinc-400 w-28 shrink-0">{label}</span>
+      <span className="admin-text-body text-zinc-400 w-28 shrink-0">{label}</span>
       <input
         type="range"
         min={min}
@@ -355,8 +510,8 @@ export function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="flex-1"
       />
-      <span className="text-xs text-zinc-300 w-10 text-right shrink-0">
-        {display}{unit}
+      <span className="admin-text-body text-zinc-300 w-10 text-right shrink-0">
+        {renderedDisplay}
       </span>
     </div>
   )
@@ -364,7 +519,7 @@ export function Slider({
 
 export function StatusDot({ on, label }: { on: boolean; label: string }) {
   return (
-    <span className={`text-xs font-mono ${on ? 'text-emerald-400' : 'text-red-500'}`}>
+    <span className={`admin-text-body font-mono ${on ? 'text-emerald-400' : 'text-red-500'}`}>
       {on ? '●' : '○'} {label}
     </span>
   )
@@ -377,6 +532,8 @@ export function SaveBar({
   onSave,
   onRevert,
   alwaysShow = false,
+  showDivider = true,
+  className = '',
 }: {
   dirty: boolean
   saving: boolean
@@ -384,11 +541,13 @@ export function SaveBar({
   onSave: () => void
   onRevert?: () => void
   alwaysShow?: boolean
+  showDivider?: boolean
+  className?: string
 }) {
   if (!alwaysShow && !dirty && !saved) return null
   return (
-    <div className="flex items-center gap-3 mt-4 pt-3 border-t border-zinc-700">
-      {saved && <span className="text-xs text-emerald-400">✔ Saved</span>}
+    <div className={`flex flex-wrap items-center gap-3 ${showDivider ? 'mt-4 border-t border-zinc-800/80 pt-3' : ''} ${className}`.trim()}>
+      {saved && <span className="admin-text-body text-emerald-300">✔ Saved</span>}
       {(dirty || alwaysShow) && (
         <>
           <Btn variant="primary" onClick={onSave} disabled={saving || !dirty}>

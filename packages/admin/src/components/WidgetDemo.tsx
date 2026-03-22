@@ -1,40 +1,31 @@
-import React, { useRef, useState } from 'react';
+import { useState } from 'react'
 
 export function WidgetDemo() {
-  const widgetRef = useRef<HTMLDivElement>(null);
-  const [feedback, setFeedback] = useState(false);
+  const [feedback, setFeedback] = useState(false)
 
   const handleWidgetAction = () => {
-    setFeedback(true);
-    setTimeout(() => setFeedback(false), 1200);
-  };
+    setFeedback(true)
+    setTimeout(() => setFeedback(false), 1200)
+  }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="relative">
       <div
-        ref={widgetRef}
-        style={{ width: 100, height: 100, background: feedback ? '#7fffd4' : 'lightblue', margin: 40, transition: 'background 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}
+        onClick={handleWidgetAction}
+        className={[
+          'm-10 flex h-24 w-24 items-center justify-center rounded-xl border text-sm font-medium transition-colors',
+          feedback
+            ? 'border-emerald-300/60 bg-emerald-300 text-zinc-950'
+            : 'border-cyan-300/40 bg-cyan-200 text-zinc-950',
+        ].join(' ')}
       >
         Widget
         {feedback && (
-          <span style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            background: 'rgba(0,0,0,0.7)',
-            color: '#fff',
-            padding: '4px 12px',
-            borderRadius: 6,
-            fontSize: 14,
-            pointerEvents: 'none',
-            zIndex: 2,
-          }}>
+          <span className="pointer-events-none absolute left-1/2 top-1/2 z-[2] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-zinc-800/80 bg-zinc-950/80 px-3 py-1 text-xs font-semibold text-zinc-100 shadow-lg shadow-black/30">
             Used!
           </span>
         )}
       </div>
-      {/* WidgetSimulator removed */}
     </div>
-  );
+  )
 }

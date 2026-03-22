@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Scene, SourceInstance } from '@ieom/shared'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn, HexColorInput, FloatingWindowHeader, FloatingWindowShell } from '../components/ui'
+import { Panel, Btn, HexColorInput, FloatingWindowHeader, FloatingWindowShell, ConfigNotice } from '../components/ui'
 
 /** Renders editable form fields for a source's config Record */
 function ConfigFieldEditor({
@@ -14,13 +14,13 @@ function ConfigFieldEditor({
   const update = (key: string, value: unknown) => onChange({ ...config, [key]: value })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div className="flex flex-col gap-1.5">
       {Object.entries(config).map(([key, val]) => {
         const isColor =
           typeof val === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(val)
         return (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ width: 140, fontSize: 11, flexShrink: 0 }}>{key}</label>
+          <div key={key} className="flex items-center gap-2">
+            <label className="w-36 shrink-0 text-[11px] text-zinc-400">{key}</label>
             {typeof val === 'boolean' ? (
               <input
                 type="checkbox"
@@ -41,14 +41,14 @@ function ConfigFieldEditor({
                 value={val}
                 step={val < 2 ? 0.01 : 1}
                 onChange={(e) => update(key, Number(e.target.value))}
-                style={{ width: 80 }}
+                className="w-20"
               />
             ) : (
               <input
                 type="text"
                 value={String(val)}
                 onChange={(e) => update(key, e.target.value)}
-                style={{ flex: 1, minWidth: 0 }}
+                className="min-w-0 flex-1"
               />
             )}
           </div>
@@ -156,10 +156,10 @@ export function SceneEditor() {
           <button
             key={s.id}
             onClick={() => { setSelectedSceneId(s.id); setSelectedSourceId(null) }}
-            className={`block w-full text-left px-3 py-1.5 rounded mb-1 text-sm transition-colors ${
+            className={`mb-1 block w-full rounded-lg border px-3 py-1.5 text-left text-sm transition-colors ${
               s.id === selectedSceneId
-                ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/40'
-                : 'hover:bg-zinc-700 text-zinc-300 border border-transparent'
+                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                : 'border-zinc-800/80 bg-zinc-950/45 text-zinc-300 hover:border-zinc-700/80 hover:bg-zinc-900/70'
             }`}
           >
             {s.label}
@@ -171,16 +171,16 @@ export function SceneEditor() {
       {/* Source list */}
       <Panel title={`${scene?.label ?? '—'} — Sources`} className="overflow-auto">
         {scene?.sources.length === 0 && (
-          <div className="text-xs text-zinc-500 px-1 py-0.5">No sources</div>
+          <ConfigNotice tone="info">No sources configured for this scene yet.</ConfigNotice>
         )}
         {scene?.sources.map((src) => (
           <div
             key={src.id}
             onClick={() => setSelectedSourceId(src.id)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer mb-1 transition-colors ${
+            className={`mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition-colors ${
               src.id === selectedSourceId
-                ? 'bg-cyan-600/30 text-cyan-300'
-                : 'hover:bg-zinc-700 text-zinc-300'
+                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                : 'border-zinc-800/80 bg-zinc-950/45 text-zinc-300 hover:border-zinc-700/80 hover:bg-zinc-900/70'
             }`}
           >
             <input
@@ -196,7 +196,7 @@ export function SceneEditor() {
         <div className="flex gap-2 mt-3">
           <Btn className="flex-1 text-center" onClick={() => setShowAddSource(true)}>+ Add</Btn>
           {selectedSourceId && (
-            <Btn variant="danger" className="flex-1 text-center" onClick={() => removeSource(selectedSourceId)}>🗑</Btn>
+            <Btn variant="danger" className="flex-1 text-center" onClick={() => removeSource(selectedSourceId)}>Delete</Btn>
           )}
         </div>
       </Panel>
@@ -204,7 +204,7 @@ export function SceneEditor() {
       {/* Source config */}
       <Panel title={`Source Config${dirty ? ' ●' : ''}`} className="overflow-auto">
         {!selectedSource && (
-          <div className="text-sm text-zinc-500">Select a source to configure it.</div>
+          <ConfigNotice tone="info">Select a source to configure it.</ConfigNotice>
         )}
         {selectedSource && (
           <div className="space-y-4">
@@ -232,7 +232,7 @@ export function SceneEditor() {
               <div className="text-xs text-zinc-400 mb-1">Z-Index</div>
               <input type="number" value={selectedSource.zIndex}
                 onChange={(e) => updateSource(selectedSource.id, { zIndex: Number(e.target.value) })}
-                style={{ width: 80 }}
+                className="w-20"
               />
             </div>
             <div>
@@ -255,8 +255,8 @@ export function SceneEditor() {
       {showAddSource && (
         <FloatingWindowShell frameClassName="w-80" layerClassName="z-[60]">
           <FloatingWindowHeader icon="＋" title="Add Source" onClose={() => setShowAddSource(false)} />
-          <div className="p-4">
-            <p className="text-sm text-zinc-400 mb-3">Select a source plugin type:</p>
+          <div className="space-y-3 p-4">
+            <ConfigNotice tone="info">Select a source plugin type for this scene.</ConfigNotice>
             <div className="flex flex-col gap-2">
               {PLUGIN_TYPES.map((p) => (
                 <Btn key={p.type} className="text-left" onClick={() => addSource(p.type)}>{p.label}</Btn>

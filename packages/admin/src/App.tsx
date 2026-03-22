@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { STATE } from '@ieom/shared'
+import { STATE, type DesktopRuntimeStatePayload } from '@ieom/shared'
 import { socket } from './socket/client'
 import { useAdminStore } from './store/useAdminStore'
 import { Dashboard } from './components/Dashboard'
@@ -21,7 +21,7 @@ export default function App() {
       socket.emit('state:request', (state: STATE) => {
         if (state && state !== STATE.TRANSITIONING) setCurrentState(state)
       })
-      socket.emit('desktop:state:request', (payload) => {
+      socket.emit('desktop:state:request', (payload: DesktopRuntimeStatePayload) => {
         syncDesktopRuntimeState(payload)
       })
     }
@@ -91,6 +91,10 @@ export default function App() {
     }
   }, [config])
 
-  return <Dashboard />
+  return (
+    <div className="admin-shell h-full">
+      <Dashboard />
+    </div>
+  )
 }
 

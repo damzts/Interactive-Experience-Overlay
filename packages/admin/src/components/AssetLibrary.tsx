@@ -9,7 +9,7 @@ import {
   useAssetCatalog,
 } from '../assets/catalog'
 import type { AssetKind, AssetRecord } from '../assets/catalog'
-import { FloatingWindowHeader, FloatingWindowShell } from './ui'
+import { Btn, ConfigCard, ConfigNotice, ConfigToolbar, FloatingWindowHeader, FloatingWindowShell } from './ui'
 
 const ASSET_RESULT_LIMIT = 60
 
@@ -68,16 +68,9 @@ function AssetRow({
   const interactive = Boolean(onSelect)
 
   return (
-    <div className={
-      'flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors ' +
-      (selected
-        ? 'border-cyan-500/50 bg-cyan-900/20'
-        : interactive
-          ? 'border-zinc-800 bg-zinc-800/30 hover:border-zinc-600 hover:bg-zinc-800/60'
-          : 'border-zinc-800 bg-zinc-800/20')
-    }>
+    <ConfigCard className={selected ? 'border-cyan-400/35 bg-cyan-500/10' : interactive ? 'hover:border-zinc-700/80 hover:bg-zinc-900/70' : ''}>
       {interactive ? (
-        <button type="button" onClick={() => onSelect?.(asset)} className="flex flex-1 items-center gap-3 text-left min-w-0">
+        <button type="button" onClick={() => onSelect?.(asset)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <AssetPreview asset={asset} />
           <div className="min-w-0 flex-1">
             <div className="text-xs font-medium text-zinc-100 truncate">{asset.name}</div>
@@ -93,7 +86,7 @@ function AssetRow({
           <span className="shrink-0 text-[10px] text-cyan-400">Use</span>
         </button>
       ) : (
-        <div className="flex flex-1 items-center gap-3 min-w-0">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <AssetPreview asset={asset} />
           <div className="min-w-0 flex-1">
             <div className="text-xs font-medium text-zinc-100 truncate">{asset.name}</div>
@@ -104,16 +97,17 @@ function AssetRow({
       )}
 
       {onDelete && (
-        <button
+        <Btn
           type="button"
+          variant="danger"
           onClick={() => onDelete(asset)}
-          className="shrink-0 px-1 text-sm text-zinc-600 transition-colors hover:text-red-400"
+          className="px-2 py-1 text-[10px]"
           title="Delete saved entry"
         >
-          ✕
-        </button>
+          Delete
+        </Btn>
       )}
-    </div>
+    </ConfigCard>
   )
 }
 
@@ -137,7 +131,7 @@ function AssetSection({
     return (
       <div className="space-y-2">
         <div className="text-[10px] uppercase tracking-wider text-zinc-500">{title}</div>
-        <div className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-xs text-zinc-600">{emptyMessage}</div>
+        <ConfigNotice tone="info" className="py-4">{emptyMessage}</ConfigNotice>
       </div>
     )
   }
@@ -211,7 +205,7 @@ export function AssetCatalogPanel({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+      <ConfigToolbar className="flex-col items-stretch md:flex-row md:items-center">
         <input
           type="text"
           value={search}
@@ -219,43 +213,35 @@ export function AssetCatalogPanel({
           placeholder="Search assets, folders, or game names..."
           className="flex-1 text-xs"
         />
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          className="px-3 py-1.5 text-xs rounded border border-zinc-700 bg-zinc-800 text-zinc-300 transition-colors hover:bg-zinc-700"
-        >
+        <Btn type="button" onClick={() => void refresh()} className="px-3 py-1.5 text-xs">
           Refresh
-        </button>
-      </div>
+        </Btn>
+      </ConfigToolbar>
 
       {kinds.length > 1 && (
         <div className="flex flex-wrap gap-1.5">
           {(['all', ...kinds] as const).map((kind) => (
-            <button
+            <Btn
               key={kind}
               type="button"
+              variant={kindFilter === kind ? 'active' : 'default'}
               onClick={() => setKindFilter(kind)}
-              className={
-                'px-2.5 py-1 text-[10px] rounded border uppercase tracking-wide transition-colors ' +
-                (kindFilter === kind
-                  ? 'border-cyan-500/40 bg-cyan-600/20 text-cyan-300'
-                  : 'border-zinc-700 bg-zinc-800 text-zinc-500 hover:text-zinc-200')
-              }
+              className="px-2.5 py-1 text-[10px] uppercase tracking-wide"
             >
               {kind}
-            </button>
+            </Btn>
           ))}
         </div>
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs text-red-300">{error}</div>
+        <ConfigNotice tone="danger">{error}</ConfigNotice>
       )}
 
-      {loading && !error && <div className="text-sm text-zinc-500">Loading asset catalog...</div>}
+      {loading && !error && <ConfigNotice tone="info">Loading asset catalog...</ConfigNotice>}
 
       {!loading && !error && visibleSaved.length === 0 && visibleProjectAssets.length === 0 && visibleGameAssets.length === 0 && (
-        <div className="rounded-lg border border-dashed border-zinc-800 px-3 py-5 text-sm text-zinc-600">{emptyMessage}</div>
+        <ConfigNotice tone="info" className="py-5">{emptyMessage}</ConfigNotice>
       )}
 
       {!loading && (
@@ -382,7 +368,7 @@ export function AssetPickerModal({
         <FloatingWindowHeader icon="🗂" title={title} onClose={onClose} />
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-800/20 p-3 space-y-3">
+          <ConfigCard className="space-y-3">
             <div className="text-[10px] uppercase tracking-wider text-zinc-500">Quick Add</div>
             <div className="flex flex-col gap-2 md:flex-row">
               <input
@@ -392,18 +378,14 @@ export function AssetPickerModal({
                 placeholder="/assets/images/example.png or https://..."
                 className="flex-1 text-xs font-mono"
               />
-              <button
-                type="button"
-                onClick={handleManualUse}
-                className="px-3 py-1.5 text-xs rounded border border-cyan-500/30 bg-cyan-600/20 text-cyan-300 transition-colors hover:bg-cyan-600/35"
-              >
+              <Btn type="button" variant="primary" onClick={handleManualUse} className="px-3 py-1.5 text-xs">
                 Use URL
-              </button>
+              </Btn>
             </div>
 
             {uploadEnabled && (
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                <label className="inline-flex cursor-pointer items-center justify-center rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700">
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-md border border-zinc-700/80 bg-zinc-950/70 px-3 py-1.5 text-xs text-zinc-200 transition-colors hover:border-zinc-600/90 hover:bg-zinc-900/80">
                   <input type="file" className="hidden" accept={kinds.includes('video') ? 'image/*,video/*' : 'image/*'} onChange={handleUpload} />
                   {uploading ? 'Uploading...' : 'Upload File'}
                 </label>
@@ -411,8 +393,8 @@ export function AssetPickerModal({
               </div>
             )}
 
-            {uploadError && <div className="text-xs text-red-300">{uploadError}</div>}
-          </div>
+            {uploadError && <ConfigNotice tone="danger">{uploadError}</ConfigNotice>}
+          </ConfigCard>
 
           <AssetCatalogPanel kinds={kinds} selectedUrl={selectedUrl} onSelect={handleCatalogSelect} />
         </div>
@@ -458,21 +440,13 @@ export function AssetSelectionInput({
           className={`flex-1 text-xs font-mono ${inputClassName}`}
         />
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="px-3 py-1.5 text-xs rounded border border-zinc-700 bg-zinc-800 text-zinc-300 transition-colors hover:bg-zinc-700"
-          >
+          <Btn type="button" onClick={() => setPickerOpen(true)} className="px-3 py-1.5 text-xs">
             {buttonLabel}
-          </button>
+          </Btn>
           {value && (
-            <button
-              type="button"
-              onClick={() => onChange('')}
-              className="px-3 py-1.5 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-500 transition-colors hover:text-zinc-200"
-            >
+            <Btn type="button" variant="ghost" onClick={() => onChange('')} className="px-3 py-1.5 text-xs">
               Clear
-            </button>
+            </Btn>
           )}
         </div>
       </div>

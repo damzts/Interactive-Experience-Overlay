@@ -24,7 +24,7 @@ import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
 import { inferAssetKindFromUrl, type AssetKind } from '../assets/catalog'
 import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
-import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel, FloatingWindowShell, FloatingWindowHeader } from './ui'
+import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel, FloatingWindowShell, FloatingWindowHeader, ConfigCard, ConfigNotice, ConfigChoiceButton, ConfigPreviewButton, ConfigSwatchButton, ConfigToolbar } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
@@ -266,23 +266,43 @@ function ThemeAppearanceFields({
   onChange: (updater: (draft: ThemeAppearance) => void) => void
   helperText?: string
 }) {
+  const activeFont = GOOGLE_FONTS.find((font) => font.css === appearance.fontFamily) ?? GOOGLE_FONTS[0]
+
   return (
     <div className="space-y-3">
       {helperText && <div className="text-[10px] text-zinc-500 leading-relaxed">{helperText}</div>}
       <div>
-        <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Font</div>
-        <select value={appearance.fontFamily} onChange={(e) => onChange((d) => { d.fontFamily = e.target.value })}
-          className="w-full text-xs">
-          {GOOGLE_FONTS.map((font) => <option key={font.css} value={font.css}>{font.name}</option>)}
-        </select>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Font</div>
+          <div className="text-[10px] text-zinc-600 truncate">{activeFont.name}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {GOOGLE_FONTS.map((font) => (
+            <ConfigChoiceButton
+              key={font.css}
+              type="button"
+              selected={appearance.fontFamily === font.css}
+              onClick={() => onChange((d) => { d.fontFamily = font.css })}
+              className="min-h-0 justify-start px-2.5 py-1.5 text-left normal-case"
+              style={font.css !== 'default' ? { fontFamily: font.css } : undefined}
+              title={font.name}
+            >
+              <span className="min-w-0 truncate text-[10px] font-semibold leading-none">{font.name}</span>
+            </ConfigChoiceButton>
+          ))}
+        </div>
       </div>
       <div>
         <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Accent</div>
         <div className="flex flex-wrap gap-1 mb-1.5">
           {ACCENT_SWATCHES.map((color) => (
-            <button key={color} type="button" onClick={() => onChange((d) => { d.accentColor = color })}
-              className={'w-6 h-6 rounded-full border-2 transition-all ' + (appearance.accentColor === color ? 'border-white scale-110' : 'border-transparent hover:border-zinc-400')}
-              style={{ backgroundColor: color }} />
+            <ConfigSwatchButton
+              key={color}
+              type="button"
+              color={color}
+              selected={appearance.accentColor === color}
+              onClick={() => onChange((d) => { d.accentColor = color })}
+            />
           ))}
         </div>
         <div className="flex items-center gap-2">
@@ -743,17 +763,20 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
   const sorted = [...sources].sort((a, b) => a.zIndex - b.zIndex)
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {sorted.length === 0 && (
-        <div className="text-[10px] text-zinc-600 italic py-1">No sources. Game capture shows through.</div>
+        <ConfigNotice tone="info" className="py-3 text-center">
+          No sources yet. Game capture shows through until you add a source.
+        </ConfigNotice>
       )}
       {sorted.map((src) => {
         const meta  = SOURCE_CATALOG.find((c) => c.type === src.pluginType)
         const isExp = expanded === src.id
         return (
-          <div key={src.id} className="rounded border border-zinc-700/60 bg-zinc-800/40 overflow-hidden">
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
+          <ConfigCard key={src.id} className="overflow-hidden p-0">
+            <div className="flex items-center gap-2 px-3 py-2">
               <button
+                type="button"
                 title={src.visible ? 'Hide' : 'Show'}
                 onClick={() => toggle(src.id)}
                 className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (src.visible ? 'bg-emerald-400 hover:bg-emerald-600' : 'bg-zinc-600 hover:bg-zinc-400')}
@@ -761,11 +784,15 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
               <span className="text-[10px] text-zinc-500 shrink-0">{meta?.icon ?? '▣'}</span>
               <span className="text-[11px] text-zinc-200 flex-1 truncate font-mono">{src.id}</span>
               <span className="text-[9px] text-zinc-600 shrink-0">{src.pluginType}</span>
-              <button onClick={() => setExpanded(isExp ? null : src.id)} className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1">{isExp ? '▲' : '▼'}</button>
-              <button onClick={() => remove(src.id)} className="text-[10px] text-red-500 hover:text-red-300 px-1">✕</button>
+              <Btn type="button" variant={isExp ? 'active' : 'ghost'} onClick={() => setExpanded(isExp ? null : src.id)} className="px-2 py-0.5 text-[10px]">
+                {isExp ? 'Collapse' : 'Edit'}
+              </Btn>
+              <Btn type="button" variant="danger" onClick={() => remove(src.id)} className="px-2 py-0.5 text-[10px]">
+                Delete
+              </Btn>
             </div>
             {isExp && (
-              <div className="border-t border-zinc-700/50 px-2 py-2 space-y-2">
+              <div className="space-y-3 border-t border-zinc-800/80 px-3 py-3">
                 {meta?.fields.map((f) => (
                   <SourceField key={f.key} field={f} value={src.config[f.key]}
                     onChange={(v) => setConfig(src.id, { ...src.config, [f.key]: v })} />
@@ -786,39 +813,41 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] text-zinc-600 uppercase tracking-wider">Z-index</span>
                   <span className="font-mono text-[10px] text-zinc-400 w-4 text-center">{src.zIndex}</span>
-                  <button onClick={() => moveZ(src.id,  1)} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300">↑</button>
-                  <button onClick={() => moveZ(src.id, -1)} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300">↓</button>
+                  <Btn type="button" onClick={() => moveZ(src.id,  1)} className="px-2 py-0.5 text-[10px]">Up</Btn>
+                  <Btn type="button" onClick={() => moveZ(src.id, -1)} className="px-2 py-0.5 text-[10px]">Down</Btn>
                 </div>
               </div>
             )}
-          </div>
+          </ConfigCard>
         )
       })}
 
       {showCatalog ? (
-        <div className="border border-zinc-700 rounded bg-zinc-900 p-2 mt-1">
-          <div className="flex justify-between items-center mb-2">
+        <ConfigCard className="mt-1">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Choose source type</span>
-            <button onClick={() => setShowCatalog(false)} className="text-zinc-600 hover:text-zinc-300 text-xs">✕</button>
+            <Btn type="button" variant="ghost" onClick={() => setShowCatalog(false)} className="px-2 py-0.5 text-[10px]">Close</Btn>
           </div>
-          <div className="space-y-0.5 max-h-64 overflow-y-auto">
+          <div className="max-h-64 space-y-1.5 overflow-y-auto">
             {SOURCE_CATALOG.map((entry) => (
-              <button key={entry.type} onClick={() => addSource(entry)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors hover:bg-zinc-700/60 border border-transparent hover:border-zinc-600/50">
+              <button key={entry.type} type="button" onClick={() => addSource(entry)}
+                className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75">
+                <div className="flex items-center gap-2">
                 <span className="text-base">{entry.icon}</span>
                 <div className="min-w-0">
                   <div className="text-[11px] text-zinc-200 font-medium">{entry.label}</div>
                   <div className="text-[9px] text-zinc-500 truncate">{entry.desc}</div>
                 </div>
+                </div>
               </button>
             ))}
           </div>
-        </div>
+        </ConfigCard>
       ) : (
-        <button onClick={() => setShowCatalog(true)}
-          className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/60 border border-dashed border-zinc-800 hover:border-zinc-600 transition-colors mt-1">
-          <span>+</span><span>Add Source</span>
-        </button>
+        <Btn type="button" onClick={() => setShowCatalog(true)} variant="ghost"
+          className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200">
+          + Add Source
+        </Btn>
       )}
     </div>
   )
@@ -1061,11 +1090,18 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
           {bg.type === 'gradient' && <div>
             <div className="grid grid-cols-3 gap-1 mb-2">
               {GRADIENT_PRESETS.map((g) => (
-                <button key={g.name} onClick={() => update((d) => { d.background.gradient = g.value })}
-                  className={'h-10 rounded text-[10px] transition-all ' + (bg.gradient === g.value ? 'ring-2 ring-cyan-400' : 'hover:ring-1 hover:ring-zinc-400')}
-                  style={{ background: g.value }}>
-                  <span className="text-white drop-shadow">{g.name}</span>
-                </button>
+                <ConfigPreviewButton
+                  key={g.name}
+                  type="button"
+                  selected={bg.gradient === g.value}
+                  onClick={() => update((d) => { d.background.gradient = g.value })}
+                  className="h-12"
+                  style={{ background: g.value }}
+                >
+                  <div className="flex h-full items-end p-2">
+                    <span className="rounded bg-black/35 px-1.5 py-0.5 text-[10px] text-white drop-shadow">{g.name}</span>
+                  </div>
+                </ConfigPreviewButton>
               ))}
             </div>
             <input type="text" value={bg.gradient}
@@ -1101,11 +1137,18 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
 
           {bg.type === 'pattern' && <div className="grid grid-cols-3 gap-1">
             {(Object.keys(PATTERN_CSS) as PatternPreset[]).map((pat) => (
-              <button key={pat} onClick={() => update((d) => { d.background.pattern = pat })}
-                className={'h-12 rounded capitalize text-[10px] transition-all flex items-center justify-center ' + (bg.pattern === pat ? 'ring-2 ring-cyan-400' : 'hover:ring-1 hover:ring-zinc-400')}
-                style={pat === 'none' ? { backgroundColor: '#111' } : PATTERN_CSS[pat]}>
-                <span className="text-white drop-shadow bg-black/40 px-1 rounded">{pat}</span>
-              </button>
+              <ConfigPreviewButton
+                key={pat}
+                type="button"
+                selected={bg.pattern === pat}
+                onClick={() => update((d) => { d.background.pattern = pat })}
+                className="h-14 capitalize"
+                style={pat === 'none' ? { backgroundColor: '#111' } : PATTERN_CSS[pat]}
+              >
+                <div className="flex h-full items-end justify-center p-2">
+                  <span className="rounded bg-black/40 px-1.5 py-0.5 text-[10px] text-white drop-shadow">{pat}</span>
+                </div>
+              </ConfigPreviewButton>
             ))}
           </div>}
 
@@ -1200,9 +1243,9 @@ function TransitionList({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {steps.map((step, idx) => (
-        <div key={idx} className="flex gap-1 items-start">
+        <div key={idx} className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
             <TransitionPicker
               value={stepToStr(step)}
@@ -1210,24 +1253,42 @@ function TransitionList({
               placeholder="— Pick transition —"
             />
           </div>
-          <div className="flex flex-col gap-0.5 shrink-0 pt-0.5">
-            <button
+          <div className="flex flex-col gap-1 shrink-0 pt-0.5">
+            <Btn
+              type="button"
+              variant="ghost"
               onClick={() => moveUp(idx)} disabled={idx === 0}
-              className="px-1.5 text-[9px] text-zinc-500 hover:text-zinc-200 disabled:opacity-20 leading-none">▲</button>
-            <button
+              className="px-2 py-1 text-[10px]"
+            >
+              Up
+            </Btn>
+            <Btn
+              type="button"
+              variant="ghost"
               onClick={() => moveDown(idx)} disabled={idx === steps.length - 1}
-              className="px-1.5 text-[9px] text-zinc-500 hover:text-zinc-200 disabled:opacity-20 leading-none">▼</button>
+              className="px-2 py-1 text-[10px]"
+            >
+              Down
+            </Btn>
           </div>
-          <button
+          <Btn
+            type="button"
+            variant="danger"
             onClick={() => removeStep(idx)}
-            className="px-1.5 shrink-0 text-xs text-zinc-500 hover:text-red-400 transition-colors pt-0.5">✕</button>
+            className="mt-0.5 px-2 py-1 text-[10px]"
+          >
+            Delete
+          </Btn>
         </div>
       ))}
-      <button
+      <Btn
+        type="button"
+        variant="ghost"
         onClick={() => onChange([...steps, { id: '' }])}
-        className="w-full text-[11px] text-zinc-500 hover:text-cyan-300 border border-dashed border-zinc-700 hover:border-cyan-500/40 rounded py-1 mt-1 transition-colors">
-        + Add step
-      </button>
+        className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200"
+      >
+        + Add Step
+      </Btn>
     </div>
   )
 }
@@ -1499,11 +1560,10 @@ function DesktopConfigEditor() {
           </div>
           <div className="grid grid-cols-3 gap-1.5">
             {DESKTOP_THEMES.map((theme) => (
-              <button key={theme.id} onClick={() => update((d) => { d.theme = theme.id })}
-                className={'px-2.5 py-1.5 text-[11px] rounded border transition-colors ' +
-                  (form.theme === theme.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
+              <ConfigChoiceButton key={theme.id} type="button" selected={form.theme === theme.id} onClick={() => update((d) => { d.theme = theme.id })}
+                className="py-2 text-[11px]">
                 {theme.label}
-              </button>
+              </ConfigChoiceButton>
             ))}
           </div>
           <div className="border-t border-zinc-800 pt-3">
@@ -1881,11 +1941,10 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                 <div className="text-[10px] text-zinc-500 mb-1">Size</div>
                 <div className="flex gap-1">
                   {(['small', 'normal', 'large'] as const).map((s) => (
-                    <button key={s} onClick={() => update((d) => { d.iconSize = s })}
-                      className={'px-2.5 py-1 text-[11px] rounded border capitalize transition-colors ' +
-                        ((form.iconSize ?? 'normal') === s ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
+                    <ConfigChoiceButton key={s} type="button" selected={(form.iconSize ?? 'normal') === s} onClick={() => update((d) => { d.iconSize = s })}
+                      className="flex-1 text-[11px]">
                       {s}
-                    </button>
+                    </ConfigChoiceButton>
                   ))}
                 </div>
               </div>
@@ -1965,13 +2024,13 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                   Default: {defaultWidgetSize.width}x{defaultWidgetSize.height}px
                   {hasWidgetSizeOverride ? ' (override active)' : ''}
                 </div>
-                <button
+                <Btn
                   type="button"
                   onClick={() => setWidgetSize(defaultWidgetSize)}
-                  className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                  className="px-2 py-1 text-[10px]"
                 >
                   Reset to Default
-                </button>
+                </Btn>
               </div>
               <div className="mt-3 pt-3 border-t border-zinc-700/50">
                 <div className="text-[10px] text-zinc-500 mb-1">
@@ -1989,13 +2048,13 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                     }}
                     className="w-24 font-mono text-xs"
                   />
-                  <button
+                  <Btn
                     type="button"
                     onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id, widgetComponent))}
-                    className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                    className="px-2 py-1 text-[10px]"
                   >
                     Reset
-                  </button>
+                  </Btn>
                 </div>
                 <div className="text-[10px] text-zinc-600 mt-1">
                   This is the widget's baseline stack order. Saved layouts can temporarily bias focus priority on top of this, and manual clicking or taskbar focus can still move a window to the front at runtime.
@@ -2030,14 +2089,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               <div className="flex items-center justify-between mb-1">
                 <div className="text-[10px] text-zinc-500">Dispositivo de cámara</div>
                 {!cameraLabelsGranted && (
-                  <button
+                  <Btn
                     type="button"
                     disabled={detectingCameras}
                     onClick={() => void enumerateCameras(true)}
-                    className="text-[10px] px-2 py-0.5 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                    className="px-2 py-0.5 text-[10px]"
                   >
                     {detectingCameras ? 'Detectando...' : '🔓 Obtener nombres reales'}
-                  </button>
+                  </Btn>
                 )}
               </div>
               {detectingCameras && detectedCameras.length === 0 ? (
@@ -2644,32 +2703,30 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
           )}
 
           <div className="flex gap-2">
-            <button
+            <Btn
               type="button"
+              variant="primary"
               onClick={() => { void applyLayout() }}
-              className="flex-1 text-[10px] px-2.5 py-1 rounded border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+              className="flex-1 px-2.5 py-1 text-[10px]"
             >
               Apply
-            </button>
-            <button
+            </Btn>
+            <Btn
               type="button"
               onClick={() => captureCurrentIntoLayout()}
-              className="text-[10px] px-2.5 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors"
+              className="px-2.5 py-1 text-[10px]"
             >
               Use Current
-            </button>
-            <button
+            </Btn>
+            <Btn
               type="button"
+              variant={layout.source === 'system' ? 'ghost' : 'danger'}
               onClick={() => { void deleteLayout() }}
               disabled={layout.source === 'system'}
-              className={'text-[10px] px-2.5 py-1 rounded border transition-colors ' + (
-                layout.source === 'system'
-                  ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
-                  : 'border-red-900/60 text-red-300 hover:bg-red-950/40'
-              )}
+              className="px-2.5 py-1 text-[10px]"
             >
               {layout.source === 'system' ? 'Protected' : 'Delete'}
-            </button>
+            </Btn>
           </div>
 
           <div className="space-y-1.5">
@@ -2847,12 +2904,10 @@ function EventForm({ def, onUpdate, onDelete }: {
               <div className="text-[10px] text-zinc-400 mb-1">Mode</div>
               <div className="flex gap-1">
                 {(['interval', 'idle'] as const).map((m) => (
-                  <button key={m} onClick={() => update((d) => { d.auto.mode = m })}
-                    className={'flex-1 px-2 py-1 text-xs rounded border capitalize transition-colors ' + (
-                      def.auto.mode === m
-                        ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40'
-                        : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100'
-                    )}>{m}</button>
+                  <ConfigChoiceButton key={m} type="button" selected={def.auto.mode === m} onClick={() => update((d) => { d.auto.mode = m })}
+                    className="flex-1 text-xs">
+                    {m}
+                  </ConfigChoiceButton>
                 ))}
               </div>
             </div>
@@ -2876,7 +2931,9 @@ function EventForm({ def, onUpdate, onDelete }: {
               <div className="text-[10px] text-zinc-500 mb-2">Leave empty to include all widgets</div>
               <div className="flex flex-wrap gap-1">
                 {['music', 'chat', 'archive', 'sticky-notes', 'gallery'].map((widgetId) => (
-                  <button key={widgetId}
+                  <ConfigChoiceButton key={widgetId}
+                    type="button"
+                    selected={(def.widgetAutomation?.availableWidgets ?? []).includes(widgetId)}
                     onClick={() => update((d) => {
                       if (!d.widgetAutomation) d.widgetAutomation = { availableWidgets: [], toggleChance: 0.8, openBias: 0.6 }
                       const widgets = d.widgetAutomation.availableWidgets ?? []
@@ -2885,13 +2942,9 @@ function EventForm({ def, onUpdate, onDelete }: {
                       else widgets.push(widgetId)
                       d.widgetAutomation.availableWidgets = widgets
                     })}
-                    className={`px-2 py-1 text-[10px] rounded border ${
-                      (def.widgetAutomation?.availableWidgets ?? []).includes(widgetId)
-                        ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300'
-                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-100'
-                    }`}>
+                    className="text-[10px]">
                     {widgetId}
-                  </button>
+                  </ConfigChoiceButton>
                 ))}
               </div>
             </div>
@@ -3175,14 +3228,16 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-lg">
+      <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
         {(['catalog', 'events', 'transitions'] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={'flex-1 py-1 text-xs rounded capitalize transition-colors ' +
-              (tab === t ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-200')}
+            className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' +
+              (tab === t
+                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                : 'border-transparent text-zinc-500 hover:border-zinc-700/70 hover:bg-zinc-900/75 hover:text-zinc-200')}
           >
             {t === 'catalog' ? '🗂 Catalog' : t === 'events' ? '⚡ Events' : '✨ Transitions'}
           </button>
@@ -3191,9 +3246,9 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
       {tab === 'catalog' && (
         <div className="space-y-3">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-800/20 px-3 py-2 text-xs text-zinc-500">
+          <ConfigNotice>
             The catalog indexes the full assets folder, the scraped game-image feed, and your saved media presets in one place.
-          </div>
+          </ConfigNotice>
 
           <AssetCatalogPanel
             kinds={['image', 'video', 'audio']}
@@ -3204,11 +3259,11 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
       {tab === 'events' && (
         <div className="space-y-3">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-800/20 px-3 py-2 text-xs text-zinc-500">
+          <ConfigNotice>
             Overlay triggers and widget automation rules now live here instead of the left sidebar.
-          </div>
+          </ConfigNotice>
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {eventDefs.map((def) => {
               const active = def.id === selectedEventId
               return (
@@ -3216,10 +3271,10 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                   key={def.id}
                   type="button"
                   onClick={() => setSelectedEventId(def.id)}
-                  className={'flex items-center gap-2 rounded border px-2.5 py-1.5 text-left transition-colors ' + (
+                  className={'flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors ' + (
                     active
-                      ? 'border-cyan-500/40 bg-cyan-600/15 text-zinc-100'
-                      : 'border-zinc-800 bg-zinc-800/30 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                      ? 'border-cyan-400/35 bg-cyan-500/14 text-zinc-100'
+                      : 'border-zinc-800/80 bg-zinc-950/55 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
                   )}
                 >
                   <span className="text-sm leading-none">{def.icon}</span>
@@ -3228,26 +3283,23 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                 </button>
               )
             })}
-            <button
+            <Btn
               type="button"
+              variant="ghost"
               onClick={() => { void handleAddEvent() }}
-              className="rounded border border-dashed border-zinc-700 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+              className="border-dashed border-zinc-700/80 px-3 py-2 text-[11px] text-zinc-400 hover:text-cyan-200"
             >
               ＋ New Event
-            </button>
+            </Btn>
           </div>
 
           {selectedEvent ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2 px-0.5">
                 <div className="text-[10px] text-zinc-500">Editing {selectedEvent.label}</div>
-                <button
-                  type="button"
-                  onClick={() => handleTriggerEvent(selectedEvent)}
-                  className="rounded border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[10px] text-zinc-300 transition-colors hover:border-cyan-500/40 hover:text-cyan-300"
-                >
-                  ▶ Fire Now
-                </button>
+                <Btn type="button" variant="primary" onClick={() => handleTriggerEvent(selectedEvent)} className="px-3 py-1 text-[10px]">
+                  Fire Now
+                </Btn>
               </div>
               <EventForm
                 def={selectedEvent}
@@ -3256,9 +3308,9 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
               />
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-zinc-800 px-4 py-6 text-center text-xs text-zinc-600">
+            <ConfigNotice tone="info" className="py-6 text-center">
               No events configured yet. Create one to add overlay triggers or widget automation rules.
-            </div>
+            </ConfigNotice>
           )}
         </div>
       )}
@@ -3268,11 +3320,11 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
         <div className="space-y-0 pt-2">
           <ConfigSectionPanel label="System Transitions" first>
             <div className="space-y-2">
-              <div className="text-[10px] text-zinc-500 leading-relaxed">
+              <ConfigNotice>
                 System transitions are always available in every transition combo box.
-              </div>
+              </ConfigNotice>
               {TRANSITION_OPTIONS.map((transition) => (
-                <div key={transition.id} className="flex items-center gap-2.5 rounded border border-zinc-800 bg-zinc-800/20 px-2.5 py-2">
+                <ConfigCard key={transition.id} className="flex items-center gap-2.5">
                   <span className="text-base w-5 text-center shrink-0">{TRANSITION_ICONS[transition.id]}</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-zinc-200">{transition.label}</div>
@@ -3286,25 +3338,25 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                   >
                     Test
                   </button>
-                </div>
+                </ConfigCard>
               ))}
             </div>
           </ConfigSectionPanel>
 
           <ConfigSectionPanel label="User Transitions">
             <div className="space-y-3">
-              <div className="text-[10px] text-zinc-500 leading-relaxed">
+              <ConfigNotice>
                 User transitions saved here become reusable options in every transition combo box.
-              </div>
+              </ConfigNotice>
 
               {sortedTransitionLibrary.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-xs text-zinc-600">
+                <ConfigNotice tone="info" className="py-4">
                   No user transitions saved yet.
-                </div>
+                </ConfigNotice>
               ) : (
                 <div className="space-y-1.5">
                   {sortedTransitionLibrary.map((entry) => (
-                    <div key={entry.id} className="flex items-center gap-2.5 rounded border border-zinc-800 bg-zinc-800/20 px-2.5 py-2">
+                    <ConfigCard key={entry.id} className="flex items-center gap-2.5">
                       <span className="text-base w-5 text-center shrink-0">{entry.type === 'image' ? '🖼' : '🎬'}</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-zinc-200 truncate">{getMediaTransitionLabel(entry)}</div>
@@ -3329,7 +3381,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                       >
                         Delete
                       </button>
-                    </div>
+                    </ConfigCard>
                   ))}
                 </div>
               )}
@@ -3338,11 +3390,11 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
           <ConfigSectionPanel label="Create User Transition">
             <div className="space-y-3">
-              <div className="text-[10px] text-zinc-500 leading-relaxed">
+              <ConfigNotice>
                 Save an image or video as a reusable user transition.
-              </div>
+              </ConfigNotice>
 
-              <div className="space-y-2 rounded border border-zinc-800 bg-zinc-800/20 p-3">
+              <ConfigCard className="space-y-2">
                 <input
                   type="text"
                   value={name}
@@ -3379,25 +3431,26 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                 )}
 
                 <div className="flex gap-2">
-                  <button
+                  <Btn
                     type="button"
+                    variant="primary"
                     onClick={() => void handleSave()}
                     disabled={!url}
-                    className="flex-1 py-1.5 text-xs bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex-1 text-xs"
                   >
                     Save
-                  </button>
+                  </Btn>
                   {(name || url || durStr) && (
-                    <button
+                    <Btn
                       type="button"
                       onClick={resetForm}
-                      className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors"
+                      className="px-3 text-xs"
                     >
                       Reset
-                    </button>
+                    </Btn>
                   )}
                 </div>
-              </div>
+              </ConfigCard>
             </div>
           </ConfigSectionPanel>
         </div>
@@ -3448,14 +3501,14 @@ function LivePreview() {
   return (
     <div ref={containerRef} className="relative flex-1 overflow-hidden min-w-0" style={previewBackdropStyle}>
       <div className="absolute left-3 top-3 z-10 pointer-events-none">
-        <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] backdrop-blur ${previewTarget === 'runtime'
-          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100'
-          : 'border-amber-400/40 bg-amber-500/15 text-amber-100'}`}>
+        <div className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] shadow-lg shadow-black/20 backdrop-blur ${previewTarget === 'runtime'
+          ? 'border-emerald-400/35 bg-emerald-500/12 text-emerald-100'
+          : 'border-amber-400/35 bg-amber-500/12 text-amber-100'}`}>
           <span className={`h-2 w-2 rounded-full ${previewTarget === 'runtime' ? 'bg-emerald-300' : 'bg-amber-300'}`} />
           <span>{previewLabel}</span>
         </div>
       </div>
-      <div className="absolute right-3 bottom-3 z-10 pointer-events-none rounded-full border border-zinc-700/70 bg-zinc-950/75 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-zinc-400 backdrop-blur">
+      <div className="absolute right-3 bottom-3 z-10 pointer-events-none rounded-xl border border-zinc-800/80 bg-zinc-950/75 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur">
         Transparent background preview
       </div>
       <iframe
@@ -3464,7 +3517,7 @@ function LivePreview() {
         width={1920}
         height={1080}
         allow="camera; microphone"
-        style={{ position: 'absolute', border: 'none', display: 'block' }}
+        className="absolute block border-0"
         title="Overlay Preview"
       />
     </div>
@@ -3480,7 +3533,7 @@ function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; lab
   if (currentState === targetState) return null
 
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 space-y-2">
+    <ConfigNotice tone="warning" className="space-y-2 px-3 py-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-[11px] font-semibold text-amber-200">{label} preview is not live</div>
@@ -3488,30 +3541,31 @@ function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; lab
             Current state is <span className="font-mono">{currentState}</span>. Switch the runtime to <span className="font-mono">{targetState}</span> to see this editor reflected in the preview.
           </div>
         </div>
-        <button
+        <Btn
           type="button"
+          variant="warning"
           onClick={() => {
             setLastError(null)
             socket.emit('scene:change', targetState, (err: string | null) => { if (err) setLastError(err) })
           }}
-          className="shrink-0 rounded border border-amber-300/40 bg-amber-200/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100 transition-colors hover:bg-amber-200/25"
+          className="shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em]"
         >
           Show {label}
-        </button>
+        </Btn>
       </div>
-    </div>
+    </ConfigNotice>
   )
 }
 
 function DashboardLegendCard({ icon, title, description }: { icon: string; title: string; description: string }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-3 text-left">
+    <ConfigCard className="text-left">
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-base">{icon}</span>
         <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200">{title}</span>
       </div>
       <div className="text-[10px] text-zinc-500 leading-relaxed">{description}</div>
-    </div>
+    </ConfigCard>
   )
 }
 
@@ -3591,24 +3645,24 @@ function RightPane({ selected, onClose, onSelectItem }: {
 
   if (!selected) {
     return (
-      <div className="w-80 shrink-0 border-l border-zinc-800 bg-zinc-950 overflow-y-auto">
-        <div className="p-4 space-y-3 select-none">
-          <div>
+      <div className="w-80 shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-950/95">
+        <div className="space-y-3 p-4 select-none">
+          <ConfigCard>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200">Dashboard Map</div>
-            <div className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
+            <div className="mt-1 text-[10px] leading-relaxed text-zinc-500">
               The left sidebar mixes scenes, applications, desktop widgets, and decorative icons. Use this legend to read the taxonomy quickly.
             </div>
-          </div>
+          </ConfigCard>
           <DashboardLegendCard icon="🎬" title="Scenes" description="Lobby, Desktop, and application-backed scene states. Edit sources, style, transitions, and music here." />
           <DashboardLegendCard icon="🎮" title="Applications" description="Desktop icons that emit scene changes and point at the scenes above." />
           <DashboardLegendCard icon="🪟" title="Widgets" description="Desktop windows that open on DESKTOP without changing machine state. Widgets can be system or user, and can use camera, source, or built-in runtimes." />
           <DashboardLegendCard icon="🖼" title="Decorations" description="Desktop-only icons for ambience. They render on the Desktop and do not open anything." />
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-3 text-left">
+          <ConfigCard className="text-left">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
             <div className="text-[10px] text-zinc-400 leading-relaxed">
               Scene = runtime state. Application = transition signal. Widget = open desktop thing. Decoration = render-only desktop thing.
             </div>
-          </div>
+          </ConfigCard>
         </div>
       </div>
     )
@@ -3661,26 +3715,24 @@ function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'settings')    { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
 
   return (
-    <div className="w-80 shrink-0 border-l border-zinc-800 flex flex-col overflow-hidden bg-zinc-950">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800 shrink-0">
+    <div className="flex w-80 shrink-0 flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/95">
+      <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/70 px-3 py-2.5 backdrop-blur-sm">
         <span className="text-sm shrink-0">{headerIcon}</span>
         <span className="flex-1 min-w-0">
           <span className="block text-xs font-semibold text-zinc-200 truncate">{headerLabel}</span>
           {headerMeta && <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{headerMeta}</span>}
         </span>
         {actionFn && (
-          <button onClick={actionFn}
-            className={'text-xs px-2.5 py-1 rounded border transition-colors ' +
-              (isLive ? 'bg-emerald-900/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-700 hover:bg-zinc-600 border-zinc-600 text-zinc-100')}>
+          <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-2.5 py-1 text-xs">
             {actionLabel}
-          </button>
+          </Btn>
         )}
         <button onClick={onClose}
-          className="text-zinc-600 hover:text-zinc-300 text-base px-1.5 ml-0.5 transition-colors leading-none">
+          className="ml-0.5 rounded-md border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 text-sm leading-none text-zinc-500 transition-colors hover:border-zinc-700/80 hover:text-zinc-100">
           ×
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto bg-zinc-950/55 p-3">
         <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
       </div>
     </div>
@@ -3813,43 +3865,41 @@ function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' | 'sett
   }, [entries])
 
   return (
-    <div className={isSettingsVariant ? 'rounded-lg border border-zinc-800 bg-zinc-950/70' : 'shrink-0 border-t border-zinc-800'}>
-      <div className={isSettingsVariant ? 'flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left bg-zinc-900/80 border-b border-zinc-800' : 'w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left bg-zinc-900/70 border-b border-zinc-800'}>
-        <span className={isSettingsVariant ? 'text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.2em] flex-1' : 'text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1'}>
+    <div className={isSettingsVariant ? 'rounded-xl border border-zinc-800/80 bg-zinc-950/70' : 'shrink-0 border-t border-zinc-800/80 bg-zinc-950/65'}>
+      <ConfigToolbar className={isSettingsVariant ? 'rounded-none border-0 border-b border-zinc-800/80 bg-zinc-950/40 px-3 py-2' : 'rounded-none border-0 border-b border-zinc-800/80 bg-zinc-950/35 px-2.5 py-1.5'}>
+        <span className={isSettingsVariant ? 'flex-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400' : 'flex-1 text-[9px] font-bold uppercase tracking-widest text-zinc-600'}>
           {isSettingsVariant ? 'Socket Console' : 'Console'}
         </span>
         <span className={isSettingsVariant ? 'rounded-full border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-[10px] font-mono text-zinc-500' : 'text-[10px] font-mono text-zinc-600'}>
           {entries.length} event{entries.length === 1 ? '' : 's'}
         </span>
-        <button
+        <Btn
           type="button"
+          variant="default"
           onClick={handleCopy}
           disabled={!entries.length}
           title="Copy the full socket log to the clipboard"
-          className={isSettingsVariant
-            ? 'rounded border border-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800/80 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent'
-            : 'rounded border border-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700'}
+          className={isSettingsVariant ? 'px-2 py-1 text-[10px] font-medium' : 'px-1.5 py-0.5 text-[10px]'}
         >
           {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy all'}
-        </button>
-        <button
+        </Btn>
+        <Btn
           type="button"
+          variant="danger"
           onClick={handleClear}
           disabled={!entries.length}
           title="Clear the socket log"
-          className={isSettingsVariant
-            ? 'rounded border border-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:border-red-500/70 hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent disabled:hover:text-zinc-600'
-            : 'rounded border border-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-red-500/70 hover:text-red-300 disabled:cursor-not-allowed disabled:text-zinc-700'}
+          className={isSettingsVariant ? 'px-2 py-1 text-[10px] font-medium' : 'px-1.5 py-0.5 text-[10px]'}
         >
           Clear
-        </button>
-      </div>
+        </Btn>
+      </ConfigToolbar>
       <div className={isSettingsVariant ? 'max-h-[26rem] overflow-y-auto bg-zinc-950/60 px-3 py-2 space-y-2' : 'h-[150px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-1'}>
         {entries.length === 0 && (
-          <div className={isSettingsVariant ? 'text-xs text-zinc-600 italic pt-3 text-center' : 'text-[10px] text-zinc-700 italic pt-2 text-center'}>No events yet.</div>
+          <ConfigNotice tone="info" className={isSettingsVariant ? 'pt-3 text-center' : 'py-2 text-center text-[10px]'}>No events yet.</ConfigNotice>
         )}
         {entries.map((e) => (
-          <div key={e.id} className={isSettingsVariant ? 'rounded border border-zinc-900/80 bg-zinc-950/70 px-3 py-2 font-mono' : 'rounded border border-zinc-900/70 bg-zinc-950/50 px-2 py-1.5 font-mono'}>
+          <ConfigCard key={e.id} className={isSettingsVariant ? 'font-mono' : 'font-mono px-2 py-1.5'}>
             <div className="flex min-w-0 items-start gap-2">
               <span className={isSettingsVariant ? 'text-[10px] text-zinc-600 shrink-0' : 'text-[9px] text-zinc-700 shrink-0'}>{e.time}</span>
               <span className={(isSettingsVariant ? 'text-[11px] shrink-0 ' : 'text-[10px] shrink-0 ') + (e.dir === '→' ? 'text-cyan-500' : 'text-emerald-500')}>{e.dir}</span>
@@ -3861,12 +3911,13 @@ function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' | 'sett
 
               return (
                 <div className="mt-2">
-                  <button
+                  <Btn
                     type="button"
+                    variant="ghost"
                     onClick={() => toggleEntry(e.id)}
                     className={isSettingsVariant
-                      ? 'flex w-full items-center gap-2 rounded border border-zinc-800 bg-zinc-900/70 px-2 py-1.5 text-left text-[10px] text-zinc-400 transition-colors hover:border-zinc-700 hover:bg-zinc-900'
-                      : 'flex w-full items-center gap-1.5 rounded border border-zinc-900 bg-zinc-900/60 px-1.5 py-1 text-left text-[10px] text-zinc-500 transition-colors hover:border-zinc-800 hover:text-zinc-400'}
+                      ? 'flex w-full items-center justify-start gap-2 px-2 py-1.5 text-left text-[10px] text-zinc-400'
+                      : 'flex w-full items-center justify-start gap-1.5 px-1.5 py-1 text-left text-[10px] text-zinc-500'}
                     title={expanded ? 'Collapse' : 'Expand'}
                   >
                     <span className="shrink-0">{expanded ? '▾' : '▸'}</span>
@@ -3874,14 +3925,14 @@ function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' | 'sett
                       {expanded ? 'Collapse' : 'Expand'}
                     </span>
                     {summary && <span className="min-w-0 flex-1 truncate normal-case tracking-normal">{summary}</span>}
-                  </button>
+                  </Btn>
                   {expanded && (
                     <pre className={isSettingsVariant ? 'mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded border border-zinc-900 bg-zinc-900/70 px-2 py-1.5 text-[10px] leading-relaxed text-zinc-400' : 'mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded border border-zinc-900/80 bg-zinc-950/60 px-1.5 py-1 text-[10px] leading-relaxed text-zinc-500'}>{e.details}</pre>
                   )}
                 </div>
               )
             })()}
-          </div>
+          </ConfigCard>
         ))}
         <div ref={bottomRef} />
       </div>
@@ -3900,8 +3951,10 @@ function SidebarBtn({ icon, label, live, statusLabel, statusClassName, active, o
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       title={onDoubleClick ? 'Click to configure · Double-click to activate' : undefined}
-      className={'w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors mb-0.5 text-left border ' +
-        (active ? 'bg-zinc-700/90 text-zinc-100 border-zinc-600' : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800/70 border-transparent')}>
+      className={'mb-0.5 flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors ' +
+        (active
+          ? 'border-cyan-400/30 bg-cyan-500/12 text-zinc-100'
+          : 'border-zinc-900/60 bg-transparent text-zinc-500 hover:border-zinc-800/80 hover:bg-zinc-900/60 hover:text-zinc-100')}>
       <span className="text-sm w-4 h-4 flex items-center justify-center shrink-0 leading-none overflow-hidden">{icon}</span>
       <span className="flex-1 truncate font-medium">{label}</span>
       {live && <span className="text-[9px] font-bold text-emerald-400 tracking-widest shrink-0">LIVE</span>}
@@ -3913,7 +3966,7 @@ function SidebarBtn({ icon, label, live, statusLabel, statusClassName, active, o
 function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/60 border border-dashed border-zinc-800 hover:border-zinc-600 transition-colors mb-0.5">
+      className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg border border-dashed border-zinc-800/80 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-cyan-500/35 hover:bg-cyan-500/8 hover:text-cyan-200">
       <span className="text-sm w-4 text-center shrink-0">+</span>
       <span>{label}</span>
     </button>
@@ -3984,7 +4037,7 @@ function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLibrary, s
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
   return (
-    <div className="w-52 shrink-0 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+    <div className="flex w-52 shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-950/95">
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto pb-1">
 
@@ -4103,7 +4156,7 @@ function TopBar() {
   const lastError    = useAdminStore((s) => s.lastError)
 
   return (
-    <div className="flex items-center gap-3 px-3 h-10 bg-zinc-900 border-b border-zinc-800 shrink-0">
+    <div className="flex h-11 shrink-0 items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/85 px-3 backdrop-blur-sm">
       <span className="text-cyan-400 font-bold font-mono text-sm tracking-widest">IEOM</span>
       <div className="w-px h-4 bg-zinc-700" />
       <span className={'text-xs font-mono ' + (obsConnected ? 'text-emerald-400' : 'text-zinc-600')}>
@@ -4112,9 +4165,9 @@ function TopBar() {
       {clientCount > 0 && (
         <span className="text-[10px] text-zinc-600 font-mono">{clientCount}c</span>
       )}
-      <span className="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded">{currentState}</span>
+      <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-mono text-cyan-300">{currentState}</span>
       {lastError && (
-        <span className="text-[10px] text-red-400 font-mono truncate max-w-[200px]" title={lastError}>{lastError}</span>
+        <span className="max-w-[220px] truncate rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-mono text-red-300" title={lastError}>{lastError}</span>
       )}
       <div className="flex-1" />
     </div>
@@ -4133,7 +4186,7 @@ function SettingsModal({ tab, onTabChange, onClose }: {
         <FloatingWindowHeader icon="⚙" title="Settings" onClose={onClose} />
 
         <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
-          <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-lg">
+          <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
             {([
               ['general', 'General'],
               ['audio', 'Audio'],
@@ -4144,10 +4197,10 @@ function SettingsModal({ tab, onTabChange, onClose }: {
                 key={id}
                 type="button"
                 onClick={() => onTabChange(id)}
-                className={'flex-1 py-1 text-xs rounded transition-colors ' + (
+                className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ' + (
                   tab === id
-                    ? 'bg-zinc-700 text-zinc-100'
-                    : 'text-zinc-500 hover:text-zinc-200'
+                    ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                    : 'border-transparent text-zinc-500 hover:border-zinc-700/70 hover:bg-zinc-900/75 hover:text-zinc-200'
                 )}
               >
                 {label}
