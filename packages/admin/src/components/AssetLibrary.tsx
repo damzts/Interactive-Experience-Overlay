@@ -436,6 +436,7 @@ export function AssetSelectionInput({
   buttonLabel = 'Browse Library',
   hint,
   previewKind = 'auto',
+  showPreview = true,
   inputClassName = '',
 }: {
   value: string
@@ -446,11 +447,12 @@ export function AssetSelectionInput({
   buttonLabel?: string
   hint?: string
   previewKind?: AssetKind | 'auto'
+  showPreview?: boolean
   inputClassName?: string
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const resolvedPreviewKind = previewKind === 'auto' ? inferAssetKindFromUrl(value, kinds[0] ?? 'image') : previewKind
-  const showPreview = isLikelyAssetUrl(value) && resolvedPreviewKind !== 'audio'
+  const shouldShowPreview = showPreview && isLikelyAssetUrl(value) && resolvedPreviewKind !== 'audio'
 
   return (
     <div className="space-y-2">
@@ -484,7 +486,7 @@ export function AssetSelectionInput({
 
       {hint && <div className="text-[10px] text-zinc-600">{hint}</div>}
 
-      {showPreview && (
+      {shouldShowPreview && (
         <div className="relative aspect-video w-full overflow-hidden rounded border border-zinc-800 bg-zinc-950">
           {resolvedPreviewKind === 'image' ? (
             <img src={value} alt="Selected asset" className="h-full w-full object-contain" />

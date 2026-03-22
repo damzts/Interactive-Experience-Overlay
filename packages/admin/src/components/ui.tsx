@@ -23,10 +23,31 @@ export function isSameDraft(a: any, b: any): boolean {
 
 // Simple icon renderer for app icons
 export function IconGlyph({ icon, label, size = 24 }: { icon: string; label: string; size?: number }) {
+  const normalizedIcon = icon.trim().toLowerCase()
+  const isImageIcon = !!normalizedIcon && (
+    normalizedIcon.startsWith('data:image/')
+    || normalizedIcon.startsWith('/assets/')
+    || normalizedIcon.startsWith('/media/')
+    || /^(https?:\/\/|\/|\.\/|\.\.\/).+\.(png|jpe?g|gif|webp|svg|avif)(?:\?.*)?$/i.test(normalizedIcon)
+  )
+
+  if (isImageIcon) {
+    return (
+      <span
+        title={label}
+        className="inline-flex items-center justify-center overflow-hidden align-middle"
+        style={{ width: size, height: size, verticalAlign: 'middle' }}
+        aria-label={label}
+      >
+        <img src={icon} alt={label} className="h-full w-full object-contain" />
+      </span>
+    )
+  }
+
   return (
     <span
       title={label}
-      style={{ fontSize: size, display: 'inline-block', verticalAlign: 'middle' }}
+      style={{ fontSize: size, display: 'inline-block', verticalAlign: 'middle', lineHeight: 1 }}
       aria-label={label}
     >
       {icon}
@@ -156,10 +177,12 @@ export function Panel({
   title,
   children,
   className = '',
+  bodyClassName = 'p-3',
 }: {
   title?: string
   children: ReactNode
   className?: string
+  bodyClassName?: string
 }) {
   return (
     <div className={`rounded-lg bg-zinc-800/60 border border-zinc-700/60 overflow-hidden ${className}`}>
@@ -168,7 +191,7 @@ export function Panel({
           {title}
         </div>
       )}
-      <div className="p-3">{children}</div>
+      <div className={bodyClassName}>{children}</div>
     </div>
   )
 }
@@ -185,13 +208,13 @@ export function ConfigSectionPanel({
   className?: string
 }) {
   return (
-    <section className={first ? 'px-1 pt-1' : 'mt-10 px-1'}>
-      <div className={first ? 'mb-4 px-1' : 'mb-4 border-t-2 border-cyan-500/35 px-1 pt-3'}>
-        <span className="inline-flex rounded-full border border-cyan-500/45 bg-cyan-500/12 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
+    <section className={first ? 'px-0.5 pt-0.5' : 'mt-6 px-0.5'}>
+      <div className={first ? 'mb-2 px-0.5' : 'mb-2 border-t border-cyan-500/25 px-0.5 pt-2'}>
+        <span className="inline-flex rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
           {label}
         </span>
       </div>
-      <Panel className={className}>{children}</Panel>
+      <Panel className={className} bodyClassName="p-2.5">{children}</Panel>
     </section>
   )
 }

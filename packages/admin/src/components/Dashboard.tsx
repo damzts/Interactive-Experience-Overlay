@@ -2267,6 +2267,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                       hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
                       inputClassName="font-mono"
                       previewKind="image"
+                      showPreview={false}
                     />
                   </div>
                 </div>
@@ -2850,6 +2851,7 @@ function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
                   hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
                   inputClassName="font-mono"
                   previewKind="image"
+                  showPreview={false}
                 />
               </div>
             </div>
@@ -2984,168 +2986,170 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
 
       <div className="space-y-0 pt-3">
       <ConfigSectionPanel label="Layout Configuration" first>
-        <div className="space-y-3">
-          <div className="text-[10px] text-zinc-500 leading-relaxed">
-            Configure this layout only. System layouts are the built-in taskbar presets and user layouts are your captured variants.
-          </div>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-3">
-              <div className="flex gap-2 items-start">
+        <div className="space-y-2.5">
+          <div className="text-[10px] text-zinc-600">Built-in taskbar presets or captured user layouts. Edit rows directly.</div>
+
+          <div className="flex gap-2 items-start">
+            <input
+              type="text"
+              value={layout.icon}
+              onChange={(e) => updateLayout((draft) => { draft.icon = e.target.value || '📐' })}
+              className="w-10 text-center font-mono text-xs"
+            />
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  value={layout.icon}
-                  onChange={(e) => updateLayout((draft) => { draft.icon = e.target.value || '📐' })}
-                  className="w-12 text-center font-mono text-xs"
+                  value={layout.label}
+                  onChange={(e) => updateLayout((draft) => { draft.label = e.target.value })}
+                  className="flex-1 text-xs"
+                  placeholder="Layout label"
                 />
-                <div className="flex-1 min-w-0 space-y-2">
-                  <input
-                    type="text"
-                    value={layout.label}
-                    onChange={(e) => updateLayout((draft) => { draft.label = e.target.value })}
-                    className="w-full text-xs"
-                    placeholder="Layout label"
-                  />
-                  <input
-                    type="text"
-                    value={layout.description ?? ''}
-                    onChange={(e) => updateLayout((draft) => { draft.description = e.target.value })}
-                    className="w-full text-xs"
-                    placeholder="Optional description"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={'text-[9px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full border ' + (
+                <span className={'text-[9px] font-bold uppercase tracking-[0.16em] px-2 py-0.5 rounded-full border shrink-0 ' + (
                   layout.source === 'system'
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
                     : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
                 )}>
                   {layout.source}
                 </span>
-                {layout.source === 'system' && (
-                  <span className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, but not removable.</span>
-                )}
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { void applyLayout() }}
-                  className="flex-1 text-[10px] px-2.5 py-1.5 rounded border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
-                >
-                  Apply
-                </button>
-                <button
-                  type="button"
-                  onClick={() => captureCurrentIntoLayout()}
-                  className="text-[10px] px-2.5 py-1.5 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors"
-                >
-                  Use Current
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { void deleteLayout() }}
-                  disabled={layout.source === 'system'}
-                  className={'text-[10px] px-2.5 py-1.5 rounded border transition-colors ' + (
-                    layout.source === 'system'
-                      ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
-                      : 'border-red-900/60 text-red-300 hover:bg-red-950/40'
-                  )}
-                >
-                  {layout.source === 'system' ? 'Protected' : 'Delete'}
-                </button>
-              </div>
-              <div className="space-y-2">
-                {layout.items.map((item) => {
-                  const app = widgetApps.find((entry) => entry.id === item.widgetId)
-                  if (!app) return null
-                  return (
-                    <div key={item.widgetId} className="rounded border border-zinc-800/80 bg-zinc-950/50 p-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={item.enabled}
-                          onChange={(e) => updateLayout((draft) => {
-                            const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                            if (row) row.enabled = e.target.checked
-                          })}
-                        />
-                        <div className="w-6 h-6 rounded border border-zinc-700 bg-zinc-900 flex items-center justify-center shrink-0">
-                          <IconGlyph icon={app.icon} label={app.label} size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0 text-[11px] text-zinc-200 truncate">{app.label}</div>
-                        <div className="text-[10px] text-zinc-500">Focus</div>
-                        <input
-                          type="number"
-                          min={-999}
-                          max={999}
-                          value={item.focusPriority}
-                          onChange={(e) => updateLayout((draft) => {
-                            const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                            if (row) row.focusPriority = Math.max(-999, Math.min(999, Math.round(Number(e.target.value) || 0)))
-                          })}
-                          className="w-16 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1">X</div>
-                          <input
-                            type="number"
-                            min={0}
-                            value={item.x}
-                            onChange={(e) => updateLayout((draft) => {
-                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                              if (row) row.x = Math.max(0, Math.round(Number(e.target.value) || 0))
-                            })}
-                            className="w-full font-mono text-xs"
-                          />
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1">Y</div>
-                          <input
-                            type="number"
-                            min={0}
-                            value={item.y}
-                            onChange={(e) => updateLayout((draft) => {
-                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                              if (row) row.y = Math.max(0, Math.round(Number(e.target.value) || 0))
-                            })}
-                            className="w-full font-mono text-xs"
-                          />
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1">Width</div>
-                          <input
-                            type="number"
-                            min={180}
-                            max={1400}
-                            value={item.width}
-                            onChange={(e) => updateLayout((draft) => {
-                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                              if (row) row.width = clampWidgetDimension(Number(e.target.value), 180, 1400, row.width)
-                            })}
-                            className="w-full font-mono text-xs"
-                          />
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1">Height</div>
-                          <input
-                            type="number"
-                            min={140}
-                            max={1000}
-                            value={item.height}
-                            onChange={(e) => updateLayout((draft) => {
-                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                              if (row) row.height = clampWidgetDimension(Number(e.target.value), 140, 1000, row.height)
-                            })}
-                            className="w-full font-mono text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <input
+                type="text"
+                value={layout.description ?? ''}
+                onChange={(e) => updateLayout((draft) => { draft.description = e.target.value })}
+                className="w-full text-[11px]"
+                placeholder="Optional description"
+              />
             </div>
+          </div>
+
+          {layout.source === 'system' && (
+            <div className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, not removable.</div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { void applyLayout() }}
+              className="flex-1 text-[10px] px-2.5 py-1 rounded border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => captureCurrentIntoLayout()}
+              className="text-[10px] px-2.5 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              Use Current
+            </button>
+            <button
+              type="button"
+              onClick={() => { void deleteLayout() }}
+              disabled={layout.source === 'system'}
+              className={'text-[10px] px-2.5 py-1 rounded border transition-colors ' + (
+                layout.source === 'system'
+                  ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
+                  : 'border-red-900/60 text-red-300 hover:bg-red-950/40'
+              )}
+            >
+              {layout.source === 'system' ? 'Protected' : 'Delete'}
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            {layout.items.map((item) => {
+              const app = widgetApps.find((entry) => entry.id === item.widgetId)
+              if (!app) return null
+              return (
+                <div key={item.widgetId} className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2 py-1.5 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      onChange={(e) => updateLayout((draft) => {
+                        const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                        if (row) row.enabled = e.target.checked
+                      })}
+                    />
+                    <div className="w-5 h-5 rounded border border-zinc-700 bg-zinc-900 flex items-center justify-center shrink-0">
+                      <IconGlyph icon={app.icon} label={app.label} size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0 text-[11px] text-zinc-200 truncate">{app.label}</div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-500">Focus</span>
+                      <input
+                        type="number"
+                        min={-999}
+                        max={999}
+                        value={item.focusPriority}
+                        onChange={(e) => updateLayout((draft) => {
+                          const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                          if (row) row.focusPriority = Math.max(-999, Math.min(999, Math.round(Number(e.target.value) || 0)))
+                        })}
+                        className="w-14 font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <div>
+                      <div className="text-[9px] text-zinc-500 mb-0.5 uppercase tracking-wider">X</div>
+                      <input
+                        type="number"
+                        min={0}
+                        value={item.x}
+                        onChange={(e) => updateLayout((draft) => {
+                          const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                          if (row) row.x = Math.max(0, Math.round(Number(e.target.value) || 0))
+                        })}
+                        className="w-full font-mono text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-zinc-500 mb-0.5 uppercase tracking-wider">Y</div>
+                      <input
+                        type="number"
+                        min={0}
+                        value={item.y}
+                        onChange={(e) => updateLayout((draft) => {
+                          const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                          if (row) row.y = Math.max(0, Math.round(Number(e.target.value) || 0))
+                        })}
+                        className="w-full font-mono text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-zinc-500 mb-0.5 uppercase tracking-wider">W</div>
+                      <input
+                        type="number"
+                        min={180}
+                        max={1400}
+                        value={item.width}
+                        onChange={(e) => updateLayout((draft) => {
+                          const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                          if (row) row.width = clampWidgetDimension(Number(e.target.value), 180, 1400, row.width)
+                        })}
+                        className="w-full font-mono text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-zinc-500 mb-0.5 uppercase tracking-wider">H</div>
+                      <input
+                        type="number"
+                        min={140}
+                        max={1000}
+                        value={item.height}
+                        onChange={(e) => updateLayout((draft) => {
+                          const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                          if (row) row.height = clampWidgetDimension(Number(e.target.value), 140, 1000, row.height)
+                        })}
+                        className="w-full font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </ConfigSectionPanel>
       </div>
@@ -3776,18 +3780,17 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200">Dashboard Map</div>
             <div className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
-              The left sidebar mixes environment states, scene definitions, scene-launching apps, desktop widgets, and decorative icons. Use this legend to read the taxonomy quickly.
+              The left sidebar mixes scenes, applications, desktop widgets, and decorative icons. Use this legend to read the taxonomy quickly.
             </div>
           </div>
-          <DashboardLegendCard icon="🖥" title="Environments" description="Fixed machine states such as Lobby and Desktop." />
-          <DashboardLegendCard icon="🎬" title="Scenes" description="Visual scene definitions: sources, style, and music stacks used by the runtime." />
-          <DashboardLegendCard icon="🎮" title="Scene Apps" description="Desktop icons that emit scene:change and can use transition pipelines." />
+          <DashboardLegendCard icon="🎬" title="Scenes" description="Lobby, Desktop, and application-backed scene states. Edit sources, style, transitions, and music here." />
+          <DashboardLegendCard icon="🎮" title="Applications" description="Desktop icons that emit scene changes and point at the scenes above." />
           <DashboardLegendCard icon="🪟" title="Widgets" description="Desktop windows that open on DESKTOP without changing machine state. Widgets can be system or user, and can use camera, source, or built-in runtimes." />
           <DashboardLegendCard icon="🖼" title="Decorations" description="Desktop-only icons for ambience. They render on the Desktop and do not open anything." />
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-3 text-left">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
             <div className="text-[10px] text-zinc-400 leading-relaxed">
-              Scene App = transition signal. Widget = open desktop thing. Decoration = render-only desktop thing.
+              Scene = runtime state. Application = transition signal. Widget = open desktop thing. Decoration = render-only desktop thing.
             </div>
           </div>
         </div>
@@ -3806,7 +3809,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
   if (selected.kind === 'env') {
     headerIcon  = selected.envState === STATE.LOBBY ? '🖥' : '💾'
     headerLabel = selected.envState === STATE.LOBBY ? 'Lobby' : 'Desktop'
-    headerMeta = 'Environment'
+    headerMeta = 'Scene'
     isLive      = currentState === selected.envState
     actionLabel = isLive ? '● Live' : '▶ Go Live'
     actionFn    = () => triggerScene(selected.envState)
@@ -3814,7 +3817,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
     const parts = selected.sceneState.split(' ')
     headerIcon  = parts[0]
     headerLabel = parts.slice(1).join(' ') || selected.sceneState
-    headerMeta = 'Scene Definition'
+    headerMeta = 'Scene'
     isLive      = currentState === selected.sceneState
     actionLabel = isLive ? '● Live' : '▶ Go Live'
     actionFn    = () => triggerScene(selected.sceneState)
@@ -4018,9 +4021,13 @@ function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-function SectionLabel({ children, hint: _hint }: { children: string; hint?: string }) {
+function SectionLabel({ children, hint: _hint, first = false }: { children: string; hint?: string; first?: boolean }) {
   return (
-    <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider px-2.5 pt-3 pb-1">{children}</div>
+    <div className={first ? 'px-2.5 pt-2 mb-3' : 'mt-7 mb-3 px-2.5 pt-3 border-t-2 border-cyan-500/25'}>
+      <span className="inline-flex rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
+        {children}
+      </span>
+    </div>
   )
 }
 
@@ -4050,6 +4057,15 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const systemWidgetLayouts = persistedWidgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]
+  const sceneEntries: Array<{ app: Application; scene: Scene }> = []
+  const seenSceneIds = new Set<string>()
+
+  sceneApps.forEach((app) => {
+    const scene = scenes[app.targetSceneId]
+    if (!scene || scene.id === STATE.LOBBY || scene.id === STATE.DESKTOP || seenSceneIds.has(scene.id)) return
+    seenSceneIds.add(scene.id)
+    sceneEntries.push({ app, scene })
+  })
 
   const captureCurrentLayout = async () => {
     if (widgetApps.length === 0) return
@@ -4071,28 +4087,21 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto pb-1">
 
-      <SectionLabel hint="Fixed machine states that own the lobby and desktop environments.">Environments</SectionLabel>
+      <SectionLabel hint="Lobby, Desktop, and application-backed runtime scenes." first>Scenes</SectionLabel>
       <SidebarBtn icon="🖥" label="Lobby" live={currentState === STATE.LOBBY} active={isActive({ kind: 'env', envState: STATE.LOBBY })} onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })} onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
       <SidebarBtn icon="💾" label="Desktop" live={currentState === STATE.DESKTOP} active={isActive({ kind: 'env', envState: STATE.DESKTOP })} onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })} onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.DESKTOP })} />
 
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
-
-      <SectionLabel hint="Scene definitions: source stacks, styles, and music authored for runtime states.">Scenes</SectionLabel>
-      {sceneApps.map((app) => {
-        const sc = scenes[app.targetSceneId]
-        if (!sc) return null
+      {sceneEntries.map(({ app, scene }) => {
         return (
-          <SidebarBtn key={sc.id} icon={<SidebarAppIcon app={app} />} label={sc.label}
-            live={currentState === sc.id}
-            active={isActive({ kind: 'scene', sceneState: sc.id })}
-            onClick={() => onSelect({ kind: 'scene', sceneState: sc.id })}
-            onDoubleClick={() => onActivate({ kind: 'scene', sceneState: sc.id })} />
+          <SidebarBtn key={scene.id} icon={<SidebarAppIcon app={app} />} label={scene.label}
+            live={currentState === scene.id}
+            active={isActive({ kind: 'scene', sceneState: scene.id })}
+            onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}
+            onDoubleClick={() => onActivate({ kind: 'scene', sceneState: scene.id })} />
         )
       })}
 
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
-
-      <SectionLabel hint="Desktop icons that launch scene transitions.">Scene Apps</SectionLabel>
+      <SectionLabel hint="Desktop icons that launch scene transitions.">Applications</SectionLabel>
       {sceneApps.map((app) => (
         <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
           live={currentState === app.targetSceneId}
@@ -4121,8 +4130,6 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
         onSelect({ kind: 'app', appId: a.id })
       }} />
 
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
-
       <SectionLabel hint="Desktop windows. Widgets do not change machine state.">Widgets</SectionLabel>
       {systemWidgetApps.map((app) => (
         <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
@@ -4147,25 +4154,6 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       ))}
       <AddBtn label="New Widget" onClick={() => onSelect({ kind: 'widget-create' })} />
 
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
-
-      <SectionLabel hint="Saved desktop window presets and focus ordering.">Widget Layouts</SectionLabel>
-      {orderedWidgetLayouts.map((layout) => (
-        <SidebarBtn
-          key={layout.id}
-          icon={layout.icon || '📐'}
-          label={layout.label}
-          statusLabel={layout.source === 'system' ? 'SYS' : 'USR'}
-          statusClassName={layout.source === 'system' ? 'text-amber-300' : 'text-cyan-300'}
-          active={isActive({ kind: 'widget-layout', layoutId: layout.id })}
-          onClick={() => onSelect({ kind: 'widget-layout', layoutId: layout.id })}
-          onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })}
-        />
-      ))}
-      <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
-
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
-
       <SectionLabel hint="Desktop-only icons for environmental dressing.">Decorations</SectionLabel>
       {decorationApps.map((app) => (
         <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
@@ -4180,7 +4168,18 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
         onSelect({ kind: 'app', appId: a.id })
       }} />
 
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
+      <SectionLabel hint="Saved desktop window presets and focus ordering.">Widget Layouts</SectionLabel>
+      {orderedWidgetLayouts.map((layout) => (
+        <SidebarBtn
+          key={layout.id}
+          icon={layout.icon || '📐'}
+          label={layout.label}
+          active={isActive({ kind: 'widget-layout', layoutId: layout.id })}
+          onClick={() => onSelect({ kind: 'widget-layout', layoutId: layout.id })}
+          onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })}
+        />
+      ))}
+      <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
 
       <SectionLabel hint="Overlay triggers and automation rules.">Events</SectionLabel>
       {eventDefs.map((def) => (
@@ -4194,7 +4193,6 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       <AddBtn label="New Event" onClick={onAddEvent} />
 
       <div className="flex-1" />
-      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
       <SectionLabel hint="Auxiliary panels that are not runtime applications.">Utilities</SectionLabel>
       <SidebarBtn icon="📁" label="Archive" active={isActive({ kind: 'archive' })} onClick={() => onSelect({ kind: 'archive' })} />
