@@ -18,7 +18,7 @@ import type { AppConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
 import type { AmbianceManager } from '../ambiance/manager.js'
-import { getConfig } from '../routes/config.js'
+import { getConfig, persistConfig } from '../routes/config.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -176,6 +176,66 @@ export function setupSocketHandlers(
     return { ok: false, error: `Unsupported action: ${action}` }
   }
 
+  const applySavedWidgetLayout = (layoutId: string): { ok: boolean; error?: string } => {
+    const currentConfig = getConfig()
+    const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
+    const layout = (currentDesktop.widgetLayouts ?? []).find((entry) => entry.id === layoutId)
+    if (!layout) {
+      return { ok: false, error: `Unknown widget layout: ${layoutId}` }
+    }
+
+    const validWidgetIds = new Set(
+      currentConfig.applications
+        .filter((app) => app.appType === 'widget')
+        .map((app) => app.id),
+    )
+    const layoutItems = layout.items.filter((item) => validWidgetIds.has(item.widgetId))
+    if (layoutItems.length === 0) {
+      return { ok: false, error: `Widget layout has no valid widgets: ${layoutId}` }
+    }
+
+    const nextPositions = { ...(currentDesktop.widgetPositions ?? {}) }
+    const nextSizes = { ...(currentDesktop.widgetSizes ?? {}) }
+    const nextRuntimeZIndices = { ...(currentDesktop.widgetZIndices ?? {}) }
+    const defaultZIndices = currentDesktop.widgetDefaultZIndices ?? {}
+
+    for (const item of layoutItems) {
+      nextPositions[item.widgetId] = { x: item.x, y: item.y }
+      nextSizes[item.widgetId] = { width: item.width, height: item.height }
+    }
+
+    const orderedEnabledItems = [...layoutItems]
+      .filter((item) => item.enabled)
+      .sort((a, b) => {
+        if (a.focusPriority !== b.focusPriority) return a.focusPriority - b.focusPriority
+        return (defaultZIndices[a.widgetId] ?? 0) - (defaultZIndices[b.widgetId] ?? 0)
+      })
+
+    for (const [index, item] of orderedEnabledItems.entries()) {
+      nextRuntimeZIndices[item.widgetId] = index
+    }
+
+    persistConfig({
+      ...currentConfig,
+      desktopConfig: withDesktopConfigDefaults({
+        ...currentDesktop,
+        widgetPositions: nextPositions,
+        widgetSizes: nextSizes,
+        widgetZIndices: nextRuntimeZIndices,
+      }),
+    }, machine)
+
+    for (const item of layoutItems) {
+      const isOpen = openWidgetIds.has(item.widgetId)
+      if (item.enabled !== isOpen) {
+        toggleWidgetRuntime(item.widgetId)
+      }
+    }
+
+    io.emit('widget:layout:apply', layoutId)
+    return { ok: true }
+  }
+
   const resolveKeybindAction = (payload: KeybindExecutionPayload) => {
     const inlineAction = payload.action?.trim()
     if (inlineAction) return inlineAction
@@ -237,6 +297,11 @@ export function setupSocketHandlers(
 
     socket.on('desktop:state:request', (callback) => {
       callback(getDesktopRuntimeState())
+    })
+
+    socket.on('widget:layout:apply', (layoutId) => {
+      scheduler?.noteActivity()
+      applySavedWidgetLayout(layoutId)
     })
 
     socket.on('scene:change', (target, callback) => {

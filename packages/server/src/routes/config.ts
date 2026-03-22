@@ -78,14 +78,19 @@ export function getConfig() {
   return config
 }
 
+export function persistConfig(next: AppConfig, machine?: Pick<SceneMachine, 'emit'>) {
+  config = withConfigDefaults(next)
+  setDbConfig('appConfig', config)
+  machine?.emit('config:update', config)
+  return config
+}
+
 export async function configRoute(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { machine: SceneMachine },
 ) {
   const save = (next: AppConfig) => {
-    config = withConfigDefaults(next)
-    setDbConfig('appConfig', config)
-    opts.machine.emit('config:update', config)
+    persistConfig(next, opts.machine)
   }
 
   app.get('/api/config', async (_req, _reply) => {
@@ -146,10 +151,17 @@ export async function configRoute(
             ...currentDesktop.widgetSizes,
             ...req.body.widgetSizes,
           },
+          widgetDefaultZIndices: {
+            ...currentDesktop.widgetDefaultZIndices,
+            ...req.body.widgetDefaultZIndices,
+          },
           widgetZIndices: {
             ...currentDesktop.widgetZIndices,
             ...req.body.widgetZIndices,
           },
+          widgetLayouts: req.body.widgetLayouts !== undefined
+            ? req.body.widgetLayouts
+            : currentDesktop.widgetLayouts,
         })
         save({ ...config, desktopConfig: nextDesktop })
         return { ok: true }

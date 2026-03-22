@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { DEFAULT_WIDGET_WINDOW_SIZES, STATE, OVERLAY_EVENT, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import {
+  DEFAULT_WIDGET_DEFAULT_Z_INDICES,
+  DEFAULT_WIDGET_WINDOW_SIZES,
+  STATE,
+  OVERLAY_EVENT,
+  withDesktopConfigDefaults,
+  withLobbyConfigDefaults,
+  withOverlayStyleDefaults,
+} from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
-  EffectType, EffectConfig, MediaEntry, TransitionStep,
+  EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -83,10 +91,100 @@ function resolveWidgetSizeFromConfig(widgetId: string, desktopConfig: DesktopCon
   }
 }
 
-/** Returns the persisted z-index for a widget, or undefined if not set. */
-function resolveWidgetZIndexFromConfig(widgetId: string, desktopConfig: DesktopConfig): number | undefined {
-  const v = desktopConfig.widgetZIndices?.[widgetId]
-  return Number.isFinite(v) ? (v as number) : undefined
+function getDefaultWidgetZIndex(widgetId: string) {
+  return DEFAULT_WIDGET_DEFAULT_Z_INDICES[widgetId as keyof typeof DEFAULT_WIDGET_DEFAULT_Z_INDICES] ?? 0
+}
+
+function resolveWidgetDefaultZIndexFromConfig(widgetId: string, desktopConfig: DesktopConfig) {
+  const value = desktopConfig.widgetDefaultZIndices?.[widgetId]
+  return Number.isFinite(value) ? Math.max(0, Math.round(value as number)) : getDefaultWidgetZIndex(widgetId)
+}
+
+function buildWidgetLayoutFallbackPosition(widgetIndex: number) {
+  return {
+    x: 80 + (widgetIndex % 2) * 48,
+    y: 72 + widgetIndex * 28,
+  }
+}
+
+function buildWidgetLayoutItem(
+  app: Application,
+  widgetIndex: number,
+  desktopConfig: DesktopConfig,
+  enabled: boolean,
+): WidgetLayoutItem {
+  const size = resolveWidgetSizeFromConfig(app.id, desktopConfig)
+  const position = desktopConfig.widgetPositions?.[app.id] ?? buildWidgetLayoutFallbackPosition(widgetIndex)
+  return {
+    widgetId: app.id,
+    enabled,
+    x: Math.max(0, Math.round(position.x)),
+    y: Math.max(0, Math.round(position.y)),
+    width: size.width,
+    height: size.height,
+    focusPriority: resolveWidgetDefaultZIndexFromConfig(app.id, desktopConfig),
+  }
+}
+
+function normalizeWidgetLayoutForEditor(
+  layout: WidgetLayoutDefinition,
+  widgetApps: Application[],
+  desktopConfig: DesktopConfig,
+): WidgetLayoutDefinition {
+  const widgetIndexById = new Map(widgetApps.map((app, index) => [app.id, index]))
+  const itemsById = new Map(layout.items.map((item) => [item.widgetId, item]))
+
+  return {
+    ...layout,
+    icon: layout.icon || '📐',
+    source: layout.source,
+    description: layout.description ?? '',
+    items: widgetApps.map((app, index) => {
+      const source = itemsById.get(app.id)
+      const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
+      if (!source) return fallback
+
+      return {
+        widgetId: app.id,
+        enabled: !!source.enabled,
+        x: Math.max(0, Math.round(source.x ?? fallback.x)),
+        y: Math.max(0, Math.round(source.y ?? fallback.y)),
+        width: clampWidgetDimension(source.width ?? fallback.width, 180, 1400, fallback.width),
+        height: clampWidgetDimension(source.height ?? fallback.height, 140, 1000, fallback.height),
+        focusPriority: Number.isFinite(source.focusPriority)
+          ? Math.round(source.focusPriority)
+          : fallback.focusPriority,
+      }
+    }).sort((a, b) => {
+      const indexA = widgetIndexById.get(a.widgetId) ?? Number.MAX_SAFE_INTEGER
+      const indexB = widgetIndexById.get(b.widgetId) ?? Number.MAX_SAFE_INTEGER
+      return indexA - indexB
+    }),
+  }
+}
+
+function normalizeWidgetLayoutsForEditor(
+  layouts: WidgetLayoutDefinition[] | undefined,
+  widgetApps: Application[],
+  desktopConfig: DesktopConfig,
+) {
+  return (layouts ?? []).map((layout) => normalizeWidgetLayoutForEditor(layout, widgetApps, desktopConfig))
+}
+
+function createWidgetLayoutFromCurrentState(
+  label: string,
+  widgetApps: Application[],
+  desktopConfig: DesktopConfig,
+  openWidgetIds: string[],
+): WidgetLayoutDefinition {
+  return {
+    id: `widget-layout-${Date.now()}`,
+    label,
+    icon: '📐',
+    source: 'user',
+    description: '',
+    items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, desktopConfig, openWidgetIds.includes(app.id))),
+  }
 }
 
 function ThemeAppearanceFields({
@@ -1218,6 +1316,7 @@ type SelectedItem =
   | { kind: 'env';   envState: STATE }
   | { kind: 'scene'; sceneState: string }
   | { kind: 'app';   appId: string }
+  | { kind: 'widget-layout'; layoutId: string }
   | { kind: 'event'; id: string }
   | { kind: 'audio' }
   | { kind: 'keybinds' }
@@ -1229,6 +1328,7 @@ function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState
   if (item.kind === 'scene') return 'scene-' + item.sceneState
   if (item.kind === 'app')   return 'app-' + item.appId
+  if (item.kind === 'widget-layout') return 'widget-layout-' + item.layoutId
   if (item.kind === 'event') return 'event-' + item.id
   if (item.kind === 'ambiance') return 'ambiance'
   return item.kind
@@ -1907,8 +2007,8 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const initialWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
   const [form, setForm] = useState<Application>(app)
   const [widgetSize, setWidgetSize] = useState(initialWidgetSize)
-  const [widgetZIndex, setWidgetZIndex] = useState<number | undefined>(
-    () => resolveWidgetZIndexFromConfig(app.id, desktopConfig),
+  const [widgetDefaultZIndex, setWidgetDefaultZIndex] = useState<number>(
+    () => resolveWidgetDefaultZIndexFromConfig(app.id, desktopConfig),
   )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -1945,18 +2045,18 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   }, [app.id, app.appType, enumerateCameras])
   const appDirty = !isSameDraft(form, app)
   const sourceWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
-  const sourceWidgetZIndex = resolveWidgetZIndexFromConfig(app.id, desktopConfig)
+  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(app.id, desktopConfig)
   const widgetSizeDirty = form.appType === 'widget' && (
     widgetSize.width !== sourceWidgetSize.width
     || widgetSize.height !== sourceWidgetSize.height
   )
-  const widgetZIndexDirty = form.appType === 'widget' && widgetZIndex !== sourceWidgetZIndex
-  const dirty = appDirty || widgetSizeDirty || widgetZIndexDirty
+  const widgetDefaultZIndexDirty = form.appType === 'widget' && widgetDefaultZIndex !== sourceWidgetDefaultZIndex
+  const dirty = appDirty || widgetSizeDirty || widgetDefaultZIndexDirty
 
   useEffect(() => {
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetZIndex(resolveWidgetZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }, [app, config.desktopConfig])
 
@@ -1988,7 +2088,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
       const defaults = getDefaultWidgetSize(form.id)
       const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
-      const nextWidgetZIndices = { ...(nextDesktop.widgetZIndices ?? {}) }
+      const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
 
       if (normalizedWidth === defaults.width && normalizedHeight === defaults.height) {
         delete nextWidgetSizes[form.id]
@@ -1996,16 +2096,12 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         nextWidgetSizes[form.id] = { width: normalizedWidth, height: normalizedHeight }
       }
 
-      if (widgetZIndex === undefined) {
-        delete nextWidgetZIndices[form.id]
-      } else {
-        nextWidgetZIndices[form.id] = Math.max(0, Math.round(widgetZIndex))
-      }
+      nextWidgetDefaultZIndices[form.id] = Math.max(0, Math.round(widgetDefaultZIndex))
 
       updates.desktopConfig = {
         ...nextDesktop,
         widgetSizes: Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined,
-        widgetZIndices: Object.keys(nextWidgetZIndices).length ? nextWidgetZIndices : undefined,
+        widgetDefaultZIndices: Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined,
       }
     }
 
@@ -2020,7 +2116,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const reset = () => {
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetZIndex(resolveWidgetZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }
 
@@ -2116,7 +2212,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       </Panel>
 
       {form.appType === 'widget' && (
-        <Panel title="Widget Window Size">
+        <Panel title="Widget Window Defaults">
           <div className="text-[10px] text-zinc-600 mb-2">Configure default window size for this widget.</div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -2157,34 +2253,30 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
           </div>
           <div className="mt-3 pt-3 border-t border-zinc-700/50">
             <div className="text-[10px] text-zinc-500 mb-1">
-              Z-Index
-              <span className="text-zinc-600 ml-1">(stacking order — higher = in front; widgets start at 60)</span>
+              Default Z-Index
+              <span className="text-zinc-600 ml-1">(base order — higher starts nearer the front before manual focus changes)</span>
             </div>
             <div className="flex gap-2 items-center">
               <input
                 type="number"
                 min={0}
                 max={999}
-                placeholder="auto"
-                value={widgetZIndex ?? ''}
+                value={widgetDefaultZIndex}
                 onChange={(e) => {
-                  const raw = e.target.value
-                  setWidgetZIndex(raw === '' ? undefined : Math.max(0, Math.min(999, Math.round(Number(raw)))))
+                  setWidgetDefaultZIndex(Math.max(0, Math.min(999, Math.round(Number(e.target.value) || 0))))
                 }}
                 className="w-24 font-mono text-xs"
               />
-              {widgetZIndex !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => setWidgetZIndex(undefined)}
-                  className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id))}
+                className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+              >
+                Reset
+              </button>
             </div>
             <div className="text-[10px] text-zinc-600 mt-1">
-              Leave blank for automatic order (last focused = frontmost). Set a fixed value to pin this widget in the stack — e.g. camera PiP at 65, background widget at 61.
+              This is the widget's baseline stack order. Saved layouts can temporarily bias focus priority on top of this, and manual clicking or taskbar focus can still move a window to the front at runtime.
             </div>
           </div>
         </Panel>
@@ -2381,6 +2473,279 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-900/50 hover:border-red-700 transition-colors">
         Remove
       </button>
+    </div>
+  )
+}
+
+function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDeleted: () => void }) {
+  const config = useAdminStore((s) => s.config)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
+  const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
+  const widgetApps = useMemo(
+    () => config.applications.filter((app) => app.appType === 'widget' && isSupportedWidgetId(app.id)),
+    [config.applications],
+  )
+  const sourceLayouts = useMemo(
+    () => normalizeWidgetLayoutsForEditor(desktopConfig.widgetLayouts, widgetApps, desktopConfig),
+    [desktopConfig.widgetLayouts, widgetApps, desktopConfig],
+  )
+  const sourceLayout = useMemo(
+    () => sourceLayouts.find((layout) => layout.id === layoutId) ?? null,
+    [layoutId, sourceLayouts],
+  )
+
+  const [layout, setLayout] = useState<WidgetLayoutDefinition | null>(sourceLayout)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setLayout(sourceLayout ? structuredClone(sourceLayout) : null)
+    setSaved(false)
+  }, [sourceLayout])
+
+  if (!sourceLayout || !layout) {
+    return <div className="text-zinc-600 text-xs italic p-4">Layout not found.</div>
+  }
+
+  const dirty = !isSameDraft(layout, sourceLayout)
+
+  const persistDraft = async () => {
+    if (!dirty) return
+    setSaving(true)
+    await saveConfig({
+      desktopConfig: {
+        ...desktopConfig,
+        widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? layout : entry),
+      },
+    })
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }
+
+  const reset = () => {
+    setLayout(structuredClone(sourceLayout))
+    setSaved(false)
+  }
+
+  const updateLayout = (updater: (draft: WidgetLayoutDefinition) => void) => {
+    setLayout((prev) => {
+      if (!prev) return prev
+      const next = structuredClone(prev)
+      updater(next)
+      return next
+    })
+    setSaved(false)
+  }
+
+  const captureCurrentIntoLayout = () => {
+    const nextLayout = createWidgetLayoutFromCurrentState('current', widgetApps, desktopConfig, openWidgetIds)
+    updateLayout((draft) => {
+      draft.items = nextLayout.items.map((item) => ({
+        ...item,
+      }))
+    })
+  }
+
+  const deleteLayout = async () => {
+    if (layout.source === 'system') return
+    setSaving(true)
+    await saveConfig({
+      desktopConfig: {
+        ...desktopConfig,
+        widgetLayouts: sourceLayouts.filter((entry) => entry.id !== layoutId),
+      },
+    })
+    setSaving(false)
+    onDeleted()
+  }
+
+  const applyLayout = async () => {
+    if (dirty) {
+      await persistDraft()
+    }
+    socket.emit('widget:layout:apply', layoutId)
+  }
+
+  return (
+    <div className="space-y-3">
+      <ConfigApplyBar
+        label={layout.label}
+        dirty={dirty}
+        saving={saving}
+        saved={saved}
+        onApply={persistDraft}
+        onReset={reset}
+      />
+
+      <Panel title="Layout Configuration">
+        <div className="space-y-3">
+          <div className="text-[10px] text-zinc-500 leading-relaxed">
+            Configure this layout only. System layouts are the built-in taskbar presets and user layouts are your captured variants.
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-3">
+              <div className="flex gap-2 items-start">
+                <input
+                  type="text"
+                  value={layout.icon}
+                  onChange={(e) => updateLayout((draft) => { draft.icon = e.target.value || '📐' })}
+                  className="w-12 text-center font-mono text-xs"
+                />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <input
+                    type="text"
+                    value={layout.label}
+                    onChange={(e) => updateLayout((draft) => { draft.label = e.target.value })}
+                    className="w-full text-xs"
+                    placeholder="Layout label"
+                  />
+                  <input
+                    type="text"
+                    value={layout.description ?? ''}
+                    onChange={(e) => updateLayout((draft) => { draft.description = e.target.value })}
+                    className="w-full text-xs"
+                    placeholder="Optional description"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={'text-[9px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full border ' + (
+                  layout.source === 'system'
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                    : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                )}>
+                  {layout.source}
+                </span>
+                {layout.source === 'system' && (
+                  <span className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, but not removable.</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { void applyLayout() }}
+                  className="flex-1 text-[10px] px-2.5 py-1.5 rounded border border-emerald-500/35 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => captureCurrentIntoLayout()}
+                  className="text-[10px] px-2.5 py-1.5 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                >
+                  Use Current
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void deleteLayout() }}
+                  disabled={layout.source === 'system'}
+                  className={'text-[10px] px-2.5 py-1.5 rounded border transition-colors ' + (
+                    layout.source === 'system'
+                      ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
+                      : 'border-red-900/60 text-red-300 hover:bg-red-950/40'
+                  )}
+                >
+                  {layout.source === 'system' ? 'Protected' : 'Delete'}
+                </button>
+              </div>
+              <div className="space-y-2">
+                {layout.items.map((item) => {
+                  const app = widgetApps.find((entry) => entry.id === item.widgetId)
+                  if (!app) return null
+                  return (
+                    <div key={item.widgetId} className="rounded border border-zinc-800/80 bg-zinc-950/50 p-2 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={item.enabled}
+                          onChange={(e) => updateLayout((draft) => {
+                            const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                            if (row) row.enabled = e.target.checked
+                          })}
+                        />
+                        <div className="w-6 h-6 rounded border border-zinc-700 bg-zinc-900 flex items-center justify-center shrink-0">
+                          <IconGlyph icon={app.icon} label={app.label} size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0 text-[11px] text-zinc-200 truncate">{app.label}</div>
+                        <div className="text-[10px] text-zinc-500">Focus</div>
+                        <input
+                          type="number"
+                          min={-999}
+                          max={999}
+                          value={item.focusPriority}
+                          onChange={(e) => updateLayout((draft) => {
+                            const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                            if (row) row.focusPriority = Math.max(-999, Math.min(999, Math.round(Number(e.target.value) || 0)))
+                          })}
+                          className="w-16 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">X</div>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.x}
+                            onChange={(e) => updateLayout((draft) => {
+                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                              if (row) row.x = Math.max(0, Math.round(Number(e.target.value) || 0))
+                            })}
+                            className="w-full font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Y</div>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.y}
+                            onChange={(e) => updateLayout((draft) => {
+                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                              if (row) row.y = Math.max(0, Math.round(Number(e.target.value) || 0))
+                            })}
+                            className="w-full font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Width</div>
+                          <input
+                            type="number"
+                            min={180}
+                            max={1400}
+                            value={item.width}
+                            onChange={(e) => updateLayout((draft) => {
+                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                              if (row) row.width = clampWidgetDimension(Number(e.target.value), 180, 1400, row.width)
+                            })}
+                            className="w-full font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Height</div>
+                          <input
+                            type="number"
+                            min={140}
+                            max={1000}
+                            value={item.height}
+                            onChange={(e) => updateLayout((draft) => {
+                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
+                              if (row) row.height = clampWidgetDimension(Number(e.target.value), 140, 1000, row.height)
+                            })}
+                            className="w-full font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -2946,6 +3311,10 @@ function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDel
     )
   }
 
+  if (selected.kind === 'widget-layout') {
+    return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
+  }
+
   if (selected.kind === 'event') {
     const def = eventDefs.find((e) => e.id === selected.id)
     if (!def) return <div className="text-zinc-600 text-xs italic p-4">Event not found.</div>
@@ -2967,6 +3336,7 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
   const currentState = useAdminStore((s) => s.currentState)
   const setLastError = useAdminStore((s) => s.setLastError)
   const applications = useAdminStore((s) => s.config.applications)
+  const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
 
   const triggerScene = (state: string) => {
     setLastError(null)
@@ -3012,6 +3382,10 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     actionLabel = app?.appType === 'widget' ? '▶ Open' : app?.appType === 'scene' ? '▶ Launch' : 'Decoration'
     // Widgets do not transition — they are floating windows. Only scene apps emit scene:change.
     actionFn    = (app && app.appType === 'scene') ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
+  } else if (selected.kind === 'widget-layout') {
+    const layout = desktopConfig.widgetLayouts.find((entry) => entry.id === selected.layoutId)
+    headerIcon = layout?.icon ?? '📐'
+    headerLabel = layout?.label ?? 'Widget Layout'
   } else if (selected.kind === 'event') {
     const def   = eventDefs.find((e) => e.id === selected.id)
     headerIcon  = def?.icon  ?? '⚡'
@@ -3219,12 +3593,31 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const applications = useAdminStore((s) => s.config.applications)
   const scenes       = useAdminStore((s) => s.config.scenes)
   const overlayStyle = useAdminStore((s) => s.config.overlayStyle)
+  const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
 
   const sceneApps      = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
   const widgetApps     = applications.filter((a) => a.appType === 'widget' && isSupportedWidgetId(a.id))
   const decorationApps = applications.filter((a) => a.appType === 'decoration')
+  const systemWidgetLayouts = desktopConfig.widgetLayouts.filter((layout) => layout.source === 'system')
+  const userWidgetLayouts = desktopConfig.widgetLayouts.filter((layout) => layout.source === 'user')
+  const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]
   const hasWidget = (id: string) => applications.some((app) => app.id === id && app.appType === 'widget' && isSupportedWidgetId(app.id))
+
+  const appendWidgetApplication = (app: Application) => {
+    const nextDefaultZIndex = Math.max(-1, ...Object.values(desktopConfig.widgetDefaultZIndices ?? {})) + 1
+    saveConfig({
+      applications: [...applications, app],
+      desktopConfig: {
+        ...desktopConfig,
+        widgetDefaultZIndices: {
+          ...(desktopConfig.widgetDefaultZIndices ?? {}),
+          [app.id]: nextDefaultZIndex,
+        },
+      },
+    })
+    onSelect({ kind: 'app', appId: app.id })
+  }
 
   const createNextCameraWidget = () => {
     const existingIds = new Set(applications.filter((app) => app.appType === 'widget').map((app) => app.id))
@@ -3246,8 +3639,20 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       transitionType: 'default',
     }
 
-    saveConfig({ applications: [...applications, app] })
-    onSelect({ kind: 'app', appId: app.id })
+    appendWidgetApplication(app)
+  }
+
+  const captureCurrentLayout = async () => {
+    if (widgetApps.length === 0) return
+    const nextUserLayoutNumber = userWidgetLayouts.length + 1
+    const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${nextUserLayoutNumber}`, widgetApps, desktopConfig, openWidgetIds)
+    await saveConfig({
+      desktopConfig: {
+        ...desktopConfig,
+        widgetLayouts: [...desktopConfig.widgetLayouts, nextLayout],
+      },
+    })
+    onSelect({ kind: 'widget-layout', layoutId: nextLayout.id })
   }
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
@@ -3320,30 +3725,42 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       ))}
       {!hasWidget('music') && <AddBtn label="Add Music Widget" onClick={() => {
         const a: Application = { id: 'music', label: 'Music', icon: '🎵', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        saveConfig({ applications: [...applications, a] })
-        onSelect({ kind: 'app', appId: a.id })
+        appendWidgetApplication(a)
       }} />}
       {!hasWidget('archive') && <AddBtn label="Add Archive Widget" onClick={() => {
         const a: Application = { id: 'archive', label: 'Archive', icon: '📚', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        saveConfig({ applications: [...applications, a] })
-        onSelect({ kind: 'app', appId: a.id })
+        appendWidgetApplication(a)
       }} />}
       {!hasWidget('chat') && <AddBtn label="Add Chat Widget" onClick={() => {
         const a: Application = { id: 'chat', label: 'Chat', icon: '💬', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        saveConfig({ applications: [...applications, a] })
-        onSelect({ kind: 'app', appId: a.id })
+        appendWidgetApplication(a)
       }} />}
       {!hasWidget('sticky-notes') && <AddBtn label="Add Sticky Notes Widget" onClick={() => {
         const a: Application = { id: 'sticky-notes', label: 'Sticky Notes', icon: '🗒', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        saveConfig({ applications: [...applications, a] })
-        onSelect({ kind: 'app', appId: a.id })
+        appendWidgetApplication(a)
       }} />}
       {!hasWidget('gallery') && <AddBtn label="Add Gallery Widget" onClick={() => {
         const a: Application = { id: 'gallery', label: 'Gallery', icon: '🖼', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        saveConfig({ applications: [...applications, a] })
-        onSelect({ kind: 'app', appId: a.id })
+        appendWidgetApplication(a)
       }} />}
       <AddBtn label="Add Camera Widget" onClick={createNextCameraWidget} />
+
+      <div className="mx-2 mt-2 border-t border-zinc-800/80" />
+
+      <SectionLabel>Widgets Layout</SectionLabel>
+      {orderedWidgetLayouts.map((layout) => (
+        <SidebarBtn
+          key={layout.id}
+          icon={layout.icon || '📐'}
+          label={layout.label}
+          statusLabel={layout.source === 'system' ? 'SYS' : 'USR'}
+          statusClassName={layout.source === 'system' ? 'text-amber-300' : 'text-cyan-300'}
+          active={isActive({ kind: 'widget-layout', layoutId: layout.id })}
+          onClick={() => onSelect({ kind: 'widget-layout', layoutId: layout.id })}
+          onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })}
+        />
+      ))}
+      <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
@@ -3496,6 +3913,7 @@ export function Dashboard() {
   const [libraryOpen,  setLibraryOpen]  = useState(false)
   const eventDefs = useAdminStore((s) => (s.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
   const applications = useAdminStore((s) => s.config.applications)
+  const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const settingsTab: SettingsTab | null = selected?.kind === 'settings'
     ? 'general'
@@ -3511,6 +3929,12 @@ export function Dashboard() {
       setSelected(null)
     }
   }, [applications, selected])
+
+  useEffect(() => {
+    if (selected?.kind === 'widget-layout' && !desktopConfig.widgetLayouts.some((layout) => layout.id === selected.layoutId)) {
+      setSelected(null)
+    }
+  }, [desktopConfig.widgetLayouts, selected])
 
   const handleSelect = (item: SelectedItem) => {
     if (selected && itemKey(item) === itemKey(selected)) {
@@ -3540,6 +3964,8 @@ export function Dashboard() {
       const def = eventDefs.find((eventDef) => eventDef.id === item.id)
       if (!def) return
       socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
+    } else if (item.kind === 'widget-layout') {
+      socket.emit('widget:layout:apply', item.layoutId)
     }
   }
 

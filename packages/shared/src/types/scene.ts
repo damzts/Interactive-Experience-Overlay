@@ -58,6 +58,32 @@ export interface WidgetWindowSize {
   height?: number
 }
 
+export interface WidgetLayoutItem {
+  /** Widget application id, e.g. 'music' or 'camera-2'. */
+  widgetId: string
+  /** Whether the widget should be open after the layout is applied. */
+  enabled: boolean
+  /** Absolute pixel position for the widget window. */
+  x: number
+  y: number
+  /** Absolute widget window size. */
+  width: number
+  height: number
+  /** Higher values seed the widget nearer the front when the layout is applied. */
+  focusPriority: number
+}
+
+export type WidgetLayoutSource = 'system' | 'user'
+
+export interface WidgetLayoutDefinition {
+  id: string
+  label: string
+  icon: string
+  source: WidgetLayoutSource
+  description?: string
+  items: WidgetLayoutItem[]
+}
+
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
@@ -193,8 +219,12 @@ export interface DesktopConfig {
   widgetPositions?: Record<string, { x: number; y: number }>
   /** Optional per-widget window size overrides, keyed by widget id. */
   widgetSizes?: Record<string, WidgetWindowSize>
-  /** Persisted widget window z-index order, keyed by widget id. Higher value = rendered on top. */
+  /** Default widget stack order, keyed by widget id. Higher value = preferred front-most baseline. */
+  widgetDefaultZIndices?: Record<string, number>
+  /** Persisted current widget window z-index order, keyed by widget id. Higher value = rendered on top. */
   widgetZIndices?: Record<string, number>
+  /** Saved named widget layout presets for the desktop runtime. */
+  widgetLayouts?: WidgetLayoutDefinition[]
   /** Visual state for the recycle bin decoration app */
   recycleBin: {
     emptyIcon: string

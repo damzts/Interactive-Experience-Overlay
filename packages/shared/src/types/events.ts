@@ -65,6 +65,7 @@ export interface ServerToClientEvents {
   'cursor:mirror': (payload: CursorMirrorPayload) => void
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
   'widget:toggle': (widgetId: string) => void
+  'widget:layout:apply': (layoutId: string) => void
   'desktop:notify': (payload: DesktopNotificationPayload) => void
   'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
 }
@@ -79,6 +80,7 @@ export interface ClientToServerEvents {
   'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
   'widget:toggle': (widgetId: string) => void
   'widget:simulate': (widgetId: string) => void
+  'widget:layout:apply': (layoutId: string) => void
   'cursor:mirror': (payload: CursorMirrorPayload) => void
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
   'desktop:notify': (payload: DesktopNotificationPayload) => void
