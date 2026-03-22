@@ -1,14 +1,18 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, STATE, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
-const REQUIRED_DESKTOP_APP_IDS = new Set(['recycle-bin', 'sticky-notes', 'chat', 'gallery', 'camera'])
+const REQUIRED_DESKTOP_APP_IDS = new Set(
+  DEFAULT_CONFIG.applications
+    .filter((app) => app.id === 'recycle-bin' || (app.appType === 'widget' && app.widgetSource === 'system'))
+    .map((app) => app.id),
+)
 
 function withConfigDefaults(next: AppConfig): AppConfig {
   const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
-  let applications = [...next.applications]
+  let applications = withApplicationListDefaults(next.applications)
   const lobbyScene = next.scenes[STATE.LOBBY] ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
   const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
   const defaultLobbyStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style ?? DEFAULT_CONFIG.overlayStyle)
@@ -35,6 +39,8 @@ function withConfigDefaults(next: AppConfig): AppConfig {
       applications.push(structuredClone(app))
     }
   }
+
+  applications = withApplicationListDefaults(applications)
 
   const migratedAmbiance = structuredClone(next.desktopAmbiance ?? {}) as Partial<NonNullable<AppConfig['desktopAmbiance']>>
   const behaviors = migratedAmbiance.widgetSimulation?.behaviors

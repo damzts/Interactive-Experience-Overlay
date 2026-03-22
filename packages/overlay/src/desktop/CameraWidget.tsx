@@ -122,6 +122,7 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
       id={appId ?? 'camera'}
       title={`📷 Camera - ${roleLabel}`}
       width={400}
+      height={300}
       defaultPosition={{ x: 260, y: 80 }}
       zIndex={zIndex}
       state={windowState}

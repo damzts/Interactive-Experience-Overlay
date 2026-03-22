@@ -52,6 +52,7 @@ interface DesktopWindowProps {
   id: string
   title: React.ReactNode
   width: number
+  height?: number
   defaultPosition: { x: number; y: number }
   zIndex?: number
   state?: 'open' | 'closing'
@@ -67,6 +68,7 @@ export function DesktopWindow({
   id,
   title,
   width,
+  height,
   defaultPosition,
   zIndex = 60,
   state = 'open',
@@ -84,12 +86,12 @@ export function DesktopWindow({
   const offset = useRef({ x: 0, y: 0 })
   const resizing = useRef(false)
   const resizeStartPointer = useRef({ x: 0, y: 0 })
-  const resizeStartSize = useRef({ width: width, height: 0 })
+  const resizeStartSize = useRef({ width: width, height: height ?? 0 })
   const resolvedWidth = resolveWidth(sizeOverride?.width, width)
-  const resolvedHeight = resolveHeight(sizeOverride?.height)
+  const resolvedHeight = resolveHeight(sizeOverride?.height ?? height)
   const [liveSize, setLiveSize] = useState(() => ({ width: resolvedWidth, height: resolvedHeight }))
   const sizeRef = useRef(liveSize)
-  const measureWindowHeight = () => frameRef.current?.offsetHeight ?? liveSize.height ?? 260
+  const measureWindowHeight = () => frameRef.current?.offsetHeight ?? liveSize.height ?? height ?? 260
   const clampPosition = (nextPos: { x: number; y: number }, nextSize = sizeRef.current) => {
     return clampWindowPosition(nextPos, {
       width: nextSize.width,
@@ -192,7 +194,7 @@ export function DesktopWindow({
     resizeStartPointer.current = { x: e.clientX, y: e.clientY }
     resizeStartSize.current = {
       width: sizeRef.current.width,
-      height: sizeRef.current.height ?? frameRef.current?.offsetHeight ?? 260,
+      height: sizeRef.current.height ?? frameRef.current?.offsetHeight ?? height ?? 260,
     }
     e.preventDefault()
     e.stopPropagation()

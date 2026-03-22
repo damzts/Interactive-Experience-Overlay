@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, withDesktopConfigDefaults } from '@ieom/shared'
-import type { Application, DesktopTheme, OverlayStyle } from '@ieom/shared'
+import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'
+import type { Application, DesktopTheme, OverlayStyle, WidgetComponentType } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
@@ -12,6 +12,7 @@ import { ChatWidget } from './ChatWidget'
 import { StickyNotesWidget } from './StickyNotesWidget'
 import { GalleryWidget } from './GalleryWidget'
 import { CameraWidget } from './CameraWidget'
+import { SourceWidget } from './SourceWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
@@ -34,31 +35,23 @@ interface DesktopWidgetProps {
 }
 
 /** Maps widget app IDs to their component. Add new widgets here. */
-const WIDGET_COMPONENTS: Record<string, React.ComponentType<DesktopWidgetProps>> = {
-  browser:      GalleryWidget,
-  music:        MusicWidget,
-  archive:      ArchiveWidget,
-  spotify:      MusicWidget,
-  chat:         ChatWidget,
+const WIDGET_COMPONENTS: Partial<Record<WidgetComponentType, React.ComponentType<DesktopWidgetProps>>> = {
+  music: MusicWidget,
+  archive: ArchiveWidget,
+  chat: ChatWidget,
   'sticky-notes': StickyNotesWidget,
-  gallery:      GalleryWidget,
-  camera:       CameraWidget,
+  gallery: GalleryWidget,
+  camera: CameraWidget,
+  source: SourceWidget,
 }
 
 const MAX_SIM_OPEN_WIDGETS = 2
 const OPEN_WHILE_ONE_OPEN_CHANCE = 0.35
 
-function resolveWidgetType(appId: string) {
-  if (WIDGET_COMPONENTS[appId]) return appId
-  // Allow camera aliases like camera-2 or camera:main while reusing CameraWidget.
-  if (/^camera(?:[-:_].+)?$/.test(appId)) return 'camera'
-  return null
-}
-
-function resolveWidgetComponent(appId: string) {
-  const type = resolveWidgetType(appId)
-  if (!type) return null
-  return WIDGET_COMPONENTS[type] ?? null
+function resolveWidgetComponent(app: Application) {
+  const widgetComponent = getWidgetComponent(app)
+  if (!widgetComponent || widgetComponent === 'generic') return null
+  return WIDGET_COMPONENTS[widgetComponent] ?? null
 }
 
 const THEME_CLASSNAME: Record<DesktopTheme, string> = {
@@ -309,6 +302,23 @@ function sortWidgetIdsByStackPreference(
   ))
 }
 
+function orderVisibleWidgetIds(
+  widgetIds: string[],
+  runtimeZIndices: Record<string, number>,
+  defaultZIndices: Record<string, number>,
+) {
+  if (widgetIds.some((id) => runtimeZIndices[id] !== undefined)) {
+    return sortWidgetIdsByStackPreference(widgetIds, runtimeZIndices, defaultZIndices)
+  }
+  if (widgetIds.some((id) => defaultZIndices[id] !== undefined)) {
+    return sortWidgetIdsByStackPreference(widgetIds, {}, defaultZIndices)
+  }
+
+  const nonCameraIds = widgetIds.filter((id) => !/^camera(?:[-:_].+)?$/.test(id))
+  const cameraIds = widgetIds.filter((id) => /^camera(?:[-:_].+)?$/.test(id))
+  return [...nonCameraIds, ...cameraIds]
+}
+
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
@@ -368,6 +378,7 @@ function GenericWidget({ app, onClose, onMinimize, onFocus, windowState = 'open'
       id={app.id}
       title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><AppGlyph icon={app.icon} label={app.label} size={16} /> <span>{app.label}</span></span>}
       width={260}
+      height={240}
       defaultPosition={{ x: 80, y: 120 }}
       zIndex={zIndex}
       state={windowState}
@@ -410,6 +421,7 @@ export function Desktop({ apps }: DesktopProps) {
   const simLastWidgetIdRef = useRef<string | null>(null)
   const simEmittingRef = useRef(false)
   const suppressZIndexPersistRef = useRef(false)
+  const pendingDefaultSeedWidgetIdsRef = useRef<Set<string>>(new Set())
   const sourceCenterToggleRef = useRef<string>(DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter)
 
   const config = useAppStore((s) => s.config)
@@ -417,10 +429,7 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopConfigRef = useRef(desktopConfig)
   desktopConfigRef.current = desktopConfig
   const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
-  const supportedApps = useMemo(
-    () => apps.filter((app) => app.appType !== 'widget' || !!resolveWidgetComponent(app.id)),
-    [apps],
-  )
+  const supportedApps = useMemo(() => apps, [apps])
 
   // Ambiance widget simulation config
   const widgetSimConfig = config.desktopAmbiance?.widgetSimulation;
@@ -730,33 +739,45 @@ export function Desktop({ apps }: DesktopProps) {
       const next = prev.filter((id) => ids.includes(id))
       const newIds = ids.filter((id) => !next.includes(id))
       if (newIds.length === 0) return next.length === prev.length ? prev : next
-      const persistedZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+
       const defaultZIndices = desktopConfigRef.current.widgetDefaultZIndices ?? {}
-      const hasPersistedOrder = newIds.some((id) => persistedZIndices[id] !== undefined)
-      if (hasPersistedOrder) {
-        const sortedNewIds = sortWidgetIdsByStackPreference(newIds, persistedZIndices, defaultZIndices)
-        for (const id of sortedNewIds) next.push(id)
-      } else if (newIds.some((id) => defaultZIndices[id] !== undefined)) {
-        const sortedNewIds = sortWidgetIdsByStackPreference(newIds, {}, defaultZIndices)
-        for (const id of sortedNewIds) next.push(id)
-      } else {
-        // Fallback: camera widgets go last (frontmost) among new arrivals
-        const newNonCameras = newIds.filter((id) => !/^camera(?:[-:_].+)?$/.test(id))
-        const newCameras = newIds.filter((id) => /^camera(?:[-:_].+)?$/.test(id))
-        for (const id of newNonCameras) next.push(id)
-        for (const id of newCameras) next.push(id)
+
+      if (suppressZIndexPersistRef.current) {
+        const runtimeZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+        return orderVisibleWidgetIds(ids, runtimeZIndices, defaultZIndices)
       }
-      return next
+
+      const persistedZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+      const runtimeZIndices = { ...persistedZIndices }
+      newIds.forEach((id) => {
+        pendingDefaultSeedWidgetIdsRef.current.add(id)
+        delete runtimeZIndices[id]
+      })
+
+      const nextOrderedIds = orderVisibleWidgetIds(ids, runtimeZIndices, defaultZIndices)
+      const nextOpenWidgetZIndices = Object.fromEntries(nextOrderedIds.map((id, idx) => [id, idx]))
+      const nextPersistedZIndices = { ...persistedZIndices, ...nextOpenWidgetZIndices }
+
+      patchDesktopConfig({ widgetZIndices: nextPersistedZIndices })
+        .catch(() => {})
+        .finally(() => {
+          newIds.forEach((id) => pendingDefaultSeedWidgetIdsRef.current.delete(id))
+        })
+
+      return nextOrderedIds
     })
   }, [visibleWidgets])
 
   useEffect(() => {
-    const runtimeZIndices = desktopConfig.widgetZIndices ?? {}
+    const runtimeZIndices = { ...(desktopConfig.widgetZIndices ?? {}) }
+    pendingDefaultSeedWidgetIdsRef.current.forEach((id) => {
+      delete runtimeZIndices[id]
+    })
     const defaultZIndices = desktopConfig.widgetDefaultZIndices ?? {}
     const visibleIds = visibleWidgets.map((widget) => widget.id)
     if (!visibleIds.some((id) => runtimeZIndices[id] !== undefined)) return
 
-    const sortedVisibleIds = sortWidgetIdsByStackPreference(visibleIds, runtimeZIndices, defaultZIndices)
+    const sortedVisibleIds = orderVisibleWidgetIds(visibleIds, runtimeZIndices, defaultZIndices)
     setWindowOrder((prev) => {
       if (prev.length === sortedVisibleIds.length && prev.every((id, idx) => id === sortedVisibleIds[idx])) {
         return prev
@@ -1240,13 +1261,14 @@ export function Desktop({ apps }: DesktopProps) {
 
         {/* Widget windows — rendered above desktop content (z=50 within desktop stacking context) */}
         {visibleWidgets.map((a) => {
-          const WidgetComp = resolveWidgetComponent(a.id)
+          const widgetComponent = getWidgetComponent(a)
+          const WidgetComp = resolveWidgetComponent(a)
           const widgetProps: DesktopWidgetProps = {
             appId: a.id,
-            defaultCameraLabel: /^camera(?:[-:_].+)?$/.test(a.id)
+            defaultCameraLabel: widgetComponent === 'camera'
               ? (a.cameraSettings?.preferredDeviceLabel ?? '')
               : undefined,
-            defaultMirror: /^camera(?:[-:_].+)?$/.test(a.id)
+            defaultMirror: widgetComponent === 'camera'
               ? (a.cameraSettings?.mirror ?? false)
               : undefined,
             onClose: () => {

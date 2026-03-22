@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import {
-  DEFAULT_WIDGET_DEFAULT_Z_INDICES,
-  DEFAULT_WIDGET_WINDOW_SIZES,
+  getDefaultWidgetWindowSize,
+  getDefaultWidgetZIndex,
+  getWidgetComponent,
+  getWidgetSource,
+  isSystemWidget,
   STATE,
   OVERLAY_EVENT,
   withDesktopConfigDefaults,
@@ -12,6 +15,7 @@ import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
   EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
+  WidgetComponentType,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -78,26 +82,28 @@ function clampWidgetDimension(value: number, min: number, max: number, fallback:
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-function getDefaultWidgetSize(widgetId: string) {
-  return DEFAULT_WIDGET_WINDOW_SIZES[widgetId] ?? { width: 260, height: 240 }
+function resolveAppWidgetComponent(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>): WidgetComponentType {
+  return getWidgetComponent(app) ?? 'generic'
 }
 
-function resolveWidgetSizeFromConfig(widgetId: string, desktopConfig: DesktopConfig) {
-  const defaults = getDefaultWidgetSize(widgetId)
-  const raw = desktopConfig.widgetSizes?.[widgetId]
+function getDefaultWidgetSize(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>) {
+  return getDefaultWidgetWindowSize(app.id, resolveAppWidgetComponent(app))
+}
+
+function resolveWidgetSizeFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
+  const defaults = getDefaultWidgetSize(app)
+  const raw = desktopConfig.widgetSizes?.[app.id]
   return {
     width: clampWidgetDimension(raw?.width ?? defaults.width, 180, 1400, defaults.width),
     height: clampWidgetDimension(raw?.height ?? defaults.height, 140, 1000, defaults.height),
   }
 }
 
-function getDefaultWidgetZIndex(widgetId: string) {
-  return DEFAULT_WIDGET_DEFAULT_Z_INDICES[widgetId as keyof typeof DEFAULT_WIDGET_DEFAULT_Z_INDICES] ?? 0
-}
-
-function resolveWidgetDefaultZIndexFromConfig(widgetId: string, desktopConfig: DesktopConfig) {
-  const value = desktopConfig.widgetDefaultZIndices?.[widgetId]
-  return Number.isFinite(value) ? Math.max(0, Math.round(value as number)) : getDefaultWidgetZIndex(widgetId)
+function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
+  const value = desktopConfig.widgetDefaultZIndices?.[app.id]
+  return Number.isFinite(value)
+    ? Math.max(0, Math.round(value as number))
+    : getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
 }
 
 function buildWidgetLayoutFallbackPosition(widgetIndex: number) {
@@ -113,7 +119,7 @@ function buildWidgetLayoutItem(
   desktopConfig: DesktopConfig,
   enabled: boolean,
 ): WidgetLayoutItem {
-  const size = resolveWidgetSizeFromConfig(app.id, desktopConfig)
+  const size = resolveWidgetSizeFromConfig(app, desktopConfig)
   const position = desktopConfig.widgetPositions?.[app.id] ?? buildWidgetLayoutFallbackPosition(widgetIndex)
   return {
     widgetId: app.id,
@@ -122,7 +128,7 @@ function buildWidgetLayoutItem(
     y: Math.max(0, Math.round(position.y)),
     width: size.width,
     height: size.height,
-    focusPriority: resolveWidgetDefaultZIndexFromConfig(app.id, desktopConfig),
+    focusPriority: resolveWidgetDefaultZIndexFromConfig(app, desktopConfig),
   }
 }
 
@@ -184,6 +190,89 @@ function createWidgetLayoutFromCurrentState(
     source: 'user',
     description: '',
     items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, desktopConfig, openWidgetIds.includes(app.id))),
+  }
+}
+
+type UserWidgetBaseComponent = 'camera' | 'source'
+
+const USER_WIDGET_COMPONENT_OPTIONS: Array<{
+  id: UserWidgetBaseComponent
+  icon: string
+  label: string
+  description: string
+}> = [
+  {
+    id: 'camera',
+    icon: '📷',
+    label: 'Camera',
+    description: 'Dedicated camera capture widget with device defaults and mirror controls.',
+  },
+  {
+    id: 'source',
+    icon: '🧩',
+    label: 'Source',
+    description: 'Embeds a scene source inside a desktop window and lets you swap bindings later.',
+  },
+]
+
+function buildUserWidgetId(
+  widgetComponent: UserWidgetBaseComponent,
+  label: string,
+  existingIds: Set<string>,
+) {
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  const normalizedSlug = slug.replace(new RegExp(`^${widgetComponent}-`), '') || 'widget'
+
+  const base = `${widgetComponent}-${normalizedSlug}`
+
+  let candidate = base
+  let suffix = 2
+  while (existingIds.has(candidate)) {
+    candidate = `${base}-${suffix}`
+    suffix += 1
+  }
+
+  return candidate
+}
+
+function findFirstSceneSource(scenes: Record<string, Scene>) {
+  for (const scene of Object.values(scenes)) {
+    const firstSource = scene.sources[0]
+    if (firstSource) {
+      return { sceneId: scene.id, sourceId: firstSource.id }
+    }
+  }
+
+  return null
+}
+
+function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widgetId: string): DesktopConfig {
+  const next = withDesktopConfigDefaults(desktopConfig)
+  const nextPositions = { ...(next.widgetPositions ?? {}) }
+  const nextSizes = { ...(next.widgetSizes ?? {}) }
+  const nextDefaultZIndices = { ...(next.widgetDefaultZIndices ?? {}) }
+  const nextRuntimeZIndices = { ...(next.widgetZIndices ?? {}) }
+
+  delete nextPositions[widgetId]
+  delete nextSizes[widgetId]
+  delete nextDefaultZIndices[widgetId]
+  delete nextRuntimeZIndices[widgetId]
+
+  return {
+    ...next,
+    widgetPositions: Object.keys(nextPositions).length ? nextPositions : undefined,
+    widgetSizes: Object.keys(nextSizes).length ? nextSizes : undefined,
+    widgetDefaultZIndices: Object.keys(nextDefaultZIndices).length ? nextDefaultZIndices : undefined,
+    widgetZIndices: Object.keys(nextRuntimeZIndices).length ? nextRuntimeZIndices : undefined,
+    widgetLayouts: next.widgetLayouts.map((layout) => ({
+      ...layout,
+      items: layout.items.filter((item) => item.widgetId !== widgetId),
+    })),
   }
 }
 
@@ -1316,6 +1405,7 @@ type SelectedItem =
   | { kind: 'env';   envState: STATE }
   | { kind: 'scene'; sceneState: string }
   | { kind: 'app';   appId: string }
+  | { kind: 'widget-create' }
   | { kind: 'widget-layout'; layoutId: string }
   | { kind: 'event'; id: string }
   | { kind: 'audio' }
@@ -1328,6 +1418,7 @@ function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState
   if (item.kind === 'scene') return 'scene-' + item.sceneState
   if (item.kind === 'app')   return 'app-' + item.appId
+  if (item.kind === 'widget-create') return 'widget-create'
   if (item.kind === 'widget-layout') return 'widget-layout-' + item.layoutId
   if (item.kind === 'event') return 'event-' + item.id
   if (item.kind === 'ambiance') return 'ambiance'
@@ -2004,11 +2095,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
-  const initialWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
+  const initialWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
   const [form, setForm] = useState<Application>(app)
   const [widgetSize, setWidgetSize] = useState(initialWidgetSize)
   const [widgetDefaultZIndex, setWidgetDefaultZIndex] = useState<number>(
-    () => resolveWidgetDefaultZIndexFromConfig(app.id, desktopConfig),
+    () => resolveWidgetDefaultZIndexFromConfig(app, desktopConfig),
   )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -2038,14 +2129,26 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     }
   }, [])
 
+  const widgetComponent = form.appType === 'widget' ? resolveAppWidgetComponent(form) : undefined
+  const widgetSource = form.appType === 'widget' ? getWidgetSource(form) : undefined
+  const isProtectedSystemWidget = form.appType === 'widget' && isSystemWidget(form)
+  const selectedSourceSceneId = form.sourceWidgetSettings?.sceneId ?? ''
+  const selectedSourceScene = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
+  const availableSourceScenes = useMemo(
+    () => Object.values(config.scenes).filter((scene) => scene.sources.length > 0 || scene.id === selectedSourceSceneId),
+    [config.scenes, selectedSourceSceneId],
+  )
+  const availableSources = selectedSourceScene?.sources ?? []
+  const selectedSource = availableSources.find((source) => source.id === form.sourceWidgetSettings?.sourceId)
+
   // Auto-enumerate video devices when this is a camera widget
   useEffect(() => {
-    if (app.appType !== 'widget' || !isCameraWidgetId(app.id)) return
+    if (widgetComponent !== 'camera') return
     void enumerateCameras(false)
-  }, [app.id, app.appType, enumerateCameras])
+  }, [widgetComponent, enumerateCameras])
   const appDirty = !isSameDraft(form, app)
-  const sourceWidgetSize = resolveWidgetSizeFromConfig(app.id, desktopConfig)
-  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(app.id, desktopConfig)
+  const sourceWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
+  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
   const widgetSizeDirty = form.appType === 'widget' && (
     widgetSize.width !== sourceWidgetSize.width
     || widgetSize.height !== sourceWidgetSize.height
@@ -2055,8 +2158,8 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
   useEffect(() => {
     setForm(app)
-    setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }, [app, config.desktopConfig])
 
@@ -2086,7 +2189,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       const nextDesktop = withDesktopConfigDefaults(config.desktopConfig)
       const normalizedWidth = clampWidgetDimension(widgetSize.width, 180, 1400, sourceWidgetSize.width)
       const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
-      const defaults = getDefaultWidgetSize(form.id)
+      const defaults = getDefaultWidgetSize(form)
       const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
       const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
 
@@ -2115,13 +2218,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
   const reset = () => {
     setForm(app)
-    setWidgetSize(resolveWidgetSizeFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app.id, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setSaved(false)
   }
 
-  const defaultWidgetSize = getDefaultWidgetSize(form.id)
+  const defaultWidgetSize = getDefaultWidgetSize(form)
   const hasWidgetSizeOverride = !!desktopConfig.widgetSizes?.[form.id]
+  const supportsSceneTransitions = form.appType === 'scene'
 
   return (
     <div className="space-y-3">
@@ -2129,9 +2233,28 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       <Panel title="Identity">
         <div className="space-y-2">
           <div>
-            <div className="text-[10px] text-zinc-500 mb-1">ID <span className="text-zinc-600">(read-only — used by widget registry)</span></div>
+            <div className="text-[10px] text-zinc-500 mb-1">ID <span className="text-zinc-600">(read-only — persisted widget record id)</span></div>
             <input type="text" value={form.id} readOnly className="w-full text-xs font-mono text-zinc-500 cursor-default select-all" />
           </div>
+          {form.appType === 'widget' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={'text-[9px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full border ' + (
+                widgetSource === 'system'
+                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                  : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+              )}>
+                {widgetSource}
+              </span>
+              {widgetComponent && (
+                <span className="text-[9px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full border border-zinc-700 bg-zinc-900/70 text-zinc-300">
+                  {widgetComponent}
+                </span>
+              )}
+              {isProtectedSystemWidget && (
+                <span className="text-[10px] text-zinc-500">System widgets stay persisted and cannot be removed.</span>
+              )}
+            </div>
+          )}
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Label</div>
             <input type="text" value={form.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full text-xs" />
@@ -2172,24 +2295,26 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         </div>
       </Panel>
 
-      <Panel title="Transitions">
-        <div className="space-y-3">
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
-            <TransitionList
-              value={form.introTransitions ?? []}
-              onChange={(steps) => update((d) => { d.introTransitions = steps.length ? steps : undefined })}
-            />
+      {supportsSceneTransitions && (
+        <Panel title="Transitions">
+          <div className="space-y-3">
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
+              <TransitionList
+                value={form.introTransitions ?? []}
+                onChange={(steps) => update((d) => { d.introTransitions = steps.length ? steps : undefined })}
+              />
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Exit</div>
+              <TransitionList
+                value={form.exitTransitions ?? []}
+                onChange={(steps) => update((d) => { d.exitTransitions = steps.length ? steps : undefined })}
+              />
+            </div>
           </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Exit</div>
-            <TransitionList
-              value={form.exitTransitions ?? []}
-              onChange={(steps) => update((d) => { d.exitTransitions = steps.length ? steps : undefined })}
-            />
-          </div>
-        </div>
-      </Panel>
+        </Panel>
+      )}
 
       <Panel title="Position">
         <div className="text-[10px] text-zinc-600 mb-2">1920×1080 canvas, pixels from top-left.</div>
@@ -2269,7 +2394,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               />
               <button
                 type="button"
-                onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id))}
+                onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id, widgetComponent))}
                 className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
               >
                 Reset
@@ -2282,7 +2407,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         </Panel>
       )}
 
-      {form.appType === 'widget' && isCameraWidgetId(form.id) && (
+      {form.appType === 'widget' && widgetComponent === 'camera' && (
         <Panel title="Camera Defaults">
           <div className="space-y-3">
             <div className="text-[10px] text-zinc-400">
@@ -2351,76 +2476,151 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         </Panel>
       )}
 
-      <Panel title="Launch Pipeline">
-        <div className="text-[10px] text-zinc-500 mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
-        <Toggle
-          checked={!!form.launchPipeline}
-          label="Enable"
-          onChange={(v) => update((d) => {
-            d.launchPipeline = v ? { effects: [], delayMs: 0 } : undefined
-          })}
-        />
-        {form.launchPipeline && (
-          <div className="mt-3 space-y-3">
-            <Slider
-              label="Scene change delay (ms)"
-              value={form.launchPipeline.delayMs}
-              min={0} max={5000} step={100}
-              onChange={(v) => update((d) => { if (d.launchPipeline) d.launchPipeline.delayMs = v })}
-            />
+      {form.appType === 'widget' && widgetComponent === 'source' && (
+        <Panel title="Source Binding">
+          <div className="space-y-3">
+            <div className="text-[10px] text-zinc-400">
+              Source widgets render one scene source inside a desktop window. Bind this widget to any configured source and change it later without recreating the widget.
+            </div>
             <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Effects</div>
-              {form.launchPipeline.effects.length === 0 && (
-                <div className="text-[10px] text-zinc-600 italic">No effects added.</div>
-              )}
-              {form.launchPipeline.effects.map((eff, i) => (
-                <div key={i} className="flex items-center gap-2 py-1 border-b border-zinc-700/40">
-                  <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
-                  <input
-                    type="number" min={0} max={10} step={0.1}
-                    value={eff.delay ?? 0}
-                    onChange={(e) => update((d) => {
-                      if (!d.launchPipeline) return
-                      d.launchPipeline.effects[i] = { ...d.launchPipeline.effects[i], delay: Number(e.target.value) }
-                    })}
-                    className="w-16 font-mono text-xs"
-                    title="Delay (s)"
-                  />
-                  <span className="text-[9px] text-zinc-600">s</span>
-                  <button
-                    onClick={() => update((d) => {
-                      if (!d.launchPipeline) return
-                      d.launchPipeline.effects.splice(i, 1)
-                    })}
-                    className="text-[10px] text-red-500 hover:text-red-300 px-1">✕</button>
-                </div>
-              ))}
+              <div className="text-[10px] text-zinc-500 mb-1">Scene</div>
               <select
-                defaultValue=""
-                onChange={(e) => {
-                  const type = e.target.value as EffectType
-                  if (!type) return
-                  e.target.value = ''
-                  update((d) => {
-                    if (!d.launchPipeline) return
-                    d.launchPipeline.effects.push({ type, cfg: {}, delay: 0 } as EffectConfig)
-                  })
-                }}
-                className="w-full text-xs mt-2">
-                <option value="">+ Add effect…</option>
-                {([
-                  'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
-                  'death-overlay', 'victory-overlay', 'revive-overlay',
-                  'terminal-toast', 'notification-box', 'typewriter',
-                  'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
-                ] as EffectType[]).map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                value={selectedSourceSceneId}
+                onChange={(e) => update((d) => {
+                  const nextSceneId = e.target.value
+                  const nextScene = config.scenes[nextSceneId]
+                  const currentSourceId = d.sourceWidgetSettings?.sourceId
+                  const nextSourceId = nextScene?.sources.some((source) => source.id === currentSourceId)
+                    ? currentSourceId
+                    : (nextScene?.sources[0]?.id ?? '')
+
+                  d.sourceWidgetSettings = nextSceneId
+                    ? {
+                        sceneId: nextSceneId,
+                        sourceId: nextSourceId,
+                      }
+                    : undefined
+                })}
+                className="w-full text-xs"
+              >
+                <option value="">— Select scene —</option>
+                {availableSourceScenes.map((scene) => (
+                  <option key={scene.id} value={scene.id}>{scene.label}</option>
                 ))}
               </select>
             </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Source</div>
+              <select
+                value={form.sourceWidgetSettings?.sourceId ?? ''}
+                onChange={(e) => update((d) => {
+                  d.sourceWidgetSettings = {
+                    sceneId: d.sourceWidgetSettings?.sceneId ?? '',
+                    sourceId: e.target.value,
+                  }
+                })}
+                disabled={!selectedSourceSceneId || availableSources.length === 0}
+                className="w-full text-xs"
+              >
+                <option value="">
+                  {selectedSourceSceneId ? '— Select source —' : '— Choose a scene first —'}
+                </option>
+                {availableSources.map((source) => (
+                  <option key={source.id} value={source.id}>{source.id} · {source.pluginType}</option>
+                ))}
+              </select>
+            </div>
+            {availableSourceScenes.length === 0 && (
+              <div className="text-[10px] text-amber-300 leading-relaxed">
+                No scene sources are configured yet. Add a source to any scene, then bind this widget to it.
+              </div>
+            )}
+            {selectedSourceSceneId && availableSources.length === 0 && (
+              <div className="text-[10px] text-zinc-600">This scene currently has no sources to bind.</div>
+            )}
+            {selectedSource && selectedSourceScene && (
+              <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Current Binding</div>
+                <div className="text-[11px] text-zinc-200">{selectedSourceScene.label}</div>
+                <div className="text-[10px] text-zinc-400 font-mono">{selectedSource.id} · {selectedSource.pluginType}</div>
+              </div>
+            )}
           </div>
-        )}
-      </Panel>
+        </Panel>
+      )}
+
+      {supportsSceneTransitions && (
+        <Panel title="Launch Pipeline">
+          <div className="text-[10px] text-zinc-500 mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
+          <Toggle
+            checked={!!form.launchPipeline}
+            label="Enable"
+            onChange={(v) => update((d) => {
+              d.launchPipeline = v ? { effects: [], delayMs: 0 } : undefined
+            })}
+          />
+          {form.launchPipeline && (
+            <div className="mt-3 space-y-3">
+              <Slider
+                label="Scene change delay (ms)"
+                value={form.launchPipeline.delayMs}
+                min={0} max={5000} step={100}
+                onChange={(v) => update((d) => { if (d.launchPipeline) d.launchPipeline.delayMs = v })}
+              />
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Effects</div>
+                {form.launchPipeline.effects.length === 0 && (
+                  <div className="text-[10px] text-zinc-600 italic">No effects added.</div>
+                )}
+                {form.launchPipeline.effects.map((eff, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1 border-b border-zinc-700/40">
+                    <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
+                    <input
+                      type="number" min={0} max={10} step={0.1}
+                      value={eff.delay ?? 0}
+                      onChange={(e) => update((d) => {
+                        if (!d.launchPipeline) return
+                        d.launchPipeline.effects[i] = { ...d.launchPipeline.effects[i], delay: Number(e.target.value) }
+                      })}
+                      className="w-16 font-mono text-xs"
+                      title="Delay (s)"
+                    />
+                    <span className="text-[9px] text-zinc-600">s</span>
+                    <button
+                      onClick={() => update((d) => {
+                        if (!d.launchPipeline) return
+                        d.launchPipeline.effects.splice(i, 1)
+                      })}
+                      className="text-[10px] text-red-500 hover:text-red-300 px-1">✕</button>
+                  </div>
+                ))}
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const type = e.target.value as EffectType
+                    if (!type) return
+                    e.target.value = ''
+                    update((d) => {
+                      if (!d.launchPipeline) return
+                      d.launchPipeline.effects.push({ type, cfg: {}, delay: 0 } as EffectConfig)
+                    })
+                  }}
+                  className="w-full text-xs mt-2">
+                  <option value="">+ Add effect…</option>
+                  {([
+                    'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
+                    'death-overlay', 'victory-overlay', 'revive-overlay',
+                    'terminal-toast', 'notification-box', 'typewriter',
+                    'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
+                  ] as EffectType[]).map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </Panel>
+      )}
 
       {form.appType === 'widget' && form.id === 'gallery' && (
         <Panel title="Gallery Settings">
@@ -2470,9 +2670,184 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       )}
 
       <button onClick={onDelete}
-        className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-900/50 hover:border-red-700 transition-colors">
-        Remove
+        disabled={isProtectedSystemWidget}
+        className={'text-xs px-2 py-1 rounded border transition-colors ' + (
+          isProtectedSystemWidget
+            ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
+            : 'text-red-400 hover:text-red-300 border-red-900/50 hover:border-red-700'
+        )}>
+        {isProtectedSystemWidget ? 'Protected' : 'Remove'}
       </button>
+    </div>
+  )
+}
+
+function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
+  const config = useAdminStore((s) => s.config)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const applications = config.applications
+
+  const [widgetComponent, setWidgetComponent] = useState<UserWidgetBaseComponent>('camera')
+  const [label, setLabel] = useState('')
+  const [icon, setIcon] = useState(USER_WIDGET_COMPONENT_OPTIONS[0].icon)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+
+  const componentMeta = USER_WIDGET_COMPONENT_OPTIONS.find((option) => option.id === widgetComponent) ?? USER_WIDGET_COMPONENT_OPTIONS[0]
+  const existingIds = useMemo(() => new Set(applications.map((app) => app.id)), [applications])
+  const defaultLabel = widgetComponent === 'camera' ? 'Camera Widget' : 'Source Widget'
+  const nextLabel = label.trim() || defaultLabel
+  const previewId = buildUserWidgetId(widgetComponent, nextLabel, existingIds)
+  const firstSourceReference = useMemo(() => findFirstSceneSource(config.scenes), [config.scenes])
+
+  const handleCreate = async () => {
+    setCreating(true)
+    setError('')
+
+    try {
+      const nextDesktop = withDesktopConfigDefaults(config.desktopConfig)
+      const nextDefaultZIndex = Math.max(-1, ...Object.values(nextDesktop.widgetDefaultZIndices ?? {})) + 1
+
+      const nextWidget: Application = {
+        id: previewId,
+        label: nextLabel,
+        icon: icon.trim() || componentMeta.icon,
+        appType: 'widget',
+        targetSceneId: STATE.DESKTOP,
+        widgetSource: 'user',
+        widgetComponent,
+        transitionType: 'instant',
+        iconSize: 'normal',
+        ...(widgetComponent === 'camera'
+          ? { cameraSettings: { mirror: false } }
+          : {}),
+        ...(widgetComponent === 'source' && firstSourceReference
+          ? { sourceWidgetSettings: firstSourceReference }
+          : {}),
+      }
+
+      await saveConfig({
+        applications: [...applications, nextWidget],
+        desktopConfig: {
+          ...nextDesktop,
+          widgetDefaultZIndices: {
+            ...(nextDesktop.widgetDefaultZIndices ?? {}),
+            [previewId]: nextDefaultZIndex,
+          },
+        },
+      })
+
+      onCreated(previewId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create widget.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <Panel title="Create Widget">
+        <div className="space-y-3">
+          <div className="text-[10px] text-zinc-400 leading-relaxed">
+            New widgets are stored as user widget records. Choose the base component first, then create the widget and continue configuring it from the standard widget editor.
+          </div>
+
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1.5">Base Component</div>
+            <div className="grid grid-cols-2 gap-2">
+              {USER_WIDGET_COMPONENT_OPTIONS.map((option) => {
+                const active = option.id === widgetComponent
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      const currentMeta = USER_WIDGET_COMPONENT_OPTIONS.find((entry) => entry.id === widgetComponent)
+                      setWidgetComponent(option.id)
+                      if (!icon.trim() || icon === currentMeta?.icon) {
+                        setIcon(option.icon)
+                      }
+                    }}
+                    className={'rounded border px-3 py-3 text-left transition-colors ' + (
+                      active
+                        ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200'
+                        : 'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900/60'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">{option.icon}</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">{option.label}</span>
+                    </div>
+                    <div className="text-[10px] leading-relaxed text-zinc-500">{option.description}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Label</div>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={defaultLabel}
+              className="w-full text-xs"
+            />
+          </div>
+
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Generated ID</div>
+            <input
+              type="text"
+              value={previewId}
+              readOnly
+              className="w-full text-xs font-mono text-zinc-500 cursor-default select-all"
+            />
+          </div>
+
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+            <div className="flex gap-2 items-center">
+              <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
+                <IconGlyph icon={icon || componentMeta.icon} label={nextLabel} size={32} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <AssetSelectionInput
+                  value={icon}
+                  onChange={setIcon}
+                  kinds={['image']}
+                  modalTitle="Widget Icon"
+                  placeholder="Emoji or /assets/icons/custom.png"
+                  buttonLabel="Choose Image"
+                  hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
+                  inputClassName="font-mono"
+                  previewKind="image"
+                />
+              </div>
+            </div>
+          </div>
+
+          {widgetComponent === 'source' && (
+            <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-400">
+              {firstSourceReference
+                ? `Initial binding will use ${firstSourceReference.sceneId} / ${firstSourceReference.sourceId}. You can change this immediately after creation.`
+                : 'No scene sources are available yet. The widget will still be created, but you will need to bind it to a source from the widget editor later.'}
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded border border-red-900/60 bg-red-950/30 px-3 py-2 text-[10px] text-red-300">{error}</div>
+          )}
+
+          <div className="flex justify-end">
+            <Btn variant="primary" onClick={() => { void handleCreate() }} disabled={creating}>
+              {creating ? 'Creating...' : 'Create Widget'}
+            </Btn>
+          </div>
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -2483,7 +2858,7 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const widgetApps = useMemo(
-    () => config.applications.filter((app) => app.appType === 'widget' && isSupportedWidgetId(app.id)),
+    () => config.applications.filter((app) => app.appType === 'widget'),
     [config.applications],
   )
   const sourceLayouts = useMemo(
@@ -3268,12 +3643,13 @@ function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; lab
   )
 }
 
-function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDeleteEvent }: {
-  selected: SelectedItem; onDeleted: () => void
+function RightPaneContent({ selected, onDeleted, onSelectItem, eventDefs, onUpdateEvent, onDeleteEvent }: {
+  selected: SelectedItem; onDeleted: () => void; onSelectItem: (item: SelectedItem) => void
   eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
 }) {
   const saveConfig   = useAdminStore((s) => s.saveConfig)
   const applications = useAdminStore((s) => s.config.applications)
+  const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
 
   if (selected.kind === 'env') {
     if (selected.envState === STATE.LOBBY) return (
@@ -3305,10 +3681,21 @@ function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDel
     if (!app) return <div className="text-zinc-600 text-xs italic p-4">App not found.</div>
     return (
       <AppForm app={app} onDelete={() => {
-        saveConfig({ applications: applications.filter((a) => a.id !== selected.appId) })
+        if (app.appType === 'widget' && isSystemWidget(app)) return
+
+        saveConfig({
+          applications: applications.filter((a) => a.id !== selected.appId),
+          ...(app.appType === 'widget'
+            ? { desktopConfig: removeWidgetFromDesktopConfig(desktopConfig, app.id) }
+            : {}),
+        })
         onDeleted()
       }} />
     )
+  }
+
+  if (selected.kind === 'widget-create') {
+    return <NewWidgetForm onCreated={(appId) => onSelectItem({ kind: 'app', appId })} />
   }
 
   if (selected.kind === 'widget-layout') {
@@ -3329,8 +3716,8 @@ function RightPaneContent({ selected, onDeleted, eventDefs, onUpdateEvent, onDel
   return null
 }
 
-function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent }: {
-  selected: SelectedItem | null; onClose: () => void
+function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, onDeleteEvent }: {
+  selected: SelectedItem | null; onClose: () => void; onSelectItem: (item: SelectedItem) => void
   eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
 }) {
   const currentState = useAdminStore((s) => s.currentState)
@@ -3382,6 +3769,9 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
     actionLabel = app?.appType === 'widget' ? '▶ Open' : app?.appType === 'scene' ? '▶ Launch' : 'Decoration'
     // Widgets do not transition — they are floating windows. Only scene apps emit scene:change.
     actionFn    = (app && app.appType === 'scene') ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
+  } else if (selected.kind === 'widget-create') {
+    headerIcon = '+'
+    headerLabel = 'New Widget'
   } else if (selected.kind === 'widget-layout') {
     const layout = desktopConfig.widgetLayouts.find((entry) => entry.id === selected.layoutId)
     headerIcon = layout?.icon ?? '📐'
@@ -3419,7 +3809,7 @@ function RightPane({ selected, onClose, eventDefs, onUpdateEvent, onDeleteEvent 
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        <RightPaneContent selected={selected} onDeleted={onClose} eventDefs={eventDefs} onUpdateEvent={onUpdateEvent} onDeleteEvent={onDeleteEvent} />
+        <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} eventDefs={eventDefs} onUpdateEvent={onUpdateEvent} onDeleteEvent={onDeleteEvent} />
       </div>
     </div>
   )
@@ -3572,17 +3962,6 @@ function SectionLabel({ children }: { children: string }) {
   )
 }
 
-const SUPPORTED_WIDGET_IDS = new Set(['music', 'archive', 'chat', 'sticky-notes', 'gallery', 'camera', 'spotify', 'browser'])
-
-function isSupportedWidgetId(widgetId: string) {
-  if (SUPPORTED_WIDGET_IDS.has(widgetId)) return true
-  return /^camera(?:[-:_].+)?$/.test(widgetId)
-}
-
-function isCameraWidgetId(widgetId: string) {
-  return /^camera(?:[-:_].+)?$/.test(widgetId)
-}
-
 function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
   selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
   onLibrary: () => void
@@ -3597,50 +3976,13 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
 
   const sceneApps      = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
-  const widgetApps     = applications.filter((a) => a.appType === 'widget' && isSupportedWidgetId(a.id))
+  const widgetApps     = applications.filter((a) => a.appType === 'widget')
+  const systemWidgetApps = widgetApps.filter((app) => getWidgetSource(app) === 'system')
+  const userWidgetApps = widgetApps.filter((app) => getWidgetSource(app) === 'user')
   const decorationApps = applications.filter((a) => a.appType === 'decoration')
   const systemWidgetLayouts = desktopConfig.widgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts = desktopConfig.widgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]
-  const hasWidget = (id: string) => applications.some((app) => app.id === id && app.appType === 'widget' && isSupportedWidgetId(app.id))
-
-  const appendWidgetApplication = (app: Application) => {
-    const nextDefaultZIndex = Math.max(-1, ...Object.values(desktopConfig.widgetDefaultZIndices ?? {})) + 1
-    saveConfig({
-      applications: [...applications, app],
-      desktopConfig: {
-        ...desktopConfig,
-        widgetDefaultZIndices: {
-          ...(desktopConfig.widgetDefaultZIndices ?? {}),
-          [app.id]: nextDefaultZIndex,
-        },
-      },
-    })
-    onSelect({ kind: 'app', appId: app.id })
-  }
-
-  const createNextCameraWidget = () => {
-    const existingIds = new Set(applications.filter((app) => app.appType === 'widget').map((app) => app.id))
-
-    let id = 'camera'
-    let suffix = 2
-    while (existingIds.has(id)) {
-      id = `camera-${suffix}`
-      suffix += 1
-    }
-
-    const labelSuffix = id === 'camera' ? '' : ` ${id.replace('camera-', '')}`
-    const app: Application = {
-      id,
-      label: `Camera${labelSuffix}`,
-      icon: '📷',
-      appType: 'widget',
-      targetSceneId: STATE.DESKTOP,
-      transitionType: 'default',
-    }
-
-    appendWidgetApplication(app)
-  }
 
   const captureCurrentLayout = async () => {
     if (widgetApps.length === 0) return
@@ -3715,7 +4057,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
       <SectionLabel>Widgets</SectionLabel>
-      {widgetApps.map((app) => (
+      {systemWidgetApps.map((app) => (
         <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
           statusLabel={openWidgetIds.includes(app.id) ? 'OPEN' : 'CLOSED'}
           statusClassName={openWidgetIds.includes(app.id) ? 'text-cyan-300' : 'text-zinc-600'}
@@ -3723,27 +4065,20 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
           onClick={() => onSelect({ kind: 'app', appId: app.id })}
           onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
       ))}
-      {!hasWidget('music') && <AddBtn label="Add Music Widget" onClick={() => {
-        const a: Application = { id: 'music', label: 'Music', icon: '🎵', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        appendWidgetApplication(a)
-      }} />}
-      {!hasWidget('archive') && <AddBtn label="Add Archive Widget" onClick={() => {
-        const a: Application = { id: 'archive', label: 'Archive', icon: '📚', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        appendWidgetApplication(a)
-      }} />}
-      {!hasWidget('chat') && <AddBtn label="Add Chat Widget" onClick={() => {
-        const a: Application = { id: 'chat', label: 'Chat', icon: '💬', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        appendWidgetApplication(a)
-      }} />}
-      {!hasWidget('sticky-notes') && <AddBtn label="Add Sticky Notes Widget" onClick={() => {
-        const a: Application = { id: 'sticky-notes', label: 'Sticky Notes', icon: '🗒', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        appendWidgetApplication(a)
-      }} />}
-      {!hasWidget('gallery') && <AddBtn label="Add Gallery Widget" onClick={() => {
-        const a: Application = { id: 'gallery', label: 'Gallery', icon: '🖼', appType: 'widget', targetSceneId: STATE.DESKTOP, transitionType: 'default' }
-        appendWidgetApplication(a)
-      }} />}
-      <AddBtn label="Add Camera Widget" onClick={createNextCameraWidget} />
+      {userWidgetApps.length > 0 && (
+        <div className="px-2.5 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-700">
+          User Widgets
+        </div>
+      )}
+      {userWidgetApps.map((app) => (
+        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
+          statusLabel={openWidgetIds.includes(app.id) ? 'OPEN' : 'CLOSED'}
+          statusClassName={openWidgetIds.includes(app.id) ? 'text-cyan-300' : 'text-zinc-600'}
+          active={isActive({ kind: 'app', appId: app.id })}
+          onClick={() => onSelect({ kind: 'app', appId: app.id })}
+          onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
+      ))}
+      <AddBtn label="New Widget" onClick={() => onSelect({ kind: 'widget-create' })} />
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
@@ -3960,6 +4295,8 @@ export function Dashboard() {
       } else if (app.appType === 'scene') {
         socket.emit('scene:change', app.targetSceneId)
       }
+    } else if (item.kind === 'widget-create') {
+      return
     } else if (item.kind === 'event') {
       const def = eventDefs.find((eventDef) => eventDef.id === item.id)
       if (!def) return
@@ -3995,7 +4332,7 @@ export function Dashboard() {
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar selected={selected} onSelect={handleSelect} onActivate={handleActivate} onLibrary={() => setLibraryOpen(true)} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
         <LivePreview />
-        {!settingsTab && <RightPane selected={selected} onClose={() => setSelected(null)} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />}
+        {!settingsTab && <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />}
       </div>
       {libraryOpen && <AssetLibraryPanel onClose={() => setLibraryOpen(false)} />}
       {settingsTab && (

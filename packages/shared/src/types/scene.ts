@@ -84,6 +84,13 @@ export interface WidgetLayoutDefinition {
   items: WidgetLayoutItem[]
 }
 
+export type WidgetComponentType = 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source' | 'sticky-notes' | 'generic'
+
+export interface SourceWidgetSettings {
+  sceneId?: string
+  sourceId?: string
+}
+
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
@@ -93,6 +100,10 @@ export interface Application {
   /** 'scene' = fullscreen (replaces display), 'widget' = stacking window, 'decoration' = desktop-only icon */
   appType: ApplicationType
   targetSceneId: string
+  /** Distinguishes built-in widgets from user-created widget records. */
+  widgetSource?: WidgetLayoutSource
+  /** Runtime base component used by widget windows. */
+  widgetComponent?: WidgetComponentType
   /** @deprecated kept for stored-config migration; use exitTransitions / introTransitions */
   transitionType?: string
   /** @deprecated use introTransitions */
@@ -130,6 +141,8 @@ export interface Application {
     /** Mirror the video horizontally. Default: false. */
     mirror?: boolean
   }
+  /** Optional source binding for source-backed widget windows. */
+  sourceWidgetSettings?: SourceWidgetSettings
 }
 
 /** A scene is an ordered list of source instances */

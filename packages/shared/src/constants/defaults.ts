@@ -1,10 +1,13 @@
 import type {
   AppConfig,
+  Application,
   DesktopAmbianceConfig,
   DesktopConfig,
   DesktopTheme,
   LobbyConfig,
   OverlayStyle,
+  SourceWidgetSettings,
+  WidgetComponentType,
   WidgetLayoutDefinition,
   WidgetLayoutItem,
   WidgetLayoutSource,
@@ -169,6 +172,124 @@ export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height
 
 export const DEFAULT_WIDGET_DEFAULT_Z_INDICES = {
   ...DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices,
+}
+
+export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera'] as const
+
+const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
+  browser: 'gallery',
+  gallery: 'gallery',
+  music: 'music',
+  spotify: 'music',
+  archive: 'archive',
+  chat: 'chat',
+  'sticky-notes': 'sticky-notes',
+  camera: 'camera',
+}
+
+const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
+  'archive',
+  'camera',
+  'chat',
+  'gallery',
+  'music',
+  'source',
+  'sticky-notes',
+  'generic',
+])
+
+const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width: number; height: number }> = {
+  archive: DEFAULT_WIDGET_WINDOW_SIZES.archive,
+  camera: { width: 400, height: 300 },
+  chat: DEFAULT_WIDGET_WINDOW_SIZES.chat,
+  gallery: DEFAULT_WIDGET_WINDOW_SIZES.gallery,
+  music: DEFAULT_WIDGET_WINDOW_SIZES.music,
+  source: { width: 420, height: 320 },
+  'sticky-notes': DEFAULT_WIDGET_WINDOW_SIZES['sticky-notes'],
+  generic: { width: 260, height: 240 },
+}
+
+const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> = {
+  archive: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.archive ?? 20,
+  camera: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.camera ?? 50,
+  chat: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.chat ?? 40,
+  gallery: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.gallery ?? 0,
+  music: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.music ?? 10,
+  source: 25,
+  'sticky-notes': DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.['sticky-notes'] ?? 30,
+  generic: 0,
+}
+
+function isWidgetComponentType(value: unknown): value is WidgetComponentType {
+  return typeof value === 'string' && ALL_WIDGET_COMPONENT_TYPES.has(value as WidgetComponentType)
+}
+
+function normalizeSourceWidgetSettings(settings?: SourceWidgetSettings | null): SourceWidgetSettings | undefined {
+  if (!settings) return undefined
+
+  const sceneId = typeof settings.sceneId === 'string' && settings.sceneId.trim()
+    ? settings.sceneId.trim()
+    : undefined
+  const sourceId = typeof settings.sourceId === 'string' && settings.sourceId.trim()
+    ? settings.sourceId.trim()
+    : undefined
+
+  if (!sceneId && !sourceId) return undefined
+
+  return {
+    ...(sceneId ? { sceneId } : {}),
+    ...(sourceId ? { sourceId } : {}),
+  }
+}
+
+export function isSystemWidgetId(widgetId: string) {
+  return (DEFAULT_SYSTEM_WIDGET_IDS as readonly string[]).includes(widgetId)
+}
+
+export function getWidgetSource(app: Pick<Application, 'id' | 'appType' | 'widgetSource'>): WidgetLayoutSource | undefined {
+  if (app.appType !== 'widget') return undefined
+  return isSystemWidgetId(app.id) ? 'system' : 'user'
+}
+
+export function getWidgetComponent(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>): WidgetComponentType | undefined {
+  if (app.appType !== 'widget') return undefined
+  if (KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]) return KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]
+  if (isWidgetComponentType(app.widgetComponent) && app.widgetComponent !== 'generic') return app.widgetComponent
+  if (/^camera(?:[-:_].+)?$/i.test(app.id)) return 'camera'
+  if (/^source(?:[-:_].+)?$/i.test(app.id)) return 'source'
+  if (isWidgetComponentType(app.widgetComponent)) return app.widgetComponent
+  return 'generic'
+}
+
+export function isSystemWidget(app: Pick<Application, 'id' | 'appType' | 'widgetSource'>) {
+  return getWidgetSource(app) === 'system'
+}
+
+export function getDefaultWidgetWindowSize(widgetId: string, widgetComponent?: WidgetComponentType) {
+  return DEFAULT_WIDGET_WINDOW_SIZES[widgetId]
+    ?? (widgetComponent ? DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES[widgetComponent] : undefined)
+    ?? DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES.generic
+}
+
+export function getDefaultWidgetZIndex(widgetId: string, widgetComponent?: WidgetComponentType) {
+  return DEFAULT_WIDGET_DEFAULT_Z_INDICES[widgetId as keyof typeof DEFAULT_WIDGET_DEFAULT_Z_INDICES]
+    ?? (widgetComponent ? DEFAULT_WIDGET_COMPONENT_Z_INDICES[widgetComponent] : undefined)
+    ?? DEFAULT_WIDGET_COMPONENT_Z_INDICES.generic
+}
+
+export function withApplicationDefaults(app: Application): Application {
+  if (app.appType !== 'widget') return app
+
+  return {
+    ...app,
+    widgetSource: getWidgetSource(app),
+    widgetComponent: getWidgetComponent(app),
+    sourceWidgetSettings: normalizeSourceWidgetSettings(app.sourceWidgetSettings),
+  }
+}
+
+export function withApplicationListDefaults(applications?: Application[] | null): Application[] {
+  return (applications ?? []).map((app) => withApplicationDefaults(app))
 }
 
 export const DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS = {
@@ -746,6 +867,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       icon: '🖼',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'gallery' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 96 },
       iconSize: 'normal' as const,
@@ -761,6 +884,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       icon: '🎵',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'music' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 176 },
       iconSize: 'normal' as const,
@@ -771,6 +896,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       icon: '📖',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'archive' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 256 },
       iconSize: 'normal' as const,
@@ -781,6 +908,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       icon: '📝',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'sticky-notes' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 336 },
       iconSize: 'normal' as const,
@@ -791,6 +920,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       icon: '💬',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'chat' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 416 },
       iconSize: 'normal' as const,
@@ -801,6 +932,8 @@ export const DEFAULT_CONFIG: AppConfig = {
       icon: '📷',
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'camera' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 496 },
       iconSize: 'normal' as const,
