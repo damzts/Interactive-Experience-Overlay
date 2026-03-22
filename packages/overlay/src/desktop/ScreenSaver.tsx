@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import type { DesktopScreenSaverPreviewPayload } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAppStore } from '../store/useAppStore'
 
-type Preset = 'starfield' | 'marquee' | 'pipes' | 'blank' | 'flying-windows' | 'gallery-scroll'
+type Preset = DesktopScreenSaverPreviewPayload['preset']
 
 // ── Starfield preset ──────────────────────────────────────────────────────
 interface Star { x: number; y: number; vx: number; vy: number; size: number }
@@ -335,29 +336,60 @@ interface ScreenSaverProps {
   enabled: boolean
 }
 
+const SCREEN_SAVER_PREVIEW_DURATION_MS = 15000
+
 export function ScreenSaver({ timeoutMinutes, preset, enabled }: ScreenSaverProps) {
   const [active, setActive] = useState(false)
+  const [previewPreset, setPreviewPreset] = useState<Preset | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewActiveRef = useRef(false)
   const visualState = useAppStore((s) => s.visualState)
 
   const resetTimer = useCallback(() => {
+    previewActiveRef.current = false
+    setPreviewPreset(null)
     setActive(false)
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     if (!enabled) return
     timerRef.current = setTimeout(() => setActive(true), timeoutMinutes * 60 * 1000)
   }, [enabled, timeoutMinutes])
 
   // Reset on any state change (scene switch = activity)
   useEffect(() => {
+    if (previewActiveRef.current) return
     resetTimer()
   }, [visualState, resetTimer])
 
   // Reset on server socket messages (any admin action counts as activity)
   useEffect(() => {
-    const onAny = () => resetTimer()
+    const onAny = (eventName: string) => {
+      if (eventName === 'desktop:screen-saver:test' || previewActiveRef.current) return
+      resetTimer()
+    }
     socket.onAny(onAny)
     return () => { socket.offAny(onAny) }
   }, [resetTimer])
+
+  useEffect(() => {
+    const onPreview = (payload: DesktopScreenSaverPreviewPayload) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+      previewActiveRef.current = true
+      setPreviewPreset(payload.preset)
+      setActive(true)
+      previewTimerRef.current = setTimeout(() => {
+        previewActiveRef.current = false
+        resetTimer()
+      }, SCREEN_SAVER_PREVIEW_DURATION_MS)
+    }
+
+    socket.on('desktop:screen-saver:test', onPreview)
+    return () => {
+      socket.off('desktop:screen-saver:test', onPreview)
+    }
+  }, [])
 
   // Dismiss on any click/keypress
   useEffect(() => {
@@ -371,16 +403,25 @@ export function ScreenSaver({ timeoutMinutes, preset, enabled }: ScreenSaverProp
     }
   }, [active, resetTimer])
 
-  if (!active || !enabled) return null
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    }
+  }, [])
+
+  const effectivePreset = previewPreset ?? preset
+
+  if (!active || (!enabled && !previewPreset)) return null
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 90, cursor: 'none' }}>
-      {preset === 'starfield'       && <Starfield />}
-      {preset === 'marquee'         && <MarqueePreset />}
-      {preset === 'flying-windows'  && <FlyingWindows />}
-      {preset === 'pipes'           && <PipesPreset />}
-      {preset === 'blank'           && <BlankPreset />}
-      {preset === 'gallery-scroll'  && <GalleryScrollPreset />}
+      {effectivePreset === 'starfield'      && <Starfield />}
+      {effectivePreset === 'marquee'        && <MarqueePreset />}
+      {effectivePreset === 'flying-windows' && <FlyingWindows />}
+      {effectivePreset === 'pipes'          && <PipesPreset />}
+      {effectivePreset === 'blank'          && <BlankPreset />}
+      {effectivePreset === 'gallery-scroll' && <GalleryScrollPreset />}
     </div>
   )
 }

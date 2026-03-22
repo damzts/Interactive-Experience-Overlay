@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import {
+  DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
+  DEFAULT_RECYCLE_BIN_SETTINGS,
+  DEFAULT_STICKY_NOTES_SETTINGS,
   getDefaultWidgetWindowSize,
   getDefaultWidgetZIndex,
   getWidgetComponent,
@@ -14,12 +17,12 @@ import {
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
-  EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
-  WidgetComponentType,
+  DesktopNotificationEffectConfig, EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
+  RecycleBinSettings, StickyNotesSettings, WidgetComponentType,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
-import type { AssetKind } from '../assets/catalog'
+import { inferAssetKindFromUrl, type AssetKind } from '../assets/catalog'
 import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
 import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel, FloatingWindowShell, FloatingWindowHeader } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
@@ -465,6 +468,55 @@ const TRANSITION_ICONS: Record<string, string> = {
   'wipe-right':    '▶',
 }
 
+const TRANSITION_TEST_BUTTON_CLASS = 'rounded border border-cyan-500/40 bg-cyan-600/25 px-3 py-1.5 text-xs text-cyan-300 transition-colors hover:bg-cyan-600/40 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:bg-zinc-900 disabled:text-zinc-700'
+const TRANSITION_DELETE_BUTTON_CLASS = 'rounded border border-red-500/35 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/20'
+
+function encodeMediaTransitionValue(entry: Pick<MediaEntry, 'type' | 'url' | 'name' | 'duration'>) {
+  const trimmedName = entry.name.trim()
+  const hasDur = entry.type === 'image' && entry.duration != null && entry.duration > 0
+  let encoded = `media:${entry.type}:${entry.url}`
+  if (trimmedName || hasDur) encoded += `||${trimmedName}`
+  if (hasDur) encoded += `||dur=${entry.duration}`
+  return encoded
+}
+
+function parseMediaTransitionValue(value: string) {
+  const body = value.slice(6)
+  const colon = body.indexOf(':')
+  const type = colon >= 0 ? body.slice(0, colon) : body
+  const rest = colon >= 0 ? body.slice(colon + 1) : ''
+  const parts = rest.split('||')
+  const url = parts[0] ?? ''
+  const name = parts[1] ?? ''
+  const durPart = parts.slice(2).find((part) => part.startsWith('dur='))
+  const duration = durPart ? parseFloat(durPart.slice(4)) : undefined
+  return {
+    type: type as MediaEntry['type'],
+    url,
+    name,
+    duration,
+  }
+}
+
+function parseBuiltInTransitionValue(value: string) {
+  const queryIndex = value.indexOf('?')
+  const id = queryIndex >= 0 ? value.slice(0, queryIndex) : value
+  const duration = queryIndex >= 0 ? new URLSearchParams(value.slice(queryIndex + 1)).get('duration') : null
+  return {
+    id,
+    duration: duration ? parseFloat(duration) : undefined,
+  }
+}
+
+function formatBuiltInTransitionValue(id: string, durationDraft: string) {
+  const duration = parseFloat(durationDraft)
+  return Number.isFinite(duration) && duration > 0 ? `${id}?duration=${duration}` : id
+}
+
+function getMediaTransitionLabel(entry: Pick<MediaEntry, 'name' | 'url'>) {
+  return entry.name.trim() || entry.url.split('/').pop() || 'Untitled transition'
+}
+
 function TransitionPicker({
   value,
   onChange,
@@ -474,663 +526,133 @@ function TransitionPicker({
   onChange: (v: string) => void
   placeholder?: string
 }) {
-  const [open, setOpen]                   = useState(false)
-  const [mediaOpen, setMediaOpen]         = useState(false)
-  const [mediaView, setMediaView]         = useState<'library' | 'form'>('library')
-  const [saveToLib, setSaveToLib]         = useState(true)
-  const [settingsCard, setSettingsCard]   = useState<string | null>(null)
-  const [settingsDuration, setSettingsDuration] = useState('')
-  const [mediaUrl,  setMediaUrl]          = useState('')
-  const [mediaName, setMediaName]         = useState('')
-  const [mediaType, setMediaType]         = useState<'image' | 'video'>('image')
-  const [mediaDurStr, setMediaDurStr]     = useState('')
-  const [previewSrc, setPreviewSrc]       = useState('')
-  const [videoDur, setVideoDur]           = useState<number | null>(null)
-  const [dragOver, setDragOver]           = useState(false)
-  const [pendingFile, setPendingFile]     = useState<File | null>(null)
-  const [uploading, setUploading]         = useState(false)
-  const [uploadErr, setUploadErr]         = useState('')
-  const fileInputRef                      = useRef<HTMLInputElement>(null)
+  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
+  const [durationDraft, setDurationDraft] = useState('')
 
-  const mediaLibrary  = useAdminStore((s) => s.config.mediaLibrary ?? [])
-  const saveConfig    = useAdminStore((s) => s.saveConfig)
-  const fullConfig    = useAdminStore((s) => s.config)
+  const mediaParsed = value.startsWith('media:') ? parseMediaTransitionValue(value) : null
+  const gsapParsed = !value.startsWith('media:') ? parseBuiltInTransitionValue(value) : null
+  const selectedBuiltIn = TRANSITION_OPTIONS.find((transition) => transition.id === (gsapParsed?.id ?? ''))
 
-  // Parse a stored media value: media:<type>:<url>||<name>||dur=<N>
-  const parseMedia = (v: string) => {
-    const body  = v.slice(6)
-    const colon = body.indexOf(':')
-    const type  = colon >= 0 ? body.slice(0, colon) : body
-    const rest  = colon >= 0 ? body.slice(colon + 1) : ''
-    const parts = rest.split('||')
-    const url   = parts[0] ?? ''
-    const name  = parts[1] ?? ''
-    const durPart = parts.slice(2).find(p => p.startsWith('dur='))
-    const duration = durPart ? parseFloat(durPart.slice(4)) : undefined
-    return { type, url, name, duration }
+  const savedCustomOptions = useMemo(() => (
+    [...mediaLibrary]
+      .sort((left, right) => getMediaTransitionLabel(left).localeCompare(getMediaTransitionLabel(right)))
+      .map((entry) => ({
+        encoded: encodeMediaTransitionValue(entry),
+        entry,
+      }))
+  ), [mediaLibrary])
+
+  const customOptions = useMemo(() => {
+    if (!mediaParsed) return savedCustomOptions
+    if (savedCustomOptions.some((option) => option.encoded === value)) return savedCustomOptions
+    return [
+      {
+        encoded: value,
+        entry: {
+          id: 'current-transition',
+          name: mediaParsed.name || getMediaTransitionLabel(mediaParsed),
+          type: mediaParsed.type,
+          url: mediaParsed.url,
+          ...(mediaParsed.duration != null ? { duration: mediaParsed.duration } : {}),
+        } satisfies MediaEntry,
+      },
+      ...savedCustomOptions,
+    ]
+  }, [mediaParsed, savedCustomOptions, value])
+
+  useEffect(() => {
+    setDurationDraft(gsapParsed?.duration?.toString() ?? '')
+  }, [gsapParsed?.duration, gsapParsed?.id, value])
+
+  const handleSelect = (nextValue: string) => {
+    setDurationDraft('')
+    onChange(nextValue)
   }
 
-  // Parse a GSAP transition value: id  OR  id?duration=N
-  const parseGsap = (v: string) => {
-    const qi  = v.indexOf('?')
-    const id  = qi >= 0 ? v.slice(0, qi) : v
-    const dur = qi >= 0 ? new URLSearchParams(v.slice(qi + 1)).get('duration') : null
-    return { id, duration: dur ? parseFloat(dur) : undefined }
+  const commitDuration = () => {
+    if (!selectedBuiltIn) return
+    onChange(formatBuiltInTransitionValue(selectedBuiltIn.id, durationDraft))
   }
 
-  const mediaParsed  = value.startsWith('media:') ? parseMedia(value) : null
-  const gsapParsed   = !value.startsWith('media:') ? parseGsap(value) : null
-  const selected     = TRANSITION_OPTIONS.find((t) => t.id === (gsapParsed?.id ?? ''))
-  const mediaDisplay = mediaParsed?.name || mediaParsed?.url.split('/').pop() || 'Media'
-  const displayLabel = selected
-    ? selected.label
-    : mediaParsed
-      ? `🖼 ${mediaDisplay}`
-      : placeholder
-
-  const preview = (id: string) => socket.emit('transition:preview', [{ id }])
-
-  // Toggle settings inline-panel for a GSAP card
-  const toggleSettings = (id: string) => {
-    if (settingsCard === id) { setSettingsCard(null); return }
-    const dur = gsapParsed?.id === id ? (gsapParsed?.duration?.toString() ?? '') : ''
-    setSettingsDuration(dur)
-    setSettingsCard(id)
-  }
-
-  const commitSettings = () => {
-    if (!settingsCard) return
-    const dur = parseFloat(settingsDuration)
-    const suffix = !isNaN(dur) && dur > 0 ? `?duration=${dur}` : ''
-    onChange(`${settingsCard}${suffix}`)
-    setSettingsCard(null)
-    // modal stays open
-  }
-
-  const openMediaPanel = () => {
-    // Always reset preview state first
-    setPreviewSrc('')
-    setVideoDur(null)
-    if (mediaParsed) {
-      // Editing an existing media selection → go straight to form
-      setMediaType(mediaParsed.type as 'image' | 'video')
-      setMediaUrl(mediaParsed.url)
-      setMediaName(mediaParsed.name)
-      setMediaDurStr(mediaParsed.duration?.toString() ?? '')
-      setMediaView('form')
-    } else {
-      setMediaUrl('')
-      setMediaName('')
-      setMediaDurStr('')
-      setMediaType('image')
-      // Show library first if entries exist, otherwise go straight to the form
-      setMediaView(mediaLibrary.length > 0 ? 'library' : 'form')
-    }
-    setSaveToLib(true)
-    setMediaOpen(true)
-  }
-
-  const applyFile = (file: File) => {
-    const isVideo = file.type.startsWith('video/')
-    setMediaType(isVideo ? 'video' : 'image')
-    setPreviewSrc(URL.createObjectURL(file))
-    setVideoDur(null)
-    setPendingFile(file)
-    setUploadErr('')
-    const folder = isVideo ? 'video' : 'images'
-    setMediaUrl(`/assets/${folder}/${file.name}`)
-    if (!mediaName) setMediaName(file.name.replace(/\.[^.]+$/, ''))
-  }
-
-  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) applyFile(file)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) applyFile(file)
-  }
-
-  const commitMedia = async () => {
-    setUploadErr('')
-    let finalUrl = mediaUrl
-
-    // If the user dropped / picked a local file, upload it first
-    if (pendingFile) {
-      setUploading(true)
-      try {
-        const form = new FormData()
-        form.append('file', pendingFile)
-        const res  = await fetch('/api/upload/asset', { method: 'POST', body: form })
-        const json = await res.json() as { url?: string; error?: string }
-        if (!res.ok || !json.url) throw new Error(json.error ?? 'Upload failed')
-        finalUrl = json.url
-        setMediaUrl(finalUrl)
-        setPendingFile(null)
-      } catch (err) {
-        setUploadErr(err instanceof Error ? err.message : 'Upload failed')
-        setUploading(false)
-        return
-      }
-      setUploading(false)
-    }
-
-    const durVal = parseFloat(mediaDurStr)
-    const hasDur = mediaType === 'image' && !isNaN(durVal) && durVal > 0
-    let encoded  = `media:${mediaType}:${finalUrl}`
-    if (mediaName.trim() || hasDur) encoded += `||${mediaName.trim()}`
-    if (hasDur) encoded += `||dur=${durVal}`
-    // Optionally persist to library so the entry is available for every scene
-    if (saveToLib && finalUrl) {
-      const existing = mediaLibrary.find((e) => e.url === finalUrl)
-      if (!existing) {
-        const entry: MediaEntry = {
-          id: 'media-' + Date.now(),
-          name: mediaName.trim() || finalUrl.split('/').pop() || 'Unnamed',
-          type: mediaType,
-          url: finalUrl,
-          ...(hasDur ? { duration: durVal } : {}),
-        }
-        saveConfig({ ...fullConfig, mediaLibrary: [...mediaLibrary, entry] })
-      }
-    }
-    onChange(encoded)
-    handleClose()
-  }
-
-  /** Pick a saved library entry — immediately commit it as the transition value */
-  const commitFromLibrary = (entry: MediaEntry) => {
-    const hasDur = entry.type === 'image' && entry.duration != null && entry.duration > 0
-    let encoded  = `media:${entry.type}:${entry.url}||${entry.name}`
-    if (hasDur) encoded += `||dur=${entry.duration}`
-    onChange(encoded)
-    handleClose()
-  }
-
-  const handleClose = () => { setOpen(false); setMediaOpen(false); setSettingsCard(null); setPendingFile(null); setUploadErr('') }
+  const previewValue = selectedBuiltIn
+    ? formatBuiltInTransitionValue(selectedBuiltIn.id, durationDraft)
+    : value
 
   return (
-    <>
-      {/* Trigger */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-xs bg-zinc-800 border border-zinc-700 rounded hover:border-zinc-500 transition-colors"
-      >
-        <span className={selected || value.startsWith('media:') ? 'text-zinc-100' : 'text-zinc-500'}>
-          {selected && <span className="mr-1.5">{TRANSITION_ICONS[selected.id]}</span>}
-          {displayLabel}
-        </span>
-        <span className="text-zinc-600 text-[10px]">▼</span>
-      </button>
+    <div className="space-y-1.5">
+      <div className="flex items-start gap-1.5">
+        <select
+          value={mediaParsed ? value : gsapParsed?.id ?? ''}
+          onChange={(event) => handleSelect(event.target.value)}
+          className="flex-1 text-xs"
+        >
+          <option value="">{placeholder}</option>
+          <optgroup label="System transitions">
+            {TRANSITION_OPTIONS.map((transition) => (
+              <option key={transition.id} value={transition.id}>
+                {TRANSITION_ICONS[transition.id]} {transition.label}
+              </option>
+            ))}
+          </optgroup>
+          {customOptions.length > 0 && (
+            <optgroup label="User transitions">
+              {customOptions.map((option) => (
+                <option key={option.encoded} value={option.encoded}>
+                  {option.entry.type === 'image' ? '🖼' : '🎬'} {getMediaTransitionLabel(option.entry)}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        <button
+          type="button"
+          disabled={!previewValue}
+          onClick={() => {
+            if (!previewValue) return
+            if (selectedBuiltIn && previewValue !== value) onChange(previewValue)
+            socket.emit('transition:preview', [strToStep(previewValue)])
+          }}
+          className={`shrink-0 ${TRANSITION_TEST_BUTTON_CLASS}`}
+          title={previewValue ? 'Test on overlay' : 'Pick a transition first'}
+        >
+          Test
+        </button>
+      </div>
 
-      {/* Floating utility */}
-      {open && (
-        <FloatingWindowShell frameClassName="relative h-[600px] w-[560px]" layerClassName="z-[60]">
-            <FloatingWindowHeader
-              icon="✨"
-              title="Choose Transition"
-              onClose={handleClose}
-              actions={(selected || mediaParsed) ? (
-                <span className="rounded border border-cyan-700/30 bg-cyan-900/30 px-1.5 py-0.5 text-[10px] text-cyan-400">
-                  {selected ? `${TRANSITION_ICONS[selected.id]} ${selected.label}` : `🖼 ${mediaDisplay}`}
-                </span>
-              ) : undefined}
-            />
-
-            {/* Body — scrollable */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* None / default row */}
-              <button
-                type="button"
-                onClick={() => onChange('')}
-                className={
-                  'w-full text-left px-3 py-2 mb-3 rounded border text-xs transition-colors ' +
-                  (!value
-                    ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300'
-                    : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800')
-                }
-              >
-                <span className="mr-2 text-zinc-500">—</span> {placeholder}
-              </button>
-
-              {/* Transition cards grid */}
-              <div className="grid grid-cols-2 gap-2">
-                {TRANSITION_OPTIONS.map((t) => {
-                  const isActive   = gsapParsed?.id === t.id
-                  const isExpanded = settingsCard === t.id
-                  return (
-                  <div
-                    key={t.id}
-                    className={
-                      'rounded border overflow-hidden transition-colors ' +
-                      (isActive
-                        ? 'bg-cyan-600/20 border-cyan-500/40'
-                        : 'bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600')
-                    }
-                  >
-                    {/* Card row */}
-                    <div className="flex">
-                      {/* Select area */}
-                      <button
-                        type="button"
-                        onClick={() => onChange(isActive ? '' : t.id)}
-                        className="flex-1 text-left px-3 py-2.5 min-w-0"
-                      >
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-base shrink-0">{TRANSITION_ICONS[t.id]}</span>
-                          <span className={'text-xs font-medium truncate ' + (isActive ? 'text-cyan-300' : 'text-zinc-200')}>
-                            {t.label}
-                          </span>
-                          {isActive && gsapParsed?.duration && (
-                            <span className="ml-auto shrink-0 text-[9px] text-cyan-500/70 font-mono">{gsapParsed.duration}s</span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-zinc-500 truncate">{t.desc}</div>
-                      </button>
-                      {/* Right column: ✕ delete | ☰ settings | ▶ preview */}
-                      <div className="w-10 shrink-0 flex flex-col border-l border-zinc-700/50 divide-y divide-zinc-700/50">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); if (isActive) onChange('') }}
-                          title={isActive ? 'Remove selection' : ''}
-                          className={'flex-1 flex items-center justify-center text-[11px] transition-colors ' +
-                            (isActive ? 'text-zinc-600 hover:text-red-400 hover:bg-red-900/20' : 'text-zinc-800 cursor-default')}
-                        >
-                          ✕
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); toggleSettings(t.id) }}
-                          title="Duration settings"
-                          className={'flex-1 flex items-center justify-center text-xs transition-colors ' +
-                            (isExpanded ? 'text-cyan-400 bg-zinc-700/40' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/30')}
-                        >
-                          ☰
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); preview(t.id) }}
-                          title="Preview on overlay"
-                          className="flex-1 flex items-center justify-center text-xs text-zinc-500 hover:text-cyan-400 hover:bg-zinc-700/30 transition-colors"
-                        >
-                          ▶
-                        </button>
-                      </div>
-                    </div>
-                    {/* Inline settings expansion */}
-                    {isExpanded && (
-                      <div className="border-t border-zinc-700/50 bg-zinc-800/40 px-3 py-2.5 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-zinc-500 uppercase tracking-wide w-16 shrink-0">Duration</span>
-                          <input
-                            type="number"
-                            min={0.1}
-                            max={60}
-                            step={0.1}
-                            value={settingsDuration}
-                            onChange={(e) => setSettingsDuration(e.target.value)}
-                            placeholder="default"
-                            className="w-20 text-xs font-mono"
-                          />
-                          <span className="text-[10px] text-zinc-600">sec</span>
-                        </div>
-                        <div className="text-[10px] text-zinc-600">Leave empty to use the transition's built-in speed.</div>
-                        <div className="flex gap-1.5 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={commitSettings}
-                            className="flex-1 py-1 text-[11px] bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded transition-colors"
-                          >
-                            Apply
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSettingsCard(null)}
-                            className="flex-1 py-1 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  )
-                })}
-
-                {/* Image / Video Transition card */}
-                <div
-                  className={
-                    'rounded border overflow-hidden transition-colors ' +
-                    (mediaParsed
-                      ? 'bg-cyan-600/20 border-cyan-500/40'
-                      : 'bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600')
-                  }
-                >
-                  <div className="flex">
-                    {/* Info area */}
-                    <div className="flex-1 px-3 py-2.5 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-base shrink-0">🖼</span>
-                        <span className={'text-xs font-medium truncate ' + (mediaParsed ? 'text-cyan-300' : 'text-zinc-200')}>
-                          {mediaParsed ? mediaDisplay : 'Image / Video'}
-                        </span>
-                        {mediaParsed?.duration && (
-                          <span className="ml-auto shrink-0 text-[9px] text-cyan-500/70 font-mono">{mediaParsed.duration}s</span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-zinc-500 truncate">
-                        {mediaParsed ? mediaParsed.url.split('/').pop() : 'Use a file as the transition'}
-                      </div>
-                    </div>
-                    {/* Right column: ✕ delete | ☰ edit | ▶ preview */}
-                    <div className="w-10 shrink-0 flex flex-col border-l border-zinc-700/50 divide-y divide-zinc-700/50">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); if (mediaParsed) { onChange(''); setMediaUrl(''); setMediaName(''); setPreviewSrc('') } }}
-                        title={mediaParsed ? 'Remove' : ''}
-                        className={'flex-1 flex items-center justify-center text-[11px] transition-colors ' +
-                          (mediaParsed ? 'text-zinc-600 hover:text-red-400 hover:bg-red-900/20' : 'text-zinc-800 cursor-default')}
-                      >
-                        ✕
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openMediaPanel() }}
-                        title="Edit or add media"
-                        className="flex-1 flex items-center justify-center text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/30 transition-colors"
-                      >
-                        ☰
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); if (mediaParsed) preview(value) }}
-                        title={mediaParsed ? 'Preview' : ''}
-                        className={'flex-1 flex items-center justify-center text-xs transition-colors ' +
-                          (mediaParsed ? 'text-zinc-500 hover:text-cyan-400 hover:bg-zinc-700/30' : 'text-zinc-800 cursor-default')}
-                      >
-                        ▶
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fixed footer */}
-            <div className="shrink-0 px-4 py-3 border-t border-zinc-800 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={openMediaPanel}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors"
-              >
-                <span>＋</span>
-                <span>Add media</span>
-              </button>
-              <div className="flex-1" />
-              <button
-                type="button"
-                onClick={handleClose}
-                className="px-5 py-1.5 text-xs bg-cyan-600/20 hover:bg-cyan-600/35 text-cyan-300 border border-cyan-500/30 rounded-lg transition-colors"
-              >
-                Done
-              </button>
-            </div>
-
-            {/* Media sub-panel — absolute overlay inside the modal */}
-            {mediaOpen && (
-              <div className="absolute inset-0 flex flex-col bg-zinc-900 z-10">
-                {/* Sub-header */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setMediaOpen(false)}
-                    className="text-zinc-500 hover:text-zinc-200 text-sm leading-none mr-1"
-                  >
-                    ←
-                  </button>
-                  <span className="text-sm font-semibold text-zinc-100">
-                    {mediaView === 'library' ? 'Media Library' : 'Image / Video'}
-                  </span>
-                  {mediaView === 'form' && mediaLibrary.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setMediaView('library')}
-                      className="ml-auto text-[10px] text-zinc-500 hover:text-zinc-200 transition-colors"
-                    >
-                      ← Library
-                    </button>
-                  )}
-                </div>
-
-                {mediaView === 'library' && (
-                  <>
-                    <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-                      {mediaLibrary.length === 0 ? (
-                        <div className="text-xs text-zinc-600 italic text-center py-8">No saved media yet.</div>
-                      ) : (
-                        mediaLibrary.map((entry) => (
-                          <button
-                            key={entry.id}
-                            type="button"
-                            onClick={() => commitFromLibrary(entry)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-zinc-700 bg-zinc-800/50 hover:border-cyan-500/50 hover:bg-cyan-900/20 transition-colors text-left group"
-                          >
-                            <div className="w-14 h-8 rounded overflow-hidden bg-zinc-950 border border-zinc-700 shrink-0 flex items-center justify-center">
-                              {entry.type === 'image'
-                                ? <img src={entry.url} alt={entry.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex') }} />
-                                : null
-                              }
-                              <span className="text-base" style={{ display: entry.type === 'image' ? 'none' : 'flex' }}>{entry.type === 'image' ? '🖼' : '🎬'}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-medium text-zinc-200 truncate">{entry.name}</div>
-                              <div className="text-[10px] text-zinc-500 font-mono truncate">{entry.url}</div>
-                              {entry.type === 'image' && entry.duration != null && (
-                                <div className="text-[10px] text-zinc-600">{entry.duration}s</div>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-cyan-500 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">Use</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                    <div className="shrink-0 px-4 py-3 border-t border-zinc-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMediaUrl(''); setMediaName(''); setMediaDurStr(''); setMediaType('image')
-                          setPreviewSrc(''); setVideoDur(null); setSaveToLib(true); setPendingFile(null); setUploadErr('')
-                          setMediaView('form')
-                        }}
-                        className="w-full py-2 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-500 rounded-lg transition-colors"
-                      >
-                        ＋ Add New Media
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* ── Form view ── */}
-                {mediaView === 'form' && (
-                  <>
-                    {/* Sub-body */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-                      {/* Name */}
-                      <div>
-                        <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Name</div>
-                        <input
-                          type="text"
-                          value={mediaName}
-                          onChange={(e) => setMediaName(e.target.value)}
-                          placeholder="My Transition"
-                          className="w-full text-xs"
-                        />
-                      </div>
-
-                      {/* Type toggle */}
-                      <div>
-                        <div className="text-[10px] text-zinc-500 mb-2 uppercase tracking-wider">Type</div>
-                        <div className="flex gap-2">
-                          {(['image', 'video'] as const).map((mt) => (
-                            <button
-                              key={mt}
-                              type="button"
-                              onClick={() => { setMediaType(mt); if (previewSrc.startsWith('blob:')) setPreviewSrc('') }}
-                              className={
-                                'px-4 py-1.5 text-xs rounded border capitalize transition-colors ' +
-                                (mediaType === mt
-                                  ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40'
-                                  : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200')
-                              }
-                            >
-                              {mt === 'image' ? '🖼 Image' : '🎬 Video'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Drag-and-drop + browse zone */}
-                      <div>
-                        <div className="text-[10px] text-zinc-500 mb-2 uppercase tracking-wider">Source</div>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          className="hidden"
-                          onChange={handleFilePick}
-                        />
-                        <div
-                          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                          onDragLeave={() => setDragOver(false)}
-                          onDrop={handleDrop}
-                          onClick={() => fileInputRef.current?.click()}
-                          className={
-                            'w-full h-24 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ' +
-                            (dragOver
-                              ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-                              : 'border-zinc-700 bg-zinc-800/30 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300')
-                          }
-                        >
-                          <span className="text-xl">📁</span>
-                          <span className="text-xs">Drop a file or <span className="underline">browse</span></span>
-                        </div>
-                      </div>
-
-                      {/* Path or URL */}
-                      <div>
-                        <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Path or URL</div>
-                        <input
-                          type="text"
-                          value={mediaUrl}
-                          onChange={(e) => { setMediaUrl(e.target.value); setPreviewSrc(''); setPendingFile(null) }}
-                          placeholder="/assets/video/wipe.mp4  or  https://…"
-                          className="w-full text-xs font-mono"
-                        />
-                        <div className="text-[10px] mt-1">
-                          {pendingFile
-                            ? <span className="text-cyan-600">📤 Will be uploaded to server on save</span>
-                            : <span className="text-zinc-600">Server-relative path (proxied) or full URL.</span>
-                          }
-                        </div>
-                      </div>
-
-                      {/* Image duration */}
-                      {mediaType === 'image' && (
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Display Duration (seconds)</div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min={0.1}
-                              max={120}
-                              step={0.5}
-                              value={mediaDurStr}
-                              onChange={(e) => setMediaDurStr(e.target.value)}
-                              placeholder="4.0"
-                              className="w-28 text-xs font-mono"
-                            />
-                            <span className="text-[10px] text-zinc-600">sec (default 4.0)</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Preview */}
-                      {(previewSrc || mediaUrl) && (
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1.5 uppercase tracking-wider">Preview</div>
-                          <div className="relative w-full aspect-video bg-black rounded-lg border border-zinc-700 overflow-hidden">
-                            {mediaType === 'image' ? (
-                              <img
-                                src={previewSrc || mediaUrl}
-                                alt="preview"
-                                className="w-full h-full object-contain"
-                                onError={(e) => { (e.currentTarget.parentElement as HTMLElement).dataset.err = '1'; e.currentTarget.style.display = 'none' }}
-                              />
-                            ) : (
-                              <video
-                                key={previewSrc || mediaUrl}
-                                src={previewSrc || mediaUrl}
-                                className="w-full h-full object-contain"
-                                muted
-                                loop
-                                autoPlay
-                                playsInline
-                                onLoadedMetadata={(e) => setVideoDur(e.currentTarget.duration)}
-                                onError={() => setVideoDur(null)}
-                              />
-                            )}
-                          </div>
-                          {mediaType === 'video' && videoDur != null && (
-                            <div className="mt-1 text-[10px] text-zinc-500">
-                              Duration: <span className="text-zinc-300 font-mono">{videoDur.toFixed(2)}s</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Save to Library toggle */}
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={saveToLib}
-                          onChange={(e) => setSaveToLib(e.target.checked)}
-                          className="accent-cyan-500"
-                        />
-                        <span className="text-[11px] text-zinc-400">Save to Library</span>
-                        <span className="text-[10px] text-zinc-600">(reuse in any scene)</span>
-                      </label>
-                    </div>
-
-                    {/* Sub-footer */}
-                    <div className="shrink-0 px-4 py-3 border-t border-zinc-800 space-y-2">
-                      {uploadErr && (
-                        <div className="text-[10px] text-red-400 bg-red-900/20 border border-red-700/40 rounded px-2 py-1">{uploadErr}</div>
-                      )}
-                      <button
-                        type="button"
-                        disabled={!mediaUrl || uploading}
-                        onClick={commitMedia}
-                        className="w-full py-2 text-sm bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-500/40 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {uploading
-                          ? 'Uploading…'
-                          : pendingFile
-                            ? `Upload & Use ${mediaType === 'image' ? 'Image' : 'Video'}`
-                            : `Use This ${mediaType === 'image' ? 'Image' : 'Video'}`}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-        </FloatingWindowShell>
+      {selectedBuiltIn && (
+        <div className="flex items-center gap-2 pl-1">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wide">Duration</span>
+          <input
+            type="number"
+            min={0.1}
+            max={60}
+            step={0.1}
+            value={durationDraft}
+            onChange={(event) => setDurationDraft(event.target.value)}
+            onBlur={commitDuration}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commitDuration()
+                event.currentTarget.blur()
+              }
+            }}
+            placeholder="default"
+            className="w-24 text-xs font-mono"
+          />
+          <span className="text-[10px] text-zinc-600">sec</span>
+        </div>
       )}
-    </>
+
+      {mediaParsed && (
+        <div className="flex items-center gap-2 pl-1 text-[10px] text-zinc-500">
+          <span className="truncate">{mediaParsed.url.split('/').pop() || mediaParsed.url}</span>
+          {mediaParsed.duration != null && (
+            <span className="shrink-0 font-mono text-zinc-600">{mediaParsed.duration}s</span>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1361,6 +883,46 @@ type AutoTrigger = { enabled: boolean; mode: 'interval' | 'idle'; intervalMin: n
 type EventDef    = { id: string; label: string; icon: string; color: string; desc: string; builtIn?: boolean; effects: EffectConfig[]; auto: AutoTrigger; type?: 'overlay' | 'widget-automation'; widgetAutomation?: { availableWidgets?: string[]; toggleChance?: number; openBias?: number } }
 
 const DEFAULT_EVENT_DEFS: EventDef[] = []
+
+const LAUNCH_PIPELINE_EFFECT_TYPES: EffectType[] = [
+  'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
+  'death-overlay', 'victory-overlay', 'revive-overlay',
+  'terminal-toast', 'notification-box', 'typewriter',
+  'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
+]
+
+const EVENT_EFFECT_TYPES: EffectType[] = [
+  'desktop-notification',
+  ...LAUNCH_PIPELINE_EFFECT_TYPES,
+]
+
+const DEFAULT_DESKTOP_NOTIFICATION_EFFECT_CONFIG: DesktopNotificationEffectConfig = {
+  title: 'Desktop popup',
+  body: 'This is a desktop notification event.',
+  icon: '📣',
+  durationMs: DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
+}
+
+function normalizeDesktopNotificationEffectConfig(
+  cfg?: Partial<DesktopNotificationEffectConfig> | null,
+): DesktopNotificationEffectConfig {
+  return {
+    ...DEFAULT_DESKTOP_NOTIFICATION_EFFECT_CONFIG,
+    ...cfg,
+  }
+}
+
+function createEffectDraft(type: EffectType): EffectConfig {
+  if (type === 'desktop-notification') {
+    return {
+      type,
+      cfg: structuredClone(DEFAULT_DESKTOP_NOTIFICATION_EFFECT_CONFIG),
+      delay: 0,
+    }
+  }
+
+  return { type, cfg: {}, delay: 0 } as EffectConfig
+}
 
 function createEventDef(): EventDef {
   return {
@@ -1841,9 +1403,6 @@ function DesktopConfigEditor() {
   const [exitTransitions, setExitTransitions] = useState<TransitionStep[]>(sourceExitTransitions || [])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [notifyTitle, setNotifyTitle] = useState('New follower')
-  const [notifyBody, setNotifyBody] = useState('streamfan42 just joined the feed')
-  const [notifyIcon, setNotifyIcon] = useState('🎉')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dirty = !isSameDraft(form, sourceForm)
     || !isSameDraft(appearance, sourceAppearance)
@@ -1995,65 +1554,32 @@ function DesktopConfigEditor() {
           </div>
         </div>
       </ConfigSectionPanel>
-      <ConfigSectionPanel label="Sticky Notes">
-        <div className="text-[10px] text-zinc-500 mb-1">Default note text</div>
-        <textarea value={form.stickyNotes.text}
-          onChange={(e) => update((d) => { d.stickyNotes.text = e.target.value })}
-          className="w-full min-h-[110px] text-xs font-mono" />
-        <div className="mt-3 text-[10px] text-zinc-500 mb-1">Note color</div>
-        <HexColorInput
-          value={form.stickyNotes.color}
-          onChange={(nextValue) => update((d) => { d.stickyNotes.color = nextValue })}
-          className="max-w-sm gap-2"
-          pickerClassName="w-20 h-9 p-1 shrink-0"
-          textClassName="font-mono text-xs flex-1 min-w-0"
-        />
-      </ConfigSectionPanel>
-      <ConfigSectionPanel label="Recycle Bin">
-        <Toggle checked={form.recycleBin.fullOnStart} onChange={(v) => update((d) => { d.recycleBin.fullOnStart = v })} label="Starts full" />
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Empty icon</div>
-            <AssetSelectionInput
-              value={form.recycleBin.emptyIcon}
-              onChange={(nextValue) => update((d) => { d.recycleBin.emptyIcon = nextValue })}
-              kinds={['image']}
-              modalTitle="Recycle Bin Empty Icon"
-              placeholder="Emoji or /assets/icons/recycle-empty.png"
-              buttonLabel="Choose Image"
-              previewKind="image"
-            />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Full icon</div>
-            <AssetSelectionInput
-              value={form.recycleBin.fullIcon}
-              onChange={(nextValue) => update((d) => { d.recycleBin.fullIcon = nextValue })}
-              kinds={['image']}
-              modalTitle="Recycle Bin Full Icon"
-              placeholder="Emoji or /assets/icons/recycle-full.png"
-              buttonLabel="Choose Image"
-              previewKind="image"
-            />
-          </div>
-        </div>
-      </ConfigSectionPanel>
       <ConfigSectionPanel label="Screen Saver">
         <Toggle checked={form.screenSaver.enabled} onChange={(v) => update((d) => { d.screenSaver.enabled = v })} label="Enable" />
         {form.screenSaver.enabled && <>
-          <div className="mt-2 mb-2">
-            <div className="text-[10px] text-zinc-500 mb-1">Idle timeout (min)</div>
-            <input type="number" min={1} max={60} value={form.screenSaver.timeoutMinutes}
-              onChange={(e) => update((d) => { d.screenSaver.timeoutMinutes = Number(e.target.value) })}
-              className="w-20 font-mono text-xs" />
+          <div className="mt-2 grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-end">
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Idle timeout (min)</div>
+              <input type="number" min={1} max={60} value={form.screenSaver.timeoutMinutes}
+                onChange={(e) => update((d) => { d.screenSaver.timeoutMinutes = Number(e.target.value) })}
+                className="w-20 font-mono text-xs" />
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 mb-1">Preset</div>
+              <select
+                value={form.screenSaver.preset}
+                onChange={(e) => update((d) => { d.screenSaver.preset = e.target.value as DesktopConfig['screenSaver']['preset'] })}
+                className="w-full text-xs"
+              >
+                {SCREENSAVER_PRESETS.map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.label}</option>
+                ))}
+              </select>
+            </div>
+            <Btn className="sm:self-end" onClick={() => socket.emit('desktop:screen-saver:test', { preset: form.screenSaver.preset })}>
+              Test
+            </Btn>
           </div>
-          {SCREENSAVER_PRESETS.map((p) => (
-            <button key={p.id} onClick={() => update((d) => { d.screenSaver.preset = p.id })}
-              className={'w-full text-left px-2.5 py-1.5 rounded text-[11px] border transition-colors mb-0.5 ' +
-                (form.screenSaver.preset === p.id ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300' : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800')}>
-              {p.label}
-            </button>
-          ))}
         </>}
       </ConfigSectionPanel>
       <ConfigSectionPanel label="System Sounds">
@@ -2067,32 +1593,79 @@ function DesktopConfigEditor() {
           </div>
         ))}
       </ConfigSectionPanel>
-      <ConfigSectionPanel label="Socket Tests">
-        <div className="space-y-2">
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Title</div>
-            <input type="text" value={notifyTitle} onChange={(e) => setNotifyTitle(e.target.value)} className="w-full text-xs" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Body</div>
-            <textarea value={notifyBody} onChange={(e) => setNotifyBody(e.target.value)} className="w-full min-h-[70px] text-xs" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
-            <input type="text" value={notifyIcon} onChange={(e) => setNotifyIcon(e.target.value)} className="w-20 text-xs font-mono" />
-          </div>
-          <div className="text-[10px] text-zinc-600">Desktop notifications are runtime events, not desktop-config settings.</div>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Btn variant="primary" onClick={() => socket.emit('desktop:notify', { title: notifyTitle, body: notifyBody, icon: notifyIcon })}>
-              Send Notification
-            </Btn>
-            <Btn onClick={() => socket.emit('desktop:recycle-bin', { full: true })}>Bin Full</Btn>
-            <Btn onClick={() => socket.emit('desktop:recycle-bin', { full: false })}>Bin Empty</Btn>
-          </div>
-        </div>
-      </ConfigSectionPanel>
       </div>
     </div>
+  )
+}
+
+function StickyNotesConfigSection({
+  value,
+  onChange,
+}: {
+  value: StickyNotesSettings
+  onChange: (updater: (draft: StickyNotesSettings) => void) => void
+}) {
+  return (
+    <ConfigSectionPanel label="Sticky Notes">
+      <div className="text-[10px] text-zinc-500 mb-1">Default note text</div>
+      <textarea
+        value={value.text}
+        onChange={(e) => onChange((draft) => { draft.text = e.target.value })}
+        className="w-full min-h-[110px] text-xs font-mono"
+      />
+      <div className="mt-3 text-[10px] text-zinc-500 mb-1">Note color</div>
+      <HexColorInput
+        value={value.color}
+        onChange={(nextValue) => onChange((draft) => { draft.color = nextValue })}
+        className="max-w-sm gap-2"
+        pickerClassName="w-20 h-9 p-1 shrink-0"
+        textClassName="font-mono text-xs flex-1 min-w-0"
+      />
+    </ConfigSectionPanel>
+  )
+}
+
+function RecycleBinConfigSection({
+  settings,
+  fullOnStart,
+  onSettingsChange,
+  onFullOnStartChange,
+}: {
+  settings: RecycleBinSettings
+  fullOnStart: boolean
+  onSettingsChange: (updater: (draft: RecycleBinSettings) => void) => void
+  onFullOnStartChange: (nextValue: boolean) => void
+}) {
+  return (
+    <ConfigSectionPanel label="Recycle Bin">
+      <Toggle checked={fullOnStart} onChange={onFullOnStartChange} label="Starts full" />
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[10px] text-zinc-500 mb-1">Empty icon</div>
+          <AssetSelectionInput
+            value={settings.emptyIcon}
+            onChange={(nextValue) => onSettingsChange((draft) => { draft.emptyIcon = nextValue })}
+            kinds={['image']}
+            modalTitle="Recycle Bin Empty Icon"
+            placeholder="Emoji or /assets/icons/recycle-empty.png"
+            buttonLabel="Choose Image"
+            previewKind="image"
+          />
+        </div>
+        <div>
+          <div className="text-[10px] text-zinc-500 mb-1">Full icon</div>
+          <AssetSelectionInput
+            value={settings.fullIcon}
+            onChange={(nextValue) => onSettingsChange((draft) => { draft.fullIcon = nextValue })}
+            kinds={['image']}
+            modalTitle="Recycle Bin Full Icon"
+            placeholder="Emoji or /assets/icons/recycle-full.png"
+            buttonLabel="Choose Image"
+            previewKind="image"
+          />
+        </div>
+      </div>
+    </ConfigSectionPanel>
   )
 }
 
@@ -2108,6 +1681,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const [widgetDefaultZIndex, setWidgetDefaultZIndex] = useState<number>(
     () => resolveWidgetDefaultZIndexFromConfig(app, desktopConfig),
   )
+  const [recycleBinFullOnStart, setRecycleBinFullOnStart] = useState(() => desktopConfig.recycleBin.fullOnStart)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [detectedCameras, setDetectedCameras] = useState<{ deviceId: string; label: string }[]>([])
@@ -2139,6 +1713,10 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const widgetComponent = form.appType === 'widget' ? resolveAppWidgetComponent(form) : undefined
   const widgetSource = form.appType === 'widget' ? getWidgetSource(form) : undefined
   const isProtectedSystemWidget = form.appType === 'widget' && isSystemWidget(form)
+  const isStickyNotesWidget = form.appType === 'widget' && form.id === 'sticky-notes'
+  const isRecycleBinDecoration = form.appType === 'decoration' && form.id === 'recycle-bin'
+  const stickyNotesConfig = form.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS
+  const recycleBinConfig = form.recycleBinSettings ?? DEFAULT_RECYCLE_BIN_SETTINGS
   const selectedSourceSceneId = form.sourceWidgetSettings?.sceneId ?? ''
   const selectedSourceScene = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
   const availableSourceScenes = useMemo(
@@ -2161,12 +1739,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     || widgetSize.height !== sourceWidgetSize.height
   )
   const widgetDefaultZIndexDirty = form.appType === 'widget' && widgetDefaultZIndex !== sourceWidgetDefaultZIndex
-  const dirty = appDirty || widgetSizeDirty || widgetDefaultZIndexDirty
+  const recycleBinFullOnStartDirty = isRecycleBinDecoration && recycleBinFullOnStart !== desktopConfig.recycleBin.fullOnStart
+  const dirty = appDirty || widgetSizeDirty || widgetDefaultZIndexDirty || recycleBinFullOnStartDirty
 
   useEffect(() => {
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
     setSaved(false)
   }, [app, config.desktopConfig])
 
@@ -2175,6 +1755,22 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     updater(next)
     setForm(next)
     setSaved(false)
+  }
+
+  const updateStickyNotesConfig = (updater: (draft: StickyNotesSettings) => void) => {
+    update((draft) => {
+      const next = structuredClone(draft.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS)
+      updater(next)
+      draft.stickyNotesSettings = next
+    })
+  }
+
+  const updateRecycleBinConfig = (updater: (draft: RecycleBinSettings) => void) => {
+    update((draft) => {
+      const next = structuredClone(draft.recycleBinSettings ?? DEFAULT_RECYCLE_BIN_SETTINGS)
+      updater(next)
+      draft.recycleBinSettings = next
+    })
   }
 
   const apply = async () => {
@@ -2187,13 +1783,19 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
     const scene = config.scenes[form.targetSceneId]
     const updates: Partial<typeof config> = { applications: apps }
+    let nextDesktopConfig: DesktopConfig | null = null
+    const ensureNextDesktopConfig = () => {
+      if (!nextDesktopConfig) nextDesktopConfig = structuredClone(withDesktopConfigDefaults(config.desktopConfig))
+      return nextDesktopConfig
+    }
+
     if (scene) {
       const updatedScene = { ...scene, label: form.label }
       updates.scenes = { ...config.scenes, [form.targetSceneId]: updatedScene }
     }
 
     if (form.appType === 'widget') {
-      const nextDesktop = withDesktopConfigDefaults(config.desktopConfig)
+      const nextDesktop = ensureNextDesktopConfig()
       const normalizedWidth = clampWidgetDimension(widgetSize.width, 180, 1400, sourceWidgetSize.width)
       const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
       const defaults = getDefaultWidgetSize(form)
@@ -2208,11 +1810,19 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
       nextWidgetDefaultZIndices[form.id] = Math.max(0, Math.round(widgetDefaultZIndex))
 
-      updates.desktopConfig = {
-        ...nextDesktop,
-        widgetSizes: Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined,
-        widgetDefaultZIndices: Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined,
+      nextDesktop.widgetSizes = Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined
+      nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
+    }
+
+    if (isRecycleBinDecoration && recycleBinFullOnStart !== desktopConfig.recycleBin.fullOnStart) {
+      ensureNextDesktopConfig().recycleBin = {
+        ...ensureNextDesktopConfig().recycleBin,
+        fullOnStart: recycleBinFullOnStart,
       }
+    }
+
+    if (nextDesktopConfig) {
+      updates.desktopConfig = nextDesktopConfig
     }
 
     await saveConfig(updates)
@@ -2227,6 +1837,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
     setSaved(false)
   }
 
@@ -2391,6 +2002,22 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                 </div>
               </div>
           </ConfigSectionPanel>
+        )}
+
+        {isStickyNotesWidget && (
+          <StickyNotesConfigSection value={stickyNotesConfig} onChange={updateStickyNotesConfig} />
+        )}
+
+        {isRecycleBinDecoration && (
+          <RecycleBinConfigSection
+            settings={recycleBinConfig}
+            fullOnStart={recycleBinFullOnStart}
+            onSettingsChange={updateRecycleBinConfig}
+            onFullOnStartChange={(nextValue) => {
+              setRecycleBinFullOnStart(nextValue)
+              setSaved(false)
+            }}
+          />
         )}
 
         {form.appType === 'widget' && widgetComponent === 'camera' && (
@@ -2588,17 +2215,12 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                     e.target.value = ''
                     update((d) => {
                       if (!d.launchPipeline) return
-                      d.launchPipeline.effects.push({ type, cfg: {}, delay: 0 } as EffectConfig)
+                      d.launchPipeline.effects.push(createEffectDraft(type))
                     })
                   }}
                   className="w-full text-xs mt-2">
                   <option value="">+ Add effect…</option>
-                  {([
-                    'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
-                    'death-overlay', 'victory-overlay', 'revive-overlay',
-                    'terminal-toast', 'notification-box', 'typewriter',
-                    'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
-                  ] as EffectType[]).map((t) => (
+                  {LAUNCH_PIPELINE_EFFECT_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
@@ -3167,6 +2789,17 @@ function EventForm({ def, onUpdate, onDelete }: {
     fn(next)
     onUpdate(next)
   }
+
+  const updateDesktopNotificationEffect = (index: number, updater: (cfg: DesktopNotificationEffectConfig) => void) => {
+    update((d) => {
+      const effect = d.effects[index]
+      if (!effect || effect.type !== 'desktop-notification') return
+      const nextCfg = normalizeDesktopNotificationEffectConfig(effect.cfg)
+      updater(nextCfg)
+      d.effects[index] = { ...effect, cfg: nextCfg }
+    })
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/60">
@@ -3296,25 +2929,71 @@ function EventForm({ def, onUpdate, onDelete }: {
             <div className="text-[10px] text-zinc-600 italic">No effects configured.</div>
           )}
           {def.effects.map((eff, index) => (
-            <div key={`${def.id}-effect-${index}`} className="flex items-center gap-2 py-1 border-b border-zinc-700/40">
-              <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
-              <input
-                type="number"
-                min={0}
-                max={10}
-                step={0.1}
-                value={eff.delay ?? 0}
-                onChange={(e) => update((d) => {
-                  d.effects[index] = { ...d.effects[index], delay: Number(e.target.value) }
-                })}
-                className="w-16 font-mono text-xs"
-                title="Delay (s)"
-              />
-              <span className="text-[9px] text-zinc-600">s</span>
-              <button
-                onClick={() => update((d) => { d.effects.splice(index, 1) })}
-                className="text-[10px] text-red-500 hover:text-red-300 px-1"
-              >✕</button>
+            <div key={`${def.id}-effect-${index}`} className="space-y-2 py-1.5 border-b border-zinc-700/40 last:border-b-0">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={eff.delay ?? 0}
+                  onChange={(e) => update((d) => {
+                    d.effects[index] = { ...d.effects[index], delay: Number(e.target.value) }
+                  })}
+                  className="w-16 font-mono text-xs"
+                  title="Delay (s)"
+                />
+                <span className="text-[9px] text-zinc-600">s</span>
+                <button
+                  onClick={() => update((d) => { d.effects.splice(index, 1) })}
+                  className="text-[10px] text-red-500 hover:text-red-300 px-1"
+                >✕</button>
+              </div>
+              {eff.type === 'desktop-notification' && (() => {
+                const cfg = normalizeDesktopNotificationEffectConfig(eff.cfg)
+                return (
+                  <div className="grid grid-cols-2 gap-2 pl-1">
+                    <div className="col-span-2">
+                      <div className="text-[10px] text-zinc-500 mb-1">Title</div>
+                      <input
+                        type="text"
+                        value={cfg.title}
+                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.title = e.target.value })}
+                        className="w-full text-xs"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <div className="text-[10px] text-zinc-500 mb-1">Body</div>
+                      <textarea
+                        value={cfg.body}
+                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.body = e.target.value })}
+                        className="w-full min-h-[72px] text-xs"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+                      <input
+                        type="text"
+                        value={cfg.icon ?? ''}
+                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.icon = e.target.value || undefined })}
+                        className="w-full text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-zinc-500 mb-1">Duration (ms)</div>
+                      <input
+                        type="number"
+                        min={0}
+                        step={250}
+                        value={cfg.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS}
+                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.durationMs = Number(e.target.value) || 0 })}
+                        className="w-full font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           ))}
           <select
@@ -3324,18 +3003,13 @@ function EventForm({ def, onUpdate, onDelete }: {
               if (!type) return
               e.target.value = ''
               update((d) => {
-                d.effects.push({ type, cfg: {}, delay: 0 } as EffectConfig)
+                d.effects.push(createEffectDraft(type))
               })
             }}
             className="w-full text-xs"
           >
             <option value="">+ Add effect…</option>
-            {([
-              'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
-              'death-overlay', 'victory-overlay', 'revive-overlay',
-              'terminal-toast', 'notification-box', 'typewriter',
-              'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
-            ] as EffectType[]).map((type) => (
+            {EVENT_EFFECT_TYPES.map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
@@ -3424,15 +3098,20 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   const saveConfig   = useAdminStore((s) => s.saveConfig)
 
   const [tab, setTab] = useState<'catalog' | 'events' | 'transitions'>('catalog')
-  const [addOpen, setAddOpen] = useState(false)
   const [name, setName] = useState('')
-  const [type, setType] = useState<'image' | 'video'>('image')
   const [url, setUrl] = useState('')
   const [durStr, setDurStr] = useState('')
   const [selectedEventId, setSelectedEventId] = useState<string | null>(eventDefs[0]?.id ?? null)
 
-  const resetForm = () => { setName(''); setType('image'); setUrl(''); setDurStr('') }
+  const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
   const selectedEvent = eventDefs.find((def) => def.id === selectedEventId) ?? null
+  const sortedTransitionLibrary = useMemo(() => (
+    [...mediaLibrary].sort((left, right) => getMediaTransitionLabel(left).localeCompare(getMediaTransitionLabel(right)))
+  ), [mediaLibrary])
+  const pendingTransitionKind = useMemo(() => {
+    const inferred = inferAssetKindFromUrl(url, 'image')
+    return inferred === 'video' ? 'video' : 'image'
+  }, [url])
 
   useEffect(() => {
     if (eventDefs.length === 0) {
@@ -3447,6 +3126,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   const handleSave = async () => {
     if (!url) return
     const durVal = parseFloat(durStr)
+    const type = pendingTransitionKind
     const hasDur = type === 'image' && !isNaN(durVal) && durVal > 0
     const entry: MediaEntry = {
       id: 'media-' + Date.now(),
@@ -3457,7 +3137,6 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
     }
     await saveConfig({ mediaLibrary: [...mediaLibrary, entry] })
     resetForm()
-    setAddOpen(false)
   }
 
   const handleDeleteMediaEntry = async (id: string) => {
@@ -3520,65 +3199,6 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
             kinds={['image', 'video', 'audio']}
             onDeleteSavedEntry={(asset) => { void handleDeleteMediaEntry(asset.id) }}
           />
-
-          {addOpen && (
-            <div className="border border-zinc-700 rounded-lg p-3 space-y-3 bg-zinc-800/20">
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">New Saved Media Entry</div>
-
-              <div>
-                <div className="text-[10px] text-zinc-600 mb-1">Name</div>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Scene opener" className="w-full text-xs" />
-              </div>
-
-              <div className="flex gap-2">
-                {(['image', 'video'] as const).map((mt) => (
-                  <button key={mt} type="button"
-                    onClick={() => setType(mt)}
-                    className={'px-3 py-1 text-xs rounded border transition-colors ' +
-                      (type === mt ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200')}>
-                    {mt === 'image' ? '🖼 Image' : '🎬 Video'}
-                  </button>
-                ))}
-              </div>
-
-              <AssetSelectionInput
-                value={url}
-                onChange={setUrl}
-                kinds={[type]}
-                modalTitle={type === 'image' ? 'Saved Media Image' : 'Saved Media Video'}
-                placeholder={type === 'image' ? '/assets/images/entry.png' : '/assets/video/entry.mp4'}
-                buttonLabel="Choose Asset"
-                previewKind={type}
-              />
-
-              {type === 'image' && (
-                <div className="flex items-center gap-2">
-                  <input type="number" min={0.1} max={120} step={0.5} value={durStr}
-                    onChange={(e) => setDurStr(e.target.value)} placeholder="4.0"
-                    className="w-24 text-xs font-mono" />
-                  <span className="text-[10px] text-zinc-600">sec display duration</span>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => void handleSave()} disabled={!url}
-                  className="flex-1 py-1.5 text-xs bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                  Save Preset
-                </button>
-                <button type="button" onClick={() => { resetForm(); setAddOpen(false) }}
-                  className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!addOpen && (
-            <button type="button" onClick={() => setAddOpen(true)}
-              className="w-full py-2 text-xs border border-dashed border-zinc-700 hover:border-zinc-500 text-zinc-600 hover:text-zinc-300 rounded-lg transition-colors">
-              ＋ Add Saved Media Entry
-            </button>
-          )}
         </div>
       )}
 
@@ -3645,21 +3265,141 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
       {/* ── Transitions tab ── */}
       {tab === 'transitions' && (
-        <div className="space-y-1.5">
-          <div className="text-[10px] text-zinc-500 px-0.5 pb-1">All available GSAP transitions. Set custom durations per-scene in each transition picker.</div>
-          {TRANSITION_OPTIONS.map((t) => (
-            <div key={t.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded border border-zinc-800 bg-zinc-800/20">
-              <span className="text-base w-5 text-center shrink-0">{TRANSITION_ICONS[t.id]}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-zinc-200">{t.label}</div>
-                <div className="text-[10px] text-zinc-500 font-mono">{t.id}</div>
+        <div className="space-y-0 pt-2">
+          <ConfigSectionPanel label="System Transitions" first>
+            <div className="space-y-2">
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                System transitions are always available in every transition combo box.
               </div>
-              <button type="button" onClick={() => socket.emit('transition:preview', [{ id: t.id }])}
-                className="shrink-0 text-[10px] text-zinc-600 hover:text-cyan-400 px-1 transition-colors" title="Preview">
-                ▶
-              </button>
+              {TRANSITION_OPTIONS.map((transition) => (
+                <div key={transition.id} className="flex items-center gap-2.5 rounded border border-zinc-800 bg-zinc-800/20 px-2.5 py-2">
+                  <span className="text-base w-5 text-center shrink-0">{TRANSITION_ICONS[transition.id]}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-zinc-200">{transition.label}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono">{transition.id}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => socket.emit('transition:preview', [{ id: transition.id }])}
+                    className={`shrink-0 ${TRANSITION_TEST_BUTTON_CLASS}`}
+                    title="Test"
+                  >
+                    Test
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          </ConfigSectionPanel>
+
+          <ConfigSectionPanel label="User Transitions">
+            <div className="space-y-3">
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                User transitions saved here become reusable options in every transition combo box.
+              </div>
+
+              {sortedTransitionLibrary.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-zinc-800 px-3 py-4 text-xs text-zinc-600">
+                  No user transitions saved yet.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {sortedTransitionLibrary.map((entry) => (
+                    <div key={entry.id} className="flex items-center gap-2.5 rounded border border-zinc-800 bg-zinc-800/20 px-2.5 py-2">
+                      <span className="text-base w-5 text-center shrink-0">{entry.type === 'image' ? '🖼' : '🎬'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-zinc-200 truncate">{getMediaTransitionLabel(entry)}</div>
+                        <div className="text-[10px] text-zinc-500 font-mono truncate">{entry.url}</div>
+                      </div>
+                      {entry.type === 'image' && entry.duration != null && (
+                        <span className="shrink-0 text-[10px] font-mono text-zinc-600">{entry.duration}s</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => socket.emit('transition:preview', [strToStep(encodeMediaTransitionValue(entry))])}
+                        className={`shrink-0 ${TRANSITION_TEST_BUTTON_CLASS}`}
+                        title="Test"
+                      >
+                        Test
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { void handleDeleteMediaEntry(entry.id) }}
+                        className={`shrink-0 ${TRANSITION_DELETE_BUTTON_CLASS}`}
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ConfigSectionPanel>
+
+          <ConfigSectionPanel label="Create User Transition">
+            <div className="space-y-3">
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                Save an image or video as a reusable user transition.
+              </div>
+
+              <div className="space-y-2 rounded border border-zinc-800 bg-zinc-800/20 p-3">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Name (optional)"
+                  className="w-full text-xs"
+                />
+
+                <AssetSelectionInput
+                  value={url}
+                  onChange={setUrl}
+                  kinds={['image', 'video']}
+                  modalTitle="User Transition Asset"
+                  placeholder="/assets/images/transition.png or /assets/video/transition.mp4"
+                  buttonLabel="Choose Asset"
+                  previewKind="auto"
+                  showPreview={false}
+                />
+
+                {url && pendingTransitionKind === 'image' && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={120}
+                      step={0.5}
+                      value={durStr}
+                      onChange={(e) => setDurStr(e.target.value)}
+                      placeholder="4.0"
+                      className="w-24 text-xs font-mono"
+                    />
+                    <span className="text-[10px] text-zinc-600">sec display duration</span>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={!url}
+                    className="flex-1 py-1.5 text-xs bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Save
+                  </button>
+                  {(name || url || durStr) && (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </ConfigSectionPanel>
         </div>
       )}
 
@@ -3949,32 +3689,68 @@ function RightPane({ selected, onClose, onSelectItem }: {
 
 // ── SocketLogConsole ────────────────────────────────────────────────
 
-type LogEntry = { id: number; time: string; dir: '←' | '→'; event: string; summary: string }
+const MAX_LOG_ENTRIES = 300
+
+type LogEntry = { id: number; time: string; dir: '←' | '→'; event: string; details: string }
 const logListeners: ((e: LogEntry) => void)[] = []
 let logSeq = 0
 let logHistory: LogEntry[] = []
 
+function stringifyLogValue(value: unknown): string {
+  if (value === undefined) return 'undefined'
+  if (typeof value === 'string') return value
+  if (value instanceof Error) {
+    return [value.name ? `${value.name}: ${value.message}` : value.message, value.stack]
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  try {
+    const seen = new WeakSet<object>()
+    const serialized = JSON.stringify(value, (_key, currentValue) => {
+      if (typeof currentValue === 'bigint') return `${currentValue.toString()}n`
+      if (currentValue instanceof Error) {
+        return {
+          name: currentValue.name,
+          message: currentValue.message,
+          stack: currentValue.stack,
+        }
+      }
+      if (typeof currentValue === 'object' && currentValue !== null) {
+        if (seen.has(currentValue)) return '[Circular]'
+        seen.add(currentValue)
+      }
+      return currentValue
+    }, 2)
+
+    return serialized ?? String(value)
+  } catch {
+    return String(value)
+  }
+}
+
 function formatLogData(args: unknown[]): string {
   if (args.length === 0) return ''
-  try {
-    const data = args[0]
-    // For transition:play strip verbose from/to, show only transitionType
-    if (data && typeof data === 'object' && 'transitionType' in (data as object)) {
-      const t = (data as Record<string, unknown>).transitionType
-      return String(t)
-    }
-    const s = JSON.stringify(data)
-    // Strip outer quotes for simple strings
-    if (s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1)
-    return s.length > 60 ? s.slice(0, 60) + '…' : s
-  } catch { return String(args[0]) }
+
+  return args
+    .map((arg, index) => {
+      const rendered = stringifyLogValue(arg)
+      return args.length > 1 ? `[${index}] ${rendered}` : rendered
+    })
+    .join('\n')
+}
+
+function summarizeLogDetails(details: string) {
+  const firstLine = details.split('\n').find((line) => line.trim().length > 0) ?? ''
+  if (!firstLine) return ''
+  return firstLine.length > 120 ? `${firstLine.slice(0, 120)}...` : firstLine
 }
 
 function pushLog(dir: '←' | '→', event: string, args: unknown[]) {
   const now = new Date()
   const time = now.toTimeString().slice(0, 8)
-  const entry: LogEntry = { id: ++logSeq, time, dir, event, summary: formatLogData(args) }
-  logHistory = [...logHistory.slice(-99), entry]
+  const entry: LogEntry = { id: ++logSeq, time, dir, event, details: formatLogData(args) }
+  logHistory = [...logHistory.slice(-(MAX_LOG_ENTRIES - 1)), entry]
   logListeners.forEach((fn) => fn(entry))
 }
 
@@ -3984,29 +3760,50 @@ socket.onAny((event, ...args) => { if (!LOG_SKIP.has(event)) pushLog('←', even
 socket.onAnyOutgoing((event, ...args) => pushLog('→', event, args as unknown[]))
 
 function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' | 'settings' }) {
-  const [entries,   setEntries] = useState<LogEntry[]>(() => logHistory)
-  const [copied,    setCopied]  = useState(false)
+  const [entries, setEntries] = useState<LogEntry[]>(() => logHistory)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [expandedEntryIds, setExpandedEntryIds] = useState<number[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const isSettingsVariant = variant === 'settings'
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    const text = entries.map(en => `${en.time} ${en.dir} ${en.event}${en.summary ? ' ' + en.summary : ''}`).join('\n')
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
+    if (!entries.length) return
+
+    const text = entries
+      .map((entry) => [`${entry.time} ${entry.dir} ${entry.event}`, entry.details].filter(Boolean).join('\n'))
+      .join('\n\n')
+
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
+      await navigator.clipboard.writeText(text)
+      setCopyState('copied')
+      setTimeout(() => setCopyState('idle'), 1500)
+    } catch {
+      setCopyState('error')
+      setTimeout(() => setCopyState('idle'), 1800)
+    }
   }
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
     logHistory = []
     setEntries([])
+    setExpandedEntryIds([])
+    setCopyState('idle')
+  }
+
+  const toggleEntry = (entryId: number) => {
+    setExpandedEntryIds((prev) => (
+      prev.includes(entryId)
+        ? prev.filter((id) => id !== entryId)
+        : [...prev, entryId]
+    ))
   }
 
   useEffect(() => {
     const handler = (e: LogEntry) =>
-      setEntries((prev) => [...prev.slice(-99), e])
+      setEntries((prev) => [...prev.slice(-(MAX_LOG_ENTRIES - 1)), e])
     logListeners.push(handler)
     return () => { const i = logListeners.indexOf(handler); if (i >= 0) logListeners.splice(i, 1) }
   }, [])
@@ -4016,41 +3813,74 @@ function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' | 'sett
   }, [entries])
 
   return (
-    <div className={isSettingsVariant ? 'flex h-full min-h-0 flex-col rounded-lg border border-zinc-800 bg-zinc-950/70' : 'shrink-0 border-t border-zinc-800'}>
-      <div className={isSettingsVariant ? 'flex w-full items-center gap-2 px-3 py-2 text-left bg-zinc-900/80 border-b border-zinc-800 shrink-0' : 'w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left bg-zinc-900/70 border-b border-zinc-800'}>
-        <span className={isSettingsVariant ? 'text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.2em] flex-1' : 'text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1'}>Console</span>
-        {entries.length > 0 && (
-          <span className={isSettingsVariant ? 'text-[10px] font-mono text-zinc-500 truncate max-w-[220px]' : 'text-[10px] font-mono text-zinc-600 truncate max-w-[100px]'}>
-            {entries[entries.length - 1].dir} {entries[entries.length - 1].event}
-          </span>
-        )}
-        {entries.length > 0 && (
-          <>
-            <button
-              type="button"
-              onClick={handleCopy}
-              title="Copy log"
-              className={isSettingsVariant ? 'text-[11px] text-zinc-500 hover:text-zinc-200 px-1 transition-colors' : 'text-[10px] text-zinc-600 hover:text-zinc-300 px-1 transition-colors'}
-            >{copied ? '✓' : '⎘'}</button>
-            <button
-              type="button"
-              onClick={handleClear}
-              title="Clear log"
-              className={isSettingsVariant ? 'text-[11px] text-zinc-500 hover:text-red-400 px-1 transition-colors' : 'text-[10px] text-zinc-600 hover:text-red-400 px-1 transition-colors'}
-            >✕</button>
-          </>
-        )}
+    <div className={isSettingsVariant ? 'rounded-lg border border-zinc-800 bg-zinc-950/70' : 'shrink-0 border-t border-zinc-800'}>
+      <div className={isSettingsVariant ? 'flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left bg-zinc-900/80 border-b border-zinc-800' : 'w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left bg-zinc-900/70 border-b border-zinc-800'}>
+        <span className={isSettingsVariant ? 'text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.2em] flex-1' : 'text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1'}>
+          {isSettingsVariant ? 'Socket Console' : 'Console'}
+        </span>
+        <span className={isSettingsVariant ? 'rounded-full border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-[10px] font-mono text-zinc-500' : 'text-[10px] font-mono text-zinc-600'}>
+          {entries.length} event{entries.length === 1 ? '' : 's'}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          disabled={!entries.length}
+          title="Copy the full socket log to the clipboard"
+          className={isSettingsVariant
+            ? 'rounded border border-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800/80 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent'
+            : 'rounded border border-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:cursor-not-allowed disabled:text-zinc-700'}
+        >
+          {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy all'}
+        </button>
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={!entries.length}
+          title="Clear the socket log"
+          className={isSettingsVariant
+            ? 'rounded border border-zinc-700 px-2 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:border-red-500/70 hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent disabled:hover:text-zinc-600'
+            : 'rounded border border-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-red-500/70 hover:text-red-300 disabled:cursor-not-allowed disabled:text-zinc-700'}
+        >
+          Clear
+        </button>
       </div>
-      <div className={isSettingsVariant ? 'flex-1 min-h-0 overflow-y-auto bg-zinc-950/60 px-3 py-2 space-y-1' : 'h-[150px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-0.5'}>
+      <div className={isSettingsVariant ? 'max-h-[26rem] overflow-y-auto bg-zinc-950/60 px-3 py-2 space-y-2' : 'h-[150px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-1'}>
         {entries.length === 0 && (
           <div className={isSettingsVariant ? 'text-xs text-zinc-600 italic pt-3 text-center' : 'text-[10px] text-zinc-700 italic pt-2 text-center'}>No events yet.</div>
         )}
         {entries.map((e) => (
-          <div key={e.id} className={isSettingsVariant ? 'flex gap-2 items-baseline font-mono rounded border border-zinc-900/80 bg-zinc-950/70 px-2 py-1.5' : 'flex gap-1.5 items-baseline font-mono'}>
-            <span className={isSettingsVariant ? 'text-[10px] text-zinc-600 shrink-0' : 'text-[9px] text-zinc-700 shrink-0'}>{e.time}</span>
-            <span className={(isSettingsVariant ? 'text-[11px] shrink-0 ' : 'text-[10px] shrink-0 ') + (e.dir === '→' ? 'text-cyan-600' : 'text-emerald-600')}>{e.dir}</span>
-            <span className={isSettingsVariant ? 'text-[11px] text-zinc-200 shrink-0 truncate max-w-[180px]' : 'text-[10px] text-zinc-300 shrink-0 truncate max-w-[70px]'}>{e.event}</span>
-            {e.summary && <span className={isSettingsVariant ? 'text-[10px] text-zinc-500 truncate' : 'text-[10px] text-zinc-600 truncate'}>{e.summary}</span>}
+          <div key={e.id} className={isSettingsVariant ? 'rounded border border-zinc-900/80 bg-zinc-950/70 px-3 py-2 font-mono' : 'rounded border border-zinc-900/70 bg-zinc-950/50 px-2 py-1.5 font-mono'}>
+            <div className="flex min-w-0 items-start gap-2">
+              <span className={isSettingsVariant ? 'text-[10px] text-zinc-600 shrink-0' : 'text-[9px] text-zinc-700 shrink-0'}>{e.time}</span>
+              <span className={(isSettingsVariant ? 'text-[11px] shrink-0 ' : 'text-[10px] shrink-0 ') + (e.dir === '→' ? 'text-cyan-500' : 'text-emerald-500')}>{e.dir}</span>
+              <span className={isSettingsVariant ? 'min-w-0 break-all text-[11px] text-zinc-200' : 'min-w-0 break-all text-[10px] text-zinc-300'}>{e.event}</span>
+            </div>
+            {e.details && (() => {
+              const expanded = expandedEntryIds.includes(e.id)
+              const summary = summarizeLogDetails(e.details)
+
+              return (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleEntry(e.id)}
+                    className={isSettingsVariant
+                      ? 'flex w-full items-center gap-2 rounded border border-zinc-800 bg-zinc-900/70 px-2 py-1.5 text-left text-[10px] text-zinc-400 transition-colors hover:border-zinc-700 hover:bg-zinc-900'
+                      : 'flex w-full items-center gap-1.5 rounded border border-zinc-900 bg-zinc-900/60 px-1.5 py-1 text-left text-[10px] text-zinc-500 transition-colors hover:border-zinc-800 hover:text-zinc-400'}
+                    title={expanded ? 'Collapse' : 'Expand'}
+                  >
+                    <span className="shrink-0">{expanded ? '▾' : '▸'}</span>
+                    <span className="shrink-0 font-medium normal-case tracking-normal">
+                      {expanded ? 'Collapse' : 'Expand'}
+                    </span>
+                    {summary && <span className="min-w-0 flex-1 truncate normal-case tracking-normal">{summary}</span>}
+                  </button>
+                  {expanded && (
+                    <pre className={isSettingsVariant ? 'mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded border border-zinc-900 bg-zinc-900/70 px-2 py-1.5 text-[10px] leading-relaxed text-zinc-400' : 'mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded border border-zinc-900/80 bg-zinc-950/60 px-1.5 py-1 text-[10px] leading-relaxed text-zinc-500'}>{e.details}</pre>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         ))}
         <div ref={bottomRef} />
@@ -4291,7 +4121,7 @@ function TopBar() {
   )
 }
 
-type SettingsTab = 'general' | 'audio' | 'keybinds' | 'console'
+type SettingsTab = 'general' | 'audio' | 'keybinds' | 'about'
 
 function SettingsModal({ tab, onTabChange, onClose }: {
   tab: SettingsTab
@@ -4308,7 +4138,7 @@ function SettingsModal({ tab, onTabChange, onClose }: {
               ['general', 'General'],
               ['audio', 'Audio'],
               ['keybinds', 'Keybinds'],
-              ['console', 'Console'],
+              ['about', 'About'],
             ] as const).map(([id, label]) => (
               <button
                 key={id}
@@ -4325,11 +4155,11 @@ function SettingsModal({ tab, onTabChange, onClose }: {
             ))}
           </div>
 
-          <div className={tab === 'console' ? 'flex-1 min-h-0' : 'flex-1 min-h-0 overflow-y-auto'}>
-            {tab === 'general' && <SettingsPage />}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {tab === 'about' && <SettingsPage mode="about" />}
+            {tab === 'general' && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
             {tab === 'audio' && <AudioPanel />}
             {tab === 'keybinds' && <KeybindEditor />}
-            {tab === 'console' && <SocketLogConsole variant="settings" />}
           </div>
         </div>
     </FloatingWindowShell>
@@ -4346,6 +4176,22 @@ export function Dashboard() {
   const applications = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
   const saveConfig = useAdminStore((s) => s.saveConfig)
+
+  const handleSettingsToggle = () => {
+    if (settingsOpen) {
+      setSettingsOpen(false)
+      setSettingsTab('general')
+      return
+    }
+
+    setSettingsTab('general')
+    setSettingsOpen(true)
+  }
+
+  const handleSettingsClose = () => {
+    setSettingsOpen(false)
+    setSettingsTab('general')
+  }
 
   // Clear selection when selected app is removed
   useEffect(() => {
@@ -4402,7 +4248,7 @@ export function Dashboard() {
           libraryOpen={libraryOpen}
           onLibrary={() => setLibraryOpen((open) => !open)}
           settingsOpen={settingsOpen}
-          onSettings={() => setSettingsOpen((open) => !open)}
+          onSettings={handleSettingsToggle}
         />
         <LivePreview />
         <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
@@ -4412,7 +4258,7 @@ export function Dashboard() {
         <SettingsModal
           tab={settingsTab}
           onTabChange={setSettingsTab}
-          onClose={() => setSettingsOpen(false)}
+          onClose={handleSettingsClose}
         />
       )}
     </div>

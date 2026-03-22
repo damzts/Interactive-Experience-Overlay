@@ -7,6 +7,7 @@ import {
   type DesktopNotificationPayload,
   type DesktopRuntimeStatePayload,
   type DesktopRecycleBinPayload,
+  type DesktopScreenSaverPreviewPayload,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type InterServerEvents,
@@ -373,6 +374,11 @@ export function setupSocketHandlers(
       scheduler?.noteActivity()
       recycleBinFull = payload.full
       io.emit('desktop:recycle-bin', payload)
+    })
+
+    socket.on('desktop:screen-saver:test', (payload: DesktopScreenSaverPreviewPayload) => {
+      scheduler?.noteActivity()
+      io.emit('desktop:screen-saver:test', payload)
     })
 
     socket.on('transition:preview', (steps: TransitionStep[]) => {

@@ -9,6 +9,7 @@
 import { registerEffect } from './registry'
 
 import {
+  type DesktopNotificationEffectConfig,
   type NotificationBoxConfig,
   type TerminalToastConfig,
   type FloatiesConfig,
@@ -23,6 +24,7 @@ import {
 } from '@ieom/shared'
 
 import { runDeathOverlay }      from '../transitions/DeathOverlay'
+import { runDesktopNotification } from '../transitions/DesktopNotification'
 import { runVictoryOverlay }    from '../transitions/VictoryOverlay'
 import { runReviveOverlay }     from '../transitions/ReviveOverlay'
 import { runNotificationBox }   from '../transitions/NotificationBox'
@@ -40,6 +42,7 @@ import { runVideoOverlay }      from '../transitions/VideoOverlay'
 registerEffect('death-overlay',    ()    => runDeathOverlay())
 registerEffect('victory-overlay',  ()    => runVictoryOverlay())
 registerEffect('revive-overlay',   ()    => runReviveOverlay())
+registerEffect('desktop-notification', (cfg) => runDesktopNotification(cfg as DesktopNotificationEffectConfig))
 registerEffect('notification-box', (cfg) => runNotificationBox(cfg as NotificationBoxConfig))
 registerEffect('terminal-toast',   (cfg) => runSysMessage(cfg as TerminalToastConfig))
 registerEffect('floaties',         (cfg) => runIdleOverlay(cfg as FloatiesConfig))

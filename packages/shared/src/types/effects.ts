@@ -6,6 +6,7 @@
 
 export type EffectType =
   // ── Original effects ──────────────────────────────────────────
+  | 'desktop-notification' // Desktop taskbar/toast notification
   | 'notification-box'    // Win98 dialog window(s), cascade via flex stack
   | 'terminal-toast'      // [SERVER]: message prints at chosen corner
   | 'floaties'            // Glowing terminal symbols drift across screen
@@ -24,6 +25,13 @@ export type EffectType =
   | 'revive-overlay'      // Original Restarting process terminal animation
 
 // ── Per-type configs ────────────────────────────────────────────
+
+export interface DesktopNotificationEffectConfig {
+  title: string
+  body: string
+  icon?: string
+  durationMs?: number
+}
 
 export interface NotificationBoxConfig {
   title: string
@@ -138,6 +146,7 @@ export interface ReviveOverlayConfig  { /* fixed animation — no parameters */ 
 // delay?: seconds before this effect fires within the stack (default 0)
 
 export type EffectConfig =
+  | { type: 'desktop-notification'; cfg: DesktopNotificationEffectConfig; delay?: number }
   | { type: 'notification-box'; cfg: NotificationBoxConfig; delay?: number }
   | { type: 'terminal-toast';   cfg: TerminalToastConfig;   delay?: number }
   | { type: 'floaties';         cfg: FloatiesConfig;        delay?: number }

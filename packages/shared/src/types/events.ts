@@ -1,5 +1,5 @@
 import type { STATE } from './state.js'
-import type { AppConfig, TransitionStep } from './scene.js'
+import type { AppConfig, DesktopConfig, TransitionStep } from './scene.js'
 import type { OverlayTriggerPayload } from './effects.js'
 
 /** Shape of the transition:play socket event */
@@ -21,6 +21,10 @@ export interface DesktopNotificationPayload {
 
 export interface DesktopRecycleBinPayload {
   full: boolean
+}
+
+export interface DesktopScreenSaverPreviewPayload {
+  preset: DesktopConfig['screenSaver']['preset']
 }
 
 export interface DesktopRuntimeStatePayload {
@@ -68,6 +72,7 @@ export interface ServerToClientEvents {
   'widget:layout:apply': (layoutId: string) => void
   'desktop:notify': (payload: DesktopNotificationPayload) => void
   'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
+  'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
 }
 
 /** Events clients send to the server */
@@ -85,6 +90,7 @@ export interface ClientToServerEvents {
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
   'desktop:notify': (payload: DesktopNotificationPayload) => void
   'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
+  'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   'transition:preview': (steps: TransitionStep[]) => void
   'panic': () => void
 }

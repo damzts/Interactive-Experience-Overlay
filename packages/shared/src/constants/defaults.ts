@@ -6,7 +6,9 @@ import type {
   DesktopTheme,
   LobbyConfig,
   OverlayStyle,
+  RecycleBinSettings,
   SourceWidgetSettings,
+  StickyNotesSettings,
   WidgetComponentType,
   WidgetLayoutDefinition,
   WidgetLayoutItem,
@@ -66,6 +68,16 @@ function normalizeDesktopTheme(theme?: DesktopTheme | 'win vista'): DesktopTheme
 
 function buildSolidGradient(color: string) {
   return `linear-gradient(180deg, ${color} 0%, ${color} 100%)`
+}
+
+export const DEFAULT_STICKY_NOTES_SETTINGS: StickyNotesSettings = {
+  text: 'Reminder:\n- queue scenes\n- test alerts\n- hydrate',
+  color: '#fff2a8',
+}
+
+export const DEFAULT_RECYCLE_BIN_SETTINGS: RecycleBinSettings = {
+  emptyIcon: '🗑️',
+  fullIcon: '🗑️',
 }
 
 export function withOverlayStyleDefaults(style: OverlayStyle | null | undefined, fallback: OverlayStyle): OverlayStyle {
@@ -138,13 +150,7 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   },
   widgetLayouts: [],
   recycleBin: {
-    emptyIcon: '🗑️',
-    fullIcon: '🗑️',
     fullOnStart: false,
-  },
-  stickyNotes: {
-    text: 'Reminder:\n- queue scenes\n- test alerts\n- hydrate',
-    color: '#fff2a8',
   },
   screenSaver: {
     enabled: false,
@@ -242,6 +248,20 @@ function normalizeSourceWidgetSettings(settings?: SourceWidgetSettings | null): 
   }
 }
 
+function normalizeStickyNotesSettings(settings?: Partial<StickyNotesSettings> | null): StickyNotesSettings {
+  return {
+    ...DEFAULT_STICKY_NOTES_SETTINGS,
+    ...settings,
+  }
+}
+
+function normalizeRecycleBinSettings(settings?: Partial<RecycleBinSettings> | null): RecycleBinSettings {
+  return {
+    ...DEFAULT_RECYCLE_BIN_SETTINGS,
+    ...settings,
+  }
+}
+
 export function isSystemWidgetId(widgetId: string) {
   return (DEFAULT_SYSTEM_WIDGET_IDS as readonly string[]).includes(widgetId)
 }
@@ -278,14 +298,24 @@ export function getDefaultWidgetZIndex(widgetId: string, widgetComponent?: Widge
 }
 
 export function withApplicationDefaults(app: Application): Application {
-  if (app.appType !== 'widget') return app
+  const next: Application = app.appType === 'widget'
+    ? {
+        ...app,
+        widgetSource: getWidgetSource(app),
+        widgetComponent: getWidgetComponent(app),
+        sourceWidgetSettings: normalizeSourceWidgetSettings(app.sourceWidgetSettings),
+      }
+    : { ...app }
 
-  return {
-    ...app,
-    widgetSource: getWidgetSource(app),
-    widgetComponent: getWidgetComponent(app),
-    sourceWidgetSettings: normalizeSourceWidgetSettings(app.sourceWidgetSettings),
+  if (next.id === 'sticky-notes' && next.appType === 'widget') {
+    next.stickyNotesSettings = normalizeStickyNotesSettings(next.stickyNotesSettings)
   }
+
+  if (next.id === 'recycle-bin' && next.appType === 'decoration') {
+    next.recycleBinSettings = normalizeRecycleBinSettings(next.recycleBinSettings)
+  }
+
+  return next
 }
 
 export function withApplicationListDefaults(applications?: Application[] | null): Application[] {
@@ -712,8 +742,14 @@ function normalizeWidgetLayouts(value?: DesktopConfig['widgetLayouts']) {
 }
 
 export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null): DesktopConfig {
-  const source = (config ?? {}) as Partial<DesktopConfig> & { notifications?: unknown }
-  const { notifications: _legacyNotifications, ...rest } = source
+  const source = (config ?? {}) as Partial<DesktopConfig> & {
+    notifications?: unknown
+    stickyNotes?: Partial<StickyNotesSettings> | null
+    recycleBin?: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings>
+  }
+  const { notifications: _legacyNotifications, stickyNotes: _legacyStickyNotes, ...rest } = source
+  const legacyRecycleBin: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings> = source.recycleBin ?? {}
+  const { emptyIcon: _legacyEmptyIcon, fullIcon: _legacyFullIcon, ...recycleBin } = legacyRecycleBin
 
   return {
     ...DEFAULT_DESKTOP_CONFIG,
@@ -721,11 +757,7 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
     theme: normalizeDesktopTheme(source.theme as DesktopTheme | 'win vista' | undefined),
     recycleBin: {
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
-      ...source.recycleBin,
-    },
-    stickyNotes: {
-      ...DEFAULT_DESKTOP_CONFIG.stickyNotes,
-      ...source.stickyNotes,
+      ...recycleBin,
     },
     screenSaver: {
       ...DEFAULT_DESKTOP_CONFIG.screenSaver,
@@ -855,6 +887,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       id: 'recycle-bin',
       label: 'Recycle Bin',
       icon: '🗑️',
+      recycleBinSettings: { ...DEFAULT_RECYCLE_BIN_SETTINGS },
       appType: 'decoration' as const,
       targetSceneId: STATE.DESKTOP,
       transitionType: 'instant',
@@ -906,6 +939,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       id: 'sticky-notes',
       label: 'Sticky Notes',
       icon: '📝',
+      stickyNotesSettings: { ...DEFAULT_STICKY_NOTES_SETTINGS },
       appType: 'widget' as const,
       targetSceneId: STATE.DESKTOP,
       widgetSource: 'system' as const,

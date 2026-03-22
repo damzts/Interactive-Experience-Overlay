@@ -696,10 +696,12 @@ export function Desktop({ apps }: DesktopProps) {
       if (app.id !== 'recycle-bin') return app
       return {
         ...app,
-        icon: recycleBinFull ? desktopConfig.recycleBin.fullIcon : desktopConfig.recycleBin.emptyIcon,
+        icon: recycleBinFull
+          ? (app.recycleBinSettings?.fullIcon ?? app.icon)
+          : (app.recycleBinSettings?.emptyIcon ?? app.icon),
       }
     }),
-    [supportedApps, desktopConfig.recycleBin.emptyIcon, desktopConfig.recycleBin.fullIcon, recycleBinFull],
+    [supportedApps, recycleBinFull],
   )
 
   const autoArrangeIcons = desktopConfig.autoArrangeIcons

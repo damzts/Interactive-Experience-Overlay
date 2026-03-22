@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
 import { Btn, Toggle, ConfigSectionPanel } from '../components/ui'
 
-export function SettingsPage() {
+export function SettingsPage({
+  consolePanel,
+  mode = 'general',
+}: {
+  consolePanel?: ReactNode
+  mode?: 'general' | 'about'
+}) {
   const config = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
@@ -49,6 +56,47 @@ export function SettingsPage() {
     }
   }
 
+  if (mode === 'about') {
+    return (
+      <div className="w-full max-w-none space-y-0 pt-1">
+        <ConfigSectionPanel label="OBS Setup Guide" first>
+          <ol className="text-sm text-zinc-300 list-decimal list-inside space-y-1.5 leading-relaxed">
+            <li>In OBS: create ONE scene called <strong>STREAM</strong></li>
+            <li>Add a <strong>Game Capture</strong> source as the bottom layer</li>
+            <li>Add a <strong>Browser Source</strong> pointing to <code className="font-mono text-cyan-400">{overlayRuntimeUrl}</code></li>
+            <li>Set Browser Source to 1920×1080 and enable <em>Transparent Background</em></li>
+            <li>Use <code className="font-mono text-zinc-300">{overlayDevUrl}</code> only when you want to inspect the overlay dev server directly in a browser</li>
+            <li>Enable OBS WebSocket from Tools → obs-websocket Settings → Enable</li>
+            <li>Set the URL and password in General to match your OBS WebSocket settings</li>
+          </ol>
+        </ConfigSectionPanel>
+
+        <ConfigSectionPanel label="Server Info">
+          <div className="grid text-sm gap-y-1.5" style={{ gridTemplateColumns: '160px 1fr' }}>
+            <span className="text-zinc-400">Server port</span>
+            <span className="font-mono text-zinc-200">3000</span>
+            <span className="text-zinc-400">Overlay URL</span>
+            <a href={overlayRuntimeUrl} target="_blank" rel="noreferrer"
+               className="font-mono text-cyan-400 hover:text-cyan-300">
+              {overlayRuntimeUrl}
+            </a>
+            <span className="text-zinc-400">Overlay Dev URL</span>
+            <a href={overlayDevUrl} target="_blank" rel="noreferrer"
+               className="font-mono text-zinc-300 hover:text-zinc-100">
+              {overlayDevUrl}
+            </a>
+            <span className="text-zinc-400">Admin URL</span>
+            <span className="font-mono text-zinc-200">{adminUrl}</span>
+            <span className="text-zinc-400">Admin Preview URL</span>
+            <span className="font-mono text-zinc-200">{previewUrl}</span>
+            <span className="text-zinc-400">OBS Browser Source</span>
+            <span className="font-mono text-zinc-200">{overlayRuntimeUrl}</span>
+          </div>
+        </ConfigSectionPanel>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
       <ConfigSectionPanel label="OBS WebSocket Settings" first>
@@ -86,29 +134,6 @@ export function SettingsPage() {
         )}
       </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Server Info">
-        <div className="grid text-sm gap-y-1.5" style={{ gridTemplateColumns: '160px 1fr' }}>
-          <span className="text-zinc-400">Server port</span>
-          <span className="font-mono text-zinc-200">3000</span>
-          <span className="text-zinc-400">Overlay URL</span>
-          <a href={overlayRuntimeUrl} target="_blank" rel="noreferrer"
-             className="font-mono text-cyan-400 hover:text-cyan-300">
-            {overlayRuntimeUrl}
-          </a>
-          <span className="text-zinc-400">Overlay Dev URL</span>
-          <a href={overlayDevUrl} target="_blank" rel="noreferrer"
-             className="font-mono text-zinc-300 hover:text-zinc-100">
-            {overlayDevUrl}
-          </a>
-          <span className="text-zinc-400">Admin URL</span>
-          <span className="font-mono text-zinc-200">{adminUrl}</span>
-          <span className="text-zinc-400">Admin Preview URL</span>
-          <span className="font-mono text-zinc-200">{previewUrl}</span>
-          <span className="text-zinc-400">OBS Browser Source</span>
-          <span className="font-mono text-zinc-200">{overlayRuntimeUrl}</span>
-        </div>
-      </ConfigSectionPanel>
-
       <ConfigSectionPanel label="Preview Routing">
         <Toggle
           checked={previewTarget === 'runtime'}
@@ -122,17 +147,11 @@ export function SettingsPage() {
         </div>
       </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="OBS Setup Guide">
-        <ol className="text-sm text-zinc-300 list-decimal list-inside space-y-1.5 leading-relaxed">
-          <li>In OBS: create ONE scene called <strong>STREAM</strong></li>
-          <li>Add a <strong>Game Capture</strong> source (bottom layer)</li>
-          <li>Add a <strong>Browser Source</strong> → <code className="font-mono text-cyan-400">{overlayRuntimeUrl}</code></li>
-          <li>Set Browser Source to 1920×1080, check <em>Transparent Background</em></li>
-          <li>Use <code className="font-mono text-zinc-300">{overlayDevUrl}</code> only when you want to inspect the overlay dev server directly in a browser</li>
-          <li>Enable OBS WebSocket: Tools → obs-websocket Settings → Enable</li>
-          <li>Set the URL + password above to match your OBS settings</li>
-        </ol>
-      </ConfigSectionPanel>
+      {consolePanel && (
+        <ConfigSectionPanel label="Socket Console">
+          {consolePanel}
+        </ConfigSectionPanel>
+      )}
     </div>
   )
 }

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import { DEFAULT_STICKY_NOTES_SETTINGS } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
-import { patchDesktopConfig } from './configPersistence'
+import { patchApplicationConfig } from './configPersistence'
 
 const NOTE_COLORS = ['#fff2a8', '#ffd3e0', '#d8f8d0', '#cde8ff']
 
-function saveStickyNote(text: string, color: string) {
-  patchDesktopConfig({
-    stickyNotes: {
+function saveStickyNote(appId: string, text: string, color: string) {
+  patchApplicationConfig(appId, {
+    stickyNotesSettings: {
       text,
       color,
     },
@@ -23,15 +24,18 @@ interface StickyNotesWidgetProps {
 }
 
 export function StickyNotesWidget({
+  appId = 'sticky-notes',
   onClose,
   onMinimize,
   onFocus,
   windowState = 'open',
   zIndex,
 }: StickyNotesWidgetProps) {
-  const noteConfig = useAppStore((store) => store.config.desktopConfig?.stickyNotes)
-  const [text, setText] = useState(() => noteConfig?.text ?? 'Remember to hydrate')
-  const [color, setColor] = useState(() => noteConfig?.color ?? NOTE_COLORS[0])
+  const noteConfig = useAppStore((store) => (
+    store.config.applications.find((app) => app.id === appId)?.stickyNotesSettings
+  ))
+  const [text, setText] = useState(() => noteConfig?.text ?? DEFAULT_STICKY_NOTES_SETTINGS.text)
+  const [color, setColor] = useState(() => noteConfig?.color ?? DEFAULT_STICKY_NOTES_SETTINGS.color)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -43,7 +47,7 @@ export function StickyNotesWidget({
   const scheduleSave = (nextText: string, nextColor: string) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      saveStickyNote(nextText, nextColor)
+      saveStickyNote(appId, nextText, nextColor)
     }, 300)
   }
 

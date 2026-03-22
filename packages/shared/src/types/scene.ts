@@ -91,6 +91,16 @@ export interface SourceWidgetSettings {
   sourceId?: string
 }
 
+export interface StickyNotesSettings {
+  text: string
+  color: string
+}
+
+export interface RecycleBinSettings {
+  emptyIcon: string
+  fullIcon: string
+}
+
 /** A desktop application icon that launches a scene or opens a widget */
 export interface Application {
   id: string
@@ -143,6 +153,10 @@ export interface Application {
   }
   /** Optional source binding for source-backed widget windows. */
   sourceWidgetSettings?: SourceWidgetSettings
+  /** Optional persisted content for the Sticky Notes system widget. */
+  stickyNotesSettings?: StickyNotesSettings
+  /** Optional icon assets for the Recycle Bin decoration app. */
+  recycleBinSettings?: RecycleBinSettings
 }
 
 /** A scene is an ordered list of source instances */
@@ -238,16 +252,9 @@ export interface DesktopConfig {
   widgetZIndices?: Record<string, number>
   /** Saved named widget layout presets for the desktop runtime. */
   widgetLayouts?: WidgetLayoutDefinition[]
-  /** Visual state for the recycle bin decoration app */
+  /** Runtime state for the recycle bin decoration app */
   recycleBin: {
-    emptyIcon: string
-    fullIcon: string
     fullOnStart: boolean
-  }
-  /** Persisted content for the sticky notes widget */
-  stickyNotes: {
-    text: string
-    color: string
   }
   /** Screen saver settings */
   screenSaver: {

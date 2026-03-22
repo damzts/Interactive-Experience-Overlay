@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, STATE, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
@@ -10,9 +10,51 @@ const REQUIRED_DESKTOP_APP_IDS = new Set(
     .map((app) => app.id),
 )
 
+type LegacyDesktopConfig = Partial<DesktopConfig> & {
+  stickyNotes?: Partial<NonNullable<Application['stickyNotesSettings']>> | null
+  recycleBin?: Partial<DesktopConfig['recycleBin']> & Partial<NonNullable<Application['recycleBinSettings']>>
+}
+
+function migrateLegacyDesktopAppSettings(applications: Application[], desktopConfig?: AppConfig['desktopConfig']) {
+  const legacyDesktop = desktopConfig as LegacyDesktopConfig | undefined
+  const legacyStickyNotes = legacyDesktop?.stickyNotes ?? undefined
+  const legacyRecycleBin = legacyDesktop?.recycleBin ?? undefined
+
+  if (!legacyStickyNotes && !legacyRecycleBin) return applications
+
+  return applications.map((app) => {
+    if (app.id === 'sticky-notes' && app.appType === 'widget' && legacyStickyNotes) {
+      return {
+        ...app,
+        stickyNotesSettings: {
+          ...DEFAULT_STICKY_NOTES_SETTINGS,
+          ...legacyStickyNotes,
+          ...app.stickyNotesSettings,
+        },
+      }
+    }
+
+    if (app.id === 'recycle-bin' && app.appType === 'decoration' && legacyRecycleBin) {
+      const nextRecycleBinSettings = {
+        ...DEFAULT_RECYCLE_BIN_SETTINGS,
+        ...(legacyRecycleBin.emptyIcon !== undefined ? { emptyIcon: legacyRecycleBin.emptyIcon } : {}),
+        ...(legacyRecycleBin.fullIcon !== undefined ? { fullIcon: legacyRecycleBin.fullIcon } : {}),
+        ...app.recycleBinSettings,
+      }
+
+      return {
+        ...app,
+        recycleBinSettings: nextRecycleBinSettings,
+      }
+    }
+
+    return app
+  })
+}
+
 function withConfigDefaults(next: AppConfig): AppConfig {
   const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
-  let applications = withApplicationListDefaults(next.applications)
+  let applications = [...(next.applications ?? [])]
   const lobbyScene = next.scenes[STATE.LOBBY] ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
   const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
   const defaultLobbyStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style ?? DEFAULT_CONFIG.overlayStyle)
@@ -40,6 +82,7 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     }
   }
 
+  applications = migrateLegacyDesktopAppSettings(applications, next.desktopConfig)
   applications = withApplicationListDefaults(applications)
 
   const migratedAmbiance = structuredClone(next.desktopAmbiance ?? {}) as Partial<NonNullable<AppConfig['desktopAmbiance']>>
@@ -136,10 +179,6 @@ export async function configRoute(
           recycleBin: {
             ...currentDesktop.recycleBin,
             ...req.body.recycleBin,
-          },
-          stickyNotes: {
-            ...currentDesktop.stickyNotes,
-            ...req.body.stickyNotes,
           },
           screenSaver: {
             ...currentDesktop.screenSaver,
