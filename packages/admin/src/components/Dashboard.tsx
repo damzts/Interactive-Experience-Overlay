@@ -21,7 +21,7 @@ import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
 import type { AssetKind } from '../assets/catalog'
 import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
-import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar } from './ui'
+import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
@@ -119,62 +119,19 @@ function buildWidgetLayoutItem(
   desktopConfig: DesktopConfig,
   enabled: boolean,
 ): WidgetLayoutItem {
-  const size = resolveWidgetSizeFromConfig(app, desktopConfig)
   const position = desktopConfig.widgetPositions?.[app.id] ?? buildWidgetLayoutFallbackPosition(widgetIndex)
+  const size = resolveWidgetSizeFromConfig(app, desktopConfig)
+  const focusPriority = desktopConfig.widgetZIndices?.[app.id] ?? resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
+
   return {
     widgetId: app.id,
     enabled,
     x: Math.max(0, Math.round(position.x)),
     y: Math.max(0, Math.round(position.y)),
-    width: size.width,
-    height: size.height,
-    focusPriority: resolveWidgetDefaultZIndexFromConfig(app, desktopConfig),
+    width: Math.max(180, Math.round(size.width)),
+    height: Math.max(140, Math.round(size.height)),
+    focusPriority: Math.max(0, Math.round(Number.isFinite(focusPriority as number) ? (focusPriority as number) : 0)),
   }
-}
-
-function normalizeWidgetLayoutForEditor(
-  layout: WidgetLayoutDefinition,
-  widgetApps: Application[],
-  desktopConfig: DesktopConfig,
-): WidgetLayoutDefinition {
-  const widgetIndexById = new Map(widgetApps.map((app, index) => [app.id, index]))
-  const itemsById = new Map(layout.items.map((item) => [item.widgetId, item]))
-
-  return {
-    ...layout,
-    icon: layout.icon || '📐',
-    source: layout.source,
-    description: layout.description ?? '',
-    items: widgetApps.map((app, index) => {
-      const source = itemsById.get(app.id)
-      const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
-      if (!source) return fallback
-
-      return {
-        widgetId: app.id,
-        enabled: !!source.enabled,
-        x: Math.max(0, Math.round(source.x ?? fallback.x)),
-        y: Math.max(0, Math.round(source.y ?? fallback.y)),
-        width: clampWidgetDimension(source.width ?? fallback.width, 180, 1400, fallback.width),
-        height: clampWidgetDimension(source.height ?? fallback.height, 140, 1000, fallback.height),
-        focusPriority: Number.isFinite(source.focusPriority)
-          ? Math.round(source.focusPriority)
-          : fallback.focusPriority,
-      }
-    }).sort((a, b) => {
-      const indexA = widgetIndexById.get(a.widgetId) ?? Number.MAX_SAFE_INTEGER
-      const indexB = widgetIndexById.get(b.widgetId) ?? Number.MAX_SAFE_INTEGER
-      return indexA - indexB
-    }),
-  }
-}
-
-function normalizeWidgetLayoutsForEditor(
-  layouts: WidgetLayoutDefinition[] | undefined,
-  widgetApps: Application[],
-  desktopConfig: DesktopConfig,
-) {
-  return (layouts ?? []).map((layout) => normalizeWidgetLayoutForEditor(layout, widgetApps, desktopConfig))
 }
 
 function createWidgetLayoutFromCurrentState(
@@ -183,35 +140,65 @@ function createWidgetLayoutFromCurrentState(
   desktopConfig: DesktopConfig,
   openWidgetIds: string[],
 ): WidgetLayoutDefinition {
+  const trimmedLabel = label.trim() || 'Widget Layout'
+  const slug = trimmedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'widget-layout'
+
   return {
-    id: `widget-layout-${Date.now()}`,
-    label,
+    id: `${slug}-${Date.now()}`,
+    label: trimmedLabel,
     icon: '📐',
     source: 'user',
-    description: '',
     items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, desktopConfig, openWidgetIds.includes(app.id))),
   }
+}
+
+function normalizeWidgetLayoutsForEditor(
+  widgetLayouts: WidgetLayoutDefinition[] | undefined,
+  widgetApps: Application[],
+  desktopConfig: DesktopConfig,
+) {
+  const layouts = widgetLayouts ?? []
+
+  return layouts.map((layout) => ({
+    ...layout,
+    items: widgetApps.map((app, index) => {
+      const source = layout.items.find((item) => item.widgetId === app.id)
+      const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
+
+      return {
+        widgetId: app.id,
+        enabled: source?.enabled ?? fallback.enabled,
+        x: Math.max(0, Math.round(source?.x ?? fallback.x)),
+        y: Math.max(0, Math.round(source?.y ?? fallback.y)),
+        width: clampWidgetDimension(source?.width ?? fallback.width, 180, 1400, fallback.width),
+        height: clampWidgetDimension(source?.height ?? fallback.height, 140, 1000, fallback.height),
+        focusPriority: Number.isFinite(source?.focusPriority)
+          ? Math.round(source!.focusPriority)
+          : fallback.focusPriority,
+      }
+    }),
+  }))
 }
 
 type UserWidgetBaseComponent = 'camera' | 'source'
 
 const USER_WIDGET_COMPONENT_OPTIONS: Array<{
   id: UserWidgetBaseComponent
-  icon: string
   label: string
+  icon: string
   description: string
 }> = [
   {
     id: 'camera',
-    icon: '📷',
     label: 'Camera',
-    description: 'Dedicated camera capture widget with device defaults and mirror controls.',
+    icon: '📷',
+    description: 'Opens a desktop camera window with per-widget camera defaults.',
   },
   {
     id: 'source',
-    icon: '🧩',
     label: 'Source',
-    description: 'Embeds a scene source inside a desktop window and lets you swap bindings later.',
+    icon: '🧩',
+    description: 'Opens a desktop window bound to an existing scene source renderer.',
   },
 ]
 
@@ -220,24 +207,15 @@ function buildUserWidgetId(
   label: string,
   existingIds: Set<string>,
 ) {
-  const slug = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
+  const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'widget'
   const normalizedSlug = slug.replace(new RegExp(`^${widgetComponent}-`), '') || 'widget'
-
   const base = `${widgetComponent}-${normalizedSlug}`
 
-  let candidate = base
-  let suffix = 2
-  while (existingIds.has(candidate)) {
-    candidate = `${base}-${suffix}`
-    suffix += 1
-  }
+  if (!existingIds.has(base)) return base
 
-  return candidate
+  let suffix = 2
+  while (existingIds.has(`${base}-${suffix}`)) suffix += 1
+  return `${base}-${suffix}`
 }
 
 function findFirstSceneSource(scenes: Record<string, Scene>) {
@@ -248,7 +226,7 @@ function findFirstSceneSource(scenes: Record<string, Scene>) {
     }
   }
 
-  return null
+  return undefined
 }
 
 function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widgetId: string): DesktopConfig {
@@ -269,7 +247,7 @@ function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widgetId: s
     widgetSizes: Object.keys(nextSizes).length ? nextSizes : undefined,
     widgetDefaultZIndices: Object.keys(nextDefaultZIndices).length ? nextDefaultZIndices : undefined,
     widgetZIndices: Object.keys(nextRuntimeZIndices).length ? nextRuntimeZIndices : undefined,
-    widgetLayouts: next.widgetLayouts.map((layout) => ({
+    widgetLayouts: (next.widgetLayouts ?? []).map((layout) => ({
       ...layout,
       items: layout.items.filter((item) => item.widgetId !== widgetId),
     })),
@@ -329,6 +307,7 @@ function ThemeAppearanceFields({
     </div>
   )
 }
+
 function LabeledHexColorRow({
   label,
   value,
@@ -1425,6 +1404,34 @@ function itemKey(item: SelectedItem): string {
   return item.kind
 }
 
+function summarizeTransitionModel(steps?: TransitionStep[]) {
+  if (!steps?.length) return 'none'
+  const ids = steps.map((step) => step.id).join(' -> ')
+  return `${steps.length} step${steps.length === 1 ? '' : 's'}: ${ids}`
+}
+
+function formatIconPositionModel(position?: { x: number; y: number }) {
+  if (!position) return 'unset'
+  return `x: ${Math.round(position.x)}, y: ${Math.round(position.y)}`
+}
+
+function ModelField({
+  field,
+  value,
+  mono = false,
+}: {
+  field: string
+  value: React.ReactNode
+  mono?: boolean
+}) {
+  return (
+    <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2">
+      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{field}</div>
+      <div className={`text-[11px] text-zinc-100 break-all ${mono ? 'font-mono' : ''}`}>{value}</div>
+    </div>
+  )
+}
+
 // ── StyleEditor ────────────────────────────────────────────────────
 
 function StyleEditor({ sceneId }: { sceneId: string }) {
@@ -1472,10 +1479,11 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
   const pt = style.particles
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <ConfigApplyBar label="Scene Style" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
 
-      <Panel title="Background">
+      <div className="space-y-0 pt-3">
+        <ConfigSectionPanel label="Background" first>
         <div className="space-y-3">
           <select value={bg.type} onChange={(e) => update((d) => { d.background.type = e.target.value as BackgroundType })}
             className="w-full text-xs">
@@ -1550,9 +1558,9 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
             <Slider label="Blur" value={bg.blur} min={0} max={20} step={0.5} unit="px" onChange={(v) => update((d) => { d.background.blur = v })} />
           </div>}
         </div>
-      </Panel>
+        </ConfigSectionPanel>
 
-      <Panel title="Effects">
+        <ConfigSectionPanel label="Effects">
         <div className="space-y-2">
           <div>
             <Toggle checked={fx.crt} onChange={(v) => update((d) => { d.effects.crt = v })} label="CRT Scanlines" />
@@ -1569,9 +1577,9 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
           <Toggle checked={fx.flicker} onChange={(v) => update((d) => { d.effects.flicker = v })} label="Screen Flicker" />
           <Toggle checked={fx.chromatic} onChange={(v) => update((d) => { d.effects.chromatic = v })} label="Chromatic Aberration" />
         </div>
-      </Panel>
+        </ConfigSectionPanel>
 
-      <Panel title="Particles">
+        <ConfigSectionPanel label="Particles">
         <div className="space-y-3">
           <select value={pt.preset}
             onChange={(e) => update((d) => { d.particles.preset = e.target.value as ParticlePreset; d.particles.enabled = e.target.value !== 'none' })}
@@ -1583,7 +1591,8 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
             <Slider label="Speed"   value={pt.speed}   onChange={(v) => update((d) => { d.particles.speed   = v })} />
           </div>}
         </div>
-      </Panel>
+        </ConfigSectionPanel>
+      </div>
     </div>
   )
 }
@@ -1732,7 +1741,8 @@ function LobbyConfigEditor() {
   return (
     <div className="space-y-3">
       <ConfigApplyBar label="Lobby Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-      <Panel title="Transitions">
+      <div className="space-y-0 pt-3">
+      <ConfigSectionPanel label="Transitions" first>
         <div className="space-y-3">
           {([
             { field: 'introTransitions' as const, label: 'Intro (entering)' },
@@ -1751,33 +1761,33 @@ function LobbyConfigEditor() {
             </div>
           ))}
         </div>
-      </Panel>
-      <Panel title="Ambient Light">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Ambient Light">
         <LabeledHexColorRow label="" value={form.ambientColor} onChange={(v) => update((d) => { d.ambientColor = v })} />
         <Slider label="Intensity" value={form.ambientIntensity} min={0} max={2} step={0.01} onChange={(v) => update((d) => { d.ambientIntensity = v })} />
-      </Panel>
-      <Panel title="Fog">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Fog">
         <LabeledHexColorRow label="" value={form.fogColor} onChange={(v) => update((d) => { d.fogColor = v })} />
         <Slider label="Near" value={form.fogNear} min={1} max={20} step={0.5} onChange={(v) => update((d) => { d.fogNear = v })} />
         <Slider label="Far"  value={form.fogFar}  min={5} max={60} step={1}   onChange={(v) => update((d) => { d.fogFar  = v })} />
-      </Panel>
-      <Panel title="World">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="World">
         <LabeledHexColorRow label="Sky Top" value={form.skyTopColor} onChange={(v) => update((d) => { d.skyTopColor = v })} />
         <LabeledHexColorRow label="Horizon" value={form.skyHorizonColor} onChange={(v) => update((d) => { d.skyHorizonColor = v })} />
         <LabeledHexColorRow label="Floor" value={form.floorColor} onChange={(v) => update((d) => { d.floorColor = v })} />
         <Slider label="Reflectivity" value={form.floorReflectivity} min={0} max={1} step={0.05} onChange={(v) => update((d) => { d.floorReflectivity = v })} />
-      </Panel>
-      <Panel title="CRT Glow">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="CRT Glow">
         <LabeledHexColorRow label="" value={form.crtGlowColor} onChange={(v) => update((d) => { d.crtGlowColor = v })} />
-      </Panel>
-      <Panel title="Atmosphere">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Atmosphere">
         <Toggle checked={form.dustMotes} onChange={(v) => update((d) => { d.dustMotes = v })} label="Dust motes" />
         <div className="mt-2 space-y-1">
           <Slider label="Camera FOV" value={form.cameraFov} min={30} max={120} step={1} onChange={(v) => update((d) => { d.cameraFov = v })} />
           <Slider label="Stars"      value={form.starsCount} min={0} max={2000} step={50} onChange={(v) => update((d) => { d.starsCount = v })} />
         </div>
-      </Panel>
-      <Panel title="Room Life">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Room Life">
         <div className="space-y-3">
           <div>
             <Toggle checked={form.virtualPet.enabled} onChange={(v) => update((d) => { d.virtualPet.enabled = v })} label="Virtual pet" />
@@ -1810,7 +1820,8 @@ function LobbyConfigEditor() {
             )}
           </div>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
     </div>
   )
 }
@@ -1907,7 +1918,8 @@ function DesktopConfigEditor() {
   return (
     <div className="space-y-3">
       <ConfigApplyBar label="Desktop Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-      <Panel title="Transitions">
+      <div className="space-y-0 pt-3">
+      <ConfigSectionPanel label="Transitions" first>
         <div className="space-y-3">
           {([
             { field: 'introTransitions' as const, label: 'Intro (entering)' },
@@ -1926,8 +1938,8 @@ function DesktopConfigEditor() {
             </div>
           ))}
         </div>
-      </Panel>
-      <Panel title="Theme">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Theme">
         <div className="space-y-4">
           <div className="text-[10px] text-zinc-500 leading-relaxed">
             Theme presets style desktop chrome only. The overlay stays transparent until the desktop Background panel is explicitly set to show wallpaper, gradients, patterns, or video.
@@ -1988,8 +2000,8 @@ function DesktopConfigEditor() {
             />
           </div>
         </div>
-      </Panel>
-      <Panel title="Sticky Notes">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Sticky Notes">
         <div className="text-[10px] text-zinc-500 mb-1">Default note text</div>
         <textarea value={form.stickyNotes.text}
           onChange={(e) => update((d) => { d.stickyNotes.text = e.target.value })}
@@ -2002,8 +2014,8 @@ function DesktopConfigEditor() {
           pickerClassName="w-20 h-9 p-1 shrink-0"
           textClassName="font-mono text-xs flex-1 min-w-0"
         />
-      </Panel>
-      <Panel title="Recycle Bin">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Recycle Bin">
         <Toggle checked={form.recycleBin.fullOnStart} onChange={(v) => update((d) => { d.recycleBin.fullOnStart = v })} label="Starts full" />
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div>
@@ -2031,8 +2043,8 @@ function DesktopConfigEditor() {
             />
           </div>
         </div>
-      </Panel>
-      <Panel title="Screen Saver">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Screen Saver">
         <Toggle checked={form.screenSaver.enabled} onChange={(v) => update((d) => { d.screenSaver.enabled = v })} label="Enable" />
         {form.screenSaver.enabled && <>
           <div className="mt-2 mb-2">
@@ -2049,8 +2061,8 @@ function DesktopConfigEditor() {
             </button>
           ))}
         </>}
-      </Panel>
-      <Panel title="System Sounds">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="System Sounds">
         <div className="text-[10px] text-zinc-500 mb-2">Relative to <span className="font-mono text-zinc-400">assets/sfx/system/</span></div>
         {(['startup', 'error', 'notify', 'click', 'close'] as const).map((key) => (
           <div key={key} className="flex items-center gap-2 mb-1.5">
@@ -2060,8 +2072,8 @@ function DesktopConfigEditor() {
               placeholder={key + '.wav'} className="flex-1 font-mono text-[11px]" />
           </div>
         ))}
-      </Panel>
-      <Panel title="Socket Tests">
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Socket Tests">
         <div className="space-y-2">
           <div>
             <div className="text-[10px] text-zinc-500 mb-1">Title</div>
@@ -2084,7 +2096,8 @@ function DesktopConfigEditor() {
             <Btn onClick={() => socket.emit('desktop:recycle-bin', { full: false })}>Bin Empty</Btn>
           </div>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
     </div>
   )
 }
@@ -2230,185 +2243,163 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   return (
     <div className="space-y-3">
       <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-      <Panel title="Identity">
-        <div className="space-y-2">
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">ID <span className="text-zinc-600">(read-only — persisted widget record id)</span></div>
-            <input type="text" value={form.id} readOnly className="w-full text-xs font-mono text-zinc-500 cursor-default select-all" />
-          </div>
-          {form.appType === 'widget' && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={'text-[9px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full border ' + (
-                widgetSource === 'system'
-                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                  : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
-              )}>
-                {widgetSource}
-              </span>
-              {widgetComponent && (
-                <span className="text-[9px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full border border-zinc-700 bg-zinc-900/70 text-zinc-300">
-                  {widgetComponent}
-                </span>
-              )}
-              {isProtectedSystemWidget && (
-                <span className="text-[10px] text-zinc-500">System widgets stay persisted and cannot be removed.</span>
-              )}
-            </div>
-          )}
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Label</div>
-            <input type="text" value={form.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full text-xs" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
-            <div className="flex gap-2 items-center">
-              <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
-                <IconGlyph icon={form.icon} label={form.label} size={32} />
+      <div className="space-y-0 pt-3">
+        <ConfigSectionPanel label="Identity" first>
+            <div className="space-y-3">
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Label</div>
+                <input type="text" value={form.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full text-xs" />
               </div>
-              <div className="flex-1 min-w-0">
-                <AssetSelectionInput
-                  value={form.icon}
-                  onChange={(nextValue) => update((d) => { d.icon = nextValue })}
-                  kinds={['image']}
-                  modalTitle="Application Icon"
-                  placeholder="Emoji or /assets/icons/custom.png"
-                  buttonLabel="Choose Image"
-                  hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
-                  inputClassName="font-mono"
-                  previewKind="image"
-                />
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+                <div className="flex gap-2 items-center">
+                  <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
+                    <IconGlyph icon={form.icon} label={form.label} size={32} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <AssetSelectionInput
+                      value={form.icon}
+                      onChange={(nextValue) => update((d) => { d.icon = nextValue })}
+                      kinds={['image']}
+                      modalTitle="Application Icon"
+                      placeholder="Emoji or /assets/icons/custom.png"
+                      buttonLabel="Choose Image"
+                      hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
+                      inputClassName="font-mono"
+                      previewKind="image"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Size</div>
+                <div className="flex gap-1">
+                  {(['small', 'normal', 'large'] as const).map((s) => (
+                    <button key={s} onClick={() => update((d) => { d.iconSize = s })}
+                      className={'px-2.5 py-1 text-[11px] rounded border capitalize transition-colors ' +
+                        ((form.iconSize ?? 'normal') === s ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Size</div>
-            <div className="flex gap-1">
-              {(['small', 'normal', 'large'] as const).map((s) => (
-                <button key={s} onClick={() => update((d) => { d.iconSize = s })}
-                  className={'px-2.5 py-1 text-[11px] rounded border capitalize transition-colors ' +
-                    ((form.iconSize ?? 'normal') === s ? 'bg-cyan-600/30 text-cyan-300 border-cyan-500/40' : 'text-zinc-400 bg-zinc-800 border-zinc-700 hover:text-zinc-100')}>
-                  {s}
+        </ConfigSectionPanel>
+
+        {supportsSceneTransitions && (
+          <ConfigSectionPanel label="Transitions">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
+                  <TransitionList
+                    value={form.introTransitions ?? []}
+                    onChange={(steps) => update((d) => { d.introTransitions = steps.length ? steps : undefined })}
+                  />
+                </div>
+                <div>
+                  <div className="text-[10px] text-zinc-500 mb-1">Exit</div>
+                  <TransitionList
+                    value={form.exitTransitions ?? []}
+                    onChange={(steps) => update((d) => { d.exitTransitions = steps.length ? steps : undefined })}
+                  />
+                </div>
+              </div>
+          </ConfigSectionPanel>
+        )}
+
+        <ConfigSectionPanel label="Position">
+            <div className="text-[10px] text-zinc-600 mb-2">1920×1080 canvas, pixels from top-left.</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">X</div>
+                <input type="number" min={0} max={1850} value={form.iconPosition?.x ?? 16}
+                  onChange={(e) => update((d) => { d.iconPosition = { x: Number(e.target.value), y: d.iconPosition?.y ?? 16 } })}
+                  className="w-full font-mono text-xs" />
+              </div>
+              <div>
+                <div className="text-[10px] text-zinc-500 mb-1">Y</div>
+                <input type="number" min={0} max={990} value={form.iconPosition?.y ?? 16}
+                  onChange={(e) => update((d) => { d.iconPosition = { x: d.iconPosition?.x ?? 16, y: Number(e.target.value) } })}
+                  className="w-full font-mono text-xs" />
+              </div>
+            </div>
+            <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
+            <div className="text-[10px] text-zinc-600 mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
+        </ConfigSectionPanel>
+
+        {form.appType === 'widget' && (
+          <ConfigSectionPanel label="Widget Window Defaults">
+              <div className="text-[10px] text-zinc-600 mb-2">Configure default window size for this widget.</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-[10px] text-zinc-500 mb-1">Width</div>
+                  <input
+                    type="number"
+                    min={180}
+                    max={1400}
+                    value={widgetSize.width}
+                    onChange={(e) => setWidgetSize((prev) => ({ ...prev, width: Number(e.target.value) }))}
+                    className="w-full font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <div className="text-[10px] text-zinc-500 mb-1">Height</div>
+                  <input
+                    type="number"
+                    min={140}
+                    max={1000}
+                    value={widgetSize.height}
+                    onChange={(e) => setWidgetSize((prev) => ({ ...prev, height: Number(e.target.value) }))}
+                    className="w-full font-mono text-xs"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <div className="text-[10px] text-zinc-600">
+                  Default: {defaultWidgetSize.width}x{defaultWidgetSize.height}px
+                  {hasWidgetSizeOverride ? ' (override active)' : ''}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWidgetSize(defaultWidgetSize)}
+                  className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                >
+                  Reset to Default
                 </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Panel>
+              </div>
+              <div className="mt-3 pt-3 border-t border-zinc-700/50">
+                <div className="text-[10px] text-zinc-500 mb-1">
+                  Default Z-Index
+                  <span className="text-zinc-600 ml-1">(base order — higher starts nearer the front before manual focus changes)</span>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    min={0}
+                    max={999}
+                    value={widgetDefaultZIndex}
+                    onChange={(e) => {
+                      setWidgetDefaultZIndex(Math.max(0, Math.min(999, Math.round(Number(e.target.value) || 0))))
+                    }}
+                    className="w-24 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id, widgetComponent))}
+                    className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                  >
+                    Reset
+                  </button>
+                </div>
+                <div className="text-[10px] text-zinc-600 mt-1">
+                  This is the widget's baseline stack order. Saved layouts can temporarily bias focus priority on top of this, and manual clicking or taskbar focus can still move a window to the front at runtime.
+                </div>
+              </div>
+          </ConfigSectionPanel>
+        )}
 
-      {supportsSceneTransitions && (
-        <Panel title="Transitions">
-          <div className="space-y-3">
-            <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
-              <TransitionList
-                value={form.introTransitions ?? []}
-                onChange={(steps) => update((d) => { d.introTransitions = steps.length ? steps : undefined })}
-              />
-            </div>
-            <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Exit</div>
-              <TransitionList
-                value={form.exitTransitions ?? []}
-                onChange={(steps) => update((d) => { d.exitTransitions = steps.length ? steps : undefined })}
-              />
-            </div>
-          </div>
-        </Panel>
-      )}
-
-      <Panel title="Position">
-        <div className="text-[10px] text-zinc-600 mb-2">1920×1080 canvas, pixels from top-left.</div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">X</div>
-            <input type="number" min={0} max={1850} value={form.iconPosition?.x ?? 16}
-              onChange={(e) => update((d) => { d.iconPosition = { x: Number(e.target.value), y: d.iconPosition?.y ?? 16 } })}
-              className="w-full font-mono text-xs" />
-          </div>
-          <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Y</div>
-            <input type="number" min={0} max={990} value={form.iconPosition?.y ?? 16}
-              onChange={(e) => update((d) => { d.iconPosition = { x: d.iconPosition?.x ?? 16, y: Number(e.target.value) } })}
-              className="w-full font-mono text-xs" />
-          </div>
-        </div>
-        <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
-        <div className="text-[10px] text-zinc-600 mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
-      </Panel>
-
-      {form.appType === 'widget' && (
-        <Panel title="Widget Window Defaults">
-          <div className="text-[10px] text-zinc-600 mb-2">Configure default window size for this widget.</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Width</div>
-              <input
-                type="number"
-                min={180}
-                max={1400}
-                value={widgetSize.width}
-                onChange={(e) => setWidgetSize((prev) => ({ ...prev, width: Number(e.target.value) }))}
-                className="w-full font-mono text-xs"
-              />
-            </div>
-            <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Height</div>
-              <input
-                type="number"
-                min={140}
-                max={1000}
-                value={widgetSize.height}
-                onChange={(e) => setWidgetSize((prev) => ({ ...prev, height: Number(e.target.value) }))}
-                className="w-full font-mono text-xs"
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <div className="text-[10px] text-zinc-600">
-              Default: {defaultWidgetSize.width}x{defaultWidgetSize.height}px
-              {hasWidgetSizeOverride ? ' (override active)' : ''}
-            </div>
-            <button
-              type="button"
-              onClick={() => setWidgetSize(defaultWidgetSize)}
-              className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-            >
-              Reset to Default
-            </button>
-          </div>
-          <div className="mt-3 pt-3 border-t border-zinc-700/50">
-            <div className="text-[10px] text-zinc-500 mb-1">
-              Default Z-Index
-              <span className="text-zinc-600 ml-1">(base order — higher starts nearer the front before manual focus changes)</span>
-            </div>
-            <div className="flex gap-2 items-center">
-              <input
-                type="number"
-                min={0}
-                max={999}
-                value={widgetDefaultZIndex}
-                onChange={(e) => {
-                  setWidgetDefaultZIndex(Math.max(0, Math.min(999, Math.round(Number(e.target.value) || 0))))
-                }}
-                className="w-24 font-mono text-xs"
-              />
-              <button
-                type="button"
-                onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id, widgetComponent))}
-                className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-              >
-                Reset
-              </button>
-            </div>
-            <div className="text-[10px] text-zinc-600 mt-1">
-              This is the widget's baseline stack order. Saved layouts can temporarily bias focus priority on top of this, and manual clicking or taskbar focus can still move a window to the front at runtime.
-            </div>
-          </div>
-        </Panel>
-      )}
-
-      {form.appType === 'widget' && widgetComponent === 'camera' && (
-        <Panel title="Camera Defaults">
+        {form.appType === 'widget' && widgetComponent === 'camera' && (
+          <ConfigSectionPanel label="Camera Defaults">
           <div className="space-y-3">
             <div className="text-[10px] text-zinc-400">
               Configura la cámara para este widget. El widget solo muestra el video — sin controles. Abre OBS con <span className="font-mono text-zinc-300">?obs=1</span> en la URL del browser source.
@@ -2473,11 +2464,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               </label>
             </div>
           </div>
-        </Panel>
-      )}
+          </ConfigSectionPanel>
+        )}
 
-      {form.appType === 'widget' && widgetComponent === 'source' && (
-        <Panel title="Source Binding">
+        {form.appType === 'widget' && widgetComponent === 'source' && (
+          <ConfigSectionPanel label="Source Binding">
           <div className="space-y-3">
             <div className="text-[10px] text-zinc-400">
               Source widgets render one scene source inside a desktop window. Bind this widget to any configured source and change it later without recreating the widget.
@@ -2546,11 +2537,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               </div>
             )}
           </div>
-        </Panel>
-      )}
+          </ConfigSectionPanel>
+        )}
 
-      {supportsSceneTransitions && (
-        <Panel title="Launch Pipeline">
+        {supportsSceneTransitions && (
+          <ConfigSectionPanel label="Launch Pipeline">
           <div className="text-[10px] text-zinc-500 mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
           <Toggle
             checked={!!form.launchPipeline}
@@ -2619,11 +2610,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               </div>
             </div>
           )}
-        </Panel>
-      )}
+          </ConfigSectionPanel>
+        )}
 
-      {form.appType === 'widget' && form.id === 'gallery' && (
-        <Panel title="Gallery Settings">
+        {form.appType === 'widget' && form.id === 'gallery' && (
+          <ConfigSectionPanel label="Gallery Settings">
           <div className="space-y-3">
             <Toggle
               checked={form.gallerySettings?.randomOrder ?? true}
@@ -2666,8 +2657,43 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               <div className="text-[10px] text-zinc-600 mt-1">Playback controls in overlay use Previous / Play / Next.</div>
             </div>
           </div>
-        </Panel>
-      )}
+          </ConfigSectionPanel>
+        )}
+
+        <ConfigSectionPanel label="Application Model">
+            <div className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-2">
+                <ModelField field="id" value={form.id} mono />
+                <ModelField field="appType" value={form.appType} mono />
+                <ModelField field="label" value={form.label || 'untitled'} />
+                <ModelField field="icon" value={form.icon || 'unset'} mono />
+                <ModelField field="iconSize" value={form.iconSize ?? 'normal'} mono />
+                {form.appType === 'scene' && (
+                  <ModelField field="targetSceneId" value={form.targetSceneId || 'none'} mono />
+                )}
+                {form.appType === 'widget' && widgetSource && (
+                  <ModelField field="widgetSource" value={widgetSource} mono />
+                )}
+                {form.appType === 'widget' && widgetComponent && (
+                  <ModelField field="widgetComponent" value={widgetComponent} mono />
+                )}
+                <ModelField field="iconPosition" value={formatIconPositionModel(form.iconPosition)} mono />
+                {supportsSceneTransitions && (
+                  <>
+                    <ModelField field="introTransitions" value={summarizeTransitionModel(form.introTransitions)} />
+                    <ModelField field="exitTransitions" value={summarizeTransitionModel(form.exitTransitions)} />
+                  </>
+                )}
+              </div>
+              {isProtectedSystemWidget && (
+                <div className="rounded border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-100/90 leading-relaxed">
+                  System widgets are part of the persisted baseline model. They remain present in config and cannot be removed from the dashboard.
+                </div>
+              )}
+            </div>
+        </ConfigSectionPanel>
+
+      </div>
 
       <button onClick={onDelete}
         disabled={isProtectedSystemWidget}
@@ -2746,8 +2772,8 @@ function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
   }
 
   return (
-    <div className="space-y-3">
-      <Panel title="Create Widget">
+    <div className="space-y-0 pt-1">
+      <ConfigSectionPanel label="Create Widget" first>
         <div className="space-y-3">
           <div className="text-[10px] text-zinc-400 leading-relaxed">
             New widgets are stored as user widget records. Choose the base component first, then create the widget and continue configuring it from the standard widget editor.
@@ -2847,7 +2873,7 @@ function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
             </Btn>
           </div>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
     </div>
   )
 }
@@ -2956,7 +2982,8 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
         onReset={reset}
       />
 
-      <Panel title="Layout Configuration">
+      <div className="space-y-0 pt-3">
+      <ConfigSectionPanel label="Layout Configuration" first>
         <div className="space-y-3">
           <div className="text-[10px] text-zinc-500 leading-relaxed">
             Configure this layout only. System layouts are the built-in taskbar presets and user layouts are your captured variants.
@@ -3120,7 +3147,8 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
               </div>
             </div>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
     </div>
   )
 }
@@ -3152,8 +3180,9 @@ function EventForm({ def, onUpdate, onDelete }: {
         </div>
       </div>
 
+      <div className="space-y-0 pt-2">
       {!def.builtIn && (
-        <Panel title="Edit">
+        <ConfigSectionPanel label="Edit" first>
           <div className="space-y-2">
             <div>
               <div className="text-[10px] text-zinc-400 mb-1">Label</div>
@@ -3175,11 +3204,11 @@ function EventForm({ def, onUpdate, onDelete }: {
               </select>
             </div>
           </div>
-        </Panel>
+        </ConfigSectionPanel>
 
       )}
 
-      <Panel title="Auto-Trigger">
+      <ConfigSectionPanel label="Auto-Trigger" first={def.builtIn}>
         <Toggle checked={def.auto.enabled} onChange={(v) => update((d) => { d.auto.enabled = v })} label="Enable auto-trigger" />
         {def.auto.enabled && (
           <div className="mt-3 space-y-2">
@@ -3206,10 +3235,10 @@ function EventForm({ def, onUpdate, onDelete }: {
             )}
           </div>
         )}
-      </Panel>
+      </ConfigSectionPanel>
 
       {def.type === 'widget-automation' && (
-        <Panel title="Widget Automation Settings">
+        <ConfigSectionPanel label="Widget Automation Settings">
           <div className="space-y-3">
             <div>
               <div className="text-[10px] text-zinc-400 mb-1">Available Widgets</div>
@@ -3260,10 +3289,10 @@ function EventForm({ def, onUpdate, onDelete }: {
               </div>
             </div>
           </div>
-        </Panel>
+        </ConfigSectionPanel>
       )}
 
-      <Panel title="Effects">
+      <ConfigSectionPanel label="Effects">
         <div className="space-y-2">
           {def.effects.length === 0 && (
             <div className="text-[10px] text-zinc-600 italic">No effects configured.</div>
@@ -3313,7 +3342,8 @@ function EventForm({ def, onUpdate, onDelete }: {
             ))}
           </select>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
 
       {!def.builtIn && onDelete && (
         <div className="pt-1">
@@ -3341,11 +3371,12 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
 
   return (
     <div className="space-y-3">
-      <Panel title="Sources">
+      <div className="space-y-0 pt-1">
+      <ConfigSectionPanel label="Sources" first>
         <SourcesEditor sceneId={sceneId} />
-      </Panel>
+      </ConfigSectionPanel>
       {linkedApp && (
-      <Panel title="Transitions">
+      <ConfigSectionPanel label="Transitions">
           <div className="space-y-3">
             <div>
               <div className="text-[10px] text-zinc-500 mb-1">Intro (entering)</div>
@@ -3362,12 +3393,13 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
               />
             </div>
           </div>
-        </Panel>
+        </ConfigSectionPanel>
       )}
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mt-1 mb-1">Visual Style</div>
+      </div>
       <StyleEditor sceneId={sceneId} />
 
-      <Panel title="Background Music">
+      <div className="space-y-0">
+      <ConfigSectionPanel label="Background Music">
         <div className="text-[10px] text-zinc-500 mb-2">Loop a music track while this scene is active. Leave blank for silence.</div>
         <input
           type="text"
@@ -3380,7 +3412,8 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
           className="w-full font-mono text-xs"
         />
         <div className="text-[10px] text-zinc-600 mt-1">Crossfade: 1.5 s</div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
     </div>
   )
 }
@@ -3643,6 +3676,18 @@ function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; lab
   )
 }
 
+function DashboardLegendCard({ icon, title, description }: { icon: string; title: string; description: string }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-3 text-left">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-base">{icon}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200">{title}</span>
+      </div>
+      <div className="text-[10px] text-zinc-500 leading-relaxed">{description}</div>
+    </div>
+  )
+}
+
 function RightPaneContent({ selected, onDeleted, onSelectItem, eventDefs, onUpdateEvent, onDeleteEvent }: {
   selected: SelectedItem; onDeleted: () => void; onSelectItem: (item: SelectedItem) => void
   eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
@@ -3656,20 +3701,14 @@ function RightPaneContent({ selected, onDeleted, onSelectItem, eventDefs, onUpda
       <div className="space-y-5">
         <EnvironmentLiveNotice targetState={STATE.LOBBY} label="Lobby" />
         <LobbyConfigEditor />
-        <div className="border-t border-zinc-800 pt-4">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Background & Style</div>
-          <StyleEditor sceneId={STATE.LOBBY} />
-        </div>
+        <StyleEditor sceneId={STATE.LOBBY} />
       </div>
     )
     return (
       <div className="space-y-5">
         <EnvironmentLiveNotice targetState={STATE.DESKTOP} label="Desktop" />
         <DesktopConfigEditor />
-        <div className="border-t border-zinc-800 pt-4">
-          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Background & Style</div>
-          <StyleEditor sceneId={STATE.DESKTOP} />
-        </div>
+        <StyleEditor sceneId={STATE.DESKTOP} />
       </div>
     )
   }
@@ -3732,10 +3771,25 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
 
   if (!selected) {
     return (
-      <div className="w-80 shrink-0 border-l border-zinc-800 flex items-center justify-center bg-zinc-950">
-        <div className="text-center text-zinc-700 px-6 select-none">
-          <div className="text-3xl mb-2 opacity-40">←</div>
-          <div className="text-xs">Select any item to configure</div>
+      <div className="w-80 shrink-0 border-l border-zinc-800 bg-zinc-950 overflow-y-auto">
+        <div className="p-4 space-y-3 select-none">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200">Dashboard Map</div>
+            <div className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
+              The left sidebar mixes environment states, scene definitions, scene-launching apps, desktop widgets, and decorative icons. Use this legend to read the taxonomy quickly.
+            </div>
+          </div>
+          <DashboardLegendCard icon="🖥" title="Environments" description="Fixed machine states such as Lobby and Desktop." />
+          <DashboardLegendCard icon="🎬" title="Scenes" description="Visual scene definitions: sources, style, and music stacks used by the runtime." />
+          <DashboardLegendCard icon="🎮" title="Scene Apps" description="Desktop icons that emit scene:change and can use transition pipelines." />
+          <DashboardLegendCard icon="🪟" title="Widgets" description="Desktop windows that open on DESKTOP without changing machine state. Widgets can be system or user, and can use camera, source, or built-in runtimes." />
+          <DashboardLegendCard icon="🖼" title="Decorations" description="Desktop-only icons for ambience. They render on the Desktop and do not open anything." />
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-3 text-left">
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
+            <div className="text-[10px] text-zinc-400 leading-relaxed">
+              Scene App = transition signal. Widget = open desktop thing. Decoration = render-only desktop thing.
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -3744,6 +3798,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
   // Build header info
   let headerIcon: React.ReactNode = ''
   let headerLabel = ''
+  let headerMeta = ''
   let actionLabel = ''
   let actionFn: (() => void) | null = null
   let isLive = false
@@ -3751,6 +3806,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
   if (selected.kind === 'env') {
     headerIcon  = selected.envState === STATE.LOBBY ? '🖥' : '💾'
     headerLabel = selected.envState === STATE.LOBBY ? 'Lobby' : 'Desktop'
+    headerMeta = 'Environment'
     isLive      = currentState === selected.envState
     actionLabel = isLive ? '● Live' : '▶ Go Live'
     actionFn    = () => triggerScene(selected.envState)
@@ -3758,6 +3814,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
     const parts = selected.sceneState.split(' ')
     headerIcon  = parts[0]
     headerLabel = parts.slice(1).join(' ') || selected.sceneState
+    headerMeta = 'Scene Definition'
     isLive      = currentState === selected.sceneState
     actionLabel = isLive ? '● Live' : '▶ Go Live'
     actionFn    = () => triggerScene(selected.sceneState)
@@ -3765,6 +3822,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
     const app   = applications.find((a) => a.id === selected.appId)
     headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
     headerLabel = app?.label ?? 'Application'
+    headerMeta = app ? 'Application Record' : 'Application'
     isLive      = app ? currentState === app.targetSceneId : false
     actionLabel = app?.appType === 'widget' ? '▶ Open' : app?.appType === 'scene' ? '▶ Launch' : 'Decoration'
     // Widgets do not transition — they are floating windows. Only scene apps emit scene:change.
@@ -3772,30 +3830,36 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
   } else if (selected.kind === 'widget-create') {
     headerIcon = '+'
     headerLabel = 'New Widget'
+    headerMeta = 'User Widget Creator'
   } else if (selected.kind === 'widget-layout') {
-    const layout = desktopConfig.widgetLayouts.find((entry) => entry.id === selected.layoutId)
+    const layout = (desktopConfig.widgetLayouts ?? []).find((entry) => entry.id === selected.layoutId)
     headerIcon = layout?.icon ?? '📐'
     headerLabel = layout?.label ?? 'Widget Layout'
+    headerMeta = layout?.source === 'system' ? 'System Layout' : 'User Layout'
   } else if (selected.kind === 'event') {
     const def   = eventDefs.find((e) => e.id === selected.id)
     headerIcon  = def?.icon  ?? '⚡'
     headerLabel = def?.label ?? 'Event'
+    headerMeta = 'Event Rule'
     isLive      = def?.auto.enabled ?? false
     actionLabel = '▶ Fire Now'
     actionFn    = () => {
       if (!def) return
       socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
     }
-  } else if (selected.kind === 'audio')       { headerIcon = '🔊'; headerLabel = 'Audio' }
-  else if (selected.kind === 'keybinds')    { headerIcon = '⌨';  headerLabel = 'Keybinds' }
-  else if (selected.kind === 'archive')     { headerIcon = '📁'; headerLabel = 'Archive' }
-  else if (selected.kind === 'settings')    { headerIcon = '⚙';  headerLabel = 'Settings' }
+  } else if (selected.kind === 'audio')       { headerIcon = '🔊'; headerLabel = 'Audio'; headerMeta = 'Utility' }
+  else if (selected.kind === 'keybinds')    { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
+  else if (selected.kind === 'archive')     { headerIcon = '📁'; headerLabel = 'Archive'; headerMeta = 'Utility' }
+  else if (selected.kind === 'settings')    { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
 
   return (
     <div className="w-80 shrink-0 border-l border-zinc-800 flex flex-col overflow-hidden bg-zinc-950">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800 shrink-0">
         <span className="text-sm shrink-0">{headerIcon}</span>
-        <span className="text-xs font-semibold text-zinc-200 flex-1 truncate">{headerLabel}</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-xs font-semibold text-zinc-200 truncate">{headerLabel}</span>
+          {headerMeta && <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{headerMeta}</span>}
+        </span>
         {actionFn && (
           <button onClick={actionFn}
             className={'text-xs px-2.5 py-1 rounded border transition-colors ' +
@@ -3936,7 +4000,7 @@ function SidebarBtn({ icon, label, live, statusLabel, statusClassName, active, o
       title={onDoubleClick ? 'Click to configure · Double-click to activate' : undefined}
       className={'w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors mb-0.5 text-left border ' +
         (active ? 'bg-zinc-700/90 text-zinc-100 border-zinc-600' : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800/70 border-transparent')}>
-      <span className="text-sm w-4 h-4 flex items-center justify-center shrink-0 leading-none">{icon}</span>
+      <span className="text-sm w-4 h-4 flex items-center justify-center shrink-0 leading-none overflow-hidden">{icon}</span>
       <span className="flex-1 truncate font-medium">{label}</span>
       {live && <span className="text-[9px] font-bold text-emerald-400 tracking-widest shrink-0">LIVE</span>}
       {!live && statusLabel && <span className={`text-[9px] font-bold tracking-widest shrink-0 ${statusClassName ?? 'text-zinc-500'}`}>{statusLabel}</span>}
@@ -3954,12 +4018,14 @@ function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-function SectionLabel({ children }: { children: string }) {
+function SectionLabel({ children, hint: _hint }: { children: string; hint?: string }) {
   return (
-    <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider px-2.5 pt-3 pb-1">
-      {children}
-    </div>
+    <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider px-2.5 pt-3 pb-1">{children}</div>
   )
+}
+
+function SidebarAppIcon({ app }: { app: Application }) {
+  return <IconGlyph icon={app.icon} label={app.label} size={14} />
 }
 
 function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
@@ -3980,8 +4046,9 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
   const systemWidgetApps = widgetApps.filter((app) => getWidgetSource(app) === 'system')
   const userWidgetApps = widgetApps.filter((app) => getWidgetSource(app) === 'user')
   const decorationApps = applications.filter((a) => a.appType === 'decoration')
-  const systemWidgetLayouts = desktopConfig.widgetLayouts.filter((layout) => layout.source === 'system')
-  const userWidgetLayouts = desktopConfig.widgetLayouts.filter((layout) => layout.source === 'user')
+  const persistedWidgetLayouts = desktopConfig.widgetLayouts ?? []
+  const systemWidgetLayouts = persistedWidgetLayouts.filter((layout) => layout.source === 'system')
+  const userWidgetLayouts = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]
 
   const captureCurrentLayout = async () => {
@@ -3991,7 +4058,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
     await saveConfig({
       desktopConfig: {
         ...desktopConfig,
-        widgetLayouts: [...desktopConfig.widgetLayouts, nextLayout],
+        widgetLayouts: [...persistedWidgetLayouts, nextLayout],
       },
     })
     onSelect({ kind: 'widget-layout', layoutId: nextLayout.id })
@@ -4004,18 +4071,18 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto pb-1">
 
-      <SectionLabel>Environments</SectionLabel>
-      <SidebarBtn icon="🖥" label="Lobby"   live={currentState === STATE.LOBBY}   active={isActive({ kind: 'env', envState: STATE.LOBBY })}   onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })}   onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
+      <SectionLabel hint="Fixed machine states that own the lobby and desktop environments.">Environments</SectionLabel>
+      <SidebarBtn icon="🖥" label="Lobby" live={currentState === STATE.LOBBY} active={isActive({ kind: 'env', envState: STATE.LOBBY })} onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })} onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
       <SidebarBtn icon="💾" label="Desktop" live={currentState === STATE.DESKTOP} active={isActive({ kind: 'env', envState: STATE.DESKTOP })} onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })} onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.DESKTOP })} />
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Scenes</SectionLabel>
+      <SectionLabel hint="Scene definitions: source stacks, styles, and music authored for runtime states.">Scenes</SectionLabel>
       {sceneApps.map((app) => {
         const sc = scenes[app.targetSceneId]
         if (!sc) return null
         return (
-          <SidebarBtn key={sc.id} icon={<IconGlyph icon={app.icon} label={sc.label} />} label={sc.label}
+          <SidebarBtn key={sc.id} icon={<SidebarAppIcon app={app} />} label={sc.label}
             live={currentState === sc.id}
             active={isActive({ kind: 'scene', sceneState: sc.id })}
             onClick={() => onSelect({ kind: 'scene', sceneState: sc.id })}
@@ -4025,9 +4092,9 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Applications</SectionLabel>
+      <SectionLabel hint="Desktop icons that launch scene transitions.">Scene Apps</SectionLabel>
       {sceneApps.map((app) => (
-        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
+        <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
           live={currentState === app.targetSceneId}
           active={isActive({ kind: 'app', appId: app.id })}
           onClick={() => onSelect({ kind: 'app', appId: app.id })}
@@ -4056,9 +4123,9 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Widgets</SectionLabel>
+      <SectionLabel hint="Desktop windows. Widgets do not change machine state.">Widgets</SectionLabel>
       {systemWidgetApps.map((app) => (
-        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
+        <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
           statusLabel={openWidgetIds.includes(app.id) ? 'OPEN' : 'CLOSED'}
           statusClassName={openWidgetIds.includes(app.id) ? 'text-cyan-300' : 'text-zinc-600'}
           active={isActive({ kind: 'app', appId: app.id })}
@@ -4071,7 +4138,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
         </div>
       )}
       {userWidgetApps.map((app) => (
-        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
+        <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
           statusLabel={openWidgetIds.includes(app.id) ? 'OPEN' : 'CLOSED'}
           statusClassName={openWidgetIds.includes(app.id) ? 'text-cyan-300' : 'text-zinc-600'}
           active={isActive({ kind: 'app', appId: app.id })}
@@ -4082,7 +4149,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Widgets Layout</SectionLabel>
+      <SectionLabel hint="Saved desktop window presets and focus ordering.">Widget Layouts</SectionLabel>
       {orderedWidgetLayouts.map((layout) => (
         <SidebarBtn
           key={layout.id}
@@ -4099,9 +4166,9 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Decorations</SectionLabel>
+      <SectionLabel hint="Desktop-only icons for environmental dressing.">Decorations</SectionLabel>
       {decorationApps.map((app) => (
-        <SidebarBtn key={app.id} icon={<IconGlyph icon={app.icon} label={app.label} />} label={app.label}
+        <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
           live={false}
           active={isActive({ kind: 'app', appId: app.id })}
           onClick={() => onSelect({ kind: 'app', appId: app.id })}
@@ -4115,7 +4182,7 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
 
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Events</SectionLabel>
+      <SectionLabel hint="Overlay triggers and automation rules.">Events</SectionLabel>
       {eventDefs.map((def) => (
         <SidebarBtn key={def.id} icon={def.icon} label={def.label}
           statusLabel={def.auto.enabled ? 'AUTO' : undefined}
@@ -4129,10 +4196,10 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       <div className="flex-1" />
       <div className="mx-2 mt-2 border-t border-zinc-800/80" />
 
-      <SectionLabel>Utilities</SectionLabel>
-      <SidebarBtn icon="📁" label="Archive"       active={isActive({ kind: 'archive' })}     onClick={() => onSelect({ kind: 'archive' })} />
-      <SidebarBtn icon="🌌" label="Ambiance"      active={isActive({ kind: 'ambiance' })}    onClick={() => onSelect({ kind: 'ambiance' })} />
-      <SidebarBtn icon="🗂" label="Asset Library" active={false}                              onClick={onLibrary} />
+      <SectionLabel hint="Auxiliary panels that are not runtime applications.">Utilities</SectionLabel>
+      <SidebarBtn icon="📁" label="Archive" active={isActive({ kind: 'archive' })} onClick={() => onSelect({ kind: 'archive' })} />
+      <SidebarBtn icon="🌌" label="Ambiance" active={isActive({ kind: 'ambiance' })} onClick={() => onSelect({ kind: 'ambiance' })} />
+      <SidebarBtn icon="🗂" label="Asset Library" active={false} onClick={onLibrary} />
       </div>{/* end scrollable nav */}
       <SocketLogConsole />
     </div>
@@ -4266,7 +4333,7 @@ export function Dashboard() {
   }, [applications, selected])
 
   useEffect(() => {
-    if (selected?.kind === 'widget-layout' && !desktopConfig.widgetLayouts.some((layout) => layout.id === selected.layoutId)) {
+    if (selected?.kind === 'widget-layout' && !(desktopConfig.widgetLayouts ?? []).some((layout) => layout.id === selected.layoutId)) {
       setSelected(null)
     }
   }, [desktopConfig.widgetLayouts, selected])

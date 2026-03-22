@@ -88,6 +88,11 @@ Key structures:
 - `'widget'` opens a floating desktop window without changing machine state
 - `'decoration'` renders a non-launchable desktop icon used for environmental dressing
 
+Widget applications can also carry two secondary classifications:
+
+- `widgetSource`: `'system'` for built-in desktop widgets that must exist, or `'user'` for operator-created widgets
+- `widgetComponent`: the runtime base component used by the widget window, such as `camera`, `source`, `gallery`, `music`, `archive`, `chat`, or `sticky-notes`
+
 `Application.icon` can be an emoji glyph or an uploaded image path/URL. `Application.iconPosition` is the persisted source of truth for manual icon placement when auto-arrange is off.
 
 **DesktopConfig** holds desktop-runtime configuration: theme preset, default icon size, auto-arrange toggle, ambient icon animation mode, icon motion strength, sticky note defaults, recycle-bin defaults, widget positions/sizes, system sounds, and screen saver behavior.
@@ -240,6 +245,8 @@ This means auto-event behavior now comes from the same persisted event definitio
 
 The admin is a React SPA that connects to the server over Socket.IO on startup. The main dashboard shows current state, OBS connection status, left-side navigation, right-pane editors, an always-open socket console, and a live preview iframe.
 
+The dashboard is intentionally split into taxonomy sections so operators can tell apart fixed environment states, scene definitions, scene-launching apps, desktop widgets, widget layouts, and decorative icons. The empty right pane also acts as a legend, explaining how these categories differ and what each one does at runtime.
+
 The preview can target either `http://localhost:3000` (runtime) or `http://localhost:3001` (direct overlay dev server) through a persisted preview-target setting. The preview shows a badge so the operator can see which source is active. Lobby/Desktop editors can also show live-state notices when the preview/runtime is currently on the wrong environment.
 
 ### Shared Asset Library
@@ -266,7 +273,9 @@ The admin is where scene composition is authored.
 - icon artwork as emoji or uploaded image
 - icon positions persisted back through the application PATCH route when manually dragged in the overlay
 
-The widget-creation UX is template-based. Operators add predefined widget ids such as `music`, `archive`, `chat`, `sticky-notes`, and `gallery` rather than arbitrary custom widget ids.
+Application editors now include an explicit runtime-role summary so the operator can see whether the selected record is a scene app, a widget, or a decoration, and what signal it produces at runtime.
+
+The widget-creation UX is now base-component driven. Operators create user widgets by choosing a runtime base such as `camera` or `source`, then configure the resulting widget record in the same editor used by built-in widgets. Widget configuration surfaces the persisted `widgetSource` (`system` vs `user`) and `widgetComponent` so the specialization stays visible.
 
 ### Desktop Configuration
 
@@ -383,6 +392,14 @@ Built-in desktop widgets are currently:
 | `chat` | `ChatWidget` | Draggable chat window |
 | `sticky-notes` | `StickyNotesWidget` | Persistent note text and color |
 | `gallery` | `GalleryWidget` | Random image gallery with manual next and auto-rotate |
+| `camera` | `CameraWidget` | Dedicated camera capture window with device defaults |
+
+User-created widgets currently support at least two base runtimes:
+
+| Widget Component | Runtime | Notes |
+|---|---|---|
+| `camera` | `CameraWidget` | Opens another camera-backed widget window using its own persisted defaults |
+| `source` | `SourceWidget` | Renders a selected `SourceInstance` from a scene inside a desktop window |
 
 Unknown widget ids fall back to `GenericWidget`, a minimal placeholder Win98 window.
 

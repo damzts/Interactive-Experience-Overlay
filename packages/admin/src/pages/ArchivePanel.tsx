@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Panel, Btn } from '../components/ui'
+import { Btn, ConfigSectionPanel } from '../components/ui'
 
 interface Stats {
   wins: number
@@ -61,13 +61,14 @@ export function ArchivePanel() {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-2xl">
+    <div className="max-w-2xl space-y-3">
 
       {error && (
         <div className="text-red-400 bg-red-950/40 border border-red-800/40 rounded px-3 py-2 text-xs">⚠ {error}</div>
       )}
 
-      <Panel title="SYSTEM ARCHIVE — Persistent Stats">
+      <div className="space-y-0 pt-1">
+      <ConfigSectionPanel label="System Archive" first>
         {!stats && !error && <div className="text-sm text-zinc-500">Loading archive…</div>}
         {stats && (
           <table className="w-full text-sm border-collapse">
@@ -84,9 +85,9 @@ export function ArchivePanel() {
             </tbody>
           </table>
         )}
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="Event Log">
+      <ConfigSectionPanel label="Event Log">
         {log.length === 0 ? (
           <div className="text-sm text-zinc-500">No events recorded yet.</div>
         ) : (
@@ -111,9 +112,9 @@ export function ArchivePanel() {
             </table>
           </div>
         )}
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="Actions">
+      <ConfigSectionPanel label="Actions">
         <div className="flex gap-3 items-center flex-wrap">
           {resetDone && <span className="text-xs text-emerald-400">✔ Stats reset.</span>}
           {!confirmReset ? (
@@ -127,7 +128,8 @@ export function ArchivePanel() {
           )}
           <span className="text-xs text-zinc-500">(v1 — stats persist per session; SQLite in v2)</span>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
     </div>
   )
 }

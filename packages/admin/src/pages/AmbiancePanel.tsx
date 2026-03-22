@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
 import { withDesktopAmbianceDefaults, type DesktopAmbianceConfig, type Application } from '@ieom/shared'
-import { Panel, Toggle, Slider, isSameDraft, IconGlyph, ConfigApplyBar } from '../components/ui'
+import { Toggle, Slider, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel } from '../components/ui'
 
 function WidgetBehaviorEditor({
   app,
@@ -135,7 +135,8 @@ export function AmbiancePanel() {
         Changes are staged locally. Use Save Changes to apply them.
       </div>
       <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
-      <Panel title="Widget Simulation">
+      <div className="space-y-0 pt-3">
+      <ConfigSectionPanel label="Widget Simulation" first>
         <div className="space-y-4">
           <Toggle
             checked={simConfig.enabled}
@@ -200,7 +201,8 @@ export function AmbiancePanel() {
             </div>
           )}
         </div>
-      </Panel>
+      </ConfigSectionPanel>
+      </div>
     </div>
   )
 }

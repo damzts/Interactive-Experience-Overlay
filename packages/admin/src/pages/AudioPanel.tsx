@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn, Slider } from '../components/ui'
+import { Btn, Slider, ConfigSectionPanel } from '../components/ui'
 
 export function AudioPanel() {
   const config = useAdminStore((s) => s.config)
@@ -24,9 +24,8 @@ export function AudioPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-xl">
-
-      <Panel title="Volume Controls">
+    <div className="max-w-xl space-y-0 pt-1">
+      <ConfigSectionPanel label="Volume Controls" first>
         <div className="space-y-2">
           <Slider label="Master Volume" value={audio.masterVolume}
             onChange={(v) => setAudio((a) => ({ ...a, masterVolume: v }))} />
@@ -38,9 +37,9 @@ export function AudioPanel() {
         <Btn variant="primary" className="mt-4" onClick={handleSave} disabled={saving}>
           {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}
         </Btn>
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="Mood → Music Mapping">
+      <ConfigSectionPanel label="Mood to Music Mapping">
         <p className="text-xs text-zinc-400 mb-3">Each scene state maps to a music mood. Assign audio files/URLs per mood.</p>
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -68,9 +67,9 @@ export function AudioPanel() {
             ))}
           </tbody>
         </table>
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="SFX Library">
+      <ConfigSectionPanel label="SFX Library">
         <p className="text-xs text-zinc-400 mb-3">
           Place <code className="font-mono text-cyan-400">.wav</code> / <code className="font-mono text-cyan-400">.mp3</code> files in{' '}
           <code className="font-mono text-cyan-400">ieom/assets/sfx/</code> to enable sound effects.
@@ -90,7 +89,7 @@ export function AudioPanel() {
             </button>
           </div>
         ))}
-      </Panel>
+      </ConfigSectionPanel>
     </div>
   )
 }

@@ -173,6 +173,29 @@ export function Panel({
   )
 }
 
+export function ConfigSectionPanel({
+  label,
+  children,
+  first = false,
+  className = '',
+}: {
+  label: string
+  children: ReactNode
+  first?: boolean
+  className?: string
+}) {
+  return (
+    <section className={first ? 'px-1 pt-1' : 'mt-10 px-1'}>
+      <div className={first ? 'mb-4 px-1' : 'mb-4 border-t-2 border-cyan-500/35 px-1 pt-3'}>
+        <span className="inline-flex rounded-full border border-cyan-500/45 bg-cyan-500/12 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
+          {label}
+        </span>
+      </div>
+      <Panel className={className}>{children}</Panel>
+    </section>
+  )
+}
+
 type BtnVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'active'
 
 const BTN_VARIANTS: Record<BtnVariant, string> = {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn } from '../components/ui'
+import { Btn, ConfigSectionPanel } from '../components/ui'
 import { socket } from '../socket/client'
 
 type BindingScope = 'obs' | 'admin'
@@ -131,8 +131,8 @@ export function KeybindEditor() {
   }
 
   return (
-    <div className="max-w-3xl">
-      <Panel title="Keybind Editor">
+    <div className="max-w-3xl space-y-0 pt-1">
+      <ConfigSectionPanel label="Keybind Editor" first>
         <p className="text-xs text-zinc-400 mb-4">
           Add as many bindings as you want. Choose whether the binding belongs to OBS or the focused admin panel,
           capture the key, then map it to a scene, widget, event, or panic action. Use Run to validate a row before saving.
@@ -227,7 +227,7 @@ export function KeybindEditor() {
           </Btn>
           <Btn onClick={handleReset}>↺ Revert</Btn>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
     </div>
   )
 }

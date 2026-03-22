@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn, Toggle } from '../components/ui'
+import { Btn, Toggle, ConfigSectionPanel } from '../components/ui'
 
 export function SettingsPage() {
   const config = useAdminStore((s) => s.config)
@@ -50,9 +50,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-lg">
-
-      <Panel title="OBS WebSocket Settings">
+    <div className="max-w-lg space-y-0 pt-1">
+      <ConfigSectionPanel label="OBS WebSocket Settings" first>
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xs text-zinc-400">Status:</span>
           <span className={`text-sm font-medium ${obsConnected ? 'text-emerald-400' : 'text-red-500'}`}>
@@ -85,9 +84,9 @@ export function SettingsPage() {
             {testResult}
           </div>
         )}
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="Server Info">
+      <ConfigSectionPanel label="Server Info">
         <div className="grid text-sm gap-y-1.5" style={{ gridTemplateColumns: '160px 1fr' }}>
           <span className="text-zinc-400">Server port</span>
           <span className="font-mono text-zinc-200">3000</span>
@@ -108,9 +107,9 @@ export function SettingsPage() {
           <span className="text-zinc-400">OBS Browser Source</span>
           <span className="font-mono text-zinc-200">{overlayRuntimeUrl}</span>
         </div>
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="Preview Routing">
+      <ConfigSectionPanel label="Preview Routing">
         <Toggle
           checked={previewTarget === 'runtime'}
           onChange={(useRuntime) => setPreviewTarget(useRuntime ? 'runtime' : 'dev')}
@@ -121,9 +120,9 @@ export function SettingsPage() {
           When disabled, it loads the direct overlay dev server at <span className="font-mono text-zinc-200">{overlayDevUrl}</span>.
           This setting affects the admin preview only. OBS should still use <span className="font-mono text-cyan-300">{overlayRuntimeUrl}</span>.
         </div>
-      </Panel>
+      </ConfigSectionPanel>
 
-      <Panel title="OBS Setup Guide">
+      <ConfigSectionPanel label="OBS Setup Guide">
         <ol className="text-sm text-zinc-300 list-decimal list-inside space-y-1.5 leading-relaxed">
           <li>In OBS: create ONE scene called <strong>STREAM</strong></li>
           <li>Add a <strong>Game Capture</strong> source (bottom layer)</li>
@@ -133,7 +132,7 @@ export function SettingsPage() {
           <li>Enable OBS WebSocket: Tools → obs-websocket Settings → Enable</li>
           <li>Set the URL + password above to match your OBS settings</li>
         </ol>
-      </Panel>
+      </ConfigSectionPanel>
     </div>
   )
 }
