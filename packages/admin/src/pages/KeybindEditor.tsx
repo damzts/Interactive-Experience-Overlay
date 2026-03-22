@@ -131,7 +131,7 @@ export function KeybindEditor() {
   }
 
   return (
-    <div className="max-w-3xl space-y-0 pt-1">
+    <div className="w-full max-w-none space-y-0 pt-1">
       <ConfigSectionPanel label="Keybind Editor" first>
         <p className="text-xs text-zinc-400 mb-4">
           Add as many bindings as you want. Choose whether the binding belongs to OBS or the focused admin panel,

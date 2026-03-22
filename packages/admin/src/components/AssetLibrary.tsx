@@ -9,6 +9,7 @@ import {
   useAssetCatalog,
 } from '../assets/catalog'
 import type { AssetKind, AssetRecord } from '../assets/catalog'
+import { FloatingWindowHeader, FloatingWindowShell } from './ui'
 
 const ASSET_RESULT_LIMIT = 60
 
@@ -377,15 +378,8 @@ export function AssetPickerModal({
   const uploadEnabled = kinds.some((kind) => kind === 'image' || kind === 'video')
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75" onClick={onClose}>
-      <div className="flex h-[85vh] max-h-[780px] w-[min(1100px,calc(100vw-48px))] flex-col overflow-hidden rounded-xl border border-zinc-700/80 bg-zinc-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
-          <span className="text-sm font-semibold text-zinc-100">{title}</span>
-          <div className="flex-1" />
-          <button type="button" onClick={onClose} className="px-2 text-lg leading-none text-zinc-500 transition-colors hover:text-zinc-200">
-            ✕
-          </button>
-        </div>
+    <FloatingWindowShell frameClassName="h-[85vh] max-h-[780px]" layerClassName="z-[70]">
+        <FloatingWindowHeader icon="🗂" title={title} onClose={onClose} />
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
           <div className="rounded-lg border border-zinc-800 bg-zinc-800/20 p-3 space-y-3">
@@ -422,8 +416,7 @@ export function AssetPickerModal({
 
           <AssetCatalogPanel kinds={kinds} selectedUrl={selectedUrl} onSelect={handleCatalogSelect} />
         </div>
-      </div>
-    </div>
+    </FloatingWindowShell>
   )
 }
 

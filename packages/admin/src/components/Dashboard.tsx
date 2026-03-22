@@ -21,7 +21,7 @@ import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
 import type { AssetKind } from '../assets/catalog'
 import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
-import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel } from './ui'
+import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel, FloatingWindowShell, FloatingWindowHeader } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
@@ -667,34 +667,19 @@ function TransitionPicker({
         <span className="text-zinc-600 text-[10px]">▼</span>
       </button>
 
-      {/* Modal — fixed size, flex column */}
+      {/* Floating utility */}
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
-          onClick={handleClose}
-        >
-          <div
-            className="w-[560px] h-[600px] flex flex-col bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header — fixed */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-zinc-100">Choose Transition</span>
-                {(selected || mediaParsed) && (
-                  <span className="text-[10px] text-cyan-400 bg-cyan-900/30 border border-cyan-700/30 rounded px-1.5 py-0.5">
-                    {selected ? `${TRANSITION_ICONS[selected.id]} ${selected.label}` : `🖼 ${mediaDisplay}`}
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleClose}
-                className="text-zinc-500 hover:text-zinc-200 text-lg leading-none ml-3"
-              >
-                ✕
-              </button>
-            </div>
+        <FloatingWindowShell frameClassName="relative h-[600px] w-[560px]" layerClassName="z-[60]">
+            <FloatingWindowHeader
+              icon="✨"
+              title="Choose Transition"
+              onClose={handleClose}
+              actions={(selected || mediaParsed) ? (
+                <span className="rounded border border-cyan-700/30 bg-cyan-900/30 px-1.5 py-0.5 text-[10px] text-cyan-400">
+                  {selected ? `${TRANSITION_ICONS[selected.id]} ${selected.label}` : `🖼 ${mediaDisplay}`}
+                </span>
+              ) : undefined}
+            />
 
             {/* Body — scrollable */}
             <div className="flex-1 overflow-y-auto p-4">
@@ -921,7 +906,6 @@ function TransitionPicker({
                   )}
                 </div>
 
-                {/* ── Library view ── */}
                 {mediaView === 'library' && (
                   <>
                     <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
@@ -1144,8 +1128,7 @@ function TransitionPicker({
               </div>
             )}
 
-          </div>
-        </div>
+        </FloatingWindowShell>
       )}
     </>
   )
@@ -1378,6 +1361,19 @@ type AutoTrigger = { enabled: boolean; mode: 'interval' | 'idle'; intervalMin: n
 type EventDef    = { id: string; label: string; icon: string; color: string; desc: string; builtIn?: boolean; effects: EffectConfig[]; auto: AutoTrigger; type?: 'overlay' | 'widget-automation'; widgetAutomation?: { availableWidgets?: string[]; toggleChance?: number; openBias?: number } }
 
 const DEFAULT_EVENT_DEFS: EventDef[] = []
+
+function createEventDef(): EventDef {
+  return {
+    id: 'custom-' + Date.now(),
+    label: 'New Event',
+    icon: '⚡',
+    color: 'text-cyan-400',
+    desc: '',
+    effects: [],
+    auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 },
+    type: 'overlay',
+  }
+}
 // ── Selected item union ────────────────────────────────────────────
 
 type SelectedItem =
@@ -1386,7 +1382,6 @@ type SelectedItem =
   | { kind: 'app';   appId: string }
   | { kind: 'widget-create' }
   | { kind: 'widget-layout'; layoutId: string }
-  | { kind: 'event'; id: string }
   | { kind: 'audio' }
   | { kind: 'keybinds' }
   | { kind: 'archive' }
@@ -1399,7 +1394,6 @@ function itemKey(item: SelectedItem): string {
   if (item.kind === 'app')   return 'app-' + item.appId
   if (item.kind === 'widget-create') return 'widget-create'
   if (item.kind === 'widget-layout') return 'widget-layout-' + item.layoutId
-  if (item.kind === 'event') return 'event-' + item.id
   if (item.kind === 'ambiance') return 'ambiance'
   return item.kind
 }
@@ -3426,16 +3420,29 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
 
 function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
+  const eventDefs = useAdminStore((s) => (s.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
   const saveConfig   = useAdminStore((s) => s.saveConfig)
 
-  const [tab, setTab] = useState<'catalog' | 'transitions'>('catalog')
+  const [tab, setTab] = useState<'catalog' | 'events' | 'transitions'>('catalog')
   const [addOpen, setAddOpen] = useState(false)
   const [name, setName] = useState('')
   const [type, setType] = useState<'image' | 'video'>('image')
   const [url, setUrl] = useState('')
   const [durStr, setDurStr] = useState('')
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(eventDefs[0]?.id ?? null)
 
   const resetForm = () => { setName(''); setType('image'); setUrl(''); setDurStr('') }
+  const selectedEvent = eventDefs.find((def) => def.id === selectedEventId) ?? null
+
+  useEffect(() => {
+    if (eventDefs.length === 0) {
+      if (selectedEventId !== null) setSelectedEventId(null)
+      return
+    }
+    if (!selectedEventId || !eventDefs.some((def) => def.id === selectedEventId)) {
+      setSelectedEventId(eventDefs[0].id)
+    }
+  }, [eventDefs, selectedEventId])
 
   const handleSave = async () => {
     if (!url) return
@@ -3453,28 +3460,44 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
     setAddOpen(false)
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteMediaEntry = async (id: string) => {
     await saveConfig({ mediaLibrary: mediaLibrary.filter((entry) => entry.id !== id) })
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={onClose}>
-      <div className="w-[720px] h-[85vh] max-h-[780px] flex flex-col bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+  const handleAddEvent = async () => {
+    const def = createEventDef()
+    setTab('events')
+    await saveConfig({ events: [...eventDefs, def] })
+    setSelectedEventId(def.id)
+  }
 
-        {/* Modal header */}
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-zinc-800 shrink-0">
-          <span className="text-base">🗂</span>
-          <span className="text-sm font-semibold text-zinc-100">Asset Library</span>
-          <div className="flex-1" />
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-xl leading-none transition-colors">✕</button>
-        </div>
+  const handleUpdateEvent = (updated: EventDef) => {
+    void saveConfig({ events: eventDefs.map((entry) => entry.id === updated.id ? updated : entry) })
+  }
+
+  const handleDeleteEvent = (id: string) => {
+    const nextEvents = eventDefs.filter((entry) => entry.id !== id)
+    if (selectedEventId === id) {
+      setSelectedEventId(nextEvents[0]?.id ?? null)
+    }
+    void saveConfig({ events: nextEvents })
+  }
+
+  const handleTriggerEvent = (def: EventDef) => {
+    socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
+  }
+
+  return (
+    <FloatingWindowShell frameClassName="h-[85vh] max-h-[780px]" layerClassName="z-[60]">
+
+        <FloatingWindowHeader icon="🗂" title="Asset Library" onClose={onClose} />
 
         {/* Modal body */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-lg">
-        {(['catalog', 'transitions'] as const).map((t) => (
+        {(['catalog', 'events', 'transitions'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -3482,7 +3505,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
             className={'flex-1 py-1 text-xs rounded capitalize transition-colors ' +
               (tab === t ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-200')}
           >
-            {t === 'catalog' ? '🗂 Catalog' : '✨ Transitions'}
+            {t === 'catalog' ? '🗂 Catalog' : t === 'events' ? '⚡ Events' : '✨ Transitions'}
           </button>
         ))}
       </div>
@@ -3495,7 +3518,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
           <AssetCatalogPanel
             kinds={['image', 'video', 'audio']}
-            onDeleteSavedEntry={(asset) => { void handleDelete(asset.id) }}
+            onDeleteSavedEntry={(asset) => { void handleDeleteMediaEntry(asset.id) }}
           />
 
           {addOpen && (
@@ -3559,6 +3582,67 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      {tab === 'events' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-800/20 px-3 py-2 text-xs text-zinc-500">
+            Overlay triggers and widget automation rules now live here instead of the left sidebar.
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {eventDefs.map((def) => {
+              const active = def.id === selectedEventId
+              return (
+                <button
+                  key={def.id}
+                  type="button"
+                  onClick={() => setSelectedEventId(def.id)}
+                  className={'flex items-center gap-2 rounded border px-2.5 py-1.5 text-left transition-colors ' + (
+                    active
+                      ? 'border-cyan-500/40 bg-cyan-600/15 text-zinc-100'
+                      : 'border-zinc-800 bg-zinc-800/30 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                  )}
+                >
+                  <span className="text-sm leading-none">{def.icon}</span>
+                  <span className="max-w-[12rem] truncate text-[11px] font-medium">{def.label}</span>
+                  {def.auto.enabled && <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-300">Auto</span>}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => { void handleAddEvent() }}
+              className="rounded border border-dashed border-zinc-700 px-2.5 py-1.5 text-[11px] text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+            >
+              ＋ New Event
+            </button>
+          </div>
+
+          {selectedEvent ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 px-0.5">
+                <div className="text-[10px] text-zinc-500">Editing {selectedEvent.label}</div>
+                <button
+                  type="button"
+                  onClick={() => handleTriggerEvent(selectedEvent)}
+                  className="rounded border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[10px] text-zinc-300 transition-colors hover:border-cyan-500/40 hover:text-cyan-300"
+                >
+                  ▶ Fire Now
+                </button>
+              </div>
+              <EventForm
+                def={selectedEvent}
+                onUpdate={handleUpdateEvent}
+                onDelete={selectedEvent.builtIn ? undefined : () => handleDeleteEvent(selectedEvent.id)}
+              />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-zinc-800 px-4 py-6 text-center text-xs text-zinc-600">
+              No events configured yet. Create one to add overlay triggers or widget automation rules.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Transitions tab ── */}
       {tab === 'transitions' && (
         <div className="space-y-1.5">
@@ -3580,8 +3664,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
       )}
 
         </div>
-      </div>
-    </div>
+    </FloatingWindowShell>
   )
 }
 
@@ -3692,9 +3775,8 @@ function DashboardLegendCard({ icon, title, description }: { icon: string; title
   )
 }
 
-function RightPaneContent({ selected, onDeleted, onSelectItem, eventDefs, onUpdateEvent, onDeleteEvent }: {
+function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   selected: SelectedItem; onDeleted: () => void; onSelectItem: (item: SelectedItem) => void
-  eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
 }) {
   const saveConfig   = useAdminStore((s) => s.saveConfig)
   const applications = useAdminStore((s) => s.config.applications)
@@ -3745,11 +3827,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem, eventDefs, onUpda
     return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
   }
 
-  if (selected.kind === 'event') {
-    const def = eventDefs.find((e) => e.id === selected.id)
-    if (!def) return <div className="text-zinc-600 text-xs italic p-4">Event not found.</div>
-    return <EventForm def={def} onUpdate={onUpdateEvent} onDelete={() => onDeleteEvent(def.id)} />
-  }
   if (selected.kind === 'audio')       return <AudioPanel />
   if (selected.kind === 'keybinds')    return <KeybindEditor />
   if (selected.kind === 'archive')     return <ArchivePanel />
@@ -3759,9 +3836,8 @@ function RightPaneContent({ selected, onDeleted, onSelectItem, eventDefs, onUpda
   return null
 }
 
-function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, onDeleteEvent }: {
+function RightPane({ selected, onClose, onSelectItem }: {
   selected: SelectedItem | null; onClose: () => void; onSelectItem: (item: SelectedItem) => void
-  eventDefs: EventDef[]; onUpdateEvent: (d: EventDef) => void; onDeleteEvent: (id: string) => void
 }) {
   const currentState = useAdminStore((s) => s.currentState)
   const setLastError = useAdminStore((s) => s.setLastError)
@@ -3839,17 +3915,6 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
     headerIcon = layout?.icon ?? '📐'
     headerLabel = layout?.label ?? 'Widget Layout'
     headerMeta = layout?.source === 'system' ? 'System Layout' : 'User Layout'
-  } else if (selected.kind === 'event') {
-    const def   = eventDefs.find((e) => e.id === selected.id)
-    headerIcon  = def?.icon  ?? '⚡'
-    headerLabel = def?.label ?? 'Event'
-    headerMeta = 'Event Rule'
-    isLive      = def?.auto.enabled ?? false
-    actionLabel = '▶ Fire Now'
-    actionFn    = () => {
-      if (!def) return
-      socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
-    }
   } else if (selected.kind === 'audio')       { headerIcon = '🔊'; headerLabel = 'Audio'; headerMeta = 'Utility' }
   else if (selected.kind === 'keybinds')    { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
   else if (selected.kind === 'archive')     { headerIcon = '📁'; headerLabel = 'Archive'; headerMeta = 'Utility' }
@@ -3876,7 +3941,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} eventDefs={eventDefs} onUpdateEvent={onUpdateEvent} onDeleteEvent={onDeleteEvent} />
+        <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
       </div>
     </div>
   )
@@ -3887,6 +3952,7 @@ function RightPane({ selected, onClose, onSelectItem, eventDefs, onUpdateEvent, 
 type LogEntry = { id: number; time: string; dir: '←' | '→'; event: string; summary: string }
 const logListeners: ((e: LogEntry) => void)[] = []
 let logSeq = 0
+let logHistory: LogEntry[] = []
 
 function formatLogData(args: unknown[]): string {
   if (args.length === 0) return ''
@@ -3908,6 +3974,7 @@ function pushLog(dir: '←' | '→', event: string, args: unknown[]) {
   const now = new Date()
   const time = now.toTimeString().slice(0, 8)
   const entry: LogEntry = { id: ++logSeq, time, dir, event, summary: formatLogData(args) }
+  logHistory = [...logHistory.slice(-99), entry]
   logListeners.forEach((fn) => fn(entry))
 }
 
@@ -3916,10 +3983,11 @@ const LOG_SKIP = new Set(['obs:status'])
 socket.onAny((event, ...args) => { if (!LOG_SKIP.has(event)) pushLog('←', event, args as unknown[]) })
 socket.onAnyOutgoing((event, ...args) => pushLog('→', event, args as unknown[]))
 
-function SocketLogConsole() {
-  const [entries,   setEntries] = useState<LogEntry[]>([])
+function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' | 'settings' }) {
+  const [entries,   setEntries] = useState<LogEntry[]>(() => logHistory)
   const [copied,    setCopied]  = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const isSettingsVariant = variant === 'settings'
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -3932,6 +4000,7 @@ function SocketLogConsole() {
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
+    logHistory = []
     setEntries([])
   }
 
@@ -3947,11 +4016,11 @@ function SocketLogConsole() {
   }, [entries])
 
   return (
-    <div className="shrink-0 border-t border-zinc-800">
-      <div className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left bg-zinc-900/70 border-b border-zinc-800">
-        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1">Console</span>
+    <div className={isSettingsVariant ? 'flex h-full min-h-0 flex-col rounded-lg border border-zinc-800 bg-zinc-950/70' : 'shrink-0 border-t border-zinc-800'}>
+      <div className={isSettingsVariant ? 'flex w-full items-center gap-2 px-3 py-2 text-left bg-zinc-900/80 border-b border-zinc-800 shrink-0' : 'w-full flex items-center gap-1.5 px-2.5 py-1.5 text-left bg-zinc-900/70 border-b border-zinc-800'}>
+        <span className={isSettingsVariant ? 'text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.2em] flex-1' : 'text-[9px] font-bold text-zinc-600 uppercase tracking-widest flex-1'}>Console</span>
         {entries.length > 0 && (
-          <span className="text-[10px] font-mono text-zinc-600 truncate max-w-[100px]">
+          <span className={isSettingsVariant ? 'text-[10px] font-mono text-zinc-500 truncate max-w-[220px]' : 'text-[10px] font-mono text-zinc-600 truncate max-w-[100px]'}>
             {entries[entries.length - 1].dir} {entries[entries.length - 1].event}
           </span>
         )}
@@ -3961,27 +4030,27 @@ function SocketLogConsole() {
               type="button"
               onClick={handleCopy}
               title="Copy log"
-              className="text-[10px] text-zinc-600 hover:text-zinc-300 px-1 transition-colors"
+              className={isSettingsVariant ? 'text-[11px] text-zinc-500 hover:text-zinc-200 px-1 transition-colors' : 'text-[10px] text-zinc-600 hover:text-zinc-300 px-1 transition-colors'}
             >{copied ? '✓' : '⎘'}</button>
             <button
               type="button"
               onClick={handleClear}
               title="Clear log"
-              className="text-[10px] text-zinc-600 hover:text-red-400 px-1 transition-colors"
+              className={isSettingsVariant ? 'text-[11px] text-zinc-500 hover:text-red-400 px-1 transition-colors' : 'text-[10px] text-zinc-600 hover:text-red-400 px-1 transition-colors'}
             >✕</button>
           </>
         )}
       </div>
-      <div className="h-[150px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-0.5">
+      <div className={isSettingsVariant ? 'flex-1 min-h-0 overflow-y-auto bg-zinc-950/60 px-3 py-2 space-y-1' : 'h-[150px] overflow-y-auto bg-zinc-950/60 px-2 py-1 space-y-0.5'}>
         {entries.length === 0 && (
-          <div className="text-[10px] text-zinc-700 italic pt-2 text-center">No events yet.</div>
+          <div className={isSettingsVariant ? 'text-xs text-zinc-600 italic pt-3 text-center' : 'text-[10px] text-zinc-700 italic pt-2 text-center'}>No events yet.</div>
         )}
         {entries.map((e) => (
-          <div key={e.id} className="flex gap-1.5 items-baseline font-mono">
-            <span className="text-[9px] text-zinc-700 shrink-0">{e.time}</span>
-            <span className={'text-[10px] shrink-0 ' + (e.dir === '→' ? 'text-cyan-600' : 'text-emerald-600')}>{e.dir}</span>
-            <span className="text-[10px] text-zinc-300 shrink-0 truncate max-w-[70px]">{e.event}</span>
-            {e.summary && <span className="text-[10px] text-zinc-600 truncate">{e.summary}</span>}
+          <div key={e.id} className={isSettingsVariant ? 'flex gap-2 items-baseline font-mono rounded border border-zinc-900/80 bg-zinc-950/70 px-2 py-1.5' : 'flex gap-1.5 items-baseline font-mono'}>
+            <span className={isSettingsVariant ? 'text-[10px] text-zinc-600 shrink-0' : 'text-[9px] text-zinc-700 shrink-0'}>{e.time}</span>
+            <span className={(isSettingsVariant ? 'text-[11px] shrink-0 ' : 'text-[10px] shrink-0 ') + (e.dir === '→' ? 'text-cyan-600' : 'text-emerald-600')}>{e.dir}</span>
+            <span className={isSettingsVariant ? 'text-[11px] text-zinc-200 shrink-0 truncate max-w-[180px]' : 'text-[10px] text-zinc-300 shrink-0 truncate max-w-[70px]'}>{e.event}</span>
+            {e.summary && <span className={isSettingsVariant ? 'text-[10px] text-zinc-500 truncate' : 'text-[10px] text-zinc-600 truncate'}>{e.summary}</span>}
           </div>
         ))}
         <div ref={bottomRef} />
@@ -4035,10 +4104,12 @@ function SidebarAppIcon({ app }: { app: Application }) {
   return <IconGlyph icon={app.icon} label={app.label} size={14} />
 }
 
-function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onAddEvent }: {
+function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLibrary, settingsOpen, onSettings }: {
   selected: SelectedItem | null; onSelect: (item: SelectedItem) => void; onActivate: (item: SelectedItem) => void
+  libraryOpen: boolean
   onLibrary: () => void
-  eventDefs: EventDef[]; onAddEvent: () => void
+  settingsOpen: boolean
+  onSettings: () => void
 }) {
   const currentState = useAdminStore((s) => s.currentState)
   const saveConfig   = useAdminStore((s) => s.saveConfig)
@@ -4181,47 +4252,25 @@ function LeftSidebar({ selected, onSelect, onActivate, onLibrary, eventDefs, onA
       ))}
       <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
 
-      <SectionLabel hint="Overlay triggers and automation rules.">Events</SectionLabel>
-      {eventDefs.map((def) => (
-        <SidebarBtn key={def.id} icon={def.icon} label={def.label}
-          statusLabel={def.auto.enabled ? 'AUTO' : undefined}
-          statusClassName="text-amber-300"
-          active={isActive({ kind: 'event', id: def.id })}
-          onClick={() => onSelect({ kind: 'event', id: def.id })}
-          onDoubleClick={() => onActivate({ kind: 'event', id: def.id })} />
-      ))}
-      <AddBtn label="New Event" onClick={onAddEvent} />
-
       <div className="flex-1" />
 
       <SectionLabel hint="Auxiliary panels that are not runtime applications.">Utilities</SectionLabel>
       <SidebarBtn icon="📁" label="Archive" active={isActive({ kind: 'archive' })} onClick={() => onSelect({ kind: 'archive' })} />
       <SidebarBtn icon="🌌" label="Ambiance" active={isActive({ kind: 'ambiance' })} onClick={() => onSelect({ kind: 'ambiance' })} />
-      <SidebarBtn icon="🗂" label="Asset Library" active={false} onClick={onLibrary} />
+      <SidebarBtn icon="🗂" label="Asset Library" active={libraryOpen} onClick={onLibrary} />
+      <SidebarBtn icon="⚙" label="Settings" active={settingsOpen} onClick={onSettings} />
       </div>{/* end scrollable nav */}
-      <SocketLogConsole />
     </div>
   )
 }
 
 // ── TopBar ─────────────────────────────────────────────────────────
 
-function TopBar({ onSettings }: { onSettings: () => void }) {
+function TopBar() {
   const obsConnected = useAdminStore((s) => s.obsConnected)
   const currentState = useAdminStore((s) => s.currentState)
   const clientCount  = useAdminStore((s) => s.clientCount)
   const lastError    = useAdminStore((s) => s.lastError)
-  const setLastError = useAdminStore((s) => s.setLastError)
-  const simulationLeaderId = useAdminStore((s) => s.simulationLeaderId)
-  const ambianceAcceptedCount = useAdminStore((s) => s.ambianceAcceptedCount)
-  const ambianceRejectedCount = useAdminStore((s) => s.ambianceRejectedCount)
-
-  const handlePanic = () => {
-    setLastError(null)
-    socket.emit('scene:change', STATE.DESKTOP, (err: string | null) => {
-      if (err) setLastError(err)
-    })
-  }
 
   return (
     <div className="flex items-center gap-3 px-3 h-10 bg-zinc-900 border-b border-zinc-800 shrink-0">
@@ -4234,35 +4283,15 @@ function TopBar({ onSettings }: { onSettings: () => void }) {
         <span className="text-[10px] text-zinc-600 font-mono">{clientCount}c</span>
       )}
       <span className="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded">{currentState}</span>
-      <div className="inline-flex items-center gap-2 rounded border border-zinc-800 bg-zinc-950/65 px-2 py-0.5">
-        <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500">SIM</span>
-        <span className="text-[10px] font-mono text-zinc-300" title={simulationLeaderId ?? 'none'}>
-          L:{simulationLeaderId ? simulationLeaderId.slice(0, 8) : 'none'}
-        </span>
-        <span className="text-[10px] font-mono text-emerald-300">A:{ambianceAcceptedCount}</span>
-        <span className="text-[10px] font-mono text-rose-300">R:{ambianceRejectedCount}</span>
-      </div>
       {lastError && (
         <span className="text-[10px] text-red-400 font-mono truncate max-w-[200px]" title={lastError}>{lastError}</span>
       )}
       <div className="flex-1" />
-      <button
-        onClick={onSettings}
-        className="text-zinc-500 hover:text-zinc-200 text-base px-1.5 py-1 rounded hover:bg-zinc-800 transition-colors"
-        title="Settings">
-        ⚙
-      </button>
-      <button
-        onClick={handlePanic}
-        className="px-3 py-1 rounded bg-red-900 hover:bg-red-700 border border-red-800 text-white text-xs font-bold tracking-widest transition-colors"
-        title="Reset to Desktop">
-        PANIC
-      </button>
     </div>
   )
 }
 
-type SettingsTab = 'general' | 'audio' | 'keybinds'
+type SettingsTab = 'general' | 'audio' | 'keybinds' | 'console'
 
 function SettingsModal({ tab, onTabChange, onClose }: {
   tab: SettingsTab
@@ -4270,39 +4299,40 @@ function SettingsModal({ tab, onTabChange, onClose }: {
   onClose: () => void
 }) {
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 backdrop-blur-sm">
-      <div className="w-[min(1100px,calc(100vw-48px))] h-[min(760px,calc(100vh-48px))] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 shrink-0">
-          <span className="text-sm font-semibold text-zinc-100">Settings</span>
-          <div className="flex gap-1 ml-4">
+    <FloatingWindowShell frameClassName="h-[min(760px,calc(100vh-48px))]" layerClassName="z-[55]">
+        <FloatingWindowHeader icon="⚙" title="Settings" onClose={onClose} />
+
+        <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
+          <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-lg">
             {([
               ['general', 'General'],
               ['audio', 'Audio'],
               ['keybinds', 'Keybinds'],
+              ['console', 'Console'],
             ] as const).map(([id, label]) => (
               <button
                 key={id}
+                type="button"
                 onClick={() => onTabChange(id)}
-                className={'px-3 py-1.5 rounded text-xs border transition-colors ' + (
+                className={'flex-1 py-1 text-xs rounded transition-colors ' + (
                   tab === id
-                    ? 'bg-cyan-600/20 border-cyan-500/40 text-cyan-300'
-                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:border-zinc-700'
+                    ? 'bg-zinc-700 text-zinc-100'
+                    : 'text-zinc-500 hover:text-zinc-200'
                 )}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex-1" />
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-lg leading-none px-2 py-1">×</button>
+
+          <div className={tab === 'console' ? 'flex-1 min-h-0' : 'flex-1 min-h-0 overflow-y-auto'}>
+            {tab === 'general' && <SettingsPage />}
+            {tab === 'audio' && <AudioPanel />}
+            {tab === 'keybinds' && <KeybindEditor />}
+            {tab === 'console' && <SocketLogConsole variant="settings" />}
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {tab === 'general' && <SettingsPage />}
-          {tab === 'audio' && <AudioPanel />}
-          {tab === 'keybinds' && <KeybindEditor />}
-        </div>
-      </div>
-    </div>
+    </FloatingWindowShell>
   )
 }
 
@@ -4311,17 +4341,11 @@ function SettingsModal({ tab, onTabChange, onClose }: {
 export function Dashboard() {
   const [selected,     setSelected]     = useState<SelectedItem | null>(null)
   const [libraryOpen,  setLibraryOpen]  = useState(false)
-  const eventDefs = useAdminStore((s) => (s.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab,  setSettingsTab]  = useState<SettingsTab>('general')
   const applications = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const settingsTab: SettingsTab | null = selected?.kind === 'settings'
-    ? 'general'
-    : selected?.kind === 'audio'
-      ? 'audio'
-      : selected?.kind === 'keybinds'
-        ? 'keybinds'
-        : null
 
   // Clear selection when selected app is removed
   useEffect(() => {
@@ -4362,49 +4386,33 @@ export function Dashboard() {
       }
     } else if (item.kind === 'widget-create') {
       return
-    } else if (item.kind === 'event') {
-      const def = eventDefs.find((eventDef) => eventDef.id === item.id)
-      if (!def) return
-      socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
     } else if (item.kind === 'widget-layout') {
       socket.emit('widget:layout:apply', item.layoutId)
     }
   }
 
-  const handleAddEvent = () => {
-    const id  = 'custom-' + Date.now()
-    const def: EventDef = { id, label: 'New Event', icon: '⚡', color: 'text-cyan-400', desc: '', effects: [], auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } }
-    saveConfig({ events: [...eventDefs, def] })
-    setSelected({ kind: 'event', id })
-  }
-
-  const handleUpdateEvent = (updated: EventDef) => {
-    saveConfig({ events: eventDefs.map((e) => e.id === updated.id ? updated : e) })
-    // Keep selected up to date (label/icon may have changed)
-    if (selected?.kind === 'event' && selected.id === updated.id) {
-      setSelected({ kind: 'event', id: updated.id })
-    }
-  }
-
-  const handleDeleteEvent = (id: string) => {
-    saveConfig({ events: eventDefs.filter((e) => e.id !== id) })
-    if (selected?.kind === 'event' && selected.id === id) setSelected(null)
-  }
-
   return (
     <div className="relative flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
-      <TopBar onSettings={() => handleSelect({ kind: 'settings' })} />
+      <TopBar />
       <div className="flex flex-1 overflow-hidden">
-        <LeftSidebar selected={selected} onSelect={handleSelect} onActivate={handleActivate} onLibrary={() => setLibraryOpen(true)} eventDefs={eventDefs} onAddEvent={handleAddEvent} />
+        <LeftSidebar
+          selected={selected}
+          onSelect={handleSelect}
+          onActivate={handleActivate}
+          libraryOpen={libraryOpen}
+          onLibrary={() => setLibraryOpen((open) => !open)}
+          settingsOpen={settingsOpen}
+          onSettings={() => setSettingsOpen((open) => !open)}
+        />
         <LivePreview />
-        {!settingsTab && <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} eventDefs={eventDefs} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />}
+        <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
       </div>
       {libraryOpen && <AssetLibraryPanel onClose={() => setLibraryOpen(false)} />}
-      {settingsTab && (
+      {settingsOpen && (
         <SettingsModal
           tab={settingsTab}
-          onTabChange={(tab) => setSelected(tab === 'general' ? { kind: 'settings' } : tab === 'audio' ? { kind: 'audio' } : { kind: 'keybinds' })}
-          onClose={() => setSelected(null)}
+          onTabChange={setSettingsTab}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>

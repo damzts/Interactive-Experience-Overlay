@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Scene, SourceInstance } from '@ieom/shared'
 import { useAdminStore } from '../store/useAdminStore'
-import { Panel, Btn, HexColorInput } from '../components/ui'
+import { Panel, Btn, HexColorInput, FloatingWindowHeader, FloatingWindowShell } from '../components/ui'
 
 /** Renders editable form fields for a source's config Record */
 function ConfigFieldEditor({
@@ -253,8 +253,9 @@ export function SceneEditor() {
 
       {/* Add Source modal */}
       {showAddSource && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <Panel title="Add Source" className="w-80">
+        <FloatingWindowShell frameClassName="w-80" layerClassName="z-[60]">
+          <FloatingWindowHeader icon="＋" title="Add Source" onClose={() => setShowAddSource(false)} />
+          <div className="p-4">
             <p className="text-sm text-zinc-400 mb-3">Select a source plugin type:</p>
             <div className="flex flex-col gap-2">
               {PLUGIN_TYPES.map((p) => (
@@ -262,8 +263,8 @@ export function SceneEditor() {
               ))}
             </div>
             <Btn variant="ghost" className="mt-3 w-full justify-center" onClick={() => setShowAddSource(false)}>Cancel</Btn>
-          </Panel>
-        </div>
+          </div>
+        </FloatingWindowShell>
       )}
     </div>
   )

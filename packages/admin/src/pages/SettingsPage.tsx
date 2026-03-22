@@ -50,7 +50,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="max-w-lg space-y-0 pt-1">
+    <div className="w-full max-w-none space-y-0 pt-1">
       <ConfigSectionPanel label="OBS WebSocket Settings" first>
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xs text-zinc-400">Status:</span>

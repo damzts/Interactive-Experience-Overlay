@@ -172,6 +172,50 @@ export function HexColorInput({
   )
 }
 
+export function FloatingWindowShell({
+  children,
+  frameClassName = '',
+  layerClassName = 'z-[60]',
+}: {
+  children: ReactNode
+  frameClassName?: string
+  layerClassName?: string
+}) {
+  return (
+    <div className={`pointer-events-none fixed inset-0 flex items-center justify-center px-6 py-6 ${layerClassName}`.trim()}>
+      <div
+        className={`pointer-events-auto flex w-[min(1100px,calc(100vw-48px))] flex-col overflow-hidden rounded-xl border border-zinc-700/80 bg-zinc-900 shadow-2xl ${frameClassName}`.trim()}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function FloatingWindowHeader({
+  title,
+  onClose,
+  icon,
+  actions,
+}: {
+  title: ReactNode
+  onClose: () => void
+  icon?: ReactNode
+  actions?: ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-2.5 border-b border-zinc-800 px-5 py-3.5 shrink-0">
+      {icon && <span className="text-base shrink-0">{icon}</span>}
+      <span className="text-sm font-semibold text-zinc-100 min-w-0 truncate">{title}</span>
+      <div className="flex-1" />
+      {actions}
+      <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 text-xl leading-none transition-colors">
+        ✕
+      </button>
+    </div>
+  )
+}
+
 /** Dark card / panel replacing Win98 .window */
 export function Panel({
   title,

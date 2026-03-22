@@ -24,7 +24,7 @@ export function AudioPanel() {
   }
 
   return (
-    <div className="max-w-xl space-y-0 pt-1">
+    <div className="w-full max-w-none space-y-0 pt-1">
       <ConfigSectionPanel label="Volume Controls" first>
         <div className="space-y-2">
           <Slider label="Master Volume" value={audio.masterVolume}
