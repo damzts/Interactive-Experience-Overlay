@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { patchDesktopConfig } from './configPersistence'
+import { socket } from '../socket/client'
+import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieom/shared'
 
 const TASKBAR_HEIGHT_PX = 40
 
@@ -46,6 +48,18 @@ function saveWidgetSize(key: string, size: { width: number; height: number }) {
   patchDesktopConfig({
     widgetSizes: { ...cfg.desktopConfig?.widgetSizes, [key]: size },
   }).catch(() => {})
+}
+
+interface WidgetDragBroadcastState {
+  lastSentAt: number
+  rafId: number | null
+  pending: DesktopWidgetDragPayload | null
+}
+
+interface WidgetResizeBroadcastState {
+  lastSentAt: number
+  rafId: number | null
+  pending: DesktopWidgetResizePayload | null
 }
 
 interface DesktopWindowProps {
@@ -100,6 +114,90 @@ export function DesktopWindow({
   }
   const [pos, setPos] = useState(() => clampPosition(configPos ?? defaultPosition, liveSize))
   const posRef = useRef(pos)
+  const dragBroadcastRef = useRef<WidgetDragBroadcastState>({
+    lastSentAt: 0,
+    rafId: null,
+    pending: null,
+  })
+  const resizeBroadcastRef = useRef<WidgetResizeBroadcastState>({
+    lastSentAt: 0,
+    rafId: null,
+    pending: null,
+  })
+
+  const emitWidgetDrag = (payload: DesktopWidgetDragPayload, immediate = false) => {
+    if (!socket.connected) return
+
+    const broadcastState = dragBroadcastRef.current
+    const flush = (next: DesktopWidgetDragPayload) => {
+      socket.emit('desktop:widget:drag', next)
+      broadcastState.lastSentAt = Date.now()
+    }
+
+    if (immediate || payload.phase !== 'move') {
+      if (broadcastState.rafId !== null) {
+        window.cancelAnimationFrame(broadcastState.rafId)
+        broadcastState.rafId = null
+        broadcastState.pending = null
+      }
+      flush(payload)
+      return
+    }
+
+    const now = Date.now()
+    if (now - broadcastState.lastSentAt >= 33) {
+      flush(payload)
+      return
+    }
+
+    broadcastState.pending = payload
+    if (broadcastState.rafId !== null) return
+
+    broadcastState.rafId = window.requestAnimationFrame(() => {
+      broadcastState.rafId = null
+      const pending = broadcastState.pending
+      broadcastState.pending = null
+      if (!pending) return
+      flush(pending)
+    })
+  }
+
+  const emitWidgetResize = (payload: DesktopWidgetResizePayload, immediate = false) => {
+    if (!socket.connected) return
+
+    const broadcastState = resizeBroadcastRef.current
+    const flush = (next: DesktopWidgetResizePayload) => {
+      socket.emit('desktop:widget:resize', next)
+      broadcastState.lastSentAt = Date.now()
+    }
+
+    if (immediate || payload.phase !== 'move') {
+      if (broadcastState.rafId !== null) {
+        window.cancelAnimationFrame(broadcastState.rafId)
+        broadcastState.rafId = null
+        broadcastState.pending = null
+      }
+      flush(payload)
+      return
+    }
+
+    const now = Date.now()
+    if (now - broadcastState.lastSentAt >= 33) {
+      flush(payload)
+      return
+    }
+
+    broadcastState.pending = payload
+    if (broadcastState.rafId !== null) return
+
+    broadcastState.rafId = window.requestAnimationFrame(() => {
+      broadcastState.rafId = null
+      const pending = broadcastState.pending
+      broadcastState.pending = null
+      if (!pending) return
+      flush(pending)
+    })
+  }
 
   useEffect(() => {
     if (resizing.current) return
@@ -138,15 +236,16 @@ export function DesktopWindow({
       const next = clampPosition({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
       posRef.current = next
       setPos(next)
+      emitWidgetDrag({ widgetId: id, x: next.x, y: next.y, phase: 'move' })
     }
     const onResizeMove = (e: MouseEvent) => {
       if (!resizing.current) return
       const dx = e.clientX - resizeStartPointer.current.x
       const dy = e.clientY - resizeStartPointer.current.y
-        const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
+      const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
       const next = {
         width: clampDimension(resizeStartSize.current.width + dx, 180, 1400),
-          height: clampDimension(resizeStartSize.current.height + dy, 140, maxResizableHeight),
+        height: clampDimension(resizeStartSize.current.height + dy, 140, maxResizableHeight),
       }
       sizeRef.current = next
       setLiveSize(next)
@@ -156,14 +255,32 @@ export function DesktopWindow({
         posRef.current = clampedPos
         setPos(clampedPos)
       }
+
+      emitWidgetResize({
+        widgetId: id,
+        x: posRef.current.x,
+        y: posRef.current.y,
+        width: next.width,
+        height: next.height,
+        phase: 'move',
+      })
     }
     const onUp = () => {
       if (dragging.current) {
         dragging.current = false
+        emitWidgetDrag({ widgetId: id, x: posRef.current.x, y: posRef.current.y, phase: 'end' }, true)
         saveWidgetPosition(id, posRef.current)
       }
       if (resizing.current) {
         resizing.current = false
+        emitWidgetResize({
+          widgetId: id,
+          x: posRef.current.x,
+          y: posRef.current.y,
+          width: sizeRef.current.width,
+          height: sizeRef.current.height ?? resizeStartSize.current.height,
+          phase: 'end',
+        }, true)
         saveWidgetPosition(id, posRef.current)
         saveWidgetSize(id, {
           width: sizeRef.current.width,
@@ -185,8 +302,68 @@ export function DesktopWindow({
     onFocus?.()
     dragging.current = true
     offset.current = { x: e.clientX - posRef.current.x, y: e.clientY - posRef.current.y }
+    emitWidgetDrag({ widgetId: id, x: posRef.current.x, y: posRef.current.y, phase: 'start' }, true)
     e.preventDefault()
   }
+
+  useEffect(() => {
+    const onRemoteWidgetDrag = (payload: DesktopWidgetDragPayload) => {
+      if (payload.widgetId !== id) return
+      if (dragging.current || resizing.current) return
+
+      const next = clampPosition({ x: payload.x, y: payload.y })
+      if (next.x === posRef.current.x && next.y === posRef.current.y) return
+
+      posRef.current = next
+      setPos(next)
+    }
+
+    socket.on('desktop:widget:drag', onRemoteWidgetDrag)
+    return () => {
+      socket.off('desktop:widget:drag', onRemoteWidgetDrag)
+    }
+  }, [id, liveSize.height, liveSize.width])
+
+  useEffect(() => {
+    const onRemoteWidgetResize = (payload: DesktopWidgetResizePayload) => {
+      if (payload.widgetId !== id) return
+      if (resizing.current || dragging.current) return
+
+      const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
+      const nextSize = {
+        width: clampDimension(payload.width, 180, 1400),
+        height: clampDimension(payload.height, 140, maxResizableHeight),
+      }
+      const nextPos = clampPosition({ x: payload.x, y: payload.y }, nextSize)
+
+      sizeRef.current = nextSize
+      setLiveSize(nextSize)
+
+      if (nextPos.x !== posRef.current.x || nextPos.y !== posRef.current.y) {
+        posRef.current = nextPos
+        setPos(nextPos)
+      }
+    }
+
+    socket.on('desktop:widget:resize', onRemoteWidgetResize)
+    return () => {
+      socket.off('desktop:widget:resize', onRemoteWidgetResize)
+    }
+  }, [id])
+
+  useEffect(() => {
+    return () => {
+      const broadcastState = dragBroadcastRef.current
+      if (broadcastState.rafId !== null) {
+        window.cancelAnimationFrame(broadcastState.rafId)
+      }
+
+      const resizeBroadcastState = resizeBroadcastRef.current
+      if (resizeBroadcastState.rafId !== null) {
+        window.cancelAnimationFrame(resizeBroadcastState.rafId)
+      }
+    }
+  }, [])
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     onFocus?.()
@@ -196,6 +373,14 @@ export function DesktopWindow({
       width: sizeRef.current.width,
       height: sizeRef.current.height ?? frameRef.current?.offsetHeight ?? height ?? 260,
     }
+    emitWidgetResize({
+      widgetId: id,
+      x: posRef.current.x,
+      y: posRef.current.y,
+      width: resizeStartSize.current.width,
+      height: resizeStartSize.current.height,
+      phase: 'start',
+    }, true)
     e.preventDefault()
     e.stopPropagation()
   }
@@ -219,7 +404,7 @@ export function DesktopWindow({
       onMouseDown={onFocus}
       data-widget-id={id}
     >
-      <div className="title-bar desktop-window-title" style={{ cursor: 'move' }} onMouseDown={handleTitleMouseDown}>
+      <div className="title-bar desktop-window-title" style={{ cursor: 'move' }} onMouseDown={handleTitleMouseDown} data-widget-title-bar="true">
         <div className="title-bar-text">{title}</div>
         <div className="title-bar-controls">
           <button aria-label="Minimize" onClick={onMinimize} />
@@ -239,6 +424,7 @@ export function DesktopWindow({
       <div
         role="presentation"
         onMouseDown={handleResizeMouseDown}
+        data-widget-resize-handle="true"
         style={{
           position: 'absolute',
           right: 2,

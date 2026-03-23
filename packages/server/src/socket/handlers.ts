@@ -8,12 +8,15 @@ import {
   type DesktopRuntimeStatePayload,
   type DesktopRecycleBinPayload,
   type DesktopScreenSaverPreviewPayload,
+  type DesktopStartMenuSimulationPhasePayload,
+  type AmbianceSimulationDonePayload,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type InterServerEvents,
   type SocketData,
   type KeybindExecutionPayload,
   type OverlayTriggerPayload,
+  type WidgetSimulationCommandPayload,
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
@@ -93,21 +96,32 @@ export function setupSocketHandlers(
 ) {
   const openWidgetIds = new Set<string>()
   let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
+  let startMenuState: { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } = { open: false, activeRoot: null }
   let simulationLeaderSocketId: string | null = null
   let acceptedSimulatedToggles = 0
   let rejectedSimulatedToggles = 0
 
   // Give managers access to live widget state
   ambianceManager.setOpenWidgetIdsGetter(() => openWidgetIds)
+  ambianceManager.setSimulationLeaderGetter(() => simulationLeaderSocketId)
 
   const getDesktopRuntimeState = (): DesktopRuntimeStatePayload => ({
     openWidgetIds: [...openWidgetIds],
     recycleBinFull,
+    startMenuState,
   })
 
   const toggleWidgetRuntime = (widgetId: string) => {
     if (openWidgetIds.has(widgetId)) openWidgetIds.delete(widgetId)
     else openWidgetIds.add(widgetId)
+    io.emit('widget:toggle', widgetId)
+  }
+
+  const setWidgetRuntimeOpenState = (widgetId: string, shouldOpen: boolean) => {
+    const isOpen = openWidgetIds.has(widgetId)
+    if (shouldOpen === isOpen) return
+    if (shouldOpen) openWidgetIds.add(widgetId)
+    else openWidgetIds.delete(widgetId)
     io.emit('widget:toggle', widgetId)
   }
 
@@ -305,6 +319,25 @@ export function setupSocketHandlers(
       applySavedWidgetLayout(layoutId)
     })
 
+    socket.on('desktop:icon:drag', (payload) => {
+      scheduler?.noteActivity()
+      socket.broadcast.emit('desktop:icon:drag', payload)
+    })
+
+    socket.on('desktop:widget:drag', (payload) => {
+      if (payload.phase !== 'move') {
+        scheduler?.noteActivity()
+      }
+      socket.broadcast.emit('desktop:widget:drag', payload)
+    })
+
+    socket.on('desktop:widget:resize', (payload) => {
+      if (payload.phase !== 'move') {
+        scheduler?.noteActivity()
+      }
+      socket.broadcast.emit('desktop:widget:resize', payload)
+    })
+
     socket.on('scene:change', (target, callback) => {
       scheduler?.noteActivity()
       const cfg = getConfig()
@@ -351,6 +384,35 @@ export function setupSocketHandlers(
       toggleWidgetRuntime(widgetId)
     })
 
+    socket.on('widget:simulate:action', (payload: WidgetSimulationCommandPayload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        rejectedSimulatedToggles += 1
+        emitSimulationMetrics()
+        console.warn(`[ambiance] Ignored simulated widget action from non-leader ${socket.id} for ${payload.widgetId}`)
+        return
+      }
+
+      acceptedSimulatedToggles += 1
+      emitSimulationMetrics()
+
+      if (payload.action === 'toggle') {
+        toggleWidgetRuntime(payload.widgetId)
+        return
+      }
+
+      setWidgetRuntimeOpenState(payload.widgetId, payload.action === 'open')
+    })
+
+    socket.on('ambiance:simulate:done', (payload: AmbianceSimulationDonePayload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      ambianceManager.markSimulationCompleted(payload.actionId)
+      if (!payload.ok) {
+        console.warn(`[ambiance] Simulation reported failure for ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
+      }
+    })
+
     socket.on('cursor:mirror', (payload) => {
       if (socket.id !== simulationLeaderSocketId) {
         return
@@ -376,6 +438,24 @@ export function setupSocketHandlers(
       io.emit('desktop:recycle-bin', payload)
     })
 
+    socket.on('desktop:start-menu:state', (payload) => {
+      if (payload.open) {
+        scheduler?.noteActivity()
+      }
+      startMenuState = {
+        open: payload.open,
+        activeRoot: payload.open ? payload.activeRoot : null,
+      }
+      io.emit('desktop:start-menu:state', startMenuState)
+    })
+
+    socket.on('desktop:start-menu:phase', (payload: DesktopStartMenuSimulationPhasePayload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      io.emit('desktop:start-menu:phase', payload)
+    })
+
     socket.on('desktop:screen-saver:test', (payload: DesktopScreenSaverPreviewPayload) => {
       scheduler?.noteActivity()
       io.emit('desktop:screen-saver:test', payload)
@@ -397,6 +477,7 @@ export function setupSocketHandlers(
     socket.on('disconnect', () => {
       console.log(`[socket] disconnected: ${socket.id}`)
       if (socket.id === simulationLeaderSocketId) {
+        ambianceManager.markSimulationCompleted()
         simulationLeaderSocketId = null
         electSimulationLeaderIfNeeded()
       }

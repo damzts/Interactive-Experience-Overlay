@@ -7,9 +7,10 @@ import { AppGlyph } from './AppGlyph'
 interface TaskbarProps {
   startMenuOpen: boolean
   onStartClick: () => void
+  onWidgetTaskbarClick: (widgetId: string) => void
 }
 
-export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
+export function Taskbar({ startMenuOpen, onStartClick, onWidgetTaskbarClick }: TaskbarProps) {
   const [time, setTime] = useState(() => new Date())
   const [volumeOpen, setVolumeOpen] = useState(false)
   const [volume, setVolume] = useState(70)
@@ -19,7 +20,6 @@ export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
   const config       = useAppStore((s) => s.config)
   const openWidgets = useAppStore((s) => s.openWidgets)
   const minimizedWidgets = useAppStore((s) => s.minimizedWidgets)
-  const toggleWidgetMinimized = useAppStore((s) => s.toggleWidgetMinimized)
   const lastSocketActivityAt = useAppStore((s) => s.lastSocketActivityAt)
   const notificationCount = useAppStore((s) => s.desktopNotifications.length)
 
@@ -100,7 +100,7 @@ export function Taskbar({ startMenuOpen, onStartClick }: TaskbarProps) {
           <button
             key={widget.id}
             className={`taskbar-window-btn${minimized ? '' : ' taskbar-window-btn--active'}`}
-            onClick={() => toggleWidgetMinimized(widget.id)}
+            onClick={() => onWidgetTaskbarClick(widget.id)}
             title={`${widget.label} — ${minimized ? 'restore' : 'minimize'}`}
           >
             <AppGlyph icon={widget.icon} label={widget.label} size={16} className="taskbar-window-icon" />

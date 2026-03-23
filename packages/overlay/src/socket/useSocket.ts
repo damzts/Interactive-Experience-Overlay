@@ -177,9 +177,16 @@ export function useSocket() {
         + payload.steps.reduce((sum, step) => sum + step.moveMs + step.hoverMs + step.postMs, 0)
       menuTimelineLockUntil.current = Date.now() + totalMs + 400
       void runWidgetCursorSimulation(cursor, payload.widgetLabel, {
+        startMenu: false,
         menuPath: payload.menuPath,
         visualOnly: true,
         driveCursorVisualOnly: true,
+        allowDomActionsInVisualOnly: false,
+        debugTag: `mirror:${payload.targetAppId ?? payload.widgetLabel}`,
+        targetAppId: payload.targetAppId,
+        activateLeafClick: false,
+        openFirstLevelOnHover: true,
+        closeStartMenuAfterPath: false,
         timingPlan: {
           startMoveMs: payload.startMoveMs,
           startPostMs: payload.startPostMs,

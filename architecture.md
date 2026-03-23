@@ -117,6 +117,13 @@ All Socket.IO events are typed. Key events:
 | client -> server | `desktop:state:request` | callback |
 | client -> server | `widget:toggle` | widget app id |
 | client -> server | `widget:simulate` | widget app id, leader-only |
+| client -> server | `widget:simulate:action` | `{ widgetId, action: 'open' | 'close' | 'toggle' }`, leader-only |
+| client -> server | `ambiance:simulate:done` | `{ actionId, widgetId, action, ok, durationMs? }`, leader-only |
+| client -> server | `desktop:icon:drag` | `{ appId, x, y, phase }` |
+| client -> server | `desktop:widget:drag` | `{ widgetId, x, y, phase }` |
+| client -> server | `desktop:widget:resize` | `{ widgetId, x, y, width, height, phase }` |
+| client -> server | `desktop:start-menu:state` | `{ open, activeRoot }` |
+| client -> server | `desktop:start-menu:phase` | `{ phase, targetAppId? }`, leader-only |
 | client -> server | `desktop:notify` | `{ title, body, icon?, durationMs? }` |
 | client -> server | `desktop:recycle-bin` | `{ full }` |
 | client -> server | `keybind:execute` | `{ scope, key?, action? }` |
@@ -131,11 +138,19 @@ All Socket.IO events are typed. Key events:
 | server -> client | `obs:status` | `{ connected }` |
 | server -> client | `ambiance:leader` | `{ socketId: string | null }` |
 | server -> client | `ambiance:metrics` | `{ accepted, rejected }` |
+| server -> client | `ambiance:simulate` | `{ actionId, widgetId, action: 'open' | 'close' | 'interact' }` |
+| server -> client | `desktop:icon:drag` | `{ appId, x, y, phase }` |
+| server -> client | `desktop:widget:drag` | `{ widgetId, x, y, phase }` |
+| server -> client | `desktop:widget:resize` | `{ widgetId, x, y, width, height, phase }` |
+| server -> client | `desktop:start-menu:state` | `{ open, activeRoot }` |
+| server -> client | `desktop:start-menu:phase` | `{ phase, targetAppId? }` |
 | server -> client | `widget:toggle` | widget app id |
 | server -> client | `desktop:notify` | `{ title, body, icon?, durationMs? }` |
 | server -> client | `desktop:recycle-bin` | `{ full }` |
 
 Desktop runtime state that is not part of the main scene machine still has a typed contract. Overlay clients request a `desktop:state:request` snapshot on connect/reconnect so late-joining browser sources recover the current open-widget set and recycle-bin state.
+
+The desktop runtime snapshot now also includes Start menu shell state (`startMenuState`) so reconnects and leader handoffs recover a coherent shell UI state, not only widget/recycle-bin state.
 
 ---
 
@@ -190,9 +205,14 @@ The server maintains:
 
 - the set of currently open widget IDs
 - the current recycle-bin fullness flag
+- the current Start menu shell state (`open`, `activeRoot`)
 - the current simulation leader socket ID for ambient cursor actions
 
-Manual operator widget actions use `widget:toggle`. Automated ambient cursor actions use `widget:simulate`, but only the elected simulation leader is allowed to send it. The elected leader is broadcast via `ambiance:leader`.
+Manual operator widget actions use `widget:toggle`. Automated ambiance decisions are server-authoritative: the server evaluates `DesktopAmbianceConfig`, picks one action per tick, tags it with `actionId`, and emits `ambiance:simulate` only to the elected simulation leader. The leader executes cursor choreography and sends deterministic runtime commands through `widget:simulate:action` (`open`/`close`/`toggle`).
+
+To prevent cadence overlap, the server keeps an in-flight ambiance lock and waits for leader completion via `ambiance:simulate:done` with matching `actionId` before issuing the next action. A timeout fallback releases the lock if completion is not received.
+
+Start menu shell synchronization is now event-driven in runtime: clients emit `desktop:start-menu:state`, and the server rebroadcasts authoritative shell state to all clients while also including it in reconnect snapshots.
 
 ### State Machine
 
@@ -223,6 +243,8 @@ Only scene applications change machine state.
 **Widgets** (`appType: 'widget'`) open floating desktop windows on top of the current machine state. They do not emit `scene:change`, do not move the machine, and do not play scene transitions.
 
 **Decorations** (`appType: 'decoration'`) are non-launchable desktop icons used only for environmental dressing. The built-in example is the recycle bin.
+
+**Desktop System UI** (desktop shell/chrome) is a separate runtime category and is not modeled as `Application`. This includes taskbar, Start menu, system tray, context menus, notifications, and other desktop chrome controls that orchestrate actions but are not launchable apps by themselves.
 
 ### Event Scheduler
 
@@ -321,6 +343,8 @@ The ambiance editor owns the automated desktop/widget simulation settings:
 
 This configuration does not describe a visual layer. It describes background desktop behavior authored by the operator and enforced through server-owned runtime state.
 
+Execution model: the server is now the single decision-maker for ambiance actions. It evaluates the configured probabilities and limits on each tick, chooses one candidate action (`open`, `close`, or `interact`), and emits `ambiance:simulate` to the current simulation leader only. The leader overlay performs the visual cursor path and interaction locally so OBS sees the same behavior while server authority over action selection is preserved.
+
 ### Event Configuration
 
 Events are edited as persisted `config.events` records inside the dashboard. Each event can configure:
@@ -380,7 +404,7 @@ The desktop consumes `DesktopConfig` for theme, icon behavior, sticky notes, rec
 
 Theme presets style only desktop chrome. The desktop remains transparent unless `BackgroundLayer` is given an explicit desktop background.
 
-When auto-arrange is off, icons can be dragged directly on the desktop. Their positions persist through `Application.iconPosition` via a targeted PATCH request to the server.
+When auto-arrange is off, icons can be dragged directly on the desktop. Drag motion is mirrored in real time across clients via `desktop:icon:drag` so OBS/browser sources see live movement, and final positions still persist through `Application.iconPosition` via a targeted PATCH request to the server on drag end.
 
 Built-in desktop widgets are currently:
 
@@ -450,9 +474,29 @@ The admin emits `scene:change` for environments and scene apps. The server resol
 
 Widgets do not go through the scene machine. Admin or runtime UI emits `widget:toggle`, the server updates desktop runtime state, and all overlay clients mirror the result into the global store. The same side-channel approach is used for `desktop:notify` and `desktop:recycle-bin`.
 
+Ambiance widget simulation is server-authoritative: the server chooses the action and emits `ambiance:simulate` (with `actionId`) to the current leader, which executes the visual automation path and forwards deterministic open/close/toggle commands through the leader-only `widget:simulate:action` path.
+
+The leader emits `ambiance:simulate:done` when each action finishes; the server only advances cadence after receiving that completion for the same `actionId`, preventing overlap between menu choreography and subsequent ambiance actions.
+
+When the selected action is `interact`, the leader can now execute either control-click interactions or window-level interactions (drag/resize). Those window-level interactions flow through the same desktop live-event channels (`desktop:widget:drag`, `desktop:widget:resize`), so all connected overlay clients and OBS browser sources observe the same movement in real time.
+
+Desktop icon drag has both transient and persisted channels: while dragging, clients exchange `desktop:icon:drag` for live mirrored movement; on release, the final `iconPosition` is persisted by PATCH and then converges through `config:update`.
+
+Desktop shell Start menu state follows a runtime side-channel model similar to other desktop runtime concerns: clients exchange `desktop:start-menu:state` for synchronized menu open/section state, and reconnects rehydrate the same shell state through `desktop:state:request`.
+
+Start menu choreography now has an explicit phase channel (`desktop:start-menu:phase`) for visual simulation sequencing. The elected leader emits phase milestones (`open`, `programs-hover`, `programs-open`, `target-hover`, `target-select`, `clear`) and all clients render the same progression from state instead of relying on DOM click side effects.
+
+Desktop widget-window drag follows the same split channel pattern: while dragging a widget window, clients exchange `desktop:widget:drag` for live mirrored movement; on release, the final window position persists through `PATCH /api/config/desktop` and converges through `config:update`.
+
+Desktop widget-window resize uses the same real-time split channel model: while resizing, clients exchange `desktop:widget:resize` for live mirrored size/position updates; on release, the final `widgetSizes` (and clamped `widgetPositions`, when needed) persist through `PATCH /api/config/desktop` and converge through `config:update`.
+
 ### Config propagation
 
-Most config changes originate in the admin and are written to the server via PUT or targeted PATCH routes. The overlay also has one direct persistence path: manual desktop icon dragging PATCHes `/api/config/applications/:appId` with a new `iconPosition`. In all cases the server persists the change and rebroadcasts `config:update` so every client converges on the same config.
+Most config changes originate in the admin and are written to the server via PUT or targeted PATCH routes. The overlay also has one direct persistence path: manual desktop icon dragging PATCHes `/api/config/applications/:appId` with a new `iconPosition` on drag end. During drag, motion is intentionally non-persistent and mirrored over sockets (`desktop:icon:drag`) for live sync. In all persisted cases the server rebroadcasts `config:update` so every client converges on the same config.
+
+Widget window drag uses the same two-phase model: transient motion is mirrored over sockets (`desktop:widget:drag`) while dragging, and persisted widget coordinates are written to `desktopConfig.widgetPositions` on drag end.
+
+Widget window resize also uses two phases: transient resize motion is mirrored over sockets (`desktop:widget:resize`) while resizing, and final dimensions are written to `desktopConfig.widgetSizes` on resize end.
 
 ### Reconnect and state recovery
 
@@ -460,7 +504,7 @@ On every connect or reconnect, overlay clients re-request:
 
 - current machine state
 - current config
-- desktop runtime snapshot (`openWidgetIds`, `recycleBinFull`)
+- desktop runtime snapshot (`openWidgetIds`, `recycleBinFull`, `startMenuState`)
 
 This lets late-joining or recently reconnected browser sources recover the same runtime state without a manual page reload.
 
@@ -510,6 +554,22 @@ The **ChatWidget** currently only displays seeded demo messages - it has no live
 
 The **MusicWidget** (used by both `music` and `spotify` IDs) shows a simulated elapsed timer and static track name. It does not track real playback. To make it useful it needs a data source - either the server polling the Spotify Web API and broadcasting current track info, or the overlay reading from a local file written by a Spotify integration tool.
 
+
+---
+
+## 2026 Runtime Sync Update
+
+The desktop runtime now uses explicit synchronization contracts for ambiance cadence and Start menu shell state.
+
+- Ambiance actions are server-issued with `actionId` and leader-only execution (`ambiance:simulate`)
+- Leader reports completion with matching `actionId` (`ambiance:simulate:done`)
+- Server advances ambiance cadence only after completion ack (with timeout fallback)
+- Widget runtime simulation uses deterministic commands (`widget:simulate:action` with `open`/`close`/`toggle`) instead of toggle-only semantics
+- Start menu shell state is synchronized as runtime state (`desktop:start-menu:state`)
+- Start menu visual choreography is synchronized by explicit simulation phases (`desktop:start-menu:phase`) rather than DOM-click coupling
+- Reconnect snapshots (`desktop:state:request`) now include `startMenuState` in addition to `openWidgetIds` and `recycleBinFull`
+
+This model keeps visual choreography (cursor/menu path) and authoritative runtime state in lockstep while reducing race conditions during reconnects, leader changes, and rapid ambiance ticks.
 
 ---
 

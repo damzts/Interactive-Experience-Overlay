@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
 import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'
-import type { Application, DesktopTheme, OverlayStyle, WidgetComponentType } from '@ieom/shared'
+import type { AmbianceSimulationPayload, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayStyle, WidgetComponentType } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
@@ -19,7 +19,7 @@ import { AppGlyph } from './AppGlyph'
 import { patchApplicationConfig, patchDesktopConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
 import { CursorSimExample } from './CursorSimExample'
-import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, focusWidgetFromTaskbar, focusWidgetWindow, interactWithWidgetByRecipe, runWidgetCursorSimulation } from './cursorSimUtils';
+import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
 import { getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
 import React from 'react';
 
@@ -44,9 +44,6 @@ const WIDGET_COMPONENTS: Partial<Record<WidgetComponentType, React.ComponentType
   camera: CameraWidget,
   source: SourceWidget,
 }
-
-const MAX_SIM_OPEN_WIDGETS = 2
-const OPEN_WHILE_ONE_OPEN_CHANCE = 0.35
 
 function resolveWidgetComponent(app: Application) {
   const widgetComponent = getWidgetComponent(app)
@@ -85,6 +82,12 @@ interface IconDragSession {
   pointerOffset: { x: number; y: number }
   currentPosition: { x: number; y: number }
   moved: boolean
+}
+
+interface IconDragBroadcastState {
+  lastSentAt: number
+  rafId: number | null
+  pending: DesktopIconDragPayload | null
 }
 
 function clampChannel(value: number) {
@@ -399,6 +402,8 @@ function GenericWidget({ app, onClose, onMinimize, onFocus, windowState = 'open'
 export function Desktop({ apps }: DesktopProps) {
   const [selectedId, setSelectedId]       = useState<string | null>(null)
   const [startMenuOpen, setStartMenuOpen] = useState(false)
+  const [startMenuActiveRoot, setStartMenuActiveRoot] = useState<DesktopStartMenuRoot>(null)
+  const [startMenuSimulationPhase, setStartMenuSimulationPhase] = useState<DesktopStartMenuSimulationPhasePayload | null>(null)
   const [contextMenu, setContextMenu]     = useState<ContextMenu | null>(null)
   const [windowOrder, setWindowOrder]     = useState<string[]>([])
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({})
@@ -417,12 +422,17 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopRef = useRef<HTMLDivElement>(null)
   const iconDragRef = useRef<IconDragSession | null>(null)
   const suppressClickRef = useRef(false)
-  const simLastActionAtByWidgetRef = useRef<Map<string, number>>(new Map())
-  const simLastWidgetIdRef = useRef<string | null>(null)
   const simEmittingRef = useRef(false)
+  const ambianceQueueRef = useRef<AmbianceSimulationPayload[]>([])
+  const ambianceRunningRef = useRef(false)
   const suppressZIndexPersistRef = useRef(false)
   const pendingDefaultSeedWidgetIdsRef = useRef<Set<string>>(new Set())
   const sourceCenterToggleRef = useRef<string>(DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter)
+  const iconDragBroadcastRef = useRef<IconDragBroadcastState>({
+    lastSentAt: 0,
+    rafId: null,
+    pending: null,
+  })
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
@@ -431,8 +441,6 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
   const supportedApps = useMemo(() => apps, [apps])
 
-  // Ambiance widget simulation config
-  const widgetSimConfig = config.desktopAmbiance?.widgetSimulation;
   const isSimulationLeader = simulationLeaderId !== null && simulationLeaderId === socket.id;
   const isEmbeddedPreview = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -463,223 +471,197 @@ export function Desktop({ apps }: DesktopProps) {
     }
   }, [])
 
-  // Ambiance simulation interval
+  useEffect(() => {
+    const applyStartMenuState = (payload: DesktopStartMenuStatePayload) => {
+      setStartMenuOpen(payload.open)
+      setStartMenuActiveRoot(payload.open ? payload.activeRoot : null)
+      if (!payload.open) {
+        setStartMenuSimulationPhase(null)
+        setContextMenu(null)
+      }
+    }
+
+    const applyStartMenuSimulationPhase = (payload: DesktopStartMenuSimulationPhasePayload) => {
+      if (payload.phase === 'clear') {
+        setStartMenuSimulationPhase(null)
+        return
+      }
+      setStartMenuSimulationPhase(payload)
+    }
+
+    socket.on('desktop:start-menu:state', applyStartMenuState)
+    socket.on('desktop:start-menu:phase', applyStartMenuSimulationPhase)
+    return () => {
+      socket.off('desktop:start-menu:state', applyStartMenuState)
+      socket.off('desktop:start-menu:phase', applyStartMenuSimulationPhase)
+    }
+  }, [])
+
+  const emitStartMenuState = useCallback((payload: DesktopStartMenuStatePayload) => {
+    setStartMenuOpen(payload.open)
+    setStartMenuActiveRoot(payload.open ? payload.activeRoot : null)
+    socket.emit('desktop:start-menu:state', payload)
+  }, [])
+
+  useEffect(() => {
+    const requestDesktopRuntimeState = () => {
+      socket.emit('desktop:state:request', (payload: DesktopRuntimeStatePayload) => {
+        const nextState = payload.startMenuState ?? { open: false, activeRoot: null }
+        setStartMenuOpen(nextState.open)
+        setStartMenuActiveRoot(nextState.open ? nextState.activeRoot : null)
+      })
+    }
+
+    socket.on('connect', requestDesktopRuntimeState)
+    if (socket.connected) {
+      requestDesktopRuntimeState()
+    }
+
+    return () => {
+      socket.off('connect', requestDesktopRuntimeState)
+    }
+  }, [])
+
   useEffect(() => {
     const cursor = (window as any).__cursorOverlayController;
     if (isEmbeddedPreview) return;
     if (!isSimulationLeader) return;
-    if (!widgetSimConfig || !widgetSimConfig.enabled) return;
     if (!cursor) return;
+
     cursor.setVisible(true);
-    let stopped = false;
-    let timer: any;
-    const intervalMs = ((widgetSimConfig && widgetSimConfig.intervalSeconds) || 10) * 1000;
-    const minActionGapMs = Math.max(1500, Math.round(intervalMs * 0.8));
-    const maxOpenWidgets = Math.max(1, widgetSimConfig?.maxOpenWidgets ?? MAX_SIM_OPEN_WIDGETS);
-    const openWhileOneOpenChance = Math.max(0, Math.min(1, widgetSimConfig?.openWhileOneOpenChance ?? OPEN_WHILE_ONE_OPEN_CHANCE));
-    type SimulationAction = { kind: 'open' | 'close' | 'interact'; widgetId: string; app: Application };
-    const actionQueue: SimulationAction[] = [];
-    const queuedActionKeys = new Set<string>();
-    const busyWidgetIds = new Set<string>();
-    let processingQueue = false;
-    const lastActionAtByWidget = simLastActionAtByWidgetRef.current;
 
-    const actionKey = (action: SimulationAction) => action.widgetId;
-
-    const enqueueAction = (action: SimulationAction) => {
-      if (busyWidgetIds.has(action.widgetId)) return;
-      const key = actionKey(action);
-      if (queuedActionKeys.has(key)) return;
-      queuedActionKeys.add(key);
-      busyWidgetIds.add(action.widgetId);
-      actionQueue.push(action);
-    };
-
-    async function processQueue() {
-      if (processingQueue || stopped) return;
-      processingQueue = true;
+    const runAmbianceSimulation = async (payload: AmbianceSimulationPayload) => {
+      const startedAt = Date.now();
+      let ok = false;
       try {
-        while (!stopped && actionQueue.length > 0) {
-          const action = actionQueue.shift();
-          if (!action) continue;
-          let executed = false;
-          const openNow = useAppStore.getState().openWidgets;
+        const app = supportedApps.find((candidate) => candidate.id === payload.widgetId && candidate.appType === 'widget');
+        if (!app) return;
 
-          // Skip stale actions to avoid accidental toggle closes/opens.
-          if (action.kind === 'open' && openNow.has(action.widgetId)) {
-            queuedActionKeys.delete(actionKey(action));
-            busyWidgetIds.delete(action.widgetId);
-            continue;
+        if (payload.action === 'close') {
+          simEmittingRef.current = true;
+          try {
+            await closeWidgetByWindowButton(cursor, app.id, app.label);
+            await new Promise((resolve) => setTimeout(resolve, 140));
+            if (useAppStore.getState().openWidgets.has(app.id)) {
+              socket.emit('widget:simulate:action', { widgetId: app.id, action: 'close' });
+            }
+            ok = true;
+          } finally {
+            simEmittingRef.current = false;
           }
-          if (action.kind === 'close' && !openNow.has(action.widgetId)) {
-            queuedActionKeys.delete(actionKey(action));
-            busyWidgetIds.delete(action.widgetId);
-            continue;
-          }
-          if (action.kind === 'interact' && !openNow.has(action.widgetId)) {
-            queuedActionKeys.delete(actionKey(action));
-            busyWidgetIds.delete(action.widgetId);
-            continue;
-          }
+          return;
+        }
 
-          if (action.kind === 'close') {
-            simEmittingRef.current = true;
-            try {
-              executed = await closeWidgetByWindowButton(cursor, action.widgetId, action.app.label);
-            } finally {
-              simEmittingRef.current = false;
-            }
-          } else if (action.kind === 'open') {
-            const recipe = getWidgetSimulationRecipe(action.app);
-            const menuPath = recipe.menuPath(action.app);
-            const timeline = buildOpenWidgetMenuTimeline(action.app.label, menuPath);
-            socket.emit('cursor:mirror:menu-timeline', timeline);
-            simEmittingRef.current = true;
-            try {
-              executed = await runWidgetCursorSimulation(cursor, action.app.label, {
-                menuPath,
-                timingPlan: {
-                  startMoveMs: timeline.startMoveMs,
-                  startPostMs: timeline.startPostMs,
-                  steps: timeline.steps,
-                },
-              });
-            } finally {
-              simEmittingRef.current = false;
-            }
-          } else {
-            const recipe = getWidgetSimulationRecipe(action.app);
-            const step = pickWidgetInteractionStep(recipe);
-            if (!step) {
-              queuedActionKeys.delete(actionKey(action));
-              busyWidgetIds.delete(action.widgetId);
-              continue;
-            }
-            // Focus visible window directly; restore from taskbar only if minimized.
-            const focused = await focusWidgetWindow(cursor, action.widgetId, 520);
-            if (!focused) {
-              await focusWidgetFromTaskbar(cursor, action.app.label, 520);
-            }
-            executed = await interactWithWidgetByRecipe(cursor, action.widgetId, step.selectors, {
-              moveMinMs: step.moveMinMs,
-              moveMaxMs: step.moveMaxMs,
-              postDelayMinMs: step.postDelayMinMs,
-              postDelayMaxMs: step.postDelayMaxMs,
+        if (payload.action === 'open') {
+          const recipe = getWidgetSimulationRecipe(app);
+          const menuPath = recipe.menuPath(app);
+          const timeline = buildOpenWidgetMenuTimeline(app.label, menuPath, app.id);
+          socket.emit('cursor:mirror:menu-timeline', timeline);
+          simEmittingRef.current = true;
+          try {
+            const wasOpen = useAppStore.getState().openWidgets.has(app.id);
+            await runWidgetCursorSimulation(cursor, app.label, {
+              startMenu: false,
+              menuPath,
+              visualOnly: true,
+              driveCursorVisualOnly: true,
+              allowDomActionsInVisualOnly: false,
+              targetAppId: app.id,
+              activateLeafClick: false,
+              openFirstLevelOnHover: true,
+              onPhase: (phasePayload) => {
+                if (phasePayload.phase === 'open') {
+                  emitStartMenuState({ open: true, activeRoot: null })
+                }
+                socket.emit('desktop:start-menu:phase', phasePayload)
+              },
+              debugTag: `leader:${payload.actionId}:${app.id}`,
+              closeStartMenuAfterPath: false,
+              timingPlan: {
+                startMoveMs: timeline.startMoveMs,
+                startPostMs: timeline.startPostMs,
+                steps: timeline.steps,
+              },
             });
+            if (!wasOpen) {
+              socket.emit('widget:simulate:action', { widgetId: app.id, action: 'open' });
+            }
+            ok = true;
+          } finally {
+            socket.emit('desktop:start-menu:phase', { phase: 'clear' })
+            emitStartMenuState({ open: false, activeRoot: null });
+            simEmittingRef.current = false;
           }
-
-          if (executed) {
-            lastActionAtByWidget.set(action.widgetId, Date.now());
-          }
-
-          queuedActionKeys.delete(actionKey(action));
-          busyWidgetIds.delete(action.widgetId);
-
-          const humanPauseMs = 220 + Math.floor(Math.random() * 460);
-          await new Promise((resolve) => setTimeout(resolve, humanPauseMs));
+          return;
         }
-      } finally {
-        processingQueue = false;
-      }
-    }
 
-    async function tick() {
-      if (stopped) return;
-      // Keep simulation human-like: only one queued/executing action globally.
-      if (processingQueue || actionQueue.length > 0) {
-        timer = setTimeout(tick, intervalMs);
-        return;
-      }
-
-      const behaviors = widgetSimConfig?.behaviors ?? {};
-      const enabledEntries = Object.entries(behaviors).filter(([, behavior]) => behavior?.enabled) as Array<[string, { openChance?: number; closeChance?: number; interactChance?: number }]>;
-      const openNow = useAppStore.getState().openWidgets;
-      const openCount = openNow.size;
-      const allowOpenActions = openCount < maxOpenWidgets;
-
-      const closeCandidates: SimulationAction[] = [];
-      const interactCandidates: SimulationAction[] = [];
-      const openCandidates: SimulationAction[] = [];
-      for (const [widgetId, behavior] of enabledEntries) {
-        if (busyWidgetIds.has(widgetId)) continue;
-        const app = supportedApps.find((candidate) => candidate.id === widgetId && candidate.appType === 'widget');
-        if (!app) continue;
         const recipe = getWidgetSimulationRecipe(app);
-
-        const lastActionAt = lastActionAtByWidget.get(widgetId) ?? 0;
-        if (Date.now() - lastActionAt < minActionGapMs) continue;
-
-        const isOpen = openNow.has(widgetId);
-        if (isOpen) {
-          if (Math.random() < (behavior.closeChance ?? 0)) {
-            closeCandidates.push({ kind: 'close', widgetId, app });
-          } else if (recipe.interactionPlan.length > 0 && Math.random() < (behavior.interactChance ?? recipe.interactionChance)) {
-            interactCandidates.push({ kind: 'interact', widgetId, app });
-          }
-        } else if (allowOpenActions && Math.random() < (behavior.openChance ?? 1)) {
-          openCandidates.push({ kind: 'open', widgetId, app });
+        const step = pickWidgetInteractionStep(recipe);
+        if (!step) {
+          ok = true;
+          return;
         }
-      }
 
-      let candidates: SimulationAction[] = [];
-      if (openCount === 0) {
-        candidates = openCandidates;
-      } else if (openCount >= maxOpenWidgets) {
-        candidates = interactCandidates.length > 0 ? interactCandidates : closeCandidates;
-      } else {
-        const shouldOpenSecondWidget = openCandidates.length > 0 && Math.random() < openWhileOneOpenChance;
-        if (shouldOpenSecondWidget) {
-          candidates = openCandidates;
-        } else {
-          candidates = interactCandidates.length > 0
-            ? interactCandidates
-            : closeCandidates.length > 0
-              ? closeCandidates
-              : openCandidates;
+        // Interact mode can also animate organic window movement and resize,
+        // which then fan out through desktop:widget:drag/resize live events.
+        const windowMotionRoll = Math.random();
+        if (windowMotionRoll < 0.2) {
+          await simulateWidgetWindowDrag(cursor, app.id);
+          ok = true;
+          return;
         }
-      }
+        if (windowMotionRoll < 0.32) {
+          await simulateWidgetWindowResize(cursor, app.id);
+          ok = true;
+          return;
+        }
 
-      if (candidates.length > 0) {
-        // Weighted random pick: prefer widgets that have been idle longer,
-        // but avoid repeating the same widget too often to feel more human.
-        const now = Date.now();
-        const lastWidgetId = simLastWidgetIdRef.current;
-        const weights = candidates.map((candidate) => {
-          const age = now - (lastActionAtByWidget.get(candidate.widgetId) ?? 0);
-          let weight = Math.max(0.1, age / Math.max(1, minActionGapMs));
-          if (lastWidgetId && candidate.widgetId === lastWidgetId && candidates.some((c) => c.widgetId !== lastWidgetId)) {
-            weight *= 0.2;
-          }
-          weight += Math.random() * 0.75;
-          return weight;
+        await interactWithWidgetByRecipe(cursor, app.id, step.selectors, {
+          moveMinMs: step.moveMinMs,
+          moveMaxMs: step.moveMaxMs,
+          postDelayMinMs: step.postDelayMinMs,
+          postDelayMaxMs: step.postDelayMaxMs,
         });
-
-        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-        let target = Math.random() * totalWeight;
-        let picked = candidates[candidates.length - 1];
-        for (let i = 0; i < candidates.length; i++) {
-          target -= weights[i];
-          if (target <= 0) {
-            picked = candidates[i];
-            break;
-          }
-        }
-
-        enqueueAction(picked);
-        simLastWidgetIdRef.current = picked.widgetId;
+        ok = true;
+      } catch {
+        ok = false;
+      } finally {
+        socket.emit('ambiance:simulate:done', {
+          actionId: payload.actionId,
+          widgetId: payload.widgetId,
+          action: payload.action,
+          ok,
+          durationMs: Date.now() - startedAt,
+        });
       }
-
-      void processQueue();
-      timer = setTimeout(tick, intervalMs);
     }
-    timer = setTimeout(tick, intervalMs);
+
+    const drainAmbianceQueue = () => {
+      if (ambianceRunningRef.current) return
+      const next = ambianceQueueRef.current.shift()
+      if (!next) return
+      ambianceRunningRef.current = true
+      void runAmbianceSimulation(next).finally(() => {
+        ambianceRunningRef.current = false
+        drainAmbianceQueue()
+      })
+    }
+
+    const onAmbianceSimulate = (payload: AmbianceSimulationPayload) => {
+      ambianceQueueRef.current.push(payload)
+      drainAmbianceQueue()
+    }
+
+    socket.on('ambiance:simulate', onAmbianceSimulate);
     return () => {
-      stopped = true;
-      clearTimeout(timer);
+      socket.off('ambiance:simulate', onAmbianceSimulate);
+      ambianceQueueRef.current = []
+      ambianceRunningRef.current = false
       simEmittingRef.current = false;
+      emitStartMenuState({ open: false, activeRoot: null });
       cursor.setVisible(false);
     };
-  }, [isEmbeddedPreview, isSimulationLeader, widgetSimConfig, supportedApps]);
+  }, [emitStartMenuState, isEmbeddedPreview, isSimulationLeader, supportedApps]);
 
   const themeStyle = useMemo(
     () => buildDesktopThemeVars(
@@ -809,6 +791,30 @@ export function Desktop({ apps }: DesktopProps) {
     return 60 + (idx >= 0 ? idx : 0)
   }, [windowOrder])
 
+  const handleTaskbarWidgetClick = useCallback((widgetId: string) => {
+    if (!openWidgets.has(widgetId)) return
+
+    if (minimizedWidgets.has(widgetId)) {
+      restoreWidget(widgetId)
+      focusWidget(widgetId)
+      return
+    }
+
+    const visibleOrder = windowOrder.filter((id) => (
+      openWidgets.has(id)
+      && !minimizedWidgets.has(id)
+      && !closingWidgets.has(id)
+    ))
+    const topVisibleId = visibleOrder.length > 0 ? visibleOrder[visibleOrder.length - 1] : null
+
+    if (topVisibleId === widgetId) {
+      minimizeWidget(widgetId)
+      return
+    }
+
+    focusWidget(widgetId)
+  }, [closingWidgets, focusWidget, minimizeWidget, minimizedWidgets, openWidgets, restoreWidget, windowOrder])
+
   const ss = desktopConfig.screenSaver
 
   const clearDragOverride = useCallback((appId: string) => {
@@ -817,6 +823,43 @@ export function Desktop({ apps }: DesktopProps) {
       const next = { ...prev }
       delete next[appId]
       return next
+    })
+  }, [])
+
+  const emitIconDrag = useCallback((payload: DesktopIconDragPayload, immediate = false) => {
+    if (!socket.connected) return
+
+    const broadcastState = iconDragBroadcastRef.current
+    const flush = (next: DesktopIconDragPayload) => {
+      socket.emit('desktop:icon:drag', next)
+      broadcastState.lastSentAt = Date.now()
+    }
+
+    if (immediate || payload.phase !== 'move') {
+      if (broadcastState.rafId !== null) {
+        window.cancelAnimationFrame(broadcastState.rafId)
+        broadcastState.rafId = null
+        broadcastState.pending = null
+      }
+      flush(payload)
+      return
+    }
+
+    const now = Date.now()
+    if (now - broadcastState.lastSentAt >= 33) {
+      flush(payload)
+      return
+    }
+
+    broadcastState.pending = payload
+    if (broadcastState.rafId !== null) return
+
+    broadcastState.rafId = window.requestAnimationFrame(() => {
+      broadcastState.rafId = null
+      const pending = broadcastState.pending
+      broadcastState.pending = null
+      if (!pending) return
+      flush(pending)
     })
   }, [])
 
@@ -830,6 +873,74 @@ export function Desktop({ apps }: DesktopProps) {
     return dragPositions[app.id]
       ?? (autoArrangeIcons ? gridPositions.get(app.id) : (app.iconPosition ?? gridPositions.get(app.id)))
   }, [autoArrangeIcons, dragPositions, gridPositions])
+
+  useEffect(() => {
+    return () => {
+      const broadcastState = iconDragBroadcastRef.current
+      if (broadcastState.rafId !== null) {
+        window.cancelAnimationFrame(broadcastState.rafId)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const onRemoteIconDrag = (payload: DesktopIconDragPayload) => {
+      if (autoArrangeIcons) return
+
+      const app = desktopApps.find((entry) => entry.id === payload.appId)
+      if (!app) return
+
+      const desktopBounds = desktopRef.current?.getBoundingClientRect()
+      const iconSize = resolveIconSize(app, defaultIconSize)
+      const nextPosition = desktopBounds
+        ? clampIconPosition(
+            { x: payload.x, y: payload.y },
+            iconSize,
+            { width: desktopBounds.width, height: desktopBounds.height },
+          )
+        : { x: payload.x, y: payload.y }
+
+      setDragPositions((prev) => {
+        const current = prev[payload.appId]
+        if (current && current.x === nextPosition.x && current.y === nextPosition.y) return prev
+        return { ...prev, [payload.appId]: nextPosition }
+      })
+
+      if (payload.phase === 'start' || payload.phase === 'move') {
+        if (!iconDragRef.current) setDraggingId(payload.appId)
+        return
+      }
+
+      if (!iconDragRef.current) {
+        setDraggingId((prev) => (prev === payload.appId ? null : prev))
+      }
+    }
+
+    socket.on('desktop:icon:drag', onRemoteIconDrag)
+    return () => {
+      socket.off('desktop:icon:drag', onRemoteIconDrag)
+    }
+  }, [autoArrangeIcons, defaultIconSize, desktopApps])
+
+  useEffect(() => {
+    setDragPositions((prev) => {
+      let changed = false
+      const next = { ...prev }
+
+      for (const [appId, pos] of Object.entries(prev)) {
+        const app = desktopApps.find((entry) => entry.id === appId)
+        if (!app?.iconPosition) continue
+        const isLocallyDragging = iconDragRef.current?.appId === appId
+        const isVisuallyDragging = draggingId === appId
+        if (isLocallyDragging || isVisuallyDragging) continue
+        if (app.iconPosition.x !== pos.x || app.iconPosition.y !== pos.y) continue
+        delete next[appId]
+        changed = true
+      }
+
+      return changed ? next : prev
+    })
+  }, [desktopApps, draggingId])
 
   useEffect(() => {
     if (!autoArrangeIcons) return
@@ -871,6 +982,7 @@ export function Desktop({ apps }: DesktopProps) {
         if (current && current.x === next.x && current.y === next.y) return prev
         return { ...prev, [session.appId]: next }
       })
+      emitIconDrag({ appId: session.appId, x: next.x, y: next.y, phase: 'move' })
     }
 
     const handleMouseUp = () => {
@@ -883,6 +995,7 @@ export function Desktop({ apps }: DesktopProps) {
       if (!session.moved) return
 
       suppressClickRef.current = true
+      emitIconDrag({ appId: session.appId, x: session.currentPosition.x, y: session.currentPosition.y, phase: 'end' }, true)
       patchApplicationConfig(session.appId, { iconPosition: session.currentPosition })
         .then(() => clearDragOverride(session.appId))
         .catch(() => clearDragOverride(session.appId))
@@ -894,18 +1007,18 @@ export function Desktop({ apps }: DesktopProps) {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [autoArrangeIcons, clearDragOverride])
+  }, [autoArrangeIcons, clearDragOverride, emitIconDrag])
 
   const handleLaunch = (app: Application) => {
     setSelectedId(null)
-    setStartMenuOpen(false)
+    emitStartMenuState({ open: false, activeRoot: null })
 
     if ((window as any).__cursorMirrorVisualOnly) {
       return
     }
 
     if (app.appType === 'widget') {
-      if (simEmittingRef.current) socket.emit('widget:simulate', app.id)
+      if (simEmittingRef.current) socket.emit('widget:simulate:action', { widgetId: app.id, action: 'toggle' })
       else socket.emit('widget:toggle', app.id)
       return
     }
@@ -925,14 +1038,16 @@ export function Desktop({ apps }: DesktopProps) {
   }
 
   const handleDesktopMouseDown = () => {
+    if ((window as any).__simulatingCursorClick) return
+    if ((window as any).__simulatingWidgetFocus) return
     setSelectedId(null)
-    setStartMenuOpen(false)
+    emitStartMenuState({ open: false, activeRoot: null })
     setContextMenu(null)
   }
 
   const handleDesktopContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
-    setStartMenuOpen(false)
+    emitStartMenuState({ open: false, activeRoot: null })
     setContextMenu({ x: e.clientX, y: e.clientY, type: 'desktop' })
   }
 
@@ -943,7 +1058,7 @@ export function Desktop({ apps }: DesktopProps) {
     const position = resolveIconPosition(app)
     if (!desktopBounds || !position) return
 
-    setStartMenuOpen(false)
+    emitStartMenuState({ open: false, activeRoot: null })
     setContextMenu(null)
 
     iconDragRef.current = {
@@ -958,22 +1073,24 @@ export function Desktop({ apps }: DesktopProps) {
       moved: false,
     }
 
+    emitIconDrag({ appId: app.id, x: position.x, y: position.y, phase: 'start' }, true)
+
     event.preventDefault()
     event.stopPropagation()
-  }, [autoArrangeIcons, defaultIconSize, resolveIconPosition])
+  }, [autoArrangeIcons, defaultIconSize, emitIconDrag, emitStartMenuState, resolveIconPosition])
 
   const handleIconContextMenu = useCallback((e: React.MouseEvent, app: Application) => {
     e.preventDefault()
     e.stopPropagation()
-    setStartMenuOpen(false)
+    emitStartMenuState({ open: false, activeRoot: null })
     const rect = (desktopRef.current ?? document.body).getBoundingClientRect()
     setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, type: 'icon', app })
-  }, [])
+  }, [emitStartMenuState])
 
   const closeMenus = useCallback(() => {
-    setStartMenuOpen(false)
+    emitStartMenuState({ open: false, activeRoot: null })
     setContextMenu(null)
-  }, [])
+  }, [emitStartMenuState])
 
   const applyWidgetLayoutById = useCallback((layoutId: string) => {
     socket.emit('widget:layout:apply', layoutId)
@@ -1062,6 +1179,12 @@ export function Desktop({ apps }: DesktopProps) {
   }, [applyWidgetLayoutById])
 
   const iconMenuLaunchable = contextMenu?.app?.appType === 'scene' || contextMenu?.app?.appType === 'widget'
+  const simProgramsOpen = startMenuSimulationPhase?.phase === 'programs-open'
+    || startMenuSimulationPhase?.phase === 'target-hover'
+    || startMenuSimulationPhase?.phase === 'target-select'
+  const simProgramsHover = startMenuSimulationPhase?.phase === 'programs-hover'
+  const simTargetAppId = startMenuSimulationPhase?.targetAppId
+  const simTargetHover = startMenuSimulationPhase?.phase === 'target-hover' || startMenuSimulationPhase?.phase === 'target-select'
   const widgetLayouts = desktopConfig.widgetLayouts ?? []
   const systemWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'user')
@@ -1111,9 +1234,18 @@ export function Desktop({ apps }: DesktopProps) {
             <div className="start-menu-banner">
               <span className="start-menu-banner-text">IEOM</span>
             </div>
-            <div className="start-menu-items">
+            <div
+              className="start-menu-items"
+              onMouseLeave={() => {
+                if (!startMenuOpen) return
+                emitStartMenuState({ open: true, activeRoot: null })
+              }}
+            >
               {/* Programs sub-list */}
-              <div className="start-menu-item start-menu-item--has-sub">
+              <div
+                className={`start-menu-item start-menu-item--has-sub${startMenuActiveRoot === 'programs' || simProgramsOpen ? ' start-menu-item--sim-open' : ''}${simProgramsHover ? ' start-menu-item--sim-hover' : ''}`}
+                onMouseEnter={() => emitStartMenuState({ open: true, activeRoot: 'programs' })}
+              >
                 <span className="start-menu-item-icon">📂</span>
                 <span className="start-menu-item-label">Programs</span>
                 <span className="start-menu-item-arrow">▶</span>
@@ -1121,7 +1253,9 @@ export function Desktop({ apps }: DesktopProps) {
                   {launchableApps.map((app) => (
                     <button
                       key={app.id}
-                      className="start-menu-sub-item"
+                      className={`start-menu-sub-item${simTargetHover && simTargetAppId === app.id ? ' start-menu-sub-item--sim-hover' : ''}`}
+                      data-start-app-id={app.id}
+                      data-start-app-label={app.label}
                       onClick={() => {
                         handleLaunch(app);
                       }}
@@ -1133,7 +1267,10 @@ export function Desktop({ apps }: DesktopProps) {
                 </div>
               </div>
 
-              <div className="start-menu-item start-menu-item--has-sub">
+              <div
+                className={`start-menu-item start-menu-item--has-sub${startMenuActiveRoot === 'widget-layouts' ? ' start-menu-item--sim-open' : ''}`}
+                onMouseEnter={() => emitStartMenuState({ open: true, activeRoot: 'widget-layouts' })}
+              >
                 <span className="start-menu-item-icon">📐</span>
                 <span className="start-menu-item-label">Widget Layouts</span>
                 <span className="start-menu-item-arrow">▶</span>
@@ -1249,7 +1386,12 @@ export function Desktop({ apps }: DesktopProps) {
 
         <Taskbar
           startMenuOpen={startMenuOpen}
-          onStartClick={() => { setStartMenuOpen((o) => !o); setContextMenu(null) }}
+          onStartClick={() => {
+            const nextOpen = !startMenuOpen
+            emitStartMenuState({ open: nextOpen, activeRoot: null })
+            setContextMenu(null)
+          }}
+          onWidgetTaskbarClick={handleTaskbarWidgetClick}
         />
 
         {/* Screen saver — activates after idle timeout if enabled */}
@@ -1275,7 +1417,7 @@ export function Desktop({ apps }: DesktopProps) {
               : undefined,
             onClose: () => {
               if ((window as any).__cursorMirrorVisualOnly) return
-              if (simEmittingRef.current) socket.emit('widget:simulate', a.id)
+              if (simEmittingRef.current) socket.emit('widget:simulate:action', { widgetId: a.id, action: 'toggle' })
               else socket.emit('widget:toggle', a.id)
             },
             onMinimize: () => minimizeWidget(a.id),
