@@ -195,9 +195,9 @@ export function FloatingWindowShell({
   layerClassName?: string
 }) {
   return (
-    <div className={`pointer-events-none fixed inset-0 flex items-center justify-center px-6 py-6 ${layerClassName}`.trim()}>
+    <div className={`pointer-events-none fixed inset-0 flex items-center justify-center px-3 py-3 ${layerClassName}`.trim()}>
       <div
-        className={`pointer-events-auto flex w-[min(1100px,calc(100vw-48px))] flex-col overflow-hidden rounded-xl border border-zinc-700/80 bg-zinc-900 shadow-2xl ${frameClassName}`.trim()}
+        className={`pointer-events-auto flex w-[calc(100vw-24px)] max-w-[1100px] flex-col overflow-hidden rounded-xl border border-zinc-700/80 bg-zinc-900 shadow-2xl ${frameClassName}`.trim()}
       >
         {children}
       </div>

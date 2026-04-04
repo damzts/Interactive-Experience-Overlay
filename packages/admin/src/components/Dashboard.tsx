@@ -10,6 +10,7 @@ import {
   getWidgetComponent,
   getWidgetSource,
   isSystemWidget,
+  resolveSourceInstance,
   STATE,
   OVERLAY_EVENT,
   withDesktopConfigDefaults,
@@ -18,13 +19,13 @@ import {
 } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
-  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance, AppConfig,
-  DesktopNotificationEffectConfig, EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
+  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance, SourcePreset, AppConfig,
+  DesktopNotificationEffectConfig, EffectType, EffectConfig, EventAction, EventConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
   RecycleBinSettings, StickyNotesSettings, WidgetComponentType, WidgetThemeConfig, ApplicationDefaultSnapshot, SceneDefaultSnapshot,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
-import { inferAssetKindFromUrl, type AssetKind } from '../assets/catalog'
+import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../assets/catalog'
 import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
 import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel, FloatingWindowShell, FloatingWindowHeader, ConfigCard, ConfigNotice, ConfigChoiceButton, ConfigPreviewButton, ConfigSwatchButton, ConfigToolbar } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
@@ -911,11 +912,264 @@ function SourceField({ field, value, onChange }: { field: FieldDef; value: unkno
   )
 }
 
+function resolveSourcePreviewFontFamily(font: unknown) {
+  switch (String(font ?? '').toLowerCase()) {
+    case 'vt323':
+      return 'VT323, monospace'
+    case 'press-start':
+      return '"Press Start 2P", monospace'
+    case 'serif':
+      return 'serif'
+    default:
+      return 'monospace'
+  }
+}
+
+function formatSourcePreviewClock(format: unknown) {
+  const now = new Date()
+  const use12Hour = String(format ?? '').startsWith('12h')
+  const includeSeconds = String(format ?? '').includes('sec')
+  return now.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: includeSeconds ? '2-digit' : undefined,
+    hour12: use12Hour,
+  })
+}
+
+function SourcePresetPreview({
+  preset,
+  meta,
+  onPositionChange,
+}: {
+  preset: SourcePreset
+  meta?: CatalogEntry
+  onPositionChange?: (position: { x: number; y: number }) => void
+}) {
+  const config = preset.config ?? {}
+  const opacityValue = Math.max(0, Math.min(1, Number(config.opacity ?? 1)))
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const [dragState, setDragState] = useState<{
+    pointerId: number
+    startClientX: number
+    startClientY: number
+    startX: number
+    startY: number
+  } | null>(null)
+  const sourcePosition = {
+    x: Math.max(0, Math.min(1920, Number(preset.defaultPosition?.x ?? 0))),
+    y: Math.max(0, Math.min(1080, Number(preset.defaultPosition?.y ?? 0))),
+    width: Math.max(80, Math.min(1920, Number(preset.defaultPosition?.width ?? 1920))),
+    height: Math.max(48, Math.min(1080, Number(preset.defaultPosition?.height ?? 1080))),
+  }
+  const previewFrameStyle = {
+    left: `${(sourcePosition.x / 1920) * 100}%`,
+    top: `${(sourcePosition.y / 1080) * 100}%`,
+    width: `${(sourcePosition.width / 1920) * 100}%`,
+    height: `${(sourcePosition.height / 1080) * 100}%`,
+  } as const
+
+  let previewNode: React.ReactNode
+
+  switch (preset.pluginType) {
+    case 'image-static': {
+      const url = String(config.url ?? '').trim()
+      const objectFit = ['cover', 'contain', 'fill'].includes(String(config.objectFit ?? 'cover')) ? String(config.objectFit) as 'cover' | 'contain' | 'fill' : 'cover'
+      previewNode = url ? (
+        <img src={url} alt={preset.label} className="h-full w-full" style={{ objectFit, opacity: opacityValue }} />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
+          Select an image asset to preview it here.
+        </div>
+      )
+      break
+    }
+    case 'video-loop': {
+      const url = String(config.url ?? '').trim()
+      previewNode = url ? (
+        <video src={url} className="h-full w-full object-cover" style={{ opacity: opacityValue }} muted autoPlay loop playsInline />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
+          Select a video asset to preview it here.
+        </div>
+      )
+      break
+    }
+    case 'solid-color': {
+      previewNode = <div className="h-full w-full" style={{ background: String(config.color ?? '#000000') }} />
+      break
+    }
+    case 'color-overlay': {
+      previewNode = (
+        <div className="relative h-full w-full overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#1f2937,transparent_55%),linear-gradient(135deg,#0f172a,#020617)]" />
+          <div className="absolute inset-0" style={{ background: String(config.color ?? '#000000'), opacity: opacityValue }} />
+        </div>
+      )
+      break
+    }
+    case 'image-slideshow': {
+      const interval = Number(config.interval ?? 6)
+      previewNode = (
+        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#1e293b,transparent_55%),linear-gradient(135deg,#111827,#020617)] px-6">
+          <div className="grid w-full max-w-xl grid-cols-3 gap-3">
+            {[0, 1, 2].map((index) => (
+              <div
+                key={index}
+                className={'rounded-xl border border-zinc-700/80 bg-zinc-900/85 p-3 text-center transition-transform ' + (index === 1 ? 'scale-105 shadow-[0_0_0_1px_rgba(34,211,238,0.3)]' : 'opacity-70')}
+              >
+                <div className="mb-3 text-3xl">🎞</div>
+                <div className="text-[11px] font-medium text-zinc-200">Frame {index + 1}</div>
+              </div>
+            ))}
+          </div>
+          <div className="absolute bottom-3 left-3 flex gap-2 text-[10px] text-zinc-300">
+            <span className="rounded-full border border-zinc-700/80 bg-zinc-950/70 px-2 py-1">{Number.isFinite(interval) ? interval : 6}s</span>
+            <span className="rounded-full border border-zinc-700/80 bg-zinc-950/70 px-2 py-1">{Boolean(config.shuffle) ? 'Shuffle' : 'Sequence'}</span>
+          </div>
+        </div>
+      )
+      break
+    }
+    case 'crt-effect': {
+      const scanlineIntensity = Math.max(0, Math.min(1, Number(config.scanlineIntensity ?? 0.25)))
+      const vignetteStrength = Math.max(0, Math.min(1, Number(config.vignetteStrength ?? 0.5)))
+      previewNode = (
+        <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(180deg,#0f172a,#020617)]">
+          <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.18),transparent_60%)]" />
+          <div className="absolute inset-0" style={{ opacity: 0.15 + scanlineIntensity * 0.45, backgroundImage: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.10) 0px, rgba(255,255,255,0.10) 1px, transparent 1px, transparent 4px)' }} />
+          <div className="absolute inset-0" style={{ background: `radial-gradient(circle, transparent 35%, rgba(0,0,0,${0.2 + vignetteStrength * 0.6}) 100%)` }} />
+        </div>
+      )
+      break
+    }
+    case 'vignette': {
+      const strength = Math.max(0, Math.min(1, Number(config.strength ?? 0.6)))
+      previewNode = (
+        <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(135deg,#1d4ed8,#0f172a_60%,#020617)]">
+          <div className="absolute inset-0" style={{ background: `radial-gradient(circle, transparent 40%, ${String(config.color ?? '#000000')} ${60 + strength * 20}%)`, opacity: 0.4 + strength * 0.5 }} />
+        </div>
+      )
+      break
+    }
+    case 'noise-grain': {
+      const grainOpacity = Math.max(0, Math.min(0.5, Number(config.opacity ?? 0.08)))
+      previewNode = (
+        <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(135deg,#111827,#020617)]">
+          <div className="absolute inset-0" style={{ opacity: 0.4, backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.08) 0 1px, transparent 1px), radial-gradient(circle at 80% 30%, rgba(255,255,255,0.05) 0 1px, transparent 1px), radial-gradient(circle at 40% 70%, rgba(255,255,255,0.08) 0 1px, transparent 1px)', backgroundSize: '18px 18px, 22px 22px, 16px 16px' }} />
+          <div className="absolute bottom-3 left-3 rounded-full border border-zinc-700/80 bg-zinc-950/70 px-2 py-1 text-[10px] text-zinc-300">Opacity {grainOpacity.toFixed(2)}</div>
+        </div>
+      )
+      break
+    }
+    case 'text-widget': {
+      const fontSize = Math.max(8, Number(config.fontSize ?? 28))
+      const content = String(config.content ?? 'Label')
+      previewNode = (
+        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#1f2937,transparent_55%),linear-gradient(135deg,#111827,#020617)] px-6 text-center">
+          <div style={{ color: String(config.color ?? '#ffffff'), fontSize: `${fontSize}px`, fontFamily: resolveSourcePreviewFontFamily(config.font) }}>
+            {Boolean(config.typewriterMode) ? `${content}_` : content}
+          </div>
+        </div>
+      )
+      break
+    }
+    case 'clock-widget': {
+      const fontSize = Math.max(8, Number(config.fontSize ?? 36))
+      previewNode = (
+        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#0f3d2f,transparent_55%),linear-gradient(135deg,#111827,#020617)] px-6 text-center">
+          <div style={{ color: String(config.color ?? '#00ff41'), fontSize: `${fontSize}px`, fontFamily: resolveSourcePreviewFontFamily(config.font) }}>
+            {formatSourcePreviewClock(config.format)}
+          </div>
+        </div>
+      )
+      break
+    }
+    default: {
+      previewNode = (
+        <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
+          Preview unavailable for this source type.
+        </div>
+      )
+    }
+  }
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!onPositionChange) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDragState({
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: sourcePosition.x,
+      startY: sourcePosition.y,
+    })
+  }
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState || dragState.pointerId !== event.pointerId || !onPositionChange || !stageRef.current) return
+    const rect = stageRef.current.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+
+    const deltaX = ((event.clientX - dragState.startClientX) / rect.width) * 1920
+    const deltaY = ((event.clientY - dragState.startClientY) / rect.height) * 1080
+    const nextX = Math.max(0, Math.min(1920 - sourcePosition.width, Math.round(dragState.startX + deltaX)))
+    const nextY = Math.max(0, Math.min(1080 - sourcePosition.height, Math.round(dragState.startY + deltaY)))
+    onPositionChange({ x: nextX, y: nextY })
+  }
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragState?.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    setDragState(null)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div ref={stageRef} className="relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
+        <div className="absolute left-3 top-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] text-zinc-300">
+          {meta?.icon ?? '▣'} {meta?.label ?? preset.pluginType}
+        </div>
+        <div className="absolute bottom-3 right-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] font-mono text-zinc-300">
+          {Math.round(preset.defaultPosition?.width ?? 1920)} x {Math.round(preset.defaultPosition?.height ?? 1080)}
+        </div>
+        <div className="absolute bottom-3 left-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] font-mono text-zinc-300">
+          {Math.round(sourcePosition.x)}, {Math.round(sourcePosition.y)}
+        </div>
+        <div
+          className={'absolute overflow-hidden rounded-xl border border-cyan-400/35 bg-zinc-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.1),0_12px_32px_rgba(2,6,23,0.4)] ' + (onPositionChange ? (dragState ? 'cursor-grabbing' : 'cursor-grab') : '')}
+          style={previewFrameStyle}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <div className="absolute inset-0">{previewNode}</div>
+          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3 text-[10px] text-zinc-500">
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">label: {preset.label || meta?.label || 'Draft'}</div>
+      </div>
+      <div className="text-[10px] text-zinc-500">Drag the preview frame to update x and y.</div>
+    </div>
+  )
+}
+
 function SourcesEditor({ sceneId }: { sceneId: string }) {
   const config     = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const scene      = config.scenes[sceneId] as (typeof config.scenes)[string] | undefined
   const sources    = (scene?.sources ?? []) as SourceInstance[]
+  const sourcePresets = config.sourcePresets ?? []
   const [expanded,    setExpanded]    = useState<string | null>(null)
   const [showCatalog, setShowCatalog] = useState(false)
 
@@ -924,18 +1178,16 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
 
   const toggle   = (id: string) => save(sources.map((s) => s.id === id ? { ...s, visible: !s.visible } : s))
   const remove   = (id: string) => { save(sources.filter((s) => s.id !== id)); if (expanded === id) setExpanded(null) }
-  const setConfig = (id: string, cfg: Record<string, unknown>) => save(sources.map((s) => s.id === id ? { ...s, config: cfg } : s))
   const setPos   = (id: string, f: keyof SourceInstance['position'], v: number) =>
     save(sources.map((s) => s.id === id ? { ...s, position: { ...s.position, [f]: v } } : s))
   const moveZ    = (id: string, dir: 1 | -1) =>
     save(sources.map((s) => s.id === id ? { ...s, zIndex: s.zIndex + dir } : s))
 
-  const addSource = (entry: CatalogEntry) => {
+  const addSource = (preset: SourcePreset) => {
     const newSrc: SourceInstance = {
-      id:         entry.type + '-' + Date.now(),
-      pluginType: entry.type,
-      config:     { ...entry.defaultConfig },
-      position:   entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
+      id:         `${preset.id}-${Date.now()}`,
+      sourcePresetId: preset.id,
+      position:   preset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
       zIndex:     sources.length,
       visible:    true,
     }
@@ -950,11 +1202,13 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
     <div className="space-y-2">
       {sorted.length === 0 && (
         <ConfigNotice tone="info" className="py-3 text-center">
-          No sources yet. Game capture shows through until you add a source.
+          No sources yet. Attach a source preset to this scene to render it here.
         </ConfigNotice>
       )}
       {sorted.map((src) => {
-        const meta  = SOURCE_CATALOG.find((c) => c.type === src.pluginType)
+        const resolved = resolveSourceInstance(src, sourcePresets)
+        const meta  = SOURCE_CATALOG.find((c) => c.type === resolved?.pluginType)
+        const preset = sourcePresets.find((entry) => entry.id === src.sourcePresetId)
         const isExp = expanded === src.id
         return (
           <ConfigCard key={src.id} className="overflow-hidden p-0">
@@ -967,7 +1221,7 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
               />
               <span className="text-[10px] text-zinc-500 shrink-0">{meta?.icon ?? '▣'}</span>
               <span className="text-[11px] text-zinc-200 flex-1 truncate font-mono">{src.id}</span>
-              <span className="text-[9px] text-zinc-600 shrink-0">{src.pluginType}</span>
+              <span className="text-[9px] text-zinc-600 shrink-0">{preset?.label ?? resolved?.pluginType ?? 'Unbound'}</span>
               <Btn type="button" variant={isExp ? 'active' : 'ghost'} onClick={() => setExpanded(isExp ? null : src.id)} className="px-2 py-0.5 text-[10px]">
                 {isExp ? 'Collapse' : 'Edit'}
               </Btn>
@@ -977,10 +1231,20 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
             </div>
             {isExp && (
               <div className="space-y-3 border-t border-zinc-800/80 px-3 py-3">
-                {meta?.fields.map((f) => (
-                  <SourceField key={f.key} field={f} value={src.config[f.key]}
-                    onChange={(v) => setConfig(src.id, { ...src.config, [f.key]: v })} />
-                ))}
+                <div>
+                  <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Source Preset</div>
+                  <select
+                    value={src.sourcePresetId ?? ''}
+                    onChange={(event) => save(sources.map((entry) => entry.id === src.id ? { ...entry, sourcePresetId: event.target.value || undefined } : entry))}
+                    className="w-full text-xs"
+                  >
+                    <option value="">— Select preset —</option>
+                    {sourcePresets.map((presetOption) => (
+                      <option key={presetOption.id} value={presetOption.id}>{presetOption.label}</option>
+                    ))}
+                  </select>
+                  {preset && <div className="mt-1 text-[10px] text-zinc-500">{preset.pluginType}</div>}
+                </div>
                 <div>
                   <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Position (px on 1920×1080)</div>
                   <div className="grid grid-cols-4 gap-1">
@@ -1009,28 +1273,31 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
       {showCatalog ? (
         <ConfigCard className="mt-1">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Choose source type</span>
+            <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Attach source preset</span>
             <Btn type="button" variant="ghost" onClick={() => setShowCatalog(false)} className="px-2 py-0.5 text-[10px]">Close</Btn>
           </div>
           <div className="max-h-64 space-y-1.5 overflow-y-auto">
-            {SOURCE_CATALOG.map((entry) => (
-              <button key={entry.type} type="button" onClick={() => addSource(entry)}
+            {sourcePresets.length ? sourcePresets.map((preset) => {
+              const meta = SOURCE_CATALOG.find((entry) => entry.type === preset.pluginType)
+              return (
+                <button key={preset.id} type="button" onClick={() => addSource(preset)}
                 className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75">
                 <div className="flex items-center gap-2">
-                <span className="text-base">{entry.icon}</span>
+                <span className="text-base">{meta?.icon ?? '▣'}</span>
                 <div className="min-w-0">
-                  <div className="text-[11px] text-zinc-200 font-medium">{entry.label}</div>
-                  <div className="text-[9px] text-zinc-500 truncate">{entry.desc}</div>
+                  <div className="text-[11px] text-zinc-200 font-medium">{preset.label}</div>
+                  <div className="text-[9px] text-zinc-500 truncate">{meta?.label ?? preset.pluginType}</div>
                 </div>
                 </div>
               </button>
-            ))}
+              )
+            }) : <ConfigNotice tone="info">No source presets yet. Create them from the Asset Library Sources tab first.</ConfigNotice>}
           </div>
         </ConfigCard>
       ) : (
         <Btn type="button" onClick={() => setShowCatalog(true)} variant="ghost"
           className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200">
-          + Add Source
+          + Attach Source Preset
         </Btn>
       )}
     </div>
@@ -1222,10 +1489,57 @@ function labelizeIconSize(size: DesktopConfig['defaultIconSize']) {
 
 // ── Events def ─────────────────────────────────────────────────────
 
-type AutoTrigger = { enabled: boolean; mode: 'interval' | 'idle'; intervalMin: number; idleMin: number }
-type EventDef    = { id: string; label: string; icon: string; color: string; desc: string; builtIn?: boolean; effects: EffectConfig[]; auto: AutoTrigger; type?: 'overlay' | 'widget-automation'; widgetAutomation?: { availableWidgets?: string[]; toggleChance?: number; openBias?: number } }
+type EventDef = EventConfig & {
+  builtIn?: boolean
+}
+
+type EventPresetId = 'blank' | 'signal-burst' | 'theme-shift' | 'widget-mood' | 'layout-recall' | 'ambiance-boost'
 
 const DEFAULT_EVENT_DEFS: EventDef[] = []
+
+const EVENT_PRESET_OPTIONS: Array<{
+  id: EventPresetId
+  icon: string
+  label: string
+  description: string
+}> = [
+  { id: 'blank', icon: '⚡', label: 'Blank Event', description: 'Start from scratch with an empty event record.' },
+  { id: 'signal-burst', icon: '📡', label: 'Signal Burst', description: 'Desktop notification plus glitch-style overlay burst.' },
+  { id: 'theme-shift', icon: '🎨', label: 'Theme Shift', description: 'Swap the desktop and shared widget chrome into a new mood.' },
+  { id: 'widget-mood', icon: '🪟', label: 'Widget Mood', description: 'Restyle one or more widgets without changing the whole desktop.' },
+  { id: 'layout-recall', icon: '🗂', label: 'Layout Recall', description: 'Snap the live desktop into a saved widget layout.' },
+  { id: 'ambiance-boost', icon: '🌀', label: 'Ambiance Boost', description: 'Turn up live widget activity for a more dynamic desktop.' },
+]
+
+const COMMON_EVENT_ACTION_KINDS: EventAction['kind'][] = [
+  'desktop-config',
+  'widget-theme-overrides',
+  'widget-layout',
+  'widget-command',
+  'ambiance-patch',
+]
+
+const COMMON_EVENT_EFFECT_TYPES: EffectType[] = [
+  'desktop-notification',
+  'network-glitch',
+  'floaties',
+  'static-burst',
+]
+
+function getEventActionLabel(kind: EventAction['kind']) {
+  if (kind === 'desktop-config') return 'Desktop look'
+  if (kind === 'widget-theme-overrides') return 'Widget mood'
+  if (kind === 'widget-layout') return 'Widget layout'
+  if (kind === 'widget-command') return 'Widget state'
+  return 'Ambiance'
+}
+
+function describeEventSetup(def: EventDef) {
+  if (def.actions?.length && def.effects.length) return 'Automation + overlay FX'
+  if (def.actions?.length) return 'Runtime automation only'
+  if (def.effects.length) return 'Overlay FX only'
+  return 'Empty draft'
+}
 
 const LAUNCH_PIPELINE_EFFECT_TYPES: EffectType[] = [
   'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
@@ -1275,9 +1589,161 @@ function createEventDef(): EventDef {
     color: 'text-cyan-400',
     desc: '',
     effects: [],
-    auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 },
-    type: 'overlay',
+    actions: [],
+    auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 },
   }
+}
+
+function createEventActionDraft(kind: EventAction['kind']): EventAction {
+  if (kind === 'desktop-config') {
+    return {
+      kind,
+      patch: {
+        theme: 'win98',
+        iconAnimation: 'none',
+        iconMotion: 1,
+        widgetTheme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
+      },
+    }
+  }
+
+  if (kind === 'widget-theme-overrides') {
+    return {
+      kind,
+      widgetIds: [],
+      clearExisting: false,
+      theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
+    }
+  }
+
+  if (kind === 'widget-layout') {
+    return {
+      kind,
+      layoutId: '',
+    }
+  }
+
+  if (kind === 'widget-command') {
+    return {
+      kind,
+      widgetId: 'music',
+      action: 'toggle',
+    }
+  }
+
+  return {
+    kind,
+    patch: {
+      enabled: true,
+      intervalSeconds: 30,
+      maxOpenWidgets: 2,
+      openWhileOneOpenChance: 0.35,
+    },
+  }
+}
+
+function createEventPreset(
+  presetId: EventPresetId,
+  options?: {
+    widgetIds?: string[]
+    layoutId?: string
+  },
+): EventDef {
+  const base = createEventDef()
+  const firstWidgetId = options?.widgetIds?.[0] ?? 'music'
+
+  if (presetId === 'signal-burst') {
+    return {
+      ...base,
+      label: 'Signal Burst',
+      icon: '📡',
+      desc: 'Broadcast interruption pulse with a runtime heads-up message.',
+      effects: [
+        { type: 'network-glitch', cfg: { message: '[ SIGNAL INTERRUPTION ]', duration: 2 }, delay: 0 },
+        { type: 'desktop-notification', cfg: { title: 'Signal burst', body: 'Transmission noise washed across the desktop.', icon: '📡', durationMs: 3200 }, delay: 0.2 },
+      ],
+    }
+  }
+
+  if (presetId === 'theme-shift') {
+    return {
+      ...base,
+      label: 'Theme Shift',
+      icon: '🎨',
+      desc: 'Push the whole desktop into a new live chrome mood.',
+      actions: [{
+        kind: 'desktop-config',
+        patch: {
+          theme: 'frutiger aero',
+          iconAnimation: 'float',
+          iconMotion: 1.2,
+          widgetTheme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS['aero nova']),
+          screenSaver: {
+            enabled: true,
+            timeoutMinutes: 6,
+            preset: 'starfield',
+          },
+        },
+      }],
+    }
+  }
+
+  if (presetId === 'widget-mood') {
+    return {
+      ...base,
+      label: 'Widget Mood',
+      icon: '🪟',
+      desc: 'Restyle specific widgets for a temporary personality shift.',
+      actions: [{
+        kind: 'widget-theme-overrides',
+        widgetIds: options?.widgetIds?.slice(0, 2) ?? [firstWidgetId],
+        clearExisting: false,
+        theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS['digital futurism']),
+      }],
+    }
+  }
+
+  if (presetId === 'layout-recall') {
+    return {
+      ...base,
+      label: 'Layout Recall',
+      icon: '🗂',
+      desc: 'Snap the live desktop into a saved widget arrangement.',
+      actions: [{
+        kind: 'widget-layout',
+        layoutId: options?.layoutId ?? '',
+      }],
+    }
+  }
+
+  if (presetId === 'ambiance-boost') {
+    return {
+      ...base,
+      label: 'Ambiance Boost',
+      icon: '🌀',
+      desc: 'Increase live widget motion and open-window churn.',
+      actions: [{
+        kind: 'ambiance-patch',
+        patch: {
+          enabled: true,
+          intervalSeconds: 18,
+          maxOpenWidgets: 3,
+          openWhileOneOpenChance: 0.65,
+        },
+      }],
+      auto: {
+        ...base.auto,
+        enabled: true,
+        mode: 'interval',
+        intervalMin: 12,
+        chance: 0.65,
+        cooldownMin: 8,
+        allowedStates: [STATE.DESKTOP],
+      },
+    }
+  }
+
+  return base
 }
 // ── Selected item union ────────────────────────────────────────────
 
@@ -1957,7 +2423,7 @@ function DefaultStylingEditor() {
   const dirty = theme !== sourceDesktopConfig.theme
     || !isSameDraft(appearance, sourceAppearance)
     || !isSameDraft(widgetTheme, sourceDesktopConfig.widgetTheme)
-  const previewPatch = useMemo<Partial<AppConfig>>(() => {
+  const previewPatch = useMemo(() => {
     const nextDesktopStyle = structuredClone(sourceStyle)
     nextDesktopStyle.fontFamily = appearance.fontFamily
     nextDesktopStyle.accentColor = appearance.accentColor
@@ -1974,7 +2440,7 @@ function DefaultStylingEditor() {
           style: nextDesktopStyle,
         },
       },
-    }
+    } as unknown as Partial<AppConfig>
   }, [appearance, config.scenes, sourceStyle, theme, widgetTheme])
 
   useEffect(() => {
@@ -2004,7 +2470,7 @@ function DefaultStylingEditor() {
           style: nextDesktopStyle,
         },
       },
-    })
+    } as unknown as Partial<AppConfig>)
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
@@ -2037,7 +2503,7 @@ function DefaultStylingEditor() {
           style: nextDesktopStyle,
         },
       },
-    })
+    } as unknown as Partial<AppConfig>)
 
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -2084,7 +2550,7 @@ function DefaultStylingEditor() {
           style: nextDesktopStyle,
         },
       },
-    })
+    } as unknown as Partial<AppConfig>)
 
     setSaveDefaultArmed(false)
     setSaving(false)
@@ -2373,6 +2839,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const isRecycleBinDecoration = form.appType === 'decoration' && form.id === 'recycle-bin'
   const stickyNotesConfig = form.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS
   const recycleBinConfig = form.recycleBinSettings ?? DEFAULT_RECYCLE_BIN_SETTINGS
+  const sourcePresets = config.sourcePresets ?? []
   const selectedSourceSceneId = form.sourceWidgetSettings?.sceneId ?? ''
   const selectedSourceScene = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
   const selectedSourceSceneSources = getSafeSceneSources(selectedSourceScene)
@@ -2385,6 +2852,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   )
   const availableSources = selectedSourceSceneSources
   const selectedSource = availableSources.find((source) => source.id === form.sourceWidgetSettings?.sourceId)
+  const selectedSourceResolved = selectedSource ? resolveSourceInstance(selectedSource, sourcePresets) : null
 
   // Auto-enumerate video devices when this is a camera widget
   useEffect(() => {
@@ -2412,7 +2880,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     && !widgetSizeDirty
     && !widgetDefaultZIndexDirty
     && !recycleBinFullOnStartDirty
-  const widgetThemePreviewPatch = useMemo<Partial<AppConfig> | null>(() => {
+  const widgetThemePreviewPatch = useMemo(() => {
     if (form.appType !== 'widget') return null
 
     const nextOverrides = { ...(desktopConfig.widgetThemeOverrides ?? {}) }
@@ -2426,7 +2894,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       desktopConfig: {
         widgetThemeOverrides: Object.keys(nextOverrides).length ? nextOverrides : undefined,
       },
-    }
+    } as Partial<AppConfig>
   }, [desktopConfig.widgetThemeOverrides, form, widgetThemeOverride, widgetThemeOverrideEnabled])
 
   useEffect(() => {
@@ -2549,7 +3017,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     if (themeOnlyDirty && updates.desktopConfig) {
       updates.applications = undefined
       updates.scenes = undefined
-      updates.desktopConfig = { widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides }
+      updates.desktopConfig = { widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides } as DesktopConfig
     }
 
     await saveConfig(updates)
@@ -3068,7 +3536,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                   {selectedSourceSceneId ? '— Select source —' : '— Choose a scene first —'}
                 </option>
                 {availableSources.map((source) => (
-                  <option key={source.id} value={source.id}>{source.id} · {source.pluginType}</option>
+                  <option key={source.id} value={source.id}>{source.id} · {resolveSourceInstance(source, sourcePresets)?.pluginType ?? 'unbound'}</option>
                 ))}
               </select>
             </div>
@@ -3084,7 +3552,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 space-y-1">
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Current Binding</div>
                 <div className="text-[11px] text-zinc-200">{selectedSourceScene.label}</div>
-                <div className="text-[10px] text-zinc-400 font-mono">{selectedSource.id} · {selectedSource.pluginType}</div>
+                <div className="text-[10px] text-zinc-400 font-mono">{selectedSource.id} · {selectedSourceResolved?.pluginType ?? 'unbound'}</div>
               </div>
             )}
           </div>
@@ -3702,16 +4170,30 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
 
 // ── EventForm ──────────────────────────────────────────────────────
 
-function EventForm({ def, onUpdate, onDelete }: {
+function EventForm({
+  def,
+  onUpdate,
+  onDelete,
+  showOverview = true,
+  showDeleteButton = true,
+}: {
   def: EventDef
   onUpdate: (d: EventDef) => void
   onDelete?: () => void
+  showOverview?: boolean
+  showDeleteButton?: boolean
 }) {
+  const config = useAdminStore((s) => s.config)
+  const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
+  const widgetApps = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
+  const widgetLayouts = desktopConfig.widgetLayouts ?? []
+
   const update = (fn: (d: EventDef) => void) => {
     const next: EventDef = {
       ...def,
       auto: { ...def.auto },
       effects: def.effects.map((effect) => structuredClone(effect)),
+      actions: structuredClone(def.actions ?? []),
     }
     fn(next)
     onUpdate(next)
@@ -3727,224 +4209,491 @@ function EventForm({ def, onUpdate, onDelete }: {
     })
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/60">
-        <span className="text-3xl">{def.icon}</span>
-        <div className="min-w-0">
-          <div className="text-sm font-bold text-zinc-100">{def.label}</div>
-          <div className="text-[11px] text-zinc-500 font-mono">{def.id}</div>
-          <div className="text-[11px] text-zinc-400 mt-0.5">{def.desc}</div>
-        </div>
-      </div>
+  const updateAction = (index: number, updater: (action: EventAction) => void) => {
+    update((d) => {
+      const action = d.actions?.[index]
+      if (!action) return
+      updater(action)
+    })
+  }
 
-      <div className="space-y-0 pt-2">
-      {!def.builtIn && (
-        <ConfigSectionPanel label="Edit" first>
-          <div className="space-y-2">
-            <div>
-              <div className="text-[10px] text-zinc-400 mb-1">Label</div>
-              <input type="text" value={def.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full" />
+  const addAction = (kind: EventAction['kind']) => {
+    update((d) => {
+      d.actions = [...(d.actions ?? []), createEventActionDraft(kind)]
+    })
+  }
+
+  const addEffect = (type: EffectType) => {
+    update((d) => {
+      d.effects.push(createEffectDraft(type))
+    })
+  }
+
+  const renderThemeFields = (theme: WidgetThemeConfig, onChange: (updater: (draft: WidgetThemeConfig) => void) => void) => (
+    <div className="grid grid-cols-2 gap-2 pl-1">
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Skin</div>
+        <select
+          value={theme.skin}
+          onChange={(e) => onChange((draft) => Object.assign(draft, structuredClone(DEFAULT_WIDGET_THEME_PRESETS[e.target.value as keyof typeof DEFAULT_WIDGET_THEME_PRESETS]))) }
+          className="w-full text-xs"
+        >
+          {WIDGET_SKINS.map((skin) => (
+            <option key={skin.id} value={skin.id}>{skin.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Font</div>
+        <select
+          value={theme.fontFamily}
+          onChange={(e) => onChange((draft) => { draft.fontFamily = e.target.value })}
+          className="w-full text-xs"
+        >
+          {GOOGLE_FONTS.map((font) => (
+            <option key={font.css} value={font.css}>{font.name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Accent</div>
+        <HexColorInput value={theme.accentColor} onChange={(value) => onChange((draft) => { draft.accentColor = value })} />
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Text</div>
+        <HexColorInput value={theme.textColor} onChange={(value) => onChange((draft) => { draft.textColor = value })} />
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Animation</div>
+        <select
+          value={theme.animation}
+          onChange={(e) => onChange((draft) => { draft.animation = e.target.value as WidgetThemeConfig['animation'] })}
+          className="w-full text-xs"
+        >
+          {WIDGET_THEME_ANIMATIONS.map((animation) => (
+            <option key={animation.id} value={animation.id}>{animation.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Atmosphere</div>
+        <select
+          value={theme.atmosphere}
+          onChange={(e) => onChange((draft) => { draft.atmosphere = e.target.value as WidgetThemeConfig['atmosphere'] })}
+          className="w-full text-xs"
+        >
+          {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
+            <option key={atmosphere.id} value={atmosphere.id}>{atmosphere.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Motion</div>
+        <input
+          type="number"
+          min={0}
+          max={3}
+          step={0.05}
+          value={theme.motionIntensity}
+          onChange={(e) => onChange((draft) => { draft.motionIntensity = Number(e.target.value) })}
+          className="w-full font-mono text-xs"
+        />
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Glow</div>
+        <input
+          type="number"
+          min={0}
+          max={3}
+          step={0.05}
+          value={theme.glowIntensity}
+          onChange={(e) => onChange((draft) => { draft.glowIntensity = Number(e.target.value) })}
+          className="w-full font-mono text-xs"
+        />
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      {showOverview && (
+        <>
+          <div className="flex items-center gap-4 rounded-xl border border-zinc-700/60 bg-zinc-800/50 px-4 py-4">
+            <span className="text-3xl">{def.icon}</span>
+            <div className="min-w-0">
+              <div className="text-base font-bold text-zinc-100">{def.label}</div>
+              <div className="text-xs text-zinc-500 font-mono">{def.id}</div>
+              <div className="mt-1 text-xs text-zinc-400">{def.desc}</div>
             </div>
-            <div>
-              <div className="text-[10px] text-zinc-400 mb-1">Icon</div>
-              <input type="text" value={def.icon} onChange={(e) => update((d) => { d.icon = e.target.value })} className="w-full" placeholder="⚡" />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ConfigCard className="text-left">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Setup</div>
+              <div className="mt-1 text-sm font-semibold text-zinc-100">{describeEventSetup(def)}</div>
+            </ConfigCard>
+            <ConfigCard className="text-left">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Runtime Actions</div>
+              <div className="mt-1 text-sm font-semibold text-zinc-100">{def.actions?.length ?? 0}</div>
+            </ConfigCard>
+            <ConfigCard className="text-left">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Overlay Effects</div>
+              <div className="mt-1 text-sm font-semibold text-zinc-100">{def.effects.length}</div>
+            </ConfigCard>
+          </div>
+        </>
+      )}
+
+      <div className="grid gap-4 grid-cols-[280px_minmax(0,1fr)] items-start">
+        <div className="space-y-0 sticky top-0">
+          {!def.builtIn && (
+            <ConfigSectionPanel label="Identity" first>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[10px] text-zinc-400 mb-1">Label</div>
+                  <input type="text" value={def.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-zinc-400 mb-1">Icon</div>
+                  <input type="text" value={def.icon} onChange={(e) => update((d) => { d.icon = e.target.value })} className="w-full" placeholder="⚡" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-zinc-400 mb-1">Description</div>
+                  <textarea value={def.desc} onChange={(e) => update((d) => { d.desc = e.target.value })} className="min-h-[88px] w-full text-sm" />
+                </div>
+              </div>
+            </ConfigSectionPanel>
+          )}
+
+          <ConfigSectionPanel label="Trigger" first={def.builtIn}>
+            <Toggle checked={def.auto.enabled} onChange={(v) => update((d) => { d.auto.enabled = v })} label="Enable auto-trigger" />
+            {def.auto.enabled && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <div className="text-[10px] text-zinc-400 mb-1">Mode</div>
+                  <div className="flex gap-2">
+                    {(['interval', 'idle'] as const).map((m) => (
+                      <ConfigChoiceButton key={m} type="button" selected={def.auto.mode === m} onClick={() => update((d) => { d.auto.mode = m })} className="flex-1 py-2 text-sm">
+                        {m}
+                      </ConfigChoiceButton>
+                    ))}
+                  </div>
+                </div>
+                {def.auto.mode === 'interval' && (
+                  <Slider label="Avg every" value={def.auto.intervalMin} min={1} max={60} step={1} unit="min" onChange={(v) => update((d) => { d.auto.intervalMin = v })} />
+                )}
+                {def.auto.mode === 'idle' && (
+                  <Slider label="After idle" value={def.auto.idleMin} min={1} max={30} step={1} unit="min" onChange={(v) => update((d) => { d.auto.idleMin = v })} />
+                )}
+                <Slider label="Chance" value={Math.round(def.auto.chance * 100)} min={0} max={100} step={5} unit="%" onChange={(v) => update((d) => { d.auto.chance = v / 100 })} />
+                <Slider label="Cooldown" value={def.auto.cooldownMin} min={0} max={120} step={1} unit="min" onChange={(v) => update((d) => { d.auto.cooldownMin = v })} />
+                <div>
+                  <div className="text-[10px] text-zinc-400 mb-1">Allowed states</div>
+                  <div className="flex gap-2">
+                    {[STATE.DESKTOP, STATE.LOBBY].map((stateId) => {
+                      const selected = (def.auto.allowedStates ?? []).includes(stateId)
+                      return (
+                        <ConfigChoiceButton
+                          key={stateId}
+                          type="button"
+                          selected={selected}
+                          onClick={() => update((d) => {
+                            const next = new Set(d.auto.allowedStates ?? [])
+                            if (next.has(stateId)) next.delete(stateId)
+                            else next.add(stateId)
+                            d.auto.allowedStates = next.size ? [...next] : undefined
+                          })}
+                          className="flex-1 py-2 text-sm"
+                        >
+                          {stateId}
+                        </ConfigChoiceButton>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-1 text-[10px] text-zinc-500">Leave both off to allow any runtime state.</div>
+                </div>
+              </div>
+            )}
+          </ConfigSectionPanel>
+
+          {!def.builtIn && showDeleteButton && onDelete && (
+            <div className="pt-3">
+              <Btn variant="danger" onClick={onDelete} className="w-full py-2.5 text-sm">Delete Event</Btn>
             </div>
-            <div>
-              <div className="text-[10px] text-zinc-400 mb-1">Description</div>
-              <input type="text" value={def.desc} onChange={(e) => update((d) => { d.desc = e.target.value })} className="w-full" />
-            </div>
-            <div>
-              <div className="text-[10px] text-zinc-400 mb-1">Type</div>
-              <select value={def.type ?? 'overlay'} onChange={(e) => update((d) => { d.type = e.target.value as 'overlay' | 'widget-automation' })} className="w-full">
-                <option value="overlay">Overlay</option>
-                <option value="widget-automation">Widget Automation</option>
+          )}
+        </div>
+
+        <div className="space-y-0">
+          <ConfigSectionPanel label="Runtime Actions" first>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {COMMON_EVENT_ACTION_KINDS.map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => addAction(kind)}
+                    className="rounded-full border border-zinc-700/70 bg-zinc-950/60 px-3 py-1.5 text-[11px] font-semibold text-zinc-300 transition hover:border-cyan-400/35 hover:text-cyan-200"
+                  >
+                    + {getEventActionLabel(kind)}
+                  </button>
+                ))}
+              </div>
+              {(def.actions ?? []).length === 0 && <div className="text-[10px] text-zinc-600 italic">No runtime actions configured.</div>}
+              {(def.actions ?? []).map((action, index) => (
+                <div key={`${def.id}-action-${index}`} className="space-y-3 rounded-xl border border-zinc-800/70 bg-zinc-950/45 px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 text-xs font-mono text-zinc-300">{action.kind}</span>
+                    <button
+                      type="button"
+                      onClick={() => update((d) => { d.actions?.splice(index, 1) })}
+                      className="rounded-md px-2 py-1 text-[11px] text-red-400 transition hover:bg-red-500/10 hover:text-red-200"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  {action.kind === 'desktop-config' && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 pl-1">
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Desktop theme</div>
+                          <select value={action.patch.theme ?? 'win98'} onChange={(e) => updateAction(index, (draft) => {
+                            if (draft.kind !== 'desktop-config') return
+                            draft.patch.theme = e.target.value as DesktopConfig['theme']
+                          })} className="w-full text-xs">
+                            {DESKTOP_THEMES.map((theme) => <option key={theme.id} value={theme.id}>{theme.label}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Icon motion</div>
+                          <select value={action.patch.iconAnimation ?? 'none'} onChange={(e) => updateAction(index, (draft) => {
+                            if (draft.kind !== 'desktop-config') return
+                            draft.patch.iconAnimation = e.target.value as DesktopConfig['iconAnimation']
+                          })} className="w-full text-xs">
+                            {ICON_ANIMATIONS.map((mode) => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Icon intensity</div>
+                          <input type="number" min={0} max={3} step={0.05} value={action.patch.iconMotion ?? 1} onChange={(e) => updateAction(index, (draft) => {
+                            if (draft.kind !== 'desktop-config') return
+                            draft.patch.iconMotion = Number(e.target.value)
+                          })} className="w-full font-mono text-xs" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Screen saver</div>
+                          <select value={action.patch.screenSaver?.preset ?? desktopConfig.screenSaver.preset} onChange={(e) => updateAction(index, (draft) => {
+                            if (draft.kind !== 'desktop-config') return
+                            draft.patch.screenSaver = {
+                              enabled: draft.patch.screenSaver?.enabled ?? desktopConfig.screenSaver.enabled,
+                              timeoutMinutes: draft.patch.screenSaver?.timeoutMinutes ?? desktopConfig.screenSaver.timeoutMinutes,
+                              preset: e.target.value as DesktopConfig['screenSaver']['preset'],
+                            }
+                          })} className="w-full text-xs">
+                            {SCREENSAVER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
+                        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Global Widget Theme</div>
+                        {renderThemeFields({ ...DEFAULT_WIDGET_THEME_PRESETS.metalheart, ...(action.patch.widgetTheme ?? {}) }, (updater) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'desktop-config') return
+                          const nextTheme: WidgetThemeConfig = { ...DEFAULT_WIDGET_THEME_PRESETS.metalheart, ...(draft.patch.widgetTheme ?? {}) }
+                          updater(nextTheme)
+                          draft.patch.widgetTheme = nextTheme
+                        }))}
+                      </div>
+                    </div>
+                  )}
+
+                  {action.kind === 'widget-theme-overrides' && (
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Target widgets</div>
+                        <div className="flex flex-wrap gap-1">
+                          {widgetApps.map((app) => {
+                            const selected = action.widgetIds.includes(app.id)
+                            return (
+                              <ConfigChoiceButton key={app.id} type="button" selected={selected} onClick={() => updateAction(index, (draft) => {
+                                if (draft.kind !== 'widget-theme-overrides') return
+                                const next = new Set(draft.widgetIds)
+                                if (next.has(app.id)) next.delete(app.id)
+                                else next.add(app.id)
+                                draft.widgetIds = [...next]
+                              })} className="text-[10px]">
+                                {app.label}
+                              </ConfigChoiceButton>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      <Toggle checked={action.clearExisting ?? false} onChange={(value) => updateAction(index, (draft) => {
+                        if (draft.kind !== 'widget-theme-overrides') return
+                        draft.clearExisting = value
+                      })} label="Reset existing overrides first" />
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
+                        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Override Theme</div>
+                        {renderThemeFields(action.theme as WidgetThemeConfig, (updater) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-theme-overrides') return
+                          const nextTheme = structuredClone(draft.theme as WidgetThemeConfig)
+                          updater(nextTheme)
+                          draft.theme = nextTheme
+                        }))}
+                      </div>
+                    </div>
+                  )}
+
+                  {action.kind === 'widget-layout' && (
+                    <div>
+                      <div className="text-[10px] text-zinc-500 mb-1">Layout</div>
+                      <select value={action.layoutId} onChange={(e) => updateAction(index, (draft) => {
+                        if (draft.kind !== 'widget-layout') return
+                        draft.layoutId = e.target.value
+                      })} className="w-full text-xs">
+                        <option value="">Select a layout</option>
+                        {widgetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.label}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  {action.kind === 'widget-command' && (
+                    <div className="grid grid-cols-2 gap-2 pl-1">
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Widget</div>
+                        <select value={action.widgetId} onChange={(e) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-command') return
+                          draft.widgetId = e.target.value
+                        })} className="w-full text-xs">
+                          {widgetApps.map((app) => <option key={app.id} value={app.id}>{app.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Action</div>
+                        <select value={action.action} onChange={(e) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-command') return
+                          draft.action = e.target.value as 'open' | 'close' | 'toggle'
+                        })} className="w-full text-xs">
+                          <option value="toggle">Toggle</option>
+                          <option value="open">Open</option>
+                          <option value="close">Close</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {action.kind === 'ambiance-patch' && (
+                    <div className="grid grid-cols-2 gap-2 pl-1">
+                      <div className="col-span-2">
+                        <Toggle checked={action.patch.enabled ?? false} onChange={(value) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'ambiance-patch') return
+                          draft.patch.enabled = value
+                        })} label="Ambiance enabled" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Interval (s)</div>
+                        <input type="number" min={1} step={1} value={action.patch.intervalSeconds ?? 30} onChange={(e) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'ambiance-patch') return
+                          draft.patch.intervalSeconds = Number(e.target.value)
+                        })} className="w-full font-mono text-xs" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Max open widgets</div>
+                        <input type="number" min={1} step={1} value={action.patch.maxOpenWidgets ?? 2} onChange={(e) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'ambiance-patch') return
+                          draft.patch.maxOpenWidgets = Number(e.target.value)
+                        })} className="w-full font-mono text-xs" />
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-[10px] text-zinc-500 mb-1">Open while one open chance</div>
+                        <input type="number" min={0} max={1} step={0.05} value={action.patch.openWhileOneOpenChance ?? 0.35} onChange={(e) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'ambiance-patch') return
+                          draft.patch.openWhileOneOpenChance = Number(e.target.value)
+                        })} className="w-full font-mono text-xs" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <select defaultValue="" onChange={(e) => {
+                const kind = e.target.value as EventAction['kind']
+                if (!kind) return
+                e.target.value = ''
+                addAction(kind)
+              }} className="w-full text-sm">
+                <option value="">More action types…</option>
+                <option value="desktop-config">Desktop config</option>
+                <option value="widget-theme-overrides">Widget theme overrides</option>
+                <option value="widget-layout">Apply widget layout</option>
+                <option value="widget-command">Widget command</option>
+                <option value="ambiance-patch">Ambiance patch</option>
               </select>
             </div>
-          </div>
-        </ConfigSectionPanel>
+          </ConfigSectionPanel>
 
-      )}
-
-      <ConfigSectionPanel label="Auto-Trigger" first={def.builtIn}>
-        <Toggle checked={def.auto.enabled} onChange={(v) => update((d) => { d.auto.enabled = v })} label="Enable auto-trigger" />
-        {def.auto.enabled && (
-          <div className="mt-3 space-y-2">
-            <div>
-              <div className="text-[10px] text-zinc-400 mb-1">Mode</div>
-              <div className="flex gap-1">
-                {(['interval', 'idle'] as const).map((m) => (
-                  <ConfigChoiceButton key={m} type="button" selected={def.auto.mode === m} onClick={() => update((d) => { d.auto.mode = m })}
-                    className="flex-1 text-xs">
-                    {m}
-                  </ConfigChoiceButton>
-                ))}
-              </div>
-            </div>
-            {def.auto.mode === 'interval' && (
-              <Slider label="Avg every" value={def.auto.intervalMin} min={1} max={60} step={1} unit="min"
-                onChange={(v) => update((d) => { d.auto.intervalMin = v })} />
-            )}
-            {def.auto.mode === 'idle' && (
-              <Slider label="After idle" value={def.auto.idleMin} min={1} max={30} step={1} unit="min"
-                onChange={(v) => update((d) => { d.auto.idleMin = v })} />
-            )}
-          </div>
-        )}
-      </ConfigSectionPanel>
-
-      {def.type === 'widget-automation' && (
-        <ConfigSectionPanel label="Widget Automation Settings">
-          <div className="space-y-3">
-            <div>
-              <div className="text-[10px] text-zinc-400 mb-1">Available Widgets</div>
-              <div className="text-[10px] text-zinc-500 mb-2">Leave empty to include all widgets</div>
-              <div className="flex flex-wrap gap-1">
-                {['music', 'chat', 'archive', 'sticky-notes', 'gallery'].map((widgetId) => (
-                  <ConfigChoiceButton key={widgetId}
+          <ConfigSectionPanel label="Effects">
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {COMMON_EVENT_EFFECT_TYPES.map((type) => (
+                  <button
+                    key={type}
                     type="button"
-                    selected={(def.widgetAutomation?.availableWidgets ?? []).includes(widgetId)}
-                    onClick={() => update((d) => {
-                      if (!d.widgetAutomation) d.widgetAutomation = { availableWidgets: [], toggleChance: 0.8, openBias: 0.6 }
-                      const widgets = d.widgetAutomation.availableWidgets ?? []
-                      const idx = widgets.indexOf(widgetId)
-                      if (idx >= 0) widgets.splice(idx, 1)
-                      else widgets.push(widgetId)
-                      d.widgetAutomation.availableWidgets = widgets
-                    })}
-                    className="text-[10px]">
-                    {widgetId}
-                  </ConfigChoiceButton>
+                    onClick={() => addEffect(type)}
+                    className="rounded-full border border-zinc-700/70 bg-zinc-950/60 px-3 py-1.5 text-[11px] font-semibold text-zinc-300 transition hover:border-cyan-400/35 hover:text-cyan-200"
+                  >
+                    + {type}
+                  </button>
                 ))}
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] text-zinc-400 mb-1">Toggle Chance (0-1)</div>
-                <input type="number" min={0} max={1} step={0.1} 
-                  value={def.widgetAutomation?.toggleChance ?? 0.8}
-                  onChange={(e) => update((d) => {
-                    if (!d.widgetAutomation) d.widgetAutomation = { availableWidgets: [], toggleChance: 0.8, openBias: 0.6 }
-                    d.widgetAutomation.toggleChance = Number(e.target.value)
-                  })}
-                  className="w-full font-mono text-xs" />
-                <div className="text-[9px] text-zinc-500 mt-0.5">Probability of toggling when triggered</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-zinc-400 mb-1">Open Bias (0-1)</div>
-                <input type="number" min={0} max={1} step={0.1} 
-                  value={def.widgetAutomation?.openBias ?? 0.6}
-                  onChange={(e) => update((d) => {
-                    if (!d.widgetAutomation) d.widgetAutomation = { availableWidgets: [], toggleChance: 0.8, openBias: 0.6 }
-                    d.widgetAutomation.openBias = Number(e.target.value)
-                  })}
-                  className="w-full font-mono text-xs" />
-                <div className="text-[9px] text-zinc-500 mt-0.5">Bias toward opening (0.5 = equal)</div>
-              </div>
-            </div>
-          </div>
-        </ConfigSectionPanel>
-      )}
-
-      <ConfigSectionPanel label="Effects">
-        <div className="space-y-2">
-          {def.effects.length === 0 && (
-            <div className="text-[10px] text-zinc-600 italic">No effects configured.</div>
-          )}
-          {def.effects.map((eff, index) => (
-            <div key={`${def.id}-effect-${index}`} className="space-y-2 py-1.5 border-b border-zinc-700/40 last:border-b-0">
-              <div className="flex items-center gap-2">
-                <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={10}
-                  step={0.1}
-                  value={eff.delay ?? 0}
-                  onChange={(e) => update((d) => {
-                    d.effects[index] = { ...d.effects[index], delay: Number(e.target.value) }
-                  })}
-                  className="w-16 font-mono text-xs"
-                  title="Delay (s)"
-                />
-                <span className="text-[9px] text-zinc-600">s</span>
-                <button
-                  onClick={() => update((d) => { d.effects.splice(index, 1) })}
-                  className="text-[10px] text-red-500 hover:text-red-300 px-1"
-                >✕</button>
-              </div>
-              {eff.type === 'desktop-notification' && (() => {
-                const cfg = normalizeDesktopNotificationEffectConfig(eff.cfg)
-                return (
-                  <div className="grid grid-cols-2 gap-2 pl-1">
-                    <div className="col-span-2">
-                      <div className="text-[10px] text-zinc-500 mb-1">Title</div>
-                      <input
-                        type="text"
-                        value={cfg.title}
-                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.title = e.target.value })}
-                        className="w-full text-xs"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <div className="text-[10px] text-zinc-500 mb-1">Body</div>
-                      <textarea
-                        value={cfg.body}
-                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.body = e.target.value })}
-                        className="w-full min-h-[72px] text-xs"
-                      />
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
-                      <input
-                        type="text"
-                        value={cfg.icon ?? ''}
-                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.icon = e.target.value || undefined })}
-                        className="w-full text-xs font-mono"
-                      />
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-zinc-500 mb-1">Duration (ms)</div>
-                      <input
-                        type="number"
-                        min={0}
-                        step={250}
-                        value={cfg.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS}
-                        onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.durationMs = Number(e.target.value) || 0 })}
-                        className="w-full font-mono text-xs"
-                      />
-                    </div>
+              {def.effects.length === 0 && <div className="text-[10px] text-zinc-600 italic">No effects configured.</div>}
+              {def.effects.map((eff, index) => (
+                <div key={`${def.id}-effect-${index}`} className="space-y-3 border-b border-zinc-700/40 py-3 last:border-b-0">
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 text-xs font-mono text-zinc-300">{eff.type}</span>
+                    <input type="number" min={0} max={10} step={0.1} value={eff.delay ?? 0} onChange={(e) => update((d) => {
+                      d.effects[index] = { ...d.effects[index], delay: Number(e.target.value) }
+                    })} className="w-20 font-mono text-xs" title="Delay (s)" />
+                    <span className="text-[10px] text-zinc-600">s</span>
+                    <button onClick={() => update((d) => { d.effects.splice(index, 1) })} className="rounded-md px-2 py-1 text-[11px] text-red-400 transition hover:bg-red-500/10 hover:text-red-200">Remove</button>
                   </div>
-                )
-              })()}
+                  {eff.type === 'desktop-notification' && (() => {
+                    const cfg = normalizeDesktopNotificationEffectConfig(eff.cfg)
+                    return (
+                      <div className="grid grid-cols-2 gap-2 pl-1">
+                        <div className="col-span-2">
+                          <div className="text-[10px] text-zinc-500 mb-1">Title</div>
+                          <input type="text" value={cfg.title} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.title = e.target.value })} className="w-full text-xs" />
+                        </div>
+                        <div className="col-span-2">
+                          <div className="text-[10px] text-zinc-500 mb-1">Body</div>
+                          <textarea value={cfg.body} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.body = e.target.value })} className="w-full min-h-[72px] text-xs" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+                          <input type="text" value={cfg.icon ?? ''} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.icon = e.target.value || undefined })} className="w-full text-xs font-mono" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-zinc-500 mb-1">Duration (ms)</div>
+                          <input type="number" min={0} step={250} value={cfg.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.durationMs = Number(e.target.value) || 0 })} className="w-full font-mono text-xs" />
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ))}
+              <select defaultValue="" onChange={(e) => {
+                const type = e.target.value as EffectType
+                if (!type) return
+                e.target.value = ''
+                addEffect(type)
+              }} className="w-full text-sm">
+                <option value="">More effects…</option>
+                {EVENT_EFFECT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
             </div>
-          ))}
-          <select
-            defaultValue=""
-            onChange={(e) => {
-              const type = e.target.value as EffectType
-              if (!type) return
-              e.target.value = ''
-              update((d) => {
-                d.effects.push(createEffectDraft(type))
-              })
-            }}
-            className="w-full text-xs"
-          >
-            <option value="">+ Add effect…</option>
-            {EVENT_EFFECT_TYPES.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
+          </ConfigSectionPanel>
         </div>
-      </ConfigSectionPanel>
       </div>
-
-      {!def.builtIn && onDelete && (
-        <div className="pt-1">
-          <Btn variant="danger" onClick={onDelete} className="w-full text-xs">Delete Event</Btn>
-        </div>
-      )}
     </div>
   )
 }
@@ -4121,21 +4870,123 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
 // ── AssetLibraryPanel ──────────────────────────────────────────────
 
 function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
+  const config = useAdminStore((s) => s.config)
   const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
   const eventDefs = useAdminStore((s) => (s.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
+  const widgetIds = useAdminStore((s) => s.config.applications.filter((app) => app.appType === 'widget').map((app) => app.id))
+  const widgetLayouts = useAdminStore((s) => withDesktopConfigDefaults(s.config.desktopConfig).widgetLayouts ?? [])
   const saveConfig   = useAdminStore((s) => s.saveConfig)
+  const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useAssetCatalog()
 
-  const [tab, setTab] = useState<'catalog' | 'events' | 'transitions'>('catalog')
+  const [tab, setTab] = useState<'catalog' | 'events' | 'sources' | 'transitions'>('catalog')
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [durStr, setDurStr] = useState('')
+  const [catalogSearch, setCatalogSearch] = useState('')
+  const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | AssetKind>('all')
+  const [selectedCatalogAssetId, setSelectedCatalogAssetId] = useState<string | null>(null)
+  const [eventSearch, setEventSearch] = useState('')
+  const [eventDraft, setEventDraft] = useState<{
+    event: EventDef
+    originalId: string | null
+  } | null>(null)
+  const [sourceSearch, setSourceSearch] = useState('')
+  const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>((useAdminStore.getState().config.sourcePresets ?? [])[0]?.id ?? null)
+  const [sourcePresetDraft, setSourcePresetDraft] = useState<{
+    preset: SourcePreset
+    originalId: string | null
+    originalLabel: string | null
+  } | null>(null)
+  const [transitionSearch, setTransitionSearch] = useState('')
+  const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(eventDefs[0]?.id ?? null)
 
   const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
   const selectedEvent = eventDefs.find((def) => def.id === selectedEventId) ?? null
+  const editingEvent = eventDraft?.event ?? selectedEvent
+  const editingEventCreatesNew = !!eventDraft && !eventDraft.originalId
+  const sourcePresets = config.sourcePresets ?? []
+  const filteredEventDefs = useMemo(() => {
+    const query = eventSearch.trim().toLowerCase()
+    if (!query) return eventDefs
+    return eventDefs.filter((def) => [def.label, def.desc, def.id].some((value) => value.toLowerCase().includes(query)))
+  }, [eventDefs, eventSearch])
+  const filteredEventPresets = useMemo(() => {
+    const query = eventSearch.trim().toLowerCase()
+    return EVENT_PRESET_OPTIONS.filter((preset) => preset.id !== 'blank' && (!query || [preset.label, preset.description, preset.id].some((value) => value.toLowerCase().includes(query))))
+  }, [eventSearch])
+  const catalogSavedAssets = useMemo(() => mediaLibrary.map(mediaEntryToAsset), [mediaLibrary])
+  const filteredCatalogAssets = useMemo(() => {
+    const query = catalogSearch.trim().toLowerCase()
+    const matchesQuery = (asset: AssetRecord) => {
+      if (catalogKindFilter !== 'all' && asset.kind !== catalogKindFilter) return false
+      if (!query) return true
+      return [asset.name, asset.url, asset.folder, asset.relativePath, asset.game ?? ''].some((value) => value.toLowerCase().includes(query))
+    }
+
+    return [...catalogSavedAssets, ...catalogAssets].filter(matchesQuery)
+  }, [catalogAssets, catalogKindFilter, catalogSavedAssets, catalogSearch])
+  const catalogFolderGroups = useMemo(() => {
+    const groups = new Map<string, AssetRecord[]>()
+    for (const asset of filteredCatalogAssets) {
+      const prefix = asset.source === 'saved' ? 'Saved Media' : asset.source === 'games' ? `Game Images${asset.game ? ` / ${asset.game}` : ''}` : `Project Assets / ${asset.folder}`
+      const list = groups.get(prefix)
+      if (list) list.push(asset)
+      else groups.set(prefix, [asset])
+    }
+    return Array.from(groups.entries())
+      .map(([folder, items]) => ({ folder, items: [...items].sort((left, right) => left.name.localeCompare(right.name)) }))
+      .sort((left, right) => left.folder.localeCompare(right.folder))
+  }, [filteredCatalogAssets])
   const sortedTransitionLibrary = useMemo(() => (
     [...mediaLibrary].sort((left, right) => getMediaTransitionLabel(left).localeCompare(getMediaTransitionLabel(right)))
   ), [mediaLibrary])
+  const filteredSystemTransitions = useMemo(() => {
+    const query = transitionSearch.trim().toLowerCase()
+    if (!query) return TRANSITION_OPTIONS
+    return TRANSITION_OPTIONS.filter((transition) => [transition.id, transition.label].some((value) => value.toLowerCase().includes(query)))
+  }, [transitionSearch])
+  const filteredTransitionLibrary = useMemo(() => {
+    const query = transitionSearch.trim().toLowerCase()
+    if (!query) return sortedTransitionLibrary
+    return sortedTransitionLibrary.filter((entry) => [entry.name, entry.url, entry.id, getMediaTransitionLabel(entry)].some((value) => value.toLowerCase().includes(query)))
+  }, [sortedTransitionLibrary, transitionSearch])
+  const selectedCatalogAsset = useMemo(() => (
+    filteredCatalogAssets.find((asset) => asset.id === selectedCatalogAssetId)
+    ?? filteredCatalogAssets[0]
+    ?? null
+  ), [filteredCatalogAssets, selectedCatalogAssetId])
+  const selectedTransition = useMemo(() => {
+    if (!selectedTransitionKey) return filteredSystemTransitions[0] ? { kind: 'system' as const, entry: filteredSystemTransitions[0] } : filteredTransitionLibrary[0] ? { kind: 'user' as const, entry: filteredTransitionLibrary[0] } : null
+    if (selectedTransitionKey.startsWith('system:')) {
+      const id = selectedTransitionKey.slice('system:'.length)
+      const entry = filteredSystemTransitions.find((transition) => transition.id === id)
+      return entry ? { kind: 'system' as const, entry } : null
+    }
+    if (selectedTransitionKey.startsWith('user:')) {
+      const id = selectedTransitionKey.slice('user:'.length)
+      const entry = filteredTransitionLibrary.find((transition) => transition.id === id)
+      return entry ? { kind: 'user' as const, entry } : null
+    }
+    return null
+  }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
+  const filteredSourcePresets = useMemo(() => {
+    const query = sourceSearch.trim().toLowerCase()
+    if (!query) return sourcePresets
+    return sourcePresets.filter((preset) => [preset.label, preset.id, preset.pluginType].some((value) => value.toLowerCase().includes(query)))
+  }, [sourcePresets, sourceSearch])
+  const selectedSourcePreset = useMemo(() => (
+    selectedSourcePresetId
+      ? sourcePresets.find((preset) => preset.id === selectedSourcePresetId) ?? null
+      : null
+  ), [selectedSourcePresetId, sourcePresets])
+  const editingSourcePreset = sourcePresetDraft?.preset ?? selectedSourcePreset
+  const selectedSourceMeta = editingSourcePreset ? SOURCE_CATALOG.find((entry) => entry.type === editingSourcePreset.pluginType) : undefined
+  const sourceDraftCreatesNewPreset = !!sourcePresetDraft && (!sourcePresetDraft.originalId || sourcePresetDraft.originalLabel?.trim() !== sourcePresetDraft.preset.label.trim())
+  const selectedSourceUsageCount = selectedSourcePreset
+    ? Object.values(config.scenes).reduce((count, scene) => count + getSafeSceneSources(scene).filter((source) => source.sourcePresetId === selectedSourcePreset.id).length, 0)
+    : 0
+  const canDeleteSourcePreset = !!sourcePresetDraft
   const pendingTransitionKind = useMemo(() => {
     const inferred = inferAssetKindFromUrl(url, 'image')
     return inferred === 'video' ? 'video' : 'image'
@@ -4150,6 +5001,68 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
       setSelectedEventId(eventDefs[0].id)
     }
   }, [eventDefs, selectedEventId])
+
+  useEffect(() => {
+    if (!selectedEventId) return
+    const eventDef = eventDefs.find((entry) => entry.id === selectedEventId)
+    if (!eventDef) return
+    if (eventDraft?.originalId === eventDef.id) return
+    setEventDraft({
+      event: structuredClone(eventDef),
+      originalId: eventDef.id,
+    })
+  }, [eventDefs, selectedEventId, eventDraft?.originalId])
+
+  useEffect(() => {
+    if (filteredSourcePresets.length === 0) {
+      if (selectedSourcePresetId !== null) setSelectedSourcePresetId(null)
+      return
+    }
+    if (sourcePresetDraft && !sourcePresetDraft.originalId) return
+    if (!selectedSourcePresetId || !filteredSourcePresets.some((preset) => preset.id === selectedSourcePresetId)) {
+      setSelectedSourcePresetId(filteredSourcePresets[0].id)
+    }
+  }, [filteredSourcePresets, selectedSourcePresetId, sourcePresetDraft])
+
+  useEffect(() => {
+    if (!selectedSourcePresetId) return
+    const preset = sourcePresets.find((entry) => entry.id === selectedSourcePresetId)
+    if (!preset) return
+    if (sourcePresetDraft?.originalId === preset.id) return
+    setSourcePresetDraft({
+      preset: {
+        ...preset,
+        config: { ...preset.config },
+        defaultPosition: preset.defaultPosition ? { ...preset.defaultPosition } : undefined,
+      },
+      originalId: preset.id,
+      originalLabel: preset.label,
+    })
+  }, [selectedSourcePresetId, sourcePresets, sourcePresetDraft?.originalId])
+
+  useEffect(() => {
+    if (filteredCatalogAssets.length === 0) {
+      if (selectedCatalogAssetId !== null) setSelectedCatalogAssetId(null)
+      return
+    }
+    if (!selectedCatalogAssetId || !filteredCatalogAssets.some((asset) => asset.id === selectedCatalogAssetId)) {
+      setSelectedCatalogAssetId(filteredCatalogAssets[0].id)
+    }
+  }, [filteredCatalogAssets, selectedCatalogAssetId])
+
+  useEffect(() => {
+    const options = [
+      ...filteredSystemTransitions.map((transition) => `system:${transition.id}`),
+      ...filteredTransitionLibrary.map((transition) => `user:${transition.id}`),
+    ]
+    if (options.length === 0) {
+      if (selectedTransitionKey !== null) setSelectedTransitionKey(null)
+      return
+    }
+    if (!selectedTransitionKey || !options.includes(selectedTransitionKey)) {
+      setSelectedTransitionKey(options[0])
+    }
+  }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
 
   const handleSave = async () => {
     if (!url) return
@@ -4171,268 +5084,931 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
     await saveConfig({ mediaLibrary: mediaLibrary.filter((entry) => entry.id !== id) })
   }
 
-  const handleAddEvent = async () => {
-    const def = createEventDef()
+  const saveSourcePresets = (nextSourcePresets: SourcePreset[], nextScenes = config.scenes) => {
+    void saveConfig({ sourcePresets: nextSourcePresets, scenes: nextScenes })
+  }
+
+  const removeSourcePreset = (presetId: string) => {
+    const nextSourcePresets = sourcePresets.filter((preset) => preset.id !== presetId)
+    const nextScenes = Object.fromEntries(Object.entries(config.scenes).map(([sceneId, scene]) => [
+      sceneId,
+      {
+        ...scene,
+        sources: getSafeSceneSources(scene).filter((source) => source.sourcePresetId !== presetId),
+      },
+    ])) as typeof config.scenes
+    saveSourcePresets(nextSourcePresets, nextScenes)
+    if (selectedSourcePresetId === presetId) setSelectedSourcePresetId(nextSourcePresets[0]?.id ?? null)
+  }
+
+  const createSourcePresetDraft = (entry: CatalogEntry) => {
+    const defaultPosition: { x: number; y: number; width: number; height: number } = entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }
+    const newPreset: SourcePreset = {
+      id: `${entry.type}-${Date.now()}`,
+      label: entry.label,
+      pluginType: entry.type,
+      config: { ...entry.defaultConfig },
+      defaultPosition: {
+        x: defaultPosition.x,
+        y: defaultPosition.y,
+        width: defaultPosition.width,
+        height: defaultPosition.height,
+      },
+    }
+    setSourcePresetDraft({
+      preset: newPreset,
+      originalId: null,
+      originalLabel: null,
+    })
+    setSelectedSourcePresetId(null)
+    setTab('sources')
+  }
+
+  const patchSourcePresetDraft = (updates: Partial<SourcePreset>) => {
+    setSourcePresetDraft((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        preset: {
+          ...current.preset,
+          ...updates,
+        },
+      }
+    })
+  }
+
+  const selectSourcePreset = (presetId: string) => {
+    setSelectedSourcePresetId(presetId)
+  }
+
+  const saveSourcePresetDraft = () => {
+    if (!sourcePresetDraft) return
+    const label = sourcePresetDraft.preset.label.trim() || SOURCE_CATALOG.find((entry) => entry.type === sourcePresetDraft.preset.pluginType)?.label || 'Untitled preset'
+    const normalizedPreset: SourcePreset = {
+      ...sourcePresetDraft.preset,
+      label,
+      config: { ...sourcePresetDraft.preset.config },
+      defaultPosition: {
+        x: sourcePresetDraft.preset.defaultPosition?.x ?? 0,
+        y: sourcePresetDraft.preset.defaultPosition?.y ?? 0,
+        width: sourcePresetDraft.preset.defaultPosition?.width ?? 1920,
+        height: sourcePresetDraft.preset.defaultPosition?.height ?? 1080,
+      },
+    }
+
+    if (sourcePresetDraft.originalId && sourcePresetDraft.originalLabel?.trim() === label) {
+      const nextSourcePresets = sourcePresets.map((preset) => preset.id === sourcePresetDraft.originalId ? { ...normalizedPreset, id: sourcePresetDraft.originalId } : preset)
+      saveSourcePresets(nextSourcePresets)
+      setSelectedSourcePresetId(sourcePresetDraft.originalId)
+      setSourcePresetDraft({
+        preset: { ...normalizedPreset, id: sourcePresetDraft.originalId },
+        originalId: sourcePresetDraft.originalId,
+        originalLabel: label,
+      })
+      return
+    }
+
+    const savedPreset = {
+      ...normalizedPreset,
+      id: `${normalizedPreset.pluginType}-${Date.now()}`,
+    }
+    saveSourcePresets([...sourcePresets, savedPreset])
+    setSelectedSourcePresetId(savedPreset.id)
+    setSourcePresetDraft({
+      preset: savedPreset,
+      originalId: savedPreset.id,
+      originalLabel: savedPreset.label,
+    })
+  }
+
+  const deleteSourcePresetDraft = () => {
+    if (!sourcePresetDraft) return
+    if (!sourcePresetDraft.originalId) {
+      setSourcePresetDraft(null)
+      return
+    }
+    removeSourcePreset(sourcePresetDraft.originalId)
+    setSourcePresetDraft(null)
+  }
+
+  const handleDeleteCatalogAsset = async (asset: AssetRecord) => {
+    if (typeof window !== 'undefined' && !window.confirm(`Delete ${asset.name}?`)) return
+    if (asset.source === 'saved') {
+      await handleDeleteMediaEntry(asset.id)
+      return
+    }
+    if (asset.source === 'filesystem') {
+      await deleteAssetFile(asset.url)
+      await refreshCatalog()
+    }
+  }
+
+  const createEventDraft = (presetId: EventPresetId = 'blank') => {
+    const def = createEventPreset(presetId, {
+      widgetIds,
+      layoutId: widgetLayouts[0]?.id,
+    })
     setTab('events')
-    await saveConfig({ events: [...eventDefs, def] })
-    setSelectedEventId(def.id)
+    setEventDraft({
+      event: def,
+      originalId: null,
+    })
+    setSelectedEventId(null)
   }
 
-  const handleUpdateEvent = (updated: EventDef) => {
-    void saveConfig({ events: eventDefs.map((entry) => entry.id === updated.id ? updated : entry) })
+  const patchEventDraft = (updated: EventDef) => {
+    setEventDraft((current) => current ? { ...current, event: updated } : current)
   }
 
-  const handleDeleteEvent = (id: string) => {
+  const saveEventDraft = () => {
+    if (!eventDraft) return
+    const normalizedEvent: EventDef = {
+      ...eventDraft.event,
+      label: eventDraft.event.label.trim() || 'New Event',
+      icon: eventDraft.event.icon || '⚡',
+      desc: eventDraft.event.desc ?? '',
+      actions: structuredClone(eventDraft.event.actions ?? []),
+      effects: structuredClone(eventDraft.event.effects ?? []),
+      auto: { ...eventDraft.event.auto },
+    }
+
+    if (eventDraft.originalId) {
+      const nextEvents = eventDefs.map((entry) => entry.id === eventDraft.originalId ? { ...normalizedEvent, id: eventDraft.originalId } : entry)
+      void saveConfig({ events: nextEvents })
+      setSelectedEventId(eventDraft.originalId)
+      setEventDraft({ event: { ...normalizedEvent, id: eventDraft.originalId }, originalId: eventDraft.originalId })
+      return
+    }
+
+    void saveConfig({ events: [...eventDefs, normalizedEvent] })
+    setSelectedEventId(normalizedEvent.id)
+    setEventDraft({ event: normalizedEvent, originalId: normalizedEvent.id })
+  }
+
+  const deleteEventDraft = () => {
+    if (!eventDraft) return
+    if (!eventDraft.originalId) {
+      setEventDraft(null)
+      return
+    }
+    const id = eventDraft.originalId
     const nextEvents = eventDefs.filter((entry) => entry.id !== id)
     if (selectedEventId === id) {
       setSelectedEventId(nextEvents[0]?.id ?? null)
     }
     void saveConfig({ events: nextEvents })
+    setEventDraft(null)
+  }
+
+  const selectEvent = (eventId: string) => {
+    setSelectedEventId(eventId)
   }
 
   const handleTriggerEvent = (def: EventDef) => {
-    socket.emit('overlay:trigger', { id: def.id, effects: def.effects })
+    socket.emit('keybind:execute', { scope: 'admin', action: `event:${def.id}` })
   }
 
   return (
-    <FloatingWindowShell frameClassName="h-[85vh] max-h-[780px]" layerClassName="z-[60]">
+    <FloatingWindowShell frameClassName="h-[98vh] max-h-[1040px] max-w-none w-[min(1760px,calc(100vw-8px))]" layerClassName="z-[60]">
+      <FloatingWindowHeader icon="🗂" title="Asset Library" onClose={onClose} />
 
-        <FloatingWindowHeader icon="🗂" title="Asset Library" onClose={onClose} />
-
-        {/* Modal body */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
-
-      {/* Tabs */}
-      <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
-        {(['catalog', 'events', 'transitions'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' +
-              (tab === t
-                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
-                : 'border-transparent text-zinc-500 hover:border-zinc-700/70 hover:bg-zinc-900/75 hover:text-zinc-200')}
-          >
-            {t === 'catalog' ? '🗂 Catalog' : t === 'events' ? '⚡ Events' : '✨ Transitions'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'catalog' && (
-        <div className="space-y-3">
-          <ConfigNotice>
-            The catalog indexes the full assets folder, the scraped game-image feed, and your saved media presets in one place.
-          </ConfigNotice>
-
-          <AssetCatalogPanel
-            kinds={['image', 'video', 'audio']}
-            allowFilesystemDelete
-            onDeleteSavedEntry={(asset) => { void handleDeleteMediaEntry(asset.id) }}
-          />
-        </div>
-      )}
-
-      {tab === 'events' && (
-        <div className="space-y-3">
-          <ConfigNotice>
-            Overlay triggers and widget automation rules now live here instead of the left sidebar.
-          </ConfigNotice>
-
-          <div className="flex flex-wrap gap-2">
-            {eventDefs.map((def) => {
-              const active = def.id === selectedEventId
-              return (
-                <button
-                  key={def.id}
-                  type="button"
-                  onClick={() => setSelectedEventId(def.id)}
-                  className={'flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors ' + (
-                    active
-                      ? 'border-cyan-400/35 bg-cyan-500/14 text-zinc-100'
-                      : 'border-zinc-800/80 bg-zinc-950/55 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
-                  )}
-                >
-                  <span className="text-sm leading-none">{def.icon}</span>
-                  <span className="max-w-[12rem] truncate text-[11px] font-medium">{def.label}</span>
-                  {def.auto.enabled && <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-300">Auto</span>}
-                </button>
-              )
-            })}
-            <Btn
-              type="button"
-              variant="ghost"
-              onClick={() => { void handleAddEvent() }}
-              className="border-dashed border-zinc-700/80 px-3 py-2 text-[11px] text-zinc-400 hover:text-cyan-200"
-            >
-              ＋ New Event
-            </Btn>
-          </div>
-
-          {selectedEvent ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2 px-0.5">
-                <div className="text-[10px] text-zinc-500">Editing {selectedEvent.label}</div>
-                <Btn type="button" variant="primary" onClick={() => handleTriggerEvent(selectedEvent)} className="px-3 py-1 text-[10px]">
-                  Fire Now
-                </Btn>
-              </div>
-              <EventForm
-                def={selectedEvent}
-                onUpdate={handleUpdateEvent}
-                onDelete={selectedEvent.builtIn ? undefined : () => handleDeleteEvent(selectedEvent.id)}
-              />
-            </div>
-          ) : (
-            <ConfigNotice tone="info" className="py-6 text-center">
-              No events configured yet. Create one to add overlay triggers or widget automation rules.
-            </ConfigNotice>
-          )}
-        </div>
-      )}
-
-      {/* ── Transitions tab ── */}
-      {tab === 'transitions' && (
-        <div className="space-y-0 pt-2">
-          <ConfigSectionPanel label="System Transitions" first>
-            <div className="space-y-2">
-              <ConfigNotice>
-                System transitions are always available in every transition combo box.
-              </ConfigNotice>
-              {TRANSITION_OPTIONS.map((transition) => (
-                <ConfigCard key={transition.id} className="flex items-center gap-2.5">
-                  <span className="text-base w-5 text-center shrink-0">{TRANSITION_ICONS[transition.id]}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-zinc-200">{transition.label}</div>
-                    <div className="text-[10px] text-zinc-500 font-mono">{transition.id}</div>
-                  </div>
+      <div className="flex-1 min-h-0 overflow-hidden p-5 sm:p-6">
+        <div className="grid h-full min-h-0 gap-5 grid-cols-[320px_minmax(0,1fr)]">
+          <ConfigCard className="min-h-0 overflow-hidden p-4 sm:p-5">
+            <div className="flex h-full min-h-0 flex-col gap-4">
+              <div className="grid gap-1.5">
+                {([
+                  { id: 'catalog', label: 'Catalog', icon: '🗂', meta: 'Assets and saved media' },
+                  { id: 'events', label: 'Events', icon: '⚡', meta: `${eventDefs.length} configured` },
+                  { id: 'sources', label: 'Sources', icon: '📺', meta: `${sourcePresets.length} configured` },
+                  { id: 'transitions', label: 'Transitions', icon: '✨', meta: `${sortedTransitionLibrary.length} saved` },
+                ] as const).map((entry) => (
                   <button
+                    key={entry.id}
                     type="button"
-                    onClick={() => socket.emit('transition:preview', [{ id: transition.id }])}
-                    className={`shrink-0 ${TRANSITION_TEST_BUTTON_CLASS}`}
-                    title="Test"
+                    onClick={() => setTab(entry.id)}
+                    className={
+                      'rounded-xl border px-3 py-3 text-left transition-colors ' +
+                      (tab === entry.id
+                        ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                        : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
+                    }
                   >
-                    Test
-                  </button>
-                </ConfigCard>
-              ))}
-            </div>
-          </ConfigSectionPanel>
-
-          <ConfigSectionPanel label="User Transitions">
-            <div className="space-y-3">
-              <ConfigNotice>
-                User transitions saved here become reusable options in every transition combo box.
-              </ConfigNotice>
-
-              {sortedTransitionLibrary.length === 0 ? (
-                <ConfigNotice tone="info" className="py-4">
-                  No user transitions saved yet.
-                </ConfigNotice>
-              ) : (
-                <div className="space-y-1.5">
-                  {sortedTransitionLibrary.map((entry) => (
-                    <ConfigCard key={entry.id} className="flex items-center gap-2.5">
-                      <span className="text-base w-5 text-center shrink-0">{entry.type === 'image' ? '🖼' : '🎬'}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-zinc-200 truncate">{getMediaTransitionLabel(entry)}</div>
-                        <div className="text-[10px] text-zinc-500 font-mono truncate">{entry.url}</div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base leading-none">{entry.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold">{entry.label}</div>
+                        <div className="text-[10px] text-zinc-500">{entry.meta}</div>
                       </div>
-                      {entry.type === 'image' && entry.duration != null && (
-                        <span className="shrink-0 text-[10px] font-mono text-zinc-600">{entry.duration}s</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => socket.emit('transition:preview', [strToStep(encodeMediaTransitionValue(entry))])}
-                        className={`shrink-0 ${TRANSITION_TEST_BUTTON_CLASS}`}
-                        title="Test"
-                      >
-                        Test
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { void handleDeleteMediaEntry(entry.id) }}
-                        className={`shrink-0 ${TRANSITION_DELETE_BUTTON_CLASS}`}
-                        title="Delete"
-                      >
-                        Delete
-                      </button>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {tab === 'catalog' && (
+                <>
+                  <div className="space-y-2">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Search</div>
+                    <input
+                      type="text"
+                      value={catalogSearch}
+                      onChange={(event) => setCatalogSearch(event.target.value)}
+                      placeholder="Search assets, folders, or game names"
+                      className="w-full text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Type Filter</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(['all', 'image', 'video', 'audio'] as const).map((kind) => (
+                        <Btn
+                          key={kind}
+                          type="button"
+                          variant={catalogKindFilter === kind ? 'active' : 'default'}
+                          onClick={() => setCatalogKindFilter(kind)}
+                          className="px-2.5 py-1 text-[10px] uppercase tracking-wide"
+                        >
+                          {kind}
+                        </Btn>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                    {catalogError && <ConfigNotice tone="danger">{catalogError}</ConfigNotice>}
+                    {catalogLoading && <ConfigNotice tone="info">Loading asset catalog...</ConfigNotice>}
+                    {!catalogLoading && catalogFolderGroups.length === 0 && (
+                      <ConfigNotice tone="info">No assets match this filter.</ConfigNotice>
+                    )}
+                    {catalogFolderGroups.map((group) => (
+                      <div key={group.folder} className="space-y-1.5">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{group.folder}</div>
+                        <div className="space-y-1">
+                          {group.items.map((asset) => {
+                            const active = selectedCatalogAsset?.id === asset.id
+                            return (
+                              <button
+                                key={asset.id}
+                                type="button"
+                                onClick={() => setSelectedCatalogAssetId(asset.id)}
+                                className={
+                                  'w-full rounded-lg border px-3 py-2 text-left transition-colors ' +
+                                  (active
+                                    ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
+                                    : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
+                                }
+                              >
+                                <div className="truncate text-[12px] font-medium">{asset.name}</div>
+                                <div className="truncate text-[10px] text-zinc-500">{asset.relativePath || asset.url}</div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {tab === 'events' && (
+                <>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Search</div>
+                    <div className="mt-1 text-xs text-zinc-500">Find events by label, description, or id.</div>
+                  </div>
+                  <input
+                    type="text"
+                    value={eventSearch}
+                    onChange={(e) => setEventSearch(e.target.value)}
+                    placeholder="Search events"
+                    className="w-full text-sm"
+                  />
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                    {filteredEventDefs.length ? filteredEventDefs.map((def) => {
+                      const active = def.id === selectedEventId
+                      return (
+                        <button
+                          key={def.id}
+                          type="button"
+                          onClick={() => selectEvent(def.id)}
+                          className={'w-full rounded-xl border px-3 py-3 text-left transition-colors ' + (
+                            active
+                              ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
+                              : 'border-zinc-800/80 bg-zinc-950/55 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm leading-none">{def.icon}</span>
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{def.label}</span>
+                            {def.auto.enabled && <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-300">Auto</span>}
+                          </div>
+                          <div className="mt-1.5 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">{def.desc || describeEventSetup(def)}</div>
+                          <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+                            <span>{def.actions?.length ?? 0} actions</span>
+                            <span>{def.effects.length} fx</span>
+                          </div>
+                        </button>
+                      )
+                    }) : (
+                      <ConfigNotice tone="info">No events match this filter.</ConfigNotice>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {tab === 'sources' && (
+                <>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Source Presets</div>
+                    <div className="mt-1 text-xs text-zinc-500">Create reusable source configurations here, then attach them from each scene.</div>
+                  </div>
+                  <input
+                    type="text"
+                    value={sourceSearch}
+                    onChange={(event) => setSourceSearch(event.target.value)}
+                    placeholder="Search source presets"
+                    className="w-full text-sm"
+                  />
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                    {filteredSourcePresets.length ? filteredSourcePresets.map((preset) => {
+                      const active = preset.id === selectedSourcePresetId
+                      const meta = SOURCE_CATALOG.find((entry) => entry.type === preset.pluginType)
+                      const usageCount = Object.values(config.scenes).reduce((count, scene) => count + getSafeSceneSources(scene).filter((source) => source.sourcePresetId === preset.id).length, 0)
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => selectSourcePreset(preset.id)}
+                          className={
+                            'w-full rounded-lg border px-3 py-2 text-left transition-colors ' +
+                            (active
+                              ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
+                              : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
+                          }
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{meta?.icon ?? '▣'}</span>
+                            <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{preset.label}</span>
+                          </div>
+                          <div className="mt-1 truncate text-[10px] text-zinc-500">{meta?.label ?? preset.pluginType}</div>
+                          <div className="mt-1 truncate text-[10px] text-zinc-600">{usageCount} scene attachment{usageCount === 1 ? '' : 's'}</div>
+                        </button>
+                      )
+                    }) : (
+                      <ConfigNotice tone="info">No source presets match this filter.</ConfigNotice>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {tab === 'transitions' && (
+                <>
+                  <div className="space-y-2">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Search</div>
+                    <input
+                      type="text"
+                      value={transitionSearch}
+                      onChange={(event) => setTransitionSearch(event.target.value)}
+                      placeholder="Search transitions by name or id"
+                      className="w-full text-sm"
+                    />
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <ConfigCard className="text-left p-3">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">System</div>
+                      <div className="mt-1 text-lg font-semibold text-zinc-100">{filteredSystemTransitions.length}</div>
                     </ConfigCard>
-                  ))}
-                </div>
+                    <ConfigCard className="text-left p-3">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Saved</div>
+                      <div className="mt-1 text-lg font-semibold text-zinc-100">{filteredTransitionLibrary.length}</div>
+                    </ConfigCard>
+                  </div>
+
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">System Transitions</div>
+                      {filteredSystemTransitions.length ? filteredSystemTransitions.map((transition) => {
+                        const active = selectedTransition?.kind === 'system' && selectedTransition.entry.id === transition.id
+                        return (
+                          <button
+                            key={transition.id}
+                            type="button"
+                            onClick={() => setSelectedTransitionKey(`system:${transition.id}`)}
+                            className={
+                              'w-full rounded-lg border px-3 py-2 text-left transition-colors ' +
+                              (active
+                                ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
+                                : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
+                            }
+                          >
+                            <div className="flex items-center gap-2">
+                              <span>{TRANSITION_ICONS[transition.id]}</span>
+                              <span className="truncate text-[12px] font-medium">{transition.label}</span>
+                            </div>
+                            <div className="truncate text-[10px] text-zinc-500">{transition.id}</div>
+                          </button>
+                        )
+                      }) : <ConfigNotice tone="info">No system transitions match this filter.</ConfigNotice>}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">User Transitions</div>
+                      {filteredTransitionLibrary.length ? filteredTransitionLibrary.map((entry) => {
+                        const active = selectedTransition?.kind === 'user' && selectedTransition.entry.id === entry.id
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => setSelectedTransitionKey(`user:${entry.id}`)}
+                            className={
+                              'w-full rounded-lg border px-3 py-2 text-left transition-colors ' +
+                              (active
+                                ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
+                                : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
+                            }
+                          >
+                            <div className="truncate text-[12px] font-medium">{getMediaTransitionLabel(entry)}</div>
+                            <div className="truncate text-[10px] text-zinc-500">{entry.url}</div>
+                          </button>
+                        )
+                      }) : <ConfigNotice tone="info">No user transitions match this filter.</ConfigNotice>}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-          </ConfigSectionPanel>
+          </ConfigCard>
 
-          <ConfigSectionPanel label="Create User Transition">
-            <div className="space-y-3">
-              <ConfigNotice>
-                Save an image or video as a reusable user transition.
-              </ConfigNotice>
+          <div className="min-w-0 min-h-0 overflow-y-auto pr-1">
+            {tab === 'catalog' && (
+              <div className="space-y-4">
+                {selectedCatalogAsset ? (
+                  <>
+                    <ConfigCard className="space-y-4 p-5 sm:p-6">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="text-lg font-semibold text-zinc-100">{selectedCatalogAsset.name}</div>
+                          <div className="mt-1 text-xs font-mono text-zinc-500">{selectedCatalogAsset.relativePath || selectedCatalogAsset.url}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Btn type="button" onClick={() => void refreshCatalog()} className="px-3 py-1.5 text-xs">Refresh</Btn>
+                          {(selectedCatalogAsset.source === 'saved' || selectedCatalogAsset.source === 'filesystem') && (
+                            <Btn type="button" variant="danger" onClick={() => { void handleDeleteCatalogAsset(selectedCatalogAsset) }} className="px-3 py-1.5 text-xs">
+                              Delete
+                            </Btn>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_320px]">
+                        <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 p-4">
+                          {selectedCatalogAsset.kind === 'image' && (
+                            <img src={selectedCatalogAsset.url} alt={selectedCatalogAsset.name} className="max-h-[70vh] w-full object-contain" />
+                          )}
+                          {selectedCatalogAsset.kind === 'video' && (
+                            <video src={selectedCatalogAsset.url} className="max-h-[70vh] w-full rounded-xl bg-black object-contain" controls muted playsInline preload="metadata" />
+                          )}
+                          {selectedCatalogAsset.kind === 'audio' && (
+                            <div className="w-full max-w-xl space-y-5 rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-6 text-center">
+                              <div className="text-5xl">🎵</div>
+                              <div className="text-sm text-zinc-400">Audio preview</div>
+                              <audio src={selectedCatalogAsset.url} controls className="w-full" preload="metadata" />
+                            </div>
+                          )}
+                        </div>
+                        <ConfigCard className="space-y-3 p-4">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Folder</div>
+                            <div className="mt-1 text-sm text-zinc-100">{selectedCatalogAsset.folder}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Source</div>
+                            <div className="mt-1 text-sm text-zinc-100">{selectedCatalogAsset.source}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Kind</div>
+                            <div className="mt-1 text-sm text-zinc-100">{selectedCatalogAsset.kind}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">URL</div>
+                            <div className="mt-1 break-all text-xs font-mono text-zinc-400">{selectedCatalogAsset.url}</div>
+                          </div>
+                        </ConfigCard>
+                      </div>
+                    </ConfigCard>
+                  </>
+                ) : (
+                  <ConfigNotice tone="info" className="py-8 text-center">Select an asset from the left column to preview it.</ConfigNotice>
+                )}
+              </div>
+            )}
 
-              <ConfigCard className="space-y-2">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Name (optional)"
-                  className="w-full text-xs"
-                />
+            {tab === 'events' && (
+              <div className="flex min-h-0 flex-col gap-4">
+                <ConfigCard className="space-y-4 p-5 sm:p-6">
+                  <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Event Type</div>
+                      <div className="text-xs text-zinc-500">Pick an event type to open a new event draft below.</div>
+                    </div>
+                    <Btn type="button" variant="ghost" onClick={() => createEventDraft('blank')} className="w-full justify-center border-zinc-700/80 py-2 text-sm">
+                      Blank Event
+                    </Btn>
+                    <div className="grid gap-2 lg:grid-cols-2">
+                      {filteredEventPresets.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => createEventDraft(preset.id)}
+                          className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{preset.icon}</span>
+                            <span className="text-[12px] font-medium text-zinc-100">{preset.label}</span>
+                          </div>
+                          <div className="mt-1 text-[10px] leading-relaxed text-zinc-500">{preset.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </ConfigCard>
 
-                <AssetSelectionInput
-                  value={url}
-                  onChange={setUrl}
-                  kinds={['image', 'video']}
-                  modalTitle="User Transition Asset"
-                  placeholder="/assets/images/transition.png or /assets/video/transition.mp4"
-                  buttonLabel="Choose Asset"
-                  previewKind="auto"
-                  showPreview={false}
-                />
+                {editingEvent ? (
+                  <ConfigCard className="space-y-4 p-5 sm:p-6">
+                    <div className="space-y-3 border-b border-zinc-800/80 pb-5">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Event Summary</div>
+                      <div className="grid gap-3 sm:grid-cols-4">
+                        <ConfigCard className="text-left p-3">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Event Id</div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-100">{eventDraft?.originalId ?? 'Draft until saved'}</div>
+                        </ConfigCard>
+                        <ConfigCard className="text-left p-3">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Setup</div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-100">{describeEventSetup(editingEvent)}</div>
+                        </ConfigCard>
+                        <ConfigCard className="text-left p-3">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Runtime Actions</div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-100">{editingEvent.actions?.length ?? 0}</div>
+                        </ConfigCard>
+                        <ConfigCard className="text-left p-3">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Overlay Effects</div>
+                          <div className="mt-1 text-sm font-semibold text-zinc-100">{editingEvent.effects.length}</div>
+                        </ConfigCard>
+                      </div>
+                    </div>
 
-                {url && pendingTransitionKind === 'image' && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={0.1}
-                      max={120}
-                      step={0.5}
-                      value={durStr}
-                      onChange={(e) => setDurStr(e.target.value)}
-                      placeholder="4.0"
-                      className="w-24 text-xs font-mono"
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Event Details</div>
+                      <div className="text-sm text-zinc-400">Adjust the selected draft or saved event below, then save when ready.</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 px-4 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Configure Event</div>
+                      <div className="mt-1 text-sm text-zinc-400">Create or refine event identity, trigger rules, runtime actions, and overlay effects.</div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 px-0.5">
+                      <div className="text-sm text-zinc-500">{editingEventCreatesNew ? 'Editing new event draft' : `Editing ${editingEvent.label}`}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
+                          {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
+                        </Btn>
+                        {!editingEventCreatesNew && (
+                          <Btn type="button" variant="primary" onClick={() => handleTriggerEvent(editingEvent)} className="px-4 py-2 text-sm">
+                            Fire Now
+                          </Btn>
+                        )}
+                        <Btn type="button" variant="danger" onClick={deleteEventDraft} className="px-4 py-2 text-sm">
+                          {editingEventCreatesNew ? 'Delete Draft' : 'Delete Event'}
+                        </Btn>
+                      </div>
+                    </div>
+
+                    <EventForm
+                      def={editingEvent}
+                      onUpdate={patchEventDraft}
+                      showOverview={false}
+                      showDeleteButton={false}
                     />
-                    <span className="text-[10px] text-zinc-600">sec display duration</span>
+                  </ConfigCard>
+                ) : (
+                  <ConfigNotice tone="info" className="py-8 text-center">
+                    Select an event from the left column or choose an event type above to start a new draft.
+                  </ConfigNotice>
+                )}
+              </div>
+            )}
+
+            {tab === 'sources' && (
+              <div className="flex min-h-0 flex-col gap-4 pt-0.5">
+                {editingSourcePreset && selectedSourceMeta ? (
+                  <>
+                    <ConfigCard className="space-y-4 p-5 sm:p-6">
+                      <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
+                        <div className="space-y-1">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Source Type</div>
+                          <div className="text-xs text-zinc-500">Pick a source type to open a new preset draft below.</div>
+                        </div>
+                        <div className="grid gap-2 lg:grid-cols-2">
+                          {SOURCE_CATALOG.map((entry) => (
+                            <button
+                              key={entry.type}
+                              type="button"
+                              onClick={() => createSourcePresetDraft(entry)}
+                              className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span>{entry.icon}</span>
+                                <span className="text-[12px] font-medium text-zinc-100">{entry.label}</span>
+                              </div>
+                              <div className="mt-1 text-[10px] text-zinc-500">{entry.desc}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </ConfigCard>
+
+                    <ConfigCard className="space-y-4 p-5 sm:p-6">
+                      <div className="space-y-3 border-b border-zinc-800/80 pb-5">
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Preset Summary</div>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <ConfigCard className="text-left p-3">
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Preset Id</div>
+                            <div className="mt-1 text-sm font-semibold text-zinc-100">{sourcePresetDraft?.originalId ?? 'Draft until saved'}</div>
+                          </ConfigCard>
+                          <ConfigCard className="text-left p-3">
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Type</div>
+                            <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedSourceMeta.label}</div>
+                          </ConfigCard>
+                          <ConfigCard className="text-left p-3">
+                            <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Used In Scenes</div>
+                            <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedSourceUsageCount}</div>
+                          </ConfigCard>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Details</div>
+                        <div className="text-sm text-zinc-400">Review the selected draft details and configure the preset below.</div>
+                      </div>
+
+                      <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Configure Preset</div>
+                        <div className="mt-1 text-sm text-zinc-400">Adjust the selected draft or saved preset below, then save when ready.</div>
+                      </div>
+
+                      <div className="grid gap-4 grid-cols-[280px_minmax(0,1fr)] items-start">
+                      <div className="space-y-0 sticky top-0">
+                        <ConfigSectionPanel label="Identity" first>
+                          <div className="space-y-3">
+                            <div>
+                              <div className="mb-1 text-[10px] text-zinc-500">Label</div>
+                              <input
+                                type="text"
+                                value={editingSourcePreset.label}
+                                onChange={(event) => patchSourcePresetDraft({ label: event.target.value })}
+                                className="w-full text-sm"
+                              />
+                            </div>
+                            <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                              {sourceDraftCreatesNewPreset
+                                ? 'Saving will create a new preset because this label differs from the saved source.'
+                                : 'Saving will update the currently selected preset.'}
+                            </div>
+                          </div>
+                        </ConfigSectionPanel>
+                        <ConfigSectionPanel label="Source Settings">
+                          <div className="space-y-3">
+                            {selectedSourceMeta.fields.map((field) => (
+                              <SourceField
+                                key={field.key}
+                                field={field}
+                                value={editingSourcePreset.config[field.key]}
+                                onChange={(value) => patchSourcePresetDraft({
+                                  config: { ...editingSourcePreset.config, [field.key]: value },
+                                })}
+                              />
+                            ))}
+                          </div>
+                        </ConfigSectionPanel>
+                      </div>
+
+                      <div className="space-y-0">
+                        <ConfigSectionPanel label="Default Position" first>
+                          <div className="grid grid-cols-4 gap-2">
+                            {(['x', 'y', 'width', 'height'] as const).map((field) => (
+                              <div key={field}>
+                                <div className="mb-1 text-[10px] text-zinc-500 uppercase tracking-[0.14em]">{field}</div>
+                                <input
+                                  type="number"
+                                  value={editingSourcePreset.defaultPosition?.[field] ?? (field === 'width' ? 1920 : field === 'height' ? 1080 : 0)}
+                                  onChange={(event) => patchSourcePresetDraft({
+                                    defaultPosition: {
+                                      ...(editingSourcePreset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }),
+                                      [field]: Number(event.target.value),
+                                    },
+                                  })}
+                                  className="w-full font-mono text-xs"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </ConfigSectionPanel>
+
+                        <ConfigSectionPanel label="Actions">
+                          <div className="flex flex-wrap gap-2">
+                            <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-4 py-2 text-sm">
+                              {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
+                            </Btn>
+                            {canDeleteSourcePreset && (
+                              <Btn type="button" variant="danger" onClick={deleteSourcePresetDraft} className="px-4 py-2 text-sm">
+                                {sourcePresetDraft?.originalId ? 'Delete Preset' : 'Delete Draft'}
+                              </Btn>
+                            )}
+                          </div>
+                        </ConfigSectionPanel>
+
+                        <ConfigSectionPanel label="Scene Usage">
+                          <div className="space-y-2 text-sm text-zinc-400">
+                            <div>This preset can now be attached from each scene's Sources section.</div>
+                            <div>Scenes only control visibility, stacking, and position. Plugin configuration lives here.</div>
+                          </div>
+                        </ConfigSectionPanel>
+
+                        <ConfigSectionPanel label="Preview">
+                          <SourcePresetPreview
+                            preset={editingSourcePreset}
+                            meta={selectedSourceMeta}
+                            onPositionChange={({ x, y }) => patchSourcePresetDraft({
+                              defaultPosition: {
+                                ...(editingSourcePreset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }),
+                                x,
+                                y,
+                              },
+                            })}
+                          />
+                        </ConfigSectionPanel>
+                      </div>
+                    </div>
+                    </ConfigCard>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <ConfigCard className="space-y-4 p-5 sm:p-6">
+                      <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
+                        <div className="space-y-1">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Source Type</div>
+                          <div className="text-xs text-zinc-500">Choose a source type to start a new preset draft.</div>
+                        </div>
+                        <div className="grid gap-2 lg:grid-cols-2">
+                          {SOURCE_CATALOG.map((entry) => (
+                            <button
+                              key={entry.type}
+                              type="button"
+                              onClick={() => createSourcePresetDraft(entry)}
+                              className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span>{entry.icon}</span>
+                                <span className="text-[12px] font-medium text-zinc-100">{entry.label}</span>
+                              </div>
+                              <div className="mt-1 text-[10px] text-zinc-500">{entry.desc}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </ConfigCard>
+                    <ConfigNotice tone="info" className="py-8 text-center">Select a source preset from the left column to configure it.</ConfigNotice>
                   </div>
                 )}
+              </div>
+            )}
 
-                <div className="flex gap-2">
-                  <Btn
-                    type="button"
-                    variant="primary"
-                    onClick={() => void handleSave()}
-                    disabled={!url}
-                    className="flex-1 text-xs"
-                  >
-                    Save
-                  </Btn>
-                  {(name || url || durStr) && (
-                    <Btn
-                      type="button"
-                      onClick={resetForm}
-                      className="px-3 text-xs"
-                    >
-                      Reset
-                    </Btn>
-                  )}
-                </div>
-              </ConfigCard>
-            </div>
-          </ConfigSectionPanel>
-        </div>
-      )}
+            {tab === 'transitions' && (
+              <div className="space-y-4 pt-0.5">
+                {selectedTransition ? (
+                  <ConfigCard className="space-y-4 p-5 sm:p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-lg font-semibold text-zinc-100">
+                          {selectedTransition.kind === 'system' ? selectedTransition.entry.label : getMediaTransitionLabel(selectedTransition.entry)}
+                        </div>
+                        <div className="mt-1 text-xs font-mono text-zinc-500">
+                          {selectedTransition.kind === 'system' ? selectedTransition.entry.id : selectedTransition.entry.url}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Btn
+                          type="button"
+                          onClick={() => selectedTransition.kind === 'system'
+                            ? socket.emit('transition:preview', [{ id: selectedTransition.entry.id }])
+                            : socket.emit('transition:preview', [strToStep(encodeMediaTransitionValue(selectedTransition.entry))])}
+                          className="px-4 py-2 text-sm"
+                        >
+                          Test Transition
+                        </Btn>
+                        {selectedTransition.kind === 'user' && (
+                          <Btn
+                            type="button"
+                            variant="danger"
+                            onClick={() => { void handleDeleteMediaEntry(selectedTransition.entry.id) }}
+                            className="px-4 py-2 text-sm"
+                          >
+                            Delete
+                          </Btn>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <ConfigCard className="text-left p-3">
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Type</div>
+                        <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedTransition.kind === 'system' ? 'System' : selectedTransition.entry.type}</div>
+                      </ConfigCard>
+                      <ConfigCard className="text-left p-3">
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Origin</div>
+                        <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedTransition.kind === 'system' ? 'Built-in transition' : 'Saved media entry'}</div>
+                      </ConfigCard>
+                      <ConfigCard className="text-left p-3">
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Duration</div>
+                        <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedTransition.kind === 'user' && selectedTransition.entry.duration != null ? `${selectedTransition.entry.duration}s` : 'Default'}</div>
+                      </ConfigCard>
+                    </div>
+                  </ConfigCard>
+                ) : (
+                  <ConfigNotice tone="info" className="py-6 text-center">Select a transition from the left column.</ConfigNotice>
+                )}
 
+                <ConfigSectionPanel label="Create User Transition">
+                  <div className="space-y-3">
+                    <ConfigNotice>
+                      Save an image or video as a reusable user transition.
+                    </ConfigNotice>
+
+                    <ConfigCard className="space-y-3 p-4">
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Name (optional)"
+                        className="w-full text-sm"
+                      />
+
+                      <AssetSelectionInput
+                        value={url}
+                        onChange={setUrl}
+                        kinds={['image', 'video']}
+                        modalTitle="User Transition Asset"
+                        placeholder="/assets/images/transition.png or /assets/video/transition.mp4"
+                        buttonLabel="Choose Asset"
+                        previewKind="auto"
+                        showPreview={false}
+                      />
+
+                      {url && pendingTransitionKind === 'image' && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0.1}
+                            max={120}
+                            step={0.5}
+                            value={durStr}
+                            onChange={(e) => setDurStr(e.target.value)}
+                            placeholder="4.0"
+                            className="w-28 text-sm font-mono"
+                          />
+                          <span className="text-xs text-zinc-600">sec display duration</span>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Btn
+                          type="button"
+                          variant="primary"
+                          onClick={() => void handleSave()}
+                          disabled={!url}
+                          className="flex-1 text-sm"
+                        >
+                          Save Transition
+                        </Btn>
+                        {(name || url || durStr) && (
+                          <Btn
+                            type="button"
+                            onClick={resetForm}
+                            className="px-4 text-sm"
+                          >
+                            Reset
+                          </Btn>
+                        )}
+                      </div>
+                    </ConfigCard>
+                  </div>
+                </ConfigSectionPanel>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
     </FloatingWindowShell>
   )
 }

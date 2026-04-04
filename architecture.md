@@ -95,6 +95,7 @@ Important persisted structures:
 - `Application`: desktop icon/app record
 - `DesktopConfig`: desktop runtime settings
 - `DesktopAmbianceConfig`: automated desktop/widget behavior rules
+- `EventConfig`: scheduler-driven automation records with overlay effects plus runtime actions
 - `OverlayStyle`: per-scene background/effects/particles/typography
 
 Application roles:
@@ -127,7 +128,7 @@ Persisted:
 - applications
 - desktop config
 - ambiance config
-- events
+- events, including auto-trigger rules plus runtime actions
 - OBS settings
 
 Runtime-only server state:
@@ -136,6 +137,7 @@ Runtime-only server state:
 - open widget ids
 - recycle-bin fullness
 - Start menu shell state
+- runtime config override layer for live desktop/widget/ambiance automation
 - ambiance leader overlay socket id
 - ambiance leader lease heartbeat / expiry timestamps
 - ambiance lifecycle history ring buffer for diagnostics
@@ -187,6 +189,24 @@ REST model:
 - full config replace
 - generic partial config patch
 - specialized patch routes for high-frequency areas like audio, desktop, applications, and OBS settings
+
+### Event Automation
+
+The scheduler is now an automation engine, not just an overlay-effect timer.
+
+Each event can combine:
+
+- overlay effects
+- auto-trigger rules: interval or idle, chance, cooldown, optional allowed scene states
+- runtime actions: desktop config patch, per-widget theme overrides, widget layout apply, widget open/close/toggle, ambiance config patch
+
+Execution model:
+
+- scheduler eligibility is server-side and respects transition guard, cooldown, and scene-state filters
+- manual `Fire Now` uses the same configured-event execution path as auto-triggered events
+- automation config actions write into a server-owned runtime override layer instead of the persisted config record
+- admin and overlay keep persisted config separate from the effective runtime config, and merge the live override snapshot on top at runtime
+- runtime shell actions like widget layout apply or widget toggle still execute as live socket-driven runtime actions
 
 ### State Machine
 

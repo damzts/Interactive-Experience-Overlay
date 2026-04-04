@@ -172,6 +172,11 @@ export function AssetCatalogPanel({
   allowFilesystemDelete = false,
   savedEntries,
   emptyMessage = 'No matching assets found.',
+  search,
+  onSearchChange,
+  kindFilter,
+  onKindFilterChange,
+  showControls = true,
 }: {
   kinds?: AssetKind[]
   selectedUrl?: string
@@ -180,13 +185,31 @@ export function AssetCatalogPanel({
   allowFilesystemDelete?: boolean
   savedEntries?: MediaEntry[] | false
   emptyMessage?: string
+  search?: string
+  onSearchChange?: (value: string) => void
+  kindFilter?: 'all' | AssetKind
+  onKindFilterChange?: (value: 'all' | AssetKind) => void
+  showControls?: boolean
 }) {
   const fallbackSavedEntries = useAdminStore((store) => store.config.mediaLibrary ?? [])
   const { assets, error, loading, refresh } = useAssetCatalog()
-  const [search, setSearch] = useState('')
-  const [kindFilter, setKindFilter] = useState<'all' | AssetKind>(kinds.length === 1 ? kinds[0] : 'all')
+  const [internalSearch, setInternalSearch] = useState('')
+  const [internalKindFilter, setInternalKindFilter] = useState<'all' | AssetKind>(kinds.length === 1 ? kinds[0] : 'all')
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const effectiveSearch = search ?? internalSearch
+  const effectiveKindFilter = kindFilter ?? internalKindFilter
+
+  const setSearchValue = (value: string) => {
+    if (onSearchChange) onSearchChange(value)
+    else setInternalSearch(value)
+  }
+
+  const setKindFilterValue = (value: 'all' | AssetKind) => {
+    if (onKindFilterChange) onKindFilterChange(value)
+    else setInternalKindFilter(value)
+  }
 
   const savedAssets = useMemo(() => {
     if (savedEntries === false) return []
@@ -195,18 +218,18 @@ export function AssetCatalogPanel({
   }, [fallbackSavedEntries, savedEntries])
 
   const allowedKinds = new Set(kinds)
-  const normalizedSearch = search.trim().toLowerCase()
+  const normalizedSearch = effectiveSearch.trim().toLowerCase()
 
   const matches = (asset: AssetRecord) => {
     if (!allowedKinds.has(asset.kind)) return false
-    if (kindFilter !== 'all' && asset.kind !== kindFilter) return false
+    if (effectiveKindFilter !== 'all' && asset.kind !== effectiveKindFilter) return false
     if (!normalizedSearch) return true
     return getAssetSearchText(asset).includes(normalizedSearch)
   }
 
-  const visibleSaved = useMemo(() => savedAssets.filter(matches), [savedAssets, kindFilter, normalizedSearch])
-  const visibleProjectAssets = useMemo(() => assets.filter((asset) => asset.source === 'filesystem' && matches(asset)), [assets, kindFilter, normalizedSearch])
-  const visibleGameAssets = useMemo(() => assets.filter((asset) => asset.source === 'games' && matches(asset)), [assets, kindFilter, normalizedSearch])
+  const visibleSaved = useMemo(() => savedAssets.filter(matches), [savedAssets, effectiveKindFilter, normalizedSearch])
+  const visibleProjectAssets = useMemo(() => assets.filter((asset) => asset.source === 'filesystem' && matches(asset)), [assets, effectiveKindFilter, normalizedSearch])
+  const visibleGameAssets = useMemo(() => assets.filter((asset) => asset.source === 'games' && matches(asset)), [assets, effectiveKindFilter, normalizedSearch])
 
   const handleDelete = async (asset: AssetRecord) => {
     const actionLabel = asset.source === 'saved' ? 'delete this saved media entry' : 'delete this project asset file'
@@ -233,27 +256,29 @@ export function AssetCatalogPanel({
 
   return (
     <div className="space-y-3">
-      <ConfigToolbar className="flex-col items-stretch md:flex-row md:items-center">
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search assets, folders, or game names..."
-          className="flex-1 text-xs"
-        />
-        <Btn type="button" onClick={() => void refresh()} className="px-3 py-1.5 text-xs">
-          Refresh
-        </Btn>
-      </ConfigToolbar>
+      {showControls && (
+        <ConfigToolbar className="flex-col items-stretch md:flex-row md:items-center">
+          <input
+            type="text"
+            value={effectiveSearch}
+            onChange={(event) => setSearchValue(event.target.value)}
+            placeholder="Search assets, folders, or game names..."
+            className="flex-1 text-xs"
+          />
+          <Btn type="button" onClick={() => void refresh()} className="px-3 py-1.5 text-xs">
+            Refresh
+          </Btn>
+        </ConfigToolbar>
+      )}
 
-      {kinds.length > 1 && (
+      {showControls && kinds.length > 1 && (
         <div className="flex flex-wrap gap-1.5">
           {(['all', ...kinds] as const).map((kind) => (
             <Btn
               key={kind}
               type="button"
-              variant={kindFilter === kind ? 'active' : 'default'}
-              onClick={() => setKindFilter(kind)}
+              variant={effectiveKindFilter === kind ? 'active' : 'default'}
+              onClick={() => setKindFilterValue(kind)}
               className="px-2.5 py-1 text-[10px] uppercase tracking-wide"
             >
               {kind}

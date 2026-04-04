@@ -1,12 +1,17 @@
 import type {
   AppConfig,
   Application,
+  AutoTrigger,
   DesktopAmbianceConfig,
   DesktopConfig,
   DesktopTheme,
+  EventAction,
+  EventConfig,
   LobbyConfig,
   OverlayStyle,
   RecycleBinSettings,
+  SourceInstance,
+  SourcePreset,
   SourceWidgetSettings,
   StickyNotesSettings,
   WidgetThemeAnimation,
@@ -18,6 +23,7 @@ import type {
   WidgetLayoutItem,
   WidgetLayoutSource,
 } from '../types/scene.js'
+import type { RuntimeConfigOverridePayload } from '../types/events.js'
 import { STATE, OVERLAY_EVENT } from '../types/state.js'
 
 export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
@@ -96,6 +102,164 @@ function normalizeWidgetSkinTheme(theme?: WidgetSkinTheme): WidgetSkinTheme {
     return theme
   }
   return 'metalheart'
+}
+
+function clampUnitInterval(value: number | undefined, fallback: number) {
+  if (!Number.isFinite(value)) return fallback
+  return Math.max(0, Math.min(1, value ?? fallback))
+}
+
+function normalizeAllowedStates(states?: AutoTrigger['allowedStates']) {
+  if (!Array.isArray(states) || states.length === 0) return undefined
+
+  const allowed = new Set(Object.values(STATE))
+  const normalized = states.filter((state): state is STATE => allowed.has(state as STATE))
+  return normalized.length ? normalized : undefined
+}
+
+function normalizeSourcePosition(position?: SourceInstance['position'] | SourcePreset['defaultPosition']) {
+  return {
+    x: Math.round(position?.x ?? 0),
+    y: Math.round(position?.y ?? 0),
+    width: Math.max(1, Math.round(position?.width ?? 1920)),
+    height: Math.max(1, Math.round(position?.height ?? 1080)),
+  }
+}
+
+export function withSourcePresetDefaults(sourcePreset: SourcePreset): SourcePreset {
+  const id = sourcePreset.id.trim()
+  const pluginType = sourcePreset.pluginType.trim()
+  return {
+    id,
+    label: sourcePreset.label.trim() || id || 'Untitled Source Preset',
+    pluginType,
+    config: structuredClone(sourcePreset.config ?? {}),
+    defaultPosition: sourcePreset.defaultPosition ? normalizeSourcePosition(sourcePreset.defaultPosition) : undefined,
+  }
+}
+
+export function withSourcePresetListDefaults(sourcePresets?: SourcePreset[] | null): SourcePreset[] {
+  return (sourcePresets ?? [])
+    .map((sourcePreset) => withSourcePresetDefaults(sourcePreset))
+    .filter((sourcePreset) => Boolean(sourcePreset.id && sourcePreset.pluginType))
+}
+
+export function withSourceInstanceDefaults(source: SourceInstance): SourceInstance {
+  return {
+    id: source.id.trim(),
+    sourcePresetId: source.sourcePresetId?.trim() || undefined,
+    pluginType: source.pluginType?.trim() || undefined,
+    config: source.config ? structuredClone(source.config) : undefined,
+    position: normalizeSourcePosition(source.position),
+    zIndex: Math.round(source.zIndex ?? 0),
+    visible: source.visible ?? true,
+  }
+}
+
+export function resolveSourceInstance(source: SourceInstance, sourcePresets?: SourcePreset[] | null) {
+  const normalizedSource = withSourceInstanceDefaults(source)
+  const preset = normalizedSource.sourcePresetId
+    ? withSourcePresetListDefaults(sourcePresets).find((entry) => entry.id === normalizedSource.sourcePresetId)
+    : undefined
+  const pluginType = preset?.pluginType ?? normalizedSource.pluginType
+  if (!pluginType) return null
+
+  return {
+    ...normalizedSource,
+    pluginType,
+    config: structuredClone(preset?.config ?? normalizedSource.config ?? {}),
+  }
+}
+
+export function withAutoTriggerDefaults(auto?: Partial<AutoTrigger> | null): AutoTrigger {
+  return {
+    enabled: auto?.enabled ?? false,
+    mode: auto?.mode === 'idle' ? 'idle' : 'interval',
+    intervalMin: Math.max(1, Math.round(auto?.intervalMin ?? 15)),
+    idleMin: Math.max(1, Math.round(auto?.idleMin ?? 5)),
+    chance: clampUnitInterval(auto?.chance, 1),
+    cooldownMin: Math.max(0, Math.round(auto?.cooldownMin ?? 0)),
+    allowedStates: normalizeAllowedStates(auto?.allowedStates),
+  }
+}
+
+function normalizeEventAction(action: EventAction): EventAction | null {
+  if (action.kind === 'desktop-config') {
+    const patch: NonNullable<Extract<EventAction, { kind: 'desktop-config' }>['patch']> = {}
+    if (action.patch.theme !== undefined) patch.theme = normalizeDesktopTheme(action.patch.theme)
+    if (action.patch.iconAnimation !== undefined) patch.iconAnimation = action.patch.iconAnimation
+    if (action.patch.iconMotion !== undefined && Number.isFinite(action.patch.iconMotion)) {
+      patch.iconMotion = Math.max(0, Math.min(3, action.patch.iconMotion))
+    }
+    if (action.patch.widgetTheme) {
+      patch.widgetTheme = normalizeWidgetThemeConfig(action.patch.widgetTheme)
+    }
+    if (action.patch.screenSaver) {
+      patch.screenSaver = {
+        enabled: action.patch.screenSaver.enabled ?? false,
+        timeoutMinutes: Math.max(1, Math.round(action.patch.screenSaver.timeoutMinutes ?? 5)),
+        preset: action.patch.screenSaver.preset ?? 'starfield',
+      }
+    }
+    return { kind: 'desktop-config', patch }
+  }
+
+  if (action.kind === 'widget-theme-overrides') {
+    const widgetIds = Array.from(new Set((action.widgetIds ?? []).map((widgetId) => widgetId.trim()).filter(Boolean)))
+    return {
+      kind: 'widget-theme-overrides',
+      widgetIds,
+      clearExisting: action.clearExisting ?? false,
+      theme: normalizeWidgetThemeConfig(action.theme),
+    }
+  }
+
+  if (action.kind === 'widget-layout') {
+    const layoutId = action.layoutId.trim()
+    return layoutId ? { kind: 'widget-layout', layoutId } : null
+  }
+
+  if (action.kind === 'widget-command') {
+    const widgetId = action.widgetId.trim()
+    if (!widgetId) return null
+    return {
+      kind: 'widget-command',
+      widgetId,
+      action: action.action === 'open' || action.action === 'close' ? action.action : 'toggle',
+    }
+  }
+
+  return {
+    kind: 'ambiance-patch',
+    patch: {
+      enabled: action.patch.enabled,
+      intervalSeconds: action.patch.intervalSeconds !== undefined
+        ? Math.max(1, Math.round(action.patch.intervalSeconds))
+        : undefined,
+      maxOpenWidgets: action.patch.maxOpenWidgets !== undefined
+        ? Math.max(1, Math.round(action.patch.maxOpenWidgets))
+        : undefined,
+      openWhileOneOpenChance: action.patch.openWhileOneOpenChance !== undefined
+        ? clampUnitInterval(action.patch.openWhileOneOpenChance, 0.35)
+        : undefined,
+      behaviors: action.patch.behaviors,
+    },
+  }
+}
+
+export function withEventConfigDefaults(event: EventConfig): EventConfig {
+  return {
+    ...event,
+    effects: Array.isArray(event.effects) ? event.effects.map((effect) => structuredClone(effect)) : [],
+    actions: Array.isArray(event.actions)
+      ? event.actions.map((action) => normalizeEventAction(action)).filter((action): action is EventAction => action !== null)
+      : [],
+    auto: withAutoTriggerDefaults(event.auto),
+  }
+}
+
+export function withEventListDefaults(events?: EventConfig[] | null): EventConfig[] {
+  return (events ?? []).map((event) => withEventConfigDefaults(event))
 }
 
 function normalizeWidgetThemeAnimation(value?: WidgetThemeAnimation): WidgetThemeAnimation {
@@ -1288,12 +1452,18 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
             : currentDesktopAmbiance.widgetSimulation,
         }
       : currentDesktopAmbiance,
-    events: updates.events ?? base.events,
+    events: updates.events ? withEventListDefaults(updates.events) : withEventListDefaults(base.events),
     mediaLibrary: updates.mediaLibrary ?? base.mediaLibrary,
+    sourcePresets: updates.sourcePresets ? withSourcePresetListDefaults(updates.sourcePresets) : withSourcePresetListDefaults(base.sourcePresets),
   }
 }
 
+export function applyRuntimeConfigOverride(base: AppConfig, runtimeOverride: RuntimeConfigOverridePayload): AppConfig {
+  return mergeAppConfig(base, runtimeOverride as unknown as Partial<AppConfig>)
+}
+
 export const DEFAULT_CONFIG: AppConfig = {
+  sourcePresets: [],
   scenes: {
     LOBBY: {
       id: 'LOBBY',
@@ -1644,11 +1814,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   desktopAmbiance: DEFAULT_DESKTOP_AMBIANCE_CONFIG,
 
   events: [
-    { id: OVERLAY_EVENT.DEATH,          label: 'DEATH',    icon: '💀', color: 'text-red-400',     desc: 'Red vignette + YOU DIED',           effects: [{ type: 'death-overlay',   cfg: {} }], auto: { enabled: false, mode: 'interval', intervalMin: 20, idleMin: 5 } },
-    { id: OVERLAY_EVENT.VICTORY,        label: 'VICTORY',  icon: '🏆', color: 'text-yellow-400',  desc: 'Win98 dialog: MISSION.LOG saved',   effects: [{ type: 'victory-overlay', cfg: {} }], auto: { enabled: false, mode: 'interval', intervalMin: 30, idleMin: 5 } },
-    { id: OVERLAY_EVENT.REVIVE,         label: 'REVIVE',   icon: '❤',  color: 'text-emerald-400', desc: 'Terminal: Restarting process...',   effects: [{ type: 'revive-overlay',  cfg: {} }], auto: { enabled: false, mode: 'interval', intervalMin: 25, idleMin: 5 } },
-    { id: OVERLAY_EVENT.NETWORK_GLITCH, label: 'GLITCH',   icon: '📡', color: 'text-purple-400',  desc: 'Full-screen artifact burst',        effects: [{ type: 'network-glitch',  cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }], auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5 } },
-    { id: 'idle-floaties',              label: 'FLOATIES', icon: '✨',  color: 'text-cyan-400',    desc: 'Glowing symbols drift over screen', effects: [{ type: 'floaties',         cfg: { count: 10, duration: 10, speed: 1.0 } }], auto: { enabled: false, mode: 'idle',     intervalMin: 15, idleMin: 5 } },
+    { id: OVERLAY_EVENT.DEATH,          label: 'DEATH',    icon: '💀', color: 'text-red-400',     desc: 'Red vignette + YOU DIED',           effects: [{ type: 'death-overlay',   cfg: {} }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 20, idleMin: 5, chance: 1, cooldownMin: 0 } },
+    { id: OVERLAY_EVENT.VICTORY,        label: 'VICTORY',  icon: '🏆', color: 'text-yellow-400',  desc: 'Win98 dialog: MISSION.LOG saved',   effects: [{ type: 'victory-overlay', cfg: {} }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 30, idleMin: 5, chance: 1, cooldownMin: 0 } },
+    { id: OVERLAY_EVENT.REVIVE,         label: 'REVIVE',   icon: '❤',  color: 'text-emerald-400', desc: 'Terminal: Restarting process...',   effects: [{ type: 'revive-overlay',  cfg: {} }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 25, idleMin: 5, chance: 1, cooldownMin: 0 } },
+    { id: OVERLAY_EVENT.NETWORK_GLITCH, label: 'GLITCH',   icon: '📡', color: 'text-purple-400',  desc: 'Full-screen artifact burst',        effects: [{ type: 'network-glitch',  cfg: { message: '[ NETWORK INTERRUPTION ]', duration: 2 } }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 } },
+    { id: 'idle-floaties',              label: 'FLOATIES', icon: '✨',  color: 'text-cyan-400',    desc: 'Glowing symbols drift over screen', effects: [{ type: 'floaties',         cfg: { count: 10, duration: 10, speed: 1.0 } }], actions: [], auto: { enabled: false, mode: 'idle', intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 } },
   ],
 
   mediaLibrary: [],

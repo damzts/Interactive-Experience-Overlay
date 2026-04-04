@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, mergeAppConfig, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, mergeAppConfig, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withEventListDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
@@ -191,7 +191,7 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
     desktopConfig,
     desktopAmbiance: withDesktopAmbianceDefaults(migratedAmbiance),
-    events: next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events),
+    events: withEventListDefaults(next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events)),
     mediaLibrary: next.mediaLibrary ?? [],
   }
 }

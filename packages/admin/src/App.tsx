@@ -10,6 +10,7 @@ export default function App() {
   const fetchConfig = useAdminStore((s) => s.fetchConfig)
   const setConfig = useAdminStore((s) => s.setConfig)
   const patchConfig = useAdminStore((s) => s.patchConfig)
+  const setRuntimeConfigOverride = useAdminStore((s) => s.setRuntimeConfigOverride)
   const syncDesktopRuntimeState = useAdminStore((s) => s.syncDesktopRuntimeState)
   const toggleWidgetRuntimeState = useAdminStore((s) => s.toggleWidgetRuntimeState)
   const setRecycleBinFull = useAdminStore((s) => s.setRecycleBinFull)
@@ -57,6 +58,10 @@ export default function App() {
       patchConfig(updates)
     })
 
+    socket.on('runtime:config:override', (updates) => {
+      setRuntimeConfigOverride(updates)
+    })
+
     socket.on('ambiance:leader', ({ socketId }) => {
       setSimulationLeaderId(socketId)
     })
@@ -77,11 +82,12 @@ export default function App() {
       socket.off('obs:status')
       socket.off('config:update')
       socket.off('config:patch')
+      socket.off('runtime:config:override')
       socket.off('ambiance:leader')
       socket.off('ambiance:metrics')
       socket.off('runtime:diagnostics')
     }
-  }, [fetchConfig, patchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsStatus, setRecycleBinFull, setRuntimeDiagnostics, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
+  }, [fetchConfig, patchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsStatus, setRecycleBinFull, setRuntimeConfigOverride, setRuntimeDiagnostics, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

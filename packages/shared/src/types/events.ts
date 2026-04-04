@@ -1,5 +1,5 @@
 import type { STATE } from './state.js'
-import type { AppConfig, DesktopConfig, TransitionStep } from './scene.js'
+import type { AppConfig, DesktopAmbianceConfig, DesktopConfig, TransitionStep } from './scene.js'
 import type { OverlayTriggerPayload } from './effects.js'
 
 /** Shape of the transition:play socket event */
@@ -197,8 +197,12 @@ export interface SchedulerEventDiagnostics {
   enabled: boolean
   mode: 'interval' | 'idle'
   effectsCount: number
+  actionsCount: number
   intervalMin: number
   idleMin: number
+  chance: number
+  cooldownMin: number
+  allowedStates?: STATE[]
   nextRunAt: number | null
   idleTriggered: boolean
   due: boolean
@@ -248,6 +252,11 @@ export interface RuntimeDiagnosticsPayload {
   ambiance: AmbianceDiagnosticsPayload
 }
 
+export interface RuntimeConfigOverridePayload {
+  desktopConfig?: Pick<Partial<DesktopConfig>, 'theme' | 'widgetTheme' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'widgetPositions' | 'widgetSizes' | 'widgetZIndices' | 'screenSaver'>
+  desktopAmbiance?: Partial<DesktopAmbianceConfig>
+}
+
 export interface DesktopIconDragPayload {
   appId: string
   x: number
@@ -287,6 +296,7 @@ export interface ServerToClientEvents {
   'ambiance:leader': (payload: { socketId: string | null }) => void
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void
   'runtime:diagnostics': (payload: RuntimeDiagnosticsPayload) => void
+  'runtime:config:override': (payload: RuntimeConfigOverridePayload) => void
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
   'overlay:resync': (payload: { reason: string }) => void
   'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void

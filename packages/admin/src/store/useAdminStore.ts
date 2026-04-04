@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { STATE, DEFAULT_CONFIG, mergeAppConfig } from '@ieom/shared'
-import type { AppConfig, DesktopRuntimeStatePayload, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
+import { STATE, DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieom/shared'
+import type { AppConfig, DesktopRuntimeStatePayload, ObsStatusPayload, RuntimeConfigOverridePayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
 
 export type PreviewTarget = 'runtime' | 'dev'
 
@@ -51,6 +51,8 @@ interface AdminStore {
   obsStatus: ObsStatusPayload
   clientCount: number
   lastError: string | null
+  persistedConfig: AppConfig
+  runtimeConfigOverride: RuntimeConfigOverridePayload
   config: AppConfig
   configLoaded: boolean
   previewTarget: PreviewTarget
@@ -67,6 +69,7 @@ interface AdminStore {
   setLastError: (e: string | null) => void
   setConfig: (c: AppConfig) => void
   patchConfig: (updates: Partial<AppConfig>) => void
+  setRuntimeConfigOverride: (updates: RuntimeConfigOverridePayload) => void
   setPreviewTarget: (target: PreviewTarget) => void
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
@@ -92,6 +95,8 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
   clientCount: 0,
   lastError: null,
+  persistedConfig: DEFAULT_CONFIG,
+  runtimeConfigOverride: {},
   config: DEFAULT_CONFIG,
   configLoaded: false,
   previewTarget: getStoredPreviewTarget(),
@@ -144,8 +149,24 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   setObsStatus: (status) => set({ obsConnected: status.connected, obsStatus: status }),
   setClientCount: (n) => set({ clientCount: n }),
   setLastError: (e) => set({ lastError: e }),
-  setConfig: (c) => set({ config: c, configLoaded: true }),
-  patchConfig: (updates) => set((state) => ({ config: mergeAppConfig(state.config, updates), configLoaded: true })),
+  setConfig: (c) => set((state) => ({
+    persistedConfig: c,
+    config: applyRuntimeConfigOverride(c, state.runtimeConfigOverride),
+    configLoaded: true,
+  })),
+  patchConfig: (updates) => set((state) => {
+    const persistedConfig = mergeAppConfig(state.persistedConfig, updates)
+    return {
+      persistedConfig,
+      config: applyRuntimeConfigOverride(persistedConfig, state.runtimeConfigOverride),
+      configLoaded: true,
+    }
+  }),
+  setRuntimeConfigOverride: (updates) => set((state) => ({
+    runtimeConfigOverride: updates,
+    config: applyRuntimeConfigOverride(state.persistedConfig, updates),
+    configLoaded: true,
+  })),
   setPreviewTarget: (target) => {
     storePreviewTarget(target)
     set({ previewTarget: target })
@@ -169,7 +190,11 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       const res = await fetch('/api/config')
       if (res.ok) {
         const data: AppConfig = await res.json()
-        set({ config: data, configLoaded: true })
+        set((state) => ({
+          persistedConfig: data,
+          config: applyRuntimeConfigOverride(data, state.runtimeConfigOverride),
+          configLoaded: true,
+        }))
       }
     } catch (e) {
       console.error('[admin] fetchConfig failed', e)
@@ -177,13 +202,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   saveConfig: async (updates: Partial<AppConfig>) => {
-    const merged = mergeAppConfig(get().config, updates)
+    const merged = mergeAppConfig(get().persistedConfig, updates)
     try {
       const keys = Object.keys(updates)
       let res: Response
 
       if (keys.length === 1 && updates.applications) {
-        const changedApp = findSingleChangedApplication(get().config.applications, updates.applications)
+        const changedApp = findSingleChangedApplication(get().persistedConfig.applications, updates.applications)
         if (changedApp) {
           res = await fetch(`/api/config/applications/${encodeURIComponent(changedApp.id)}`, {
             method: 'PATCH',
@@ -206,7 +231,10 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
       }
 
       if (res.ok) {
-        set({ config: merged })
+        set((state) => ({
+          persistedConfig: merged,
+          config: applyRuntimeConfigOverride(merged, state.runtimeConfigOverride),
+        }))
       } else {
         set({ lastError: `Save failed: ${res.status}` })
       }

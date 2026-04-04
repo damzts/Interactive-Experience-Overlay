@@ -38,6 +38,7 @@ export function useSocket() {
   const setPendingTransition = useAppStore((s) => s.setPendingTransition)
   const setConfig = useAppStore((s) => s.setConfig)
   const patchConfig = useAppStore((s) => s.patchConfig)
+  const setRuntimeConfigOverride = useAppStore((s) => s.setRuntimeConfigOverride)
   const setObsConnected = useAppStore((s) => s.setObsConnected)
   const enqueueDesktopNotification = useAppStore((s) => s.enqueueDesktopNotification)
   const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
@@ -133,6 +134,10 @@ export function useSocket() {
       patchConfig(updates)
     }
 
+    const onRuntimeConfigOverride = (updates: import('@ieom/shared').RuntimeConfigOverridePayload) => {
+      setRuntimeConfigOverride(updates)
+    }
+
     const onObsStatus = (payload: ObsStatusPayload) => {
       setObsConnected(payload.connected)
     }
@@ -225,6 +230,7 @@ export function useSocket() {
     socket.on('overlay:show', onOverlayShow)
     socket.on('config:update', onConfigUpdate)
     socket.on('config:patch', onConfigPatch)
+    socket.on('runtime:config:override', onRuntimeConfigOverride)
     socket.on('obs:status', onObsStatus)
     socket.on('widget:toggle', onWidgetToggle)
     socket.on('desktop:notify', onDesktopNotify)
@@ -243,6 +249,7 @@ export function useSocket() {
       socket.off('overlay:show', onOverlayShow)
       socket.off('config:update', onConfigUpdate)
       socket.off('config:patch', onConfigPatch)
+      socket.off('runtime:config:override', onRuntimeConfigOverride)
       socket.off('obs:status', onObsStatus)
       socket.off('widget:toggle', onWidgetToggle)
       socket.off('desktop:notify', onDesktopNotify)

@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io'
 import {
   STATE,
+  mergeAppConfig,
   withDesktopAmbianceDefaults,
   withDesktopConfigDefaults,
   type AmbianceSimulationStartedPayload,
@@ -17,6 +18,7 @@ import {
   type OverlayClientDiagnostics,
   type OverlayClientKind,
   type OverlayRuntimeStatusPayload,
+  type RuntimeConfigOverridePayload,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type InterServerEvents,
@@ -26,7 +28,7 @@ import {
   type WidgetSimulationIntentPayload,
   type WidgetSimulationCommandPayload,
 } from '@ieom/shared'
-import type { AppConfig } from '@ieom/shared'
+import type { AppConfig, DesktopConfig, EventConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
 import type { AmbianceManager } from '../ambiance/manager.js'
@@ -118,6 +120,7 @@ export function setupSocketHandlers(
   let leaderLastHeartbeatAt: number | null = null
   let acceptedSimulatedToggles = 0
   let rejectedSimulatedToggles = 0
+  let runtimeConfigOverride: RuntimeConfigOverridePayload = {}
   let runtimeDiagnosticsQueued = false
   let runtimeDiagnosticsFlushTimer: ReturnType<typeof setTimeout> | null = null
   let lastRuntimeDiagnosticsEmitAt = 0
@@ -132,6 +135,81 @@ export function setupSocketHandlers(
     recycleBinFull,
     startMenuState,
   })
+
+  const mergeRuntimeConfigOverride = (
+    base: RuntimeConfigOverridePayload,
+    updates: RuntimeConfigOverridePayload,
+  ): RuntimeConfigOverridePayload => ({
+    desktopConfig: updates.desktopConfig
+      ? {
+          ...(base.desktopConfig ?? {}),
+          ...updates.desktopConfig,
+          widgetTheme: updates.desktopConfig.widgetTheme
+            ? {
+                ...(base.desktopConfig?.widgetTheme ?? {}),
+                ...updates.desktopConfig.widgetTheme,
+              }
+            : base.desktopConfig?.widgetTheme,
+          widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides
+            ? {
+                ...(base.desktopConfig?.widgetThemeOverrides ?? {}),
+                ...updates.desktopConfig.widgetThemeOverrides,
+              }
+            : base.desktopConfig?.widgetThemeOverrides,
+          widgetPositions: updates.desktopConfig.widgetPositions
+            ? {
+                ...(base.desktopConfig?.widgetPositions ?? {}),
+                ...updates.desktopConfig.widgetPositions,
+              }
+            : base.desktopConfig?.widgetPositions,
+          widgetSizes: updates.desktopConfig.widgetSizes
+            ? {
+                ...(base.desktopConfig?.widgetSizes ?? {}),
+                ...updates.desktopConfig.widgetSizes,
+              }
+            : base.desktopConfig?.widgetSizes,
+          widgetZIndices: updates.desktopConfig.widgetZIndices
+            ? {
+                ...(base.desktopConfig?.widgetZIndices ?? {}),
+                ...updates.desktopConfig.widgetZIndices,
+              }
+            : base.desktopConfig?.widgetZIndices,
+          screenSaver: updates.desktopConfig.screenSaver
+            ? {
+                ...(base.desktopConfig?.screenSaver ?? {}),
+                ...updates.desktopConfig.screenSaver,
+              }
+            : base.desktopConfig?.screenSaver,
+        }
+      : base.desktopConfig,
+    desktopAmbiance: updates.desktopAmbiance
+      ? {
+          ...(base.desktopAmbiance ?? {}),
+          ...updates.desktopAmbiance,
+          widgetSimulation: updates.desktopAmbiance.widgetSimulation
+            ? {
+                ...(base.desktopAmbiance?.widgetSimulation ?? {}),
+                ...updates.desktopAmbiance.widgetSimulation,
+                behaviors: updates.desktopAmbiance.widgetSimulation.behaviors
+                  ? {
+                      ...(base.desktopAmbiance?.widgetSimulation?.behaviors ?? {}),
+                      ...updates.desktopAmbiance.widgetSimulation.behaviors,
+                    }
+                  : base.desktopAmbiance?.widgetSimulation?.behaviors,
+              }
+            : base.desktopAmbiance?.widgetSimulation,
+        }
+      : base.desktopAmbiance,
+  })
+
+  const emitRuntimeConfigOverride = () => {
+    io.emit('runtime:config:override', runtimeConfigOverride)
+  }
+
+  const applyRuntimeConfigOverride = (updates: RuntimeConfigOverridePayload) => {
+    runtimeConfigOverride = mergeRuntimeConfigOverride(runtimeConfigOverride, updates)
+    emitRuntimeConfigOverride()
+  }
 
   const toggleWidgetRuntime = (widgetId: string) => {
     if (openWidgetIds.has(widgetId)) openWidgetIds.delete(widgetId)
@@ -397,14 +475,77 @@ export function setupSocketHandlers(
     electSimulationLeaderIfNeeded('lease-expired')
   }, LEADER_LEASE_SWEEP_MS)
 
+  const executeConfiguredEvent = (eventDef: EventConfig): { ok: boolean; error?: string } => {
+    if (eventDef.effects.length > 0) {
+      machine.triggerOverlay({ id: eventDef.id, effects: eventDef.effects })
+    }
+
+    for (const action of eventDef.actions ?? []) {
+      if (action.kind === 'desktop-config') {
+        applyRuntimeConfigOverride({
+          desktopConfig: {
+            ...(action.patch.theme !== undefined ? { theme: action.patch.theme } : {}),
+            ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
+            ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
+            ...(action.patch.widgetTheme ? { widgetTheme: action.patch.widgetTheme } : {}),
+            ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
+          },
+        })
+        continue
+      }
+
+      if (action.kind === 'widget-theme-overrides') {
+        const currentDesktop = withDesktopConfigDefaults(getConfig().desktopConfig)
+        const nextOverrides: NonNullable<DesktopConfig['widgetThemeOverrides']> = {}
+        for (const widgetId of action.widgetIds) {
+          nextOverrides[widgetId] = {
+            ...((action.clearExisting ? currentDesktop.widgetTheme : currentDesktop.widgetThemeOverrides?.[widgetId] ?? currentDesktop.widgetTheme)),
+            ...action.theme,
+          }
+        }
+
+        applyRuntimeConfigOverride({
+          desktopConfig: {
+            widgetThemeOverrides: nextOverrides,
+          },
+        })
+        continue
+      }
+
+      if (action.kind === 'widget-layout') {
+        const result = applySavedWidgetLayout(action.layoutId, { persist: false })
+        if (!result.ok) return result
+        continue
+      }
+
+      if (action.kind === 'widget-command') {
+        if (action.action === 'toggle') {
+          toggleWidgetRuntime(action.widgetId)
+        } else {
+          setWidgetRuntimeOpenState(action.widgetId, action.action === 'open')
+        }
+        continue
+      }
+
+      applyRuntimeConfigOverride({
+        desktopAmbiance: {
+          widgetSimulation: {
+            ...action.patch,
+          },
+        },
+      })
+    }
+
+    return { ok: true }
+  }
+
   const triggerConfiguredEvent = (eventId: string): { ok: boolean; error?: string } => {
     const normalized = normalizeActionId(eventId)
     const eventDef = (getConfig().events ?? []).find((entry) => normalizeActionId(entry.id) === normalized)
     if (!eventDef) {
       return { ok: false, error: `Unknown event: ${eventId}` }
     }
-    machine.triggerOverlay({ id: eventDef.id, effects: eventDef.effects })
-    return { ok: true }
+    return executeConfiguredEvent(eventDef)
   }
 
   const runConfiguredAction = (action: string): { ok: boolean; error?: string } => {
@@ -443,7 +584,7 @@ export function setupSocketHandlers(
     return { ok: false, error: `Unsupported action: ${action}` }
   }
 
-  const applySavedWidgetLayout = (layoutId: string): { ok: boolean; error?: string } => {
+  const applySavedWidgetLayout = (layoutId: string, options?: { persist?: boolean }): { ok: boolean; error?: string } => {
     const currentConfig = getConfig()
     const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
     const layout = (currentDesktop.widgetLayouts ?? []).find((entry) => entry.id === layoutId)
@@ -482,15 +623,30 @@ export function setupSocketHandlers(
       nextRuntimeZIndices[item.widgetId] = index
     }
 
-    persistConfig({
-      ...currentConfig,
-      desktopConfig: withDesktopConfigDefaults({
-        ...currentDesktop,
-        widgetPositions: nextPositions,
-        widgetSizes: nextSizes,
-        widgetZIndices: nextRuntimeZIndices,
-      }),
-    }, machine)
+    if (options?.persist === false) {
+      applyRuntimeConfigOverride({
+        desktopConfig: {
+          widgetPositions: nextPositions,
+          widgetSizes: nextSizes,
+          widgetZIndices: nextRuntimeZIndices,
+        },
+      })
+    } else {
+      const nextConfig = mergeAppConfig(currentConfig, {
+        desktopConfig: {
+          widgetPositions: nextPositions,
+          widgetSizes: nextSizes,
+          widgetZIndices: nextRuntimeZIndices,
+        },
+      })
+      persistConfig(nextConfig, machine, {
+        desktopConfig: {
+          widgetPositions: nextConfig.desktopConfig.widgetPositions,
+          widgetSizes: nextConfig.desktopConfig.widgetSizes,
+          widgetZIndices: nextConfig.desktopConfig.widgetZIndices,
+        },
+      })
+    }
 
     for (const item of layoutItems) {
       const isOpen = openWidgetIds.has(item.widgetId)
@@ -544,6 +700,10 @@ export function setupSocketHandlers(
     io.emit('overlay:show', payload)
   })
 
+  machine.on('event:trigger', (eventDef: EventConfig) => {
+    void executeConfiguredEvent(eventDef)
+  })
+
   io.on('connection', (socket: AppSocket) => {
     const clientType = getSocketClientType(socket)
     socketClientTypes.set(socket.id, clientType)
@@ -562,6 +722,7 @@ export function setupSocketHandlers(
       accepted: acceptedSimulatedToggles,
       rejected: rejectedSimulatedToggles,
     })
+    socket.emit('runtime:config:override', runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
       ambiance: ambianceManager.getDiagnostics(),

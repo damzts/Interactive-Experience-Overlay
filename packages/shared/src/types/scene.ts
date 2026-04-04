@@ -1,8 +1,17 @@
+export interface SourcePreset {
+  id: string
+  label: string
+  pluginType: string
+  config: Record<string, unknown>
+  defaultPosition?: { x: number; y: number; width: number; height: number }
+}
+
 /** A single source instance within a scene */
 export interface SourceInstance {
   id: string
-  pluginType: string
-  config: Record<string, unknown>
+  sourcePresetId?: string
+  pluginType?: string
+  config?: Record<string, unknown>
   position: { x: number; y: number; width: number; height: number }
   zIndex: number
   visible: boolean
@@ -393,6 +402,7 @@ export interface TransitionStep {
 // ── Event config ────────────────────────────────────────────────
 // Imported by: admin Dashboard.tsx, shared defaults, server (auto-trigger future)
 import type { EffectConfig } from './effects.js'
+import type { STATE } from './state.js'
 
 /** Auto-trigger configuration for an event */
 export interface AutoTrigger {
@@ -402,7 +412,54 @@ export interface AutoTrigger {
   intervalMin: number
   /** Fire after N minutes of idle (mode: idle) */
   idleMin: number
+  /** 0-1 chance applied when the event becomes eligible. */
+  chance: number
+  /** Minimum delay before the same event can fire again. */
+  cooldownMin: number
+  /** Optional scene whitelist. Empty = any state. */
+  allowedStates?: STATE[]
 }
+
+export interface EventDesktopConfigAction {
+  kind: 'desktop-config'
+  patch: {
+    theme?: DesktopTheme
+    iconAnimation?: DesktopIconAnimation
+    iconMotion?: number
+    widgetTheme?: Partial<WidgetThemeConfig>
+    screenSaver?: Partial<DesktopConfig['screenSaver']>
+  }
+}
+
+export interface EventWidgetThemeOverridesAction {
+  kind: 'widget-theme-overrides'
+  widgetIds: string[]
+  clearExisting?: boolean
+  theme: Partial<WidgetThemeConfig>
+}
+
+export interface EventWidgetLayoutAction {
+  kind: 'widget-layout'
+  layoutId: string
+}
+
+export interface EventWidgetCommandAction {
+  kind: 'widget-command'
+  widgetId: string
+  action: 'open' | 'close' | 'toggle'
+}
+
+export interface EventAmbiancePatchAction {
+  kind: 'ambiance-patch'
+  patch: Partial<AmbianceWidgetSimulationConfig>
+}
+
+export type EventAction =
+  | EventDesktopConfigAction
+  | EventWidgetThemeOverridesAction
+  | EventWidgetLayoutAction
+  | EventWidgetCommandAction
+  | EventAmbiancePatchAction
 
 /** A saved event definition — persisted in AppConfig.events */
 export interface EventConfig {
@@ -414,6 +471,8 @@ export interface EventConfig {
   desc: string
   /** Ordered stack of effects to fire. Empty = no visual. */
   effects: EffectConfig[]
+  /** Runtime actions executed alongside overlay effects. */
+  actions?: EventAction[]
   auto: AutoTrigger
 }
 
@@ -476,4 +535,6 @@ export interface AppConfig {
   events?: EventConfig[]
   /** Centralised media asset library (images / videos) used by TransitionPicker. */
   mediaLibrary?: MediaEntry[]
+  /** Reusable source presets referenced by scenes and source widgets. */
+  sourcePresets?: SourcePreset[]
 }

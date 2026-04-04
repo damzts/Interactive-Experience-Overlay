@@ -1,9 +1,10 @@
 import { create } from 'zustand'
-import { STATE, DEFAULT_CONFIG, DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE, mergeAppConfig } from '@ieom/shared'
+import { STATE, DEFAULT_CONFIG, DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE, applyRuntimeConfigOverride, mergeAppConfig } from '@ieom/shared'
 import type {
   AppConfig,
   DesktopNotificationPayload,
   DesktopRuntimeStatePayload,
+  RuntimeConfigOverridePayload,
   TransitionStep,
 } from '@ieom/shared'
 
@@ -45,6 +46,8 @@ interface AppStore {
   /** State buffered from state:update — applied at the midpoint of the transition */
   pendingVisualState: VisualState | null
   pendingTransition: PendingTransition | null
+  persistedConfig: AppConfig
+  runtimeConfigOverride: RuntimeConfigOverridePayload
   config: AppConfig
   previewBaseConfig: AppConfig | null
   previewConfigPatch: Partial<AppConfig> | null
@@ -65,6 +68,7 @@ interface AppStore {
   clearPendingTransition: () => void
   setConfig: (c: AppConfig) => void
   patchConfig: (updates: Partial<AppConfig>) => void
+  setRuntimeConfigOverride: (updates: RuntimeConfigOverridePayload) => void
   applyPreviewConfig: (updates: Partial<AppConfig>) => void
   clearPreviewConfig: () => void
   setObsConnected: (b: boolean) => void
@@ -86,6 +90,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   visualState: STATE.DESKTOP as VisualState,
   pendingVisualState: null,
   pendingTransition: null,
+  persistedConfig: DEFAULT_CONFIG,
+  runtimeConfigOverride: {},
   config: DEFAULT_CONFIG,
   previewBaseConfig: null,
   previewConfigPatch: null,
@@ -105,30 +111,51 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setPendingTransition: (t) => set({ pendingTransition: t }),
   clearPendingTransition: () => set({ pendingTransition: null }),
   setConfig: (c) => set((state) => {
+    const runtimeBaseConfig = applyRuntimeConfigOverride(c, state.runtimeConfigOverride)
     if (!state.previewConfigPatch) {
-      return { config: c, configLoaded: true }
+      return { persistedConfig: c, config: runtimeBaseConfig, configLoaded: true }
     }
 
     return {
-      config: mergeAppConfig(c, state.previewConfigPatch),
-      previewBaseConfig: c,
+      persistedConfig: c,
+      config: mergeAppConfig(runtimeBaseConfig, state.previewConfigPatch),
+      previewBaseConfig: runtimeBaseConfig,
       configLoaded: true,
     }
   }),
   patchConfig: (updates) => set((state) => {
-    const nextBaseConfig = mergeAppConfig(state.previewBaseConfig ?? state.config, updates)
+    const persistedConfig = mergeAppConfig(state.persistedConfig, updates)
+    const runtimeBaseConfig = applyRuntimeConfigOverride(persistedConfig, state.runtimeConfigOverride)
     if (!state.previewConfigPatch) {
-      return { config: nextBaseConfig, configLoaded: true }
+      return { persistedConfig, config: runtimeBaseConfig, configLoaded: true }
     }
 
     return {
-      config: mergeAppConfig(nextBaseConfig, state.previewConfigPatch),
-      previewBaseConfig: nextBaseConfig,
+      persistedConfig,
+      config: mergeAppConfig(runtimeBaseConfig, state.previewConfigPatch),
+      previewBaseConfig: runtimeBaseConfig,
+      configLoaded: true,
+    }
+  }),
+  setRuntimeConfigOverride: (updates) => set((state) => {
+    const runtimeBaseConfig = applyRuntimeConfigOverride(state.persistedConfig, updates)
+    if (!state.previewConfigPatch) {
+      return {
+        runtimeConfigOverride: updates,
+        config: runtimeBaseConfig,
+        configLoaded: true,
+      }
+    }
+
+    return {
+      runtimeConfigOverride: updates,
+      config: mergeAppConfig(runtimeBaseConfig, state.previewConfigPatch),
+      previewBaseConfig: runtimeBaseConfig,
       configLoaded: true,
     }
   }),
   applyPreviewConfig: (updates) => set((state) => {
-    const previewBaseConfig = state.previewBaseConfig ?? state.config
+    const previewBaseConfig = applyRuntimeConfigOverride(state.persistedConfig, state.runtimeConfigOverride)
     return {
       previewBaseConfig,
       previewConfigPatch: updates,
@@ -142,7 +169,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
 
     return {
-      config: state.previewBaseConfig,
+      config: applyRuntimeConfigOverride(state.persistedConfig, state.runtimeConfigOverride),
       previewBaseConfig: null,
       previewConfigPatch: null,
       configLoaded: true,

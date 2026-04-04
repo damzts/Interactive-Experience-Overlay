@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { STATE } from '@ieom/shared'
+import { STATE, resolveSourceInstance } from '@ieom/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
 import { audioEngine } from './engine/AudioEngine'
@@ -47,7 +47,10 @@ export default function App() {
   }, [config.audio.masterVolume, config.audio.musicVolume])
 
   const currentScene = config.scenes[visualState] ?? config.scenes[STATE.DESKTOP]
-  const visibleSources = currentScene?.sources.filter((s) => s.visible) ?? []
+  const visibleSources = (currentScene?.sources ?? [])
+    .filter((source) => source.visible)
+    .map((source) => resolveSourceInstance(source, config.sourcePresets))
+    .filter((source): source is NonNullable<typeof source> => source !== null)
   // Each scene owns its own visual style; fall back to root overlayStyle if absent
   const overlayStyle = currentScene?.style ?? config.overlayStyle
   const effectiveEffects = visualState === STATE.DESKTOP && overlayStyle.background.type === 'none'

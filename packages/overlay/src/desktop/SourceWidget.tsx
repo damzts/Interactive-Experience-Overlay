@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { resolveSourceInstance } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { pluginRegistry } from '../plugins/registry'
 import { DesktopWindow } from './DesktopWindow'
@@ -34,6 +35,7 @@ function SourceWidgetPlaceholder({
 export function SourceWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
   const applications = useAppStore((s) => s.config.applications)
   const scenes = useAppStore((s) => s.config.scenes)
+  const sourcePresets = useAppStore((s) => s.config.sourcePresets)
 
   const app = useMemo(
     () => applications.find((entry) => entry.id === appId),
@@ -42,7 +44,10 @@ export function SourceWidget({ appId, onClose, onMinimize, onFocus, windowState 
   const sceneId = app?.sourceWidgetSettings?.sceneId ?? ''
   const sourceId = app?.sourceWidgetSettings?.sourceId ?? ''
   const scene = sceneId ? scenes[sceneId] : undefined
-  const source = scene?.sources.find((entry) => entry.id === sourceId)
+  const source = useMemo(() => {
+    const entry = scene?.sources.find((candidate) => candidate.id === sourceId)
+    return entry ? resolveSourceInstance(entry, sourcePresets) : null
+  }, [scene, sourceId, sourcePresets])
   const plugin = source ? pluginRegistry[source.pluginType] : null
   const Renderer = plugin?.Renderer
 
