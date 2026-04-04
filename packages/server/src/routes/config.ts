@@ -4,6 +4,69 @@ import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETT
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
+function getSeedAppSource(app: Application) {
+  return DEFAULT_CONFIG.applications.find((entry) => entry.id === app.id) ?? app
+}
+
+function getSeedSceneSource(sceneId: string, scene: NonNullable<AppConfig['scenes'][string]>) {
+  return DEFAULT_CONFIG.scenes[sceneId] ?? scene
+}
+
+function buildApplicationDefaultSnapshot(app: Application, desktopConfig: DesktopConfig): NonNullable<Application['defaultConfig']> {
+  const source = getSeedAppSource(app)
+  const defaultWindowSize = desktopConfig.widgetSizes?.[source.id]
+  const defaultZIndex = desktopConfig.widgetDefaultZIndices?.[source.id]
+  const themeOverride = desktopConfig.widgetThemeOverrides?.[source.id]
+
+  return {
+    id: source.id,
+    label: source.label,
+    icon: source.icon,
+    appType: source.appType,
+    targetSceneId: source.targetSceneId,
+    widgetSource: source.widgetSource,
+    widgetComponent: source.widgetComponent,
+    transitionType: source.transitionType,
+    introTransition: source.introTransition,
+    exitTransition: source.exitTransition,
+    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
+    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
+    iconPosition: source.iconPosition ? clone(source.iconPosition) : undefined,
+    iconSize: source.iconSize,
+    launchPipeline: source.launchPipeline ? clone(source.launchPipeline) : undefined,
+    gallerySettings: source.gallerySettings ? clone(source.gallerySettings) : undefined,
+    cameraSettings: source.cameraSettings ? clone(source.cameraSettings) : undefined,
+    sourceWidgetSettings: source.sourceWidgetSettings ? clone(source.sourceWidgetSettings) : undefined,
+    stickyNotesSettings: source.stickyNotesSettings ? clone(source.stickyNotesSettings) : undefined,
+    recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
+    widgetDefaults: source.appType === 'widget'
+      ? {
+          windowSize: defaultWindowSize ? clone(defaultWindowSize) : undefined,
+          defaultZIndex,
+          themeOverride: themeOverride ? clone(themeOverride) : undefined,
+        }
+      : undefined,
+  }
+}
+
+function buildSceneDefaultSnapshot(sceneId: string, scene: NonNullable<AppConfig['scenes'][string]>): NonNullable<NonNullable<AppConfig['scenes'][string]>['defaultConfig']> {
+  const source = getSeedSceneSource(sceneId, scene)
+  return {
+    label: source.label,
+    backgroundOpaque: source.backgroundOpaque,
+    sources: clone(source.sources ?? []),
+    style: source.style ? clone(source.style) : undefined,
+    lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
+    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
+    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
+    musicTrack: source.musicTrack,
+  }
+}
+
 const REQUIRED_DESKTOP_APP_IDS = new Set(
   DEFAULT_CONFIG.applications
     .filter((app) => app.id === 'recycle-bin' || (app.appType === 'widget' && app.widgetSource === 'system'))
@@ -84,6 +147,11 @@ function withConfigDefaults(next: AppConfig): AppConfig {
 
   applications = migrateLegacyDesktopAppSettings(applications, next.desktopConfig)
   applications = withApplicationListDefaults(applications)
+  const desktopConfig = withDesktopConfigDefaults(next.desktopConfig)
+  applications = applications.map((app) => ({
+    ...app,
+    defaultConfig: app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app, DEFAULT_CONFIG.desktopConfig ? withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig) : desktopConfig),
+  }))
 
   const migratedAmbiance = structuredClone(next.desktopAmbiance ?? {}) as Partial<NonNullable<AppConfig['desktopAmbiance']>>
   const behaviors = migratedAmbiance.widgetSimulation?.behaviors
@@ -94,25 +162,34 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     delete behaviors.browser
   }
 
+  const scenes: AppConfig['scenes'] = {
+    ...next.scenes,
+    [STATE.LOBBY]: {
+      ...DEFAULT_CONFIG.scenes[STATE.LOBBY],
+      ...lobbyScene,
+      style: withOverlayStyleDefaults(lobbyScene.style, defaultLobbyStyle),
+      lobbyConfig: withLobbyConfigDefaults(lobbyScene.lobbyConfig),
+    },
+    [STATE.DESKTOP]: {
+      ...DEFAULT_CONFIG.scenes[STATE.DESKTOP],
+      ...desktopScene,
+      style: withOverlayStyleDefaults(desktopScene.style, defaultDesktopStyle),
+    },
+  }
+
+  for (const [sceneId, scene] of Object.entries(scenes)) {
+    scenes[sceneId] = {
+      ...scene,
+      defaultConfig: scene.defaultConfig ? clone(scene.defaultConfig) : buildSceneDefaultSnapshot(sceneId, scene),
+    }
+  }
+
   return {
     ...next,
     applications,
-    scenes: {
-      ...next.scenes,
-      [STATE.LOBBY]: {
-        ...DEFAULT_CONFIG.scenes[STATE.LOBBY],
-        ...lobbyScene,
-        style: withOverlayStyleDefaults(lobbyScene.style, defaultLobbyStyle),
-        lobbyConfig: withLobbyConfigDefaults(lobbyScene.lobbyConfig),
-      },
-      [STATE.DESKTOP]: {
-        ...DEFAULT_CONFIG.scenes[STATE.DESKTOP],
-        ...desktopScene,
-        style: withOverlayStyleDefaults(desktopScene.style, defaultDesktopStyle),
-      },
-    },
+    scenes,
     overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
-    desktopConfig: withDesktopConfigDefaults(next.desktopConfig),
+    desktopConfig,
     desktopAmbiance: withDesktopAmbianceDefaults(migratedAmbiance),
     events: next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events),
     mediaLibrary: next.mediaLibrary ?? [],

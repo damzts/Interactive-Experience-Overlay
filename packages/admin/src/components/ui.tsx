@@ -66,19 +66,21 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
   alwaysShow?: boolean;
 }) {
   return (
-    <div className="my-3 rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
-        <div className="flex-1" />
-        <SaveBar
-          dirty={dirty}
-          saving={saving}
-          saved={saved}
-          onSave={onApply}
-          onRevert={onReset}
-          alwaysShow={alwaysShow}
-          showDivider={false}
-        />
+    <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-zinc-800/70 bg-zinc-950/92 px-3 pt-3 pb-2 backdrop-blur-sm">
+      <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/70 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
+          <div className="flex-1" />
+          <SaveBar
+            dirty={dirty}
+            saving={saving}
+            saved={saved}
+            onSave={onApply}
+            onRevert={onReset}
+            alwaysShow={alwaysShow}
+            showDivider={false}
+          />
+        </div>
       </div>
     </div>
   );

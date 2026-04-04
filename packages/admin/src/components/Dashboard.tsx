@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { Component, useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react'
 import {
+  DEFAULT_CONFIG,
   DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   DEFAULT_RECYCLE_BIN_SETTINGS,
   DEFAULT_STICKY_NOTES_SETTINGS,
@@ -19,7 +20,7 @@ import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
   DesktopNotificationEffectConfig, EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
-  RecycleBinSettings, StickyNotesSettings, WidgetComponentType,
+  RecycleBinSettings, StickyNotesSettings, WidgetComponentType, WidgetThemeConfig, ApplicationDefaultSnapshot, SceneDefaultSnapshot,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
@@ -31,6 +32,50 @@ import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
 import { AudioPanel }   from '../pages/AudioPanel'
 import { AmbiancePanel } from '../pages/AmbiancePanel'
+
+type SafeSceneLike = Pick<Scene, 'id' | 'label'> & {
+  sources?: Scene['sources'] | null
+}
+
+function getSafeSceneSources(scene?: SafeSceneLike | null) {
+  return Array.isArray(scene?.sources) ? scene.sources : []
+}
+
+class RightPaneErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string | null }
+> {
+  state = { hasError: false, message: null }
+
+  static getDerivedStateFromError(error: unknown) {
+    return {
+      hasError: true,
+      message: error instanceof Error ? error.message : 'Unknown dashboard error',
+    }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('[admin] right pane render failed', error)
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children
+
+    return (
+      <ConfigNotice tone="warning" className="space-y-2 px-3 py-3">
+        <div className="text-[11px] font-semibold text-amber-200">This item could not be rendered safely.</div>
+        <div className="text-[10px] leading-relaxed text-amber-100/80">
+          The dashboard stayed up, but this editor hit a render error. Check the browser console for the stack trace, then reselect the item after fixing the bad config record.
+        </div>
+        {this.state.message && (
+          <div className="rounded border border-amber-500/25 bg-zinc-950/70 px-2 py-1.5 font-mono text-[10px] text-amber-100/90">
+            {this.state.message}
+          </div>
+        )}
+      </ConfigNotice>
+    )
+  }
+}
 
 // ── Presets ────────────────────────────────────────────────────────
 
@@ -81,6 +126,10 @@ const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', 
 
 type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
 
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
 function clampWidgetDimension(value: number, min: number, max: number, fallback: number) {
   if (!Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(min, Math.round(value)))
@@ -108,6 +157,114 @@ function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'app
   return Number.isFinite(value)
     ? Math.max(0, Math.round(value as number))
     : getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
+}
+
+function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'id'>, desktopConfig: DesktopConfig): WidgetThemeConfig | null {
+  const override = desktopConfig.widgetThemeOverrides?.[app.id]
+  return override ? structuredClone(override) : null
+}
+
+function buildApplicationDefaultSnapshot(app: Application, desktopConfig: DesktopConfig): ApplicationDefaultSnapshot {
+  const source = DEFAULT_CONFIG.applications.find((entry) => entry.id === app.id) ?? app
+  return {
+    id: source.id,
+    label: source.label,
+    icon: source.icon,
+    appType: source.appType,
+    targetSceneId: source.targetSceneId,
+    widgetSource: source.widgetSource,
+    widgetComponent: source.widgetComponent,
+    transitionType: source.transitionType,
+    introTransition: source.introTransition,
+    exitTransition: source.exitTransition,
+    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
+    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
+    iconPosition: source.iconPosition ? clone(source.iconPosition) : undefined,
+    iconSize: source.iconSize,
+    launchPipeline: source.launchPipeline ? clone(source.launchPipeline) : undefined,
+    gallerySettings: source.gallerySettings ? clone(source.gallerySettings) : undefined,
+    cameraSettings: source.cameraSettings ? clone(source.cameraSettings) : undefined,
+    sourceWidgetSettings: source.sourceWidgetSettings ? clone(source.sourceWidgetSettings) : undefined,
+    stickyNotesSettings: source.stickyNotesSettings ? clone(source.stickyNotesSettings) : undefined,
+    recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
+    widgetDefaults: source.appType === 'widget'
+      ? {
+          windowSize: desktopConfig.widgetSizes?.[source.id] ? clone(desktopConfig.widgetSizes[source.id]) : undefined,
+          defaultZIndex: desktopConfig.widgetDefaultZIndices?.[source.id],
+          themeOverride: desktopConfig.widgetThemeOverrides?.[source.id] ? clone(desktopConfig.widgetThemeOverrides[source.id]) : undefined,
+        }
+      : undefined,
+  }
+}
+
+function resolveApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
+  const sourceDesktopConfig = withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig)
+  return app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app, sourceDesktopConfig)
+}
+
+function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): SceneDefaultSnapshot {
+  const source = DEFAULT_CONFIG.scenes[sceneId] ?? scene
+  return {
+    label: source.label,
+    backgroundOpaque: source.backgroundOpaque,
+    sources: clone(source.sources ?? []),
+    style: source.style ? clone(source.style) : undefined,
+    lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
+    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
+    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
+    musicTrack: source.musicTrack,
+  }
+}
+
+function resolveSceneDefaultSnapshot(sceneId: string, scene: Scene): SceneDefaultSnapshot {
+  return scene.defaultConfig ? clone(scene.defaultConfig) : buildSceneDefaultSnapshot(sceneId, scene)
+}
+
+function applyWidgetDefaultSnapshotToDesktopConfig(
+  desktopConfig: DesktopConfig,
+  app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>,
+  snapshot: ApplicationDefaultSnapshot,
+) {
+  if (app.appType !== 'widget') return desktopConfig
+
+  const nextDesktop = clone(withDesktopConfigDefaults(desktopConfig))
+  const defaultSize = getDefaultWidgetSize(app)
+  const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
+  const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
+  const nextThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
+
+  const snapshotSize = snapshot.widgetDefaults?.windowSize
+  if (snapshotSize?.width !== undefined || snapshotSize?.height !== undefined) {
+    const width = clampWidgetDimension(snapshotSize.width ?? defaultSize.width, 180, 1400, defaultSize.width)
+    const height = clampWidgetDimension(snapshotSize.height ?? defaultSize.height, 140, 1000, defaultSize.height)
+    if (width === defaultSize.width && height === defaultSize.height) {
+      delete nextWidgetSizes[app.id]
+    } else {
+      nextWidgetSizes[app.id] = { width, height }
+    }
+  } else {
+    delete nextWidgetSizes[app.id]
+  }
+
+  const baseZIndex = getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
+  const snapshotZIndex = snapshot.widgetDefaults?.defaultZIndex
+  if (Number.isFinite(snapshotZIndex) && Math.round(snapshotZIndex as number) !== baseZIndex) {
+    nextWidgetDefaultZIndices[app.id] = Math.max(0, Math.round(snapshotZIndex as number))
+  } else {
+    delete nextWidgetDefaultZIndices[app.id]
+  }
+
+  if (snapshot.widgetDefaults?.themeOverride) {
+    nextThemeOverrides[app.id] = clone(snapshot.widgetDefaults.themeOverride)
+  } else {
+    delete nextThemeOverrides[app.id]
+  }
+
+  nextDesktop.widgetSizes = Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined
+  nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
+  nextDesktop.widgetThemeOverrides = Object.keys(nextThemeOverrides).length ? nextThemeOverrides : undefined
+
+  return nextDesktop
 }
 
 function buildWidgetLayoutFallbackPosition(widgetIndex: number) {
@@ -224,7 +381,7 @@ function buildUserWidgetId(
 
 function findFirstSceneSource(scenes: Record<string, Scene>) {
   for (const scene of Object.values(scenes)) {
-    const firstSource = scene.sources[0]
+    const firstSource = getSafeSceneSources(scene)[0]
     if (firstSource) {
       return { sceneId: scene.id, sourceId: firstSource.id }
     }
@@ -239,11 +396,13 @@ function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widgetId: s
   const nextSizes = { ...(next.widgetSizes ?? {}) }
   const nextDefaultZIndices = { ...(next.widgetDefaultZIndices ?? {}) }
   const nextRuntimeZIndices = { ...(next.widgetZIndices ?? {}) }
+  const nextThemeOverrides = { ...(next.widgetThemeOverrides ?? {}) }
 
   delete nextPositions[widgetId]
   delete nextSizes[widgetId]
   delete nextDefaultZIndices[widgetId]
   delete nextRuntimeZIndices[widgetId]
+  delete nextThemeOverrides[widgetId]
 
   return {
     ...next,
@@ -251,6 +410,7 @@ function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widgetId: s
     widgetSizes: Object.keys(nextSizes).length ? nextSizes : undefined,
     widgetDefaultZIndices: Object.keys(nextDefaultZIndices).length ? nextDefaultZIndices : undefined,
     widgetZIndices: Object.keys(nextRuntimeZIndices).length ? nextRuntimeZIndices : undefined,
+    widgetThemeOverrides: Object.keys(nextThemeOverrides).length ? nextThemeOverrides : undefined,
     widgetLayouts: (next.widgetLayouts ?? []).map((layout) => ({
       ...layout,
       items: layout.items.filter((item) => item.widgetId !== widgetId),
@@ -1104,6 +1264,7 @@ type SelectedItem =
   | { kind: 'app';   appId: string }
   | { kind: 'widget-create' }
   | { kind: 'widget-layout'; layoutId: string }
+  | { kind: 'default-styling' }
   | { kind: 'audio' }
   | { kind: 'keybinds' }
   | { kind: 'archive' }
@@ -1581,29 +1742,20 @@ function DesktopConfigEditor() {
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const desktopScene = config.scenes[STATE.DESKTOP]
   const sourceForm = withDesktopConfigDefaults(config.desktopConfig)
-  const sourceStyle = structuredClone(withOverlayStyleDefaults((desktopScene as { style?: OverlayStyle } | undefined)?.style, config.overlayStyle))
-  const sourceAppearance: ThemeAppearance = {
-    fontFamily: sourceStyle.fontFamily,
-    accentColor: sourceStyle.accentColor,
-    textColor: sourceStyle.textColor,
-  }
   const sourceIntroTransitions = structuredClone(desktopScene?.introTransitions)
   const sourceExitTransitions = structuredClone(desktopScene?.exitTransitions)
   const [form, setForm] = useState<DesktopConfig>(() => sourceForm)
-  const [appearance, setAppearance] = useState<ThemeAppearance>(() => sourceAppearance)
   const [introTransitions, setIntroTransitions] = useState<TransitionStep[]>(sourceIntroTransitions || [])
   const [exitTransitions, setExitTransitions] = useState<TransitionStep[]>(sourceExitTransitions || [])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dirty = !isSameDraft(form, sourceForm)
-    || !isSameDraft(appearance, sourceAppearance)
     || !isSameDraft(introTransitions, sourceIntroTransitions)
     || !isSameDraft(exitTransitions, sourceExitTransitions)
 
   useEffect(() => {
     setForm(sourceForm)
-    setAppearance(sourceAppearance)
     setIntroTransitions(sourceIntroTransitions || [])
     setExitTransitions(sourceExitTransitions || [])
     setSaved(false)
@@ -1618,29 +1770,15 @@ function DesktopConfigEditor() {
     setSaved(false)
   }, [])
 
-  const updateAppearance = useCallback((updater: (d: ThemeAppearance) => void) => {
-    setAppearance((prev) => {
-      const next = structuredClone(prev)
-      updater(next)
-      return next
-    })
-    setSaved(false)
-  }, [])
-
   const apply = useCallback(async () => {
     if (!dirty) return
     setSaving(true)
-    const nextDesktopStyle = structuredClone(sourceStyle)
-    nextDesktopStyle.fontFamily = appearance.fontFamily
-    nextDesktopStyle.accentColor = appearance.accentColor
-    nextDesktopStyle.textColor = appearance.textColor
     await saveConfig({
       desktopConfig: form,
       scenes: {
         ...config.scenes,
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
-          style: nextDesktopStyle,
           introTransitions: introTransitions.length ? introTransitions : undefined,
           exitTransitions: exitTransitions.length ? exitTransitions : undefined,
         },
@@ -1650,15 +1788,14 @@ function DesktopConfigEditor() {
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [dirty, saveConfig, sourceStyle, appearance, config.scenes, form, introTransitions, exitTransitions])
+  }, [dirty, saveConfig, config.scenes, form, introTransitions, exitTransitions])
 
   const reset = useCallback(() => {
     setForm(sourceForm)
-    setAppearance(sourceAppearance)
     setIntroTransitions(sourceIntroTransitions || [])
     setExitTransitions(sourceExitTransitions || [])
     setSaved(false)
-  }, [sourceForm, sourceAppearance, sourceIntroTransitions, sourceExitTransitions])
+  }, [sourceForm, sourceIntroTransitions, sourceExitTransitions])
 
   return (
     <div className="space-y-3">
@@ -1684,151 +1821,45 @@ function DesktopConfigEditor() {
           ))}
         </div>
       </ConfigSectionPanel>
-      <ConfigSectionPanel label="Theme">
-        <div className="space-y-4">
-          <div className="text-[10px] text-zinc-500 leading-relaxed">
-            Theme presets style desktop chrome only. The overlay stays transparent until the desktop Background panel is explicitly set to show wallpaper, gradients, patterns, or video.
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {DESKTOP_THEMES.map((theme) => (
-              <ConfigChoiceButton key={theme.id} type="button" selected={form.theme === theme.id} onClick={() => update((d) => { d.theme = theme.id })}
-                className="py-2 text-[11px]">
-                {theme.label}
-              </ConfigChoiceButton>
-            ))}
-          </div>
-          <div className="border-t border-zinc-800 pt-3">
-            <ThemeAppearanceFields
-              appearance={appearance}
-              onChange={updateAppearance}
-              helperText="Font, accent, and text color ride on top of the preset so they are visible without turning the desktop background opaque."
-            />
-          </div>
-          <div className="border-t border-zinc-800 pt-3 space-y-3">
-            <div>
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Icons</div>
-              <div className="text-[10px] text-zinc-500 leading-relaxed">
-                Turn off auto-arrange to drag icons directly on the desktop. Manual dragging saves each application icon position for you.
-              </div>
+      <ConfigSectionPanel label="Desktop Icons">
+        <div className="space-y-3">
+          <div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Icons</div>
+            <div className="text-[10px] text-zinc-500 leading-relaxed">
+              Turn off auto-arrange to drag icons directly on the desktop. Manual dragging saves each application icon position for you.
             </div>
-            <Slider
-              label="Size"
-              value={iconSizeToSliderValue(form.defaultIconSize)}
-              min={0}
-              max={2}
-              step={1}
-              onChange={(value) => update((d) => { d.defaultIconSize = sliderValueToIconSize(value) })}
-            />
-            <div className="text-[10px] text-zinc-500 -mt-1 pl-[7rem]">Current default: {labelizeIconSize(form.defaultIconSize)}</div>
-            <Toggle checked={form.autoArrangeIcons} onChange={(v) => update((d) => { d.autoArrangeIcons = v })} label="Auto-arrange icons" />
-            <div>
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Ambient motion</div>
-              <select
-                value={form.iconAnimation}
-                onChange={(e) => update((d) => { d.iconAnimation = e.target.value as DesktopConfig['iconAnimation'] })}
-                className="w-full text-xs"
-              >
-                {ICON_ANIMATIONS.map((mode) => (
-                  <option key={mode.id} value={mode.id}>{mode.label}</option>
-                ))}
-              </select>
-            </div>
-            <Slider
-              label="Motion"
-              value={Math.round(form.iconMotion * 100)}
-              min={0}
-              max={300}
-              step={5}
-              unit="%"
-              onChange={(value) => update((d) => { d.iconMotion = value / 100 })}
-            />
           </div>
-        </div>
-      </ConfigSectionPanel>
-      <ConfigSectionPanel label="Widget Theme">
-        <div className="space-y-4">
-          <div className="text-[10px] text-zinc-500 leading-relaxed">
-            Widget themes behave like classic application skins. The selected skin restyles shared widget chrome, controls, and window furniture across every widget, and can stay in motion the whole time the desktop is live.
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {WIDGET_SKINS.map((skin) => (
-              <ConfigChoiceButton
-                key={skin.id}
-                type="button"
-                selected={form.widgetTheme.skin === skin.id}
-                onClick={() => update((d) => { d.widgetTheme = { ...DEFAULT_WIDGET_THEME_PRESETS[skin.id] } })}
-                className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
-                title={skin.description}
-              >
-                <span className="text-[11px] font-semibold leading-none">{skin.label}</span>
-                <span className="text-[10px] leading-relaxed text-zinc-500">{skin.description}</span>
-              </ConfigChoiceButton>
-            ))}
-          </div>
-          <div className="border-t border-zinc-800 pt-3">
-            <ThemeAppearanceFields
-              appearance={form.widgetTheme}
-              onChange={(updater) => update((d) => { updater(d.widgetTheme) })}
-              helperText="Each skin ships with its own baseline palette and font. Use these overrides when you want to tint the skin without switching presets."
-            />
-          </div>
-          <div className="border-t border-zinc-800 pt-3 space-y-3">
-            <div>
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Live Motion</div>
-              <div className="text-[10px] text-zinc-500 leading-relaxed">
-                Animation changes how light, gloss, and ornament move across the widget shell. Atmosphere adds an always-on texture layer so the desktop feels alive even when viewers stare at it for a long time.
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {WIDGET_THEME_ANIMATIONS.map((animation) => (
-                <ConfigChoiceButton
-                  key={animation.id}
-                  type="button"
-                  selected={form.widgetTheme.animation === animation.id}
-                  onClick={() => update((d) => { d.widgetTheme.animation = animation.id })}
-                  className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
-                  title={animation.description}
-                >
-                  <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
-                  <span className="text-[10px] leading-relaxed text-zinc-500">{animation.description}</span>
-                </ConfigChoiceButton>
+          <Slider
+            label="Size"
+            value={iconSizeToSliderValue(form.defaultIconSize)}
+            min={0}
+            max={2}
+            step={1}
+            onChange={(value) => update((d) => { d.defaultIconSize = sliderValueToIconSize(value) })}
+          />
+          <div className="text-[10px] text-zinc-500 -mt-1 pl-[7rem]">Current default: {labelizeIconSize(form.defaultIconSize)}</div>
+          <Toggle checked={form.autoArrangeIcons} onChange={(v) => update((d) => { d.autoArrangeIcons = v })} label="Auto-arrange icons" />
+          <div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Ambient motion</div>
+            <select
+              value={form.iconAnimation}
+              onChange={(e) => update((d) => { d.iconAnimation = e.target.value as DesktopConfig['iconAnimation'] })}
+              className="w-full text-xs"
+            >
+              {ICON_ANIMATIONS.map((mode) => (
+                <option key={mode.id} value={mode.id}>{mode.label}</option>
               ))}
-            </div>
-            <div>
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Atmosphere</div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
-                  <ConfigChoiceButton
-                    key={atmosphere.id}
-                    type="button"
-                    selected={form.widgetTheme.atmosphere === atmosphere.id}
-                    onClick={() => update((d) => { d.widgetTheme.atmosphere = atmosphere.id })}
-                    className="py-2 text-[11px]"
-                  >
-                    {atmosphere.label}
-                  </ConfigChoiceButton>
-                ))}
-              </div>
-            </div>
-            <Slider
-              label="Motion"
-              value={Math.round(form.widgetTheme.motionIntensity * 100)}
-              min={0}
-              max={300}
-              step={5}
-              unit="%"
-              onChange={(value) => update((d) => { d.widgetTheme.motionIntensity = value / 100 })}
-            />
-            <Slider
-              label="Glow"
-              value={Math.round(form.widgetTheme.glowIntensity * 100)}
-              min={0}
-              max={300}
-              step={5}
-              unit="%"
-              onChange={(value) => update((d) => { d.widgetTheme.glowIntensity = value / 100 })}
-            />
+            </select>
           </div>
+          <Slider
+            label="Motion"
+            value={Math.round(form.iconMotion * 100)}
+            min={0}
+            max={300}
+            step={5}
+            unit="%"
+            onChange={(value) => update((d) => { d.iconMotion = value / 100 })}
+          />
         </div>
       </ConfigSectionPanel>
       <ConfigSectionPanel label="Screen Saver">
@@ -1870,6 +1901,325 @@ function DesktopConfigEditor() {
           </div>
         ))}
       </ConfigSectionPanel>
+      </div>
+    </div>
+  )
+}
+
+function DefaultStylingEditor() {
+  const config = useAdminStore((s) => s.config)
+  const saveConfig = useAdminStore((s) => s.saveConfig)
+  const desktopScene = config.scenes[STATE.DESKTOP]
+  const sourceDesktopConfig = useMemo(
+    () => withDesktopConfigDefaults(config.desktopConfig),
+    [config.desktopConfig],
+  )
+  const sourceStyle = useMemo(
+    () => structuredClone(withOverlayStyleDefaults((desktopScene as { style?: OverlayStyle } | undefined)?.style, config.overlayStyle)),
+    [desktopScene, config.overlayStyle],
+  )
+  const sourceAppearance = useMemo<ThemeAppearance>(() => ({
+    fontFamily: sourceStyle.fontFamily,
+    accentColor: sourceStyle.accentColor,
+    textColor: sourceStyle.textColor,
+  }), [sourceStyle])
+  const sourceThemeDefault = sourceDesktopConfig.globalThemeDefault
+  const [theme, setTheme] = useState<DesktopConfig['theme']>(() => sourceDesktopConfig.theme)
+  const [appearance, setAppearance] = useState<ThemeAppearance>(() => sourceAppearance)
+  const [widgetTheme, setWidgetTheme] = useState<DesktopConfig['widgetTheme']>(() => structuredClone(sourceDesktopConfig.widgetTheme))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const liveApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const dirty = theme !== sourceDesktopConfig.theme
+    || !isSameDraft(appearance, sourceAppearance)
+    || !isSameDraft(widgetTheme, sourceDesktopConfig.widgetTheme)
+
+  useEffect(() => {
+    setTheme(sourceDesktopConfig.theme)
+    setAppearance(sourceAppearance)
+    setWidgetTheme(structuredClone(sourceDesktopConfig.widgetTheme))
+    setSaveDefaultArmed(false)
+    setSaved(false)
+  }, [config.desktopConfig, config.overlayStyle, desktopScene])
+
+  const apply = useCallback(async () => {
+    if (!dirty) return
+    setSaving(true)
+    const nextDesktopStyle = structuredClone(sourceStyle)
+    nextDesktopStyle.fontFamily = appearance.fontFamily
+    nextDesktopStyle.accentColor = appearance.accentColor
+    nextDesktopStyle.textColor = appearance.textColor
+
+    await saveConfig({
+      desktopConfig: {
+        ...sourceDesktopConfig,
+        theme,
+        widgetTheme,
+      },
+      scenes: {
+        ...config.scenes,
+        [STATE.DESKTOP]: {
+          ...config.scenes[STATE.DESKTOP],
+          style: nextDesktopStyle,
+        },
+      },
+    })
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [appearance, config.scenes, dirty, saveConfig, sourceDesktopConfig, sourceStyle, theme, widgetTheme])
+
+  const reset = useCallback(() => {
+    setTheme(sourceDesktopConfig.theme)
+    setAppearance(sourceAppearance)
+    setWidgetTheme(structuredClone(sourceDesktopConfig.widgetTheme))
+    setSaveDefaultArmed(false)
+    setSaved(false)
+  }, [sourceAppearance, sourceDesktopConfig.theme, sourceDesktopConfig.widgetTheme])
+
+  const restoreDefaults = useCallback(async () => {
+    setSaving(true)
+    const nextDesktopStyle = structuredClone(sourceStyle)
+    nextDesktopStyle.fontFamily = sourceThemeDefault.appearance.fontFamily
+    nextDesktopStyle.accentColor = sourceThemeDefault.appearance.accentColor
+    nextDesktopStyle.textColor = sourceThemeDefault.appearance.textColor
+
+    await saveConfig({
+      desktopConfig: {
+        ...sourceDesktopConfig,
+        theme: sourceThemeDefault.theme,
+        widgetTheme: structuredClone(sourceThemeDefault.widgetTheme),
+      },
+      scenes: {
+        ...config.scenes,
+        [STATE.DESKTOP]: {
+          ...config.scenes[STATE.DESKTOP],
+          style: nextDesktopStyle,
+        },
+      },
+    })
+
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [config.scenes, saveConfig, sourceDesktopConfig, sourceStyle, sourceThemeDefault])
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+    if (liveApplyTimer.current) clearTimeout(liveApplyTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (!dirty || saving) return
+    if (liveApplyTimer.current) clearTimeout(liveApplyTimer.current)
+    liveApplyTimer.current = setTimeout(() => {
+      void apply()
+    }, 180)
+
+    return () => {
+      if (liveApplyTimer.current) clearTimeout(liveApplyTimer.current)
+    }
+  }, [apply, dirty, saving])
+
+  const saveCurrentAsDefault = useCallback(async () => {
+    if (!saveDefaultArmed) {
+      setSaveDefaultArmed(true)
+      if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+      saveDefaultTimer.current = setTimeout(() => setSaveDefaultArmed(false), 3500)
+      return
+    }
+
+    setSaving(true)
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+    const nextDesktopStyle = structuredClone(sourceStyle)
+    nextDesktopStyle.fontFamily = appearance.fontFamily
+    nextDesktopStyle.accentColor = appearance.accentColor
+    nextDesktopStyle.textColor = appearance.textColor
+
+    await saveConfig({
+      desktopConfig: {
+        ...sourceDesktopConfig,
+        theme,
+        widgetTheme: structuredClone(widgetTheme),
+        globalThemeDefault: {
+          theme,
+          widgetTheme: structuredClone(widgetTheme),
+          appearance: structuredClone(appearance),
+        },
+      },
+      scenes: {
+        ...config.scenes,
+        [STATE.DESKTOP]: {
+          ...config.scenes[STATE.DESKTOP],
+          style: nextDesktopStyle,
+        },
+      },
+    })
+
+    setSaveDefaultArmed(false)
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [appearance, config.scenes, saveConfig, saveDefaultArmed, sourceDesktopConfig, sourceStyle, theme, widgetTheme])
+
+  return (
+    <div className="space-y-3">
+      <ConfigApplyBar label="Global Theme" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
+      <div className="flex justify-end gap-2">
+        <Btn
+          type="button"
+          variant={saveDefaultArmed ? 'warning' : 'default'}
+          onClick={() => { void saveCurrentAsDefault() }}
+          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+        >
+          {saveDefaultArmed ? 'Click Again to Confirm' : 'Save Current as Default'}
+        </Btn>
+        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
+          Restore Defaults
+        </Btn>
+      </div>
+      <div className="space-y-0 pt-3">
+        <ConfigSectionPanel label="Theme" first>
+          <div className="space-y-4">
+            <div className="text-[10px] text-zinc-500 leading-relaxed">
+              Theme presets style desktop chrome only. The overlay stays transparent until the desktop Background panel is explicitly set to show wallpaper, gradients, patterns, or video.
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {DESKTOP_THEMES.map((entry) => (
+                <ConfigChoiceButton
+                  key={entry.id}
+                  type="button"
+                  selected={theme === entry.id}
+                  onClick={() => { setTheme(entry.id); setSaved(false) }}
+                  className="py-2 text-[11px]"
+                >
+                  {entry.label}
+                </ConfigChoiceButton>
+              ))}
+            </div>
+            <div className="border-t border-zinc-800 pt-3">
+              <ThemeAppearanceFields
+                appearance={appearance}
+                onChange={(updater) => {
+                  setAppearance((prev) => {
+                    const next = structuredClone(prev)
+                    updater(next)
+                    return next
+                  })
+                  setSaved(false)
+                }}
+                helperText="Font, accent, and text color ride on top of the preset so they are visible without turning the desktop background opaque."
+              />
+            </div>
+          </div>
+        </ConfigSectionPanel>
+        <ConfigSectionPanel label="Widget Theme">
+          <div className="space-y-4">
+            <div className="text-[10px] text-zinc-500 leading-relaxed">
+              This is the global widget theme applied to all widgets unless a widget-specific override is enabled in that widget's own configuration panel.
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {WIDGET_SKINS.map((skin) => (
+                <ConfigChoiceButton
+                  key={skin.id}
+                  type="button"
+                  selected={widgetTheme.skin === skin.id}
+                  onClick={() => { setWidgetTheme(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[skin.id])); setSaved(false) }}
+                  className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
+                  title={skin.description}
+                >
+                  <span className="text-[11px] font-semibold leading-none">{skin.label}</span>
+                  <span className="text-[10px] leading-relaxed text-zinc-500">{skin.description}</span>
+                </ConfigChoiceButton>
+              ))}
+            </div>
+            <div className="border-t border-zinc-800 pt-3">
+              <ThemeAppearanceFields
+                appearance={widgetTheme}
+                onChange={(updater) => {
+                  setWidgetTheme((prev) => {
+                    const next = structuredClone(prev)
+                    updater(next)
+                    return next
+                  })
+                  setSaved(false)
+                }}
+                helperText="Each skin ships with its own baseline palette and font. Use these overrides when you want to tint the skin without switching presets."
+              />
+            </div>
+            <div className="border-t border-zinc-800 pt-3 space-y-3">
+              <div>
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Live Motion</div>
+                <div className="text-[10px] text-zinc-500 leading-relaxed">
+                  Animation changes how light, gloss, and ornament move across the widget shell. Atmosphere adds an always-on texture layer so the desktop feels alive even when viewers stare at it for a long time.
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {WIDGET_THEME_ANIMATIONS.map((animation) => (
+                  <ConfigChoiceButton
+                    key={animation.id}
+                    type="button"
+                    selected={widgetTheme.animation === animation.id}
+                    onClick={() => { setWidgetTheme((prev) => ({ ...prev, animation: animation.id })); setSaved(false) }}
+                    className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
+                    title={animation.description}
+                  >
+                    <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
+                    <span className="text-[10px] leading-relaxed text-zinc-500">{animation.description}</span>
+                  </ConfigChoiceButton>
+                ))}
+              </div>
+              <div>
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Atmosphere</div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
+                    <ConfigChoiceButton
+                      key={atmosphere.id}
+                      type="button"
+                      selected={widgetTheme.atmosphere === atmosphere.id}
+                      onClick={() => { setWidgetTheme((prev) => ({ ...prev, atmosphere: atmosphere.id })); setSaved(false) }}
+                      className="py-2 text-[11px]"
+                    >
+                      {atmosphere.label}
+                    </ConfigChoiceButton>
+                  ))}
+                </div>
+              </div>
+              <Slider
+                label="Motion"
+                value={Math.round(widgetTheme.motionIntensity * 100)}
+                min={0}
+                max={300}
+                step={5}
+                unit="%"
+                onChange={(value) => {
+                  setWidgetTheme((prev) => ({ ...prev, motionIntensity: value / 100 }))
+                  setSaved(false)
+                }}
+              />
+              <Slider
+                label="Glow"
+                value={Math.round(widgetTheme.glowIntensity * 100)}
+                min={0}
+                max={300}
+                step={5}
+                unit="%"
+                onChange={(value) => {
+                  setWidgetTheme((prev) => ({ ...prev, glowIntensity: value / 100 }))
+                  setSaved(false)
+                }}
+              />
+            </div>
+          </div>
+        </ConfigSectionPanel>
       </div>
     </div>
   )
@@ -1953,11 +2303,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
   const initialWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
+  const initialWidgetThemeOverride = resolveWidgetThemeOverrideFromConfig(app, desktopConfig)
   const [form, setForm] = useState<Application>(app)
   const [widgetSize, setWidgetSize] = useState(initialWidgetSize)
   const [widgetDefaultZIndex, setWidgetDefaultZIndex] = useState<number>(
     () => resolveWidgetDefaultZIndexFromConfig(app, desktopConfig),
   )
+  const [widgetThemeOverrideEnabled, setWidgetThemeOverrideEnabled] = useState(() => !!initialWidgetThemeOverride)
+  const [widgetThemeOverride, setWidgetThemeOverride] = useState<WidgetThemeConfig>(() => structuredClone(initialWidgetThemeOverride ?? desktopConfig.widgetTheme))
   const [recycleBinFullOnStart, setRecycleBinFullOnStart] = useState(() => desktopConfig.recycleBin.fullOnStart)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -1965,6 +2318,8 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const [detectingCameras, setDetectingCameras] = useState(false)
   const [cameraLabelsGranted, setCameraLabelsGranted] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const widgetThemeLiveApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const defaultSnapshot = useMemo(() => resolveApplicationDefaultSnapshot(app), [app])
 
   const enumerateCameras = useCallback(async (requestPermission = false) => {
     setDetectingCameras(true)
@@ -1996,11 +2351,15 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const recycleBinConfig = form.recycleBinSettings ?? DEFAULT_RECYCLE_BIN_SETTINGS
   const selectedSourceSceneId = form.sourceWidgetSettings?.sceneId ?? ''
   const selectedSourceScene = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
+  const selectedSourceSceneSources = getSafeSceneSources(selectedSourceScene)
   const availableSourceScenes = useMemo(
-    () => Object.values(config.scenes).filter((scene) => scene.sources.length > 0 || scene.id === selectedSourceSceneId),
+    () => Object.values(config.scenes).filter((scene) => {
+      const sources = getSafeSceneSources(scene)
+      return sources.length > 0 || scene.id === selectedSourceSceneId
+    }),
     [config.scenes, selectedSourceSceneId],
   )
-  const availableSources = selectedSourceScene?.sources ?? []
+  const availableSources = selectedSourceSceneSources
   const selectedSource = availableSources.find((source) => source.id === form.sourceWidgetSettings?.sourceId)
 
   // Auto-enumerate video devices when this is a camera widget
@@ -2011,21 +2370,39 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const appDirty = !isSameDraft(form, app)
   const sourceWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
   const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
+  const sourceWidgetThemeOverride = resolveWidgetThemeOverrideFromConfig(app, desktopConfig)
   const widgetSizeDirty = form.appType === 'widget' && (
     widgetSize.width !== sourceWidgetSize.width
     || widgetSize.height !== sourceWidgetSize.height
   )
   const widgetDefaultZIndexDirty = form.appType === 'widget' && widgetDefaultZIndex !== sourceWidgetDefaultZIndex
+  const widgetThemeOverrideDirty = form.appType === 'widget' && (
+    widgetThemeOverrideEnabled !== !!sourceWidgetThemeOverride
+    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, sourceWidgetThemeOverride ?? desktopConfig.widgetTheme))
+  )
   const recycleBinFullOnStartDirty = isRecycleBinDecoration && recycleBinFullOnStart !== desktopConfig.recycleBin.fullOnStart
-  const dirty = appDirty || widgetSizeDirty || widgetDefaultZIndexDirty || recycleBinFullOnStartDirty
+  const dirty = appDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeOverrideDirty || recycleBinFullOnStartDirty
+  const themeOnlyDirty = form.appType === 'widget'
+    && widgetThemeOverrideDirty
+    && !appDirty
+    && !widgetSizeDirty
+    && !widgetDefaultZIndexDirty
+    && !recycleBinFullOnStartDirty
 
   useEffect(() => {
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetThemeOverrideEnabled(!!resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetThemeOverride(structuredClone(resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)) ?? withDesktopConfigDefaults(config.desktopConfig).widgetTheme))
     setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
     setSaved(false)
   }, [app, config.desktopConfig])
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    if (widgetThemeLiveApplyTimer.current) clearTimeout(widgetThemeLiveApplyTimer.current)
+  }, [])
 
   const update = (updater: (d: Application) => void) => {
     const next = { ...form }
@@ -2089,6 +2466,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
       nextDesktop.widgetSizes = Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined
       nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
+
+      const nextWidgetThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
+      if (widgetThemeOverrideEnabled) {
+        nextWidgetThemeOverrides[form.id] = structuredClone(widgetThemeOverride)
+      } else {
+        delete nextWidgetThemeOverrides[form.id]
+      }
+      nextDesktop.widgetThemeOverrides = Object.keys(nextWidgetThemeOverrides).length ? nextWidgetThemeOverrides : undefined
     }
 
     if (isRecycleBinDecoration && recycleBinFullOnStart !== desktopConfig.recycleBin.fullOnStart) {
@@ -2114,8 +2499,46 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     setForm(app)
     setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetThemeOverrideEnabled(!!resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
+    setWidgetThemeOverride(structuredClone(resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)) ?? withDesktopConfigDefaults(config.desktopConfig).widgetTheme))
     setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
     setSaved(false)
+  }
+
+  useEffect(() => {
+    if (!themeOnlyDirty || saving) return
+    if (widgetThemeLiveApplyTimer.current) clearTimeout(widgetThemeLiveApplyTimer.current)
+    widgetThemeLiveApplyTimer.current = setTimeout(() => {
+      void apply()
+    }, 180)
+
+    return () => {
+      if (widgetThemeLiveApplyTimer.current) clearTimeout(widgetThemeLiveApplyTimer.current)
+    }
+  }, [apply, saving, themeOnlyDirty])
+
+  const restoreDefaults = async () => {
+    const snapshot = clone(defaultSnapshot)
+    const { widgetDefaults: _widgetDefaults, ...appDefaults } = snapshot
+    const restoredApp: Application = {
+      ...app,
+      ...appDefaults,
+      defaultConfig: app.defaultConfig ?? snapshot,
+    }
+
+    const apps = config.applications.map((entry) => (entry.id === app.id ? restoredApp : entry))
+    const updates: Partial<typeof config> = { applications: apps }
+
+    if (restoredApp.appType === 'widget') {
+      updates.desktopConfig = applyWidgetDefaultSnapshotToDesktopConfig(withDesktopConfigDefaults(config.desktopConfig), restoredApp, snapshot)
+    }
+
+    setSaving(true)
+    await saveConfig(updates)
+    setSaving(false)
+    setSaved(true)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
   }
 
   const defaultWidgetSize = getDefaultWidgetSize(form)
@@ -2125,6 +2548,12 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   return (
     <div className="space-y-3">
       <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
+      <ConfigNotice tone="info" className="flex items-center justify-between gap-3 px-3 py-2">
+        <span className="text-[10px] leading-relaxed text-zinc-400">`Reset` returns to the last saved config. `Restore Defaults` re-applies the stored default snapshot for this application or widget.</span>
+        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
+          Restore Defaults
+        </Btn>
+      </ConfigNotice>
       <div className="space-y-0 pt-3">
         <ConfigSectionPanel label="Identity" first>
             <div className="space-y-3">
@@ -2280,6 +2709,145 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
           </ConfigSectionPanel>
         )}
 
+        {form.appType === 'widget' && (
+          <ConfigSectionPanel label="Widget Theme Override">
+            <div className="space-y-4">
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                Keep widgets self-sufficient by giving each one its own skin, theming, motion, and atmosphere profile. Leave this off to inherit the shared desktop widget theme.
+              </div>
+              <Toggle
+                checked={widgetThemeOverrideEnabled}
+                onChange={(value) => {
+                  setWidgetThemeOverrideEnabled(value)
+                  if (value && !sourceWidgetThemeOverride) {
+                    setWidgetThemeOverride(structuredClone(desktopConfig.widgetTheme))
+                  }
+                  setSaved(false)
+                }}
+                label="Use widget-specific appearance"
+              />
+              {widgetThemeOverrideEnabled ? (
+                <>
+                  <div className="grid grid-cols-2 gap-1.5 border-t border-zinc-800 pt-3">
+                    {WIDGET_SKINS.map((skin) => (
+                      <ConfigChoiceButton
+                        key={skin.id}
+                        type="button"
+                        selected={widgetThemeOverride.skin === skin.id}
+                        onClick={() => {
+                          setWidgetThemeOverride(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[skin.id]))
+                          setSaved(false)
+                        }}
+                        className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
+                        title={skin.description}
+                      >
+                        <span className="text-[11px] font-semibold leading-none">{skin.label}</span>
+                        <span className="text-[10px] leading-relaxed text-zinc-500">{skin.description}</span>
+                      </ConfigChoiceButton>
+                    ))}
+                  </div>
+                  <div className="border-t border-zinc-800 pt-3">
+                    <ThemeAppearanceFields
+                      appearance={widgetThemeOverride}
+                      onChange={(updater) => {
+                        setWidgetThemeOverride((prev) => {
+                          const next = structuredClone(prev)
+                          updater(next)
+                          return next
+                        })
+                        setSaved(false)
+                      }}
+                      helperText="Use a different font, accent, and text color when this widget should feel like its own application instead of just another window using the global chrome." 
+                    />
+                  </div>
+                  <div className="border-t border-zinc-800 pt-3 space-y-3">
+                    <div>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Motion</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {WIDGET_THEME_ANIMATIONS.map((animation) => (
+                          <ConfigChoiceButton
+                            key={animation.id}
+                            type="button"
+                            selected={widgetThemeOverride.animation === animation.id}
+                            onClick={() => {
+                              setWidgetThemeOverride((prev) => ({ ...prev, animation: animation.id }))
+                              setSaved(false)
+                            }}
+                            className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
+                            title={animation.description}
+                          >
+                            <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
+                            <span className="text-[10px] leading-relaxed text-zinc-500">{animation.description}</span>
+                          </ConfigChoiceButton>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Atmosphere</div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
+                          <ConfigChoiceButton
+                            key={atmosphere.id}
+                            type="button"
+                            selected={widgetThemeOverride.atmosphere === atmosphere.id}
+                            onClick={() => {
+                              setWidgetThemeOverride((prev) => ({ ...prev, atmosphere: atmosphere.id }))
+                              setSaved(false)
+                            }}
+                            className="py-2 text-[11px]"
+                          >
+                            {atmosphere.label}
+                          </ConfigChoiceButton>
+                        ))}
+                      </div>
+                    </div>
+                    <Slider
+                      label="Motion"
+                      value={Math.round(widgetThemeOverride.motionIntensity * 100)}
+                      min={0}
+                      max={300}
+                      step={5}
+                      unit="%"
+                      onChange={(value) => {
+                        setWidgetThemeOverride((prev) => ({ ...prev, motionIntensity: value / 100 }))
+                        setSaved(false)
+                      }}
+                    />
+                    <Slider
+                      label="Glow"
+                      value={Math.round(widgetThemeOverride.glowIntensity * 100)}
+                      min={0}
+                      max={300}
+                      step={5}
+                      unit="%"
+                      onChange={(value) => {
+                        setWidgetThemeOverride((prev) => ({ ...prev, glowIntensity: value / 100 }))
+                        setSaved(false)
+                      }}
+                    />
+                    <div className="flex justify-end">
+                      <Btn
+                        type="button"
+                        onClick={() => {
+                          setWidgetThemeOverride(structuredClone(desktopConfig.widgetTheme))
+                          setSaved(false)
+                        }}
+                        className="px-2 py-1 text-[10px]"
+                      >
+                        Copy Desktop Theme
+                      </Btn>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-500">
+                  This widget currently inherits the shared desktop widget theme from the Desktop environment editor.
+                </div>
+              )}
+            </div>
+          </ConfigSectionPanel>
+        )}
+
         {isStickyNotesWidget && (
           <StickyNotesConfigSection value={stickyNotesConfig} onChange={updateStickyNotesConfig} />
         )}
@@ -2378,10 +2946,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                 onChange={(e) => update((d) => {
                   const nextSceneId = e.target.value
                   const nextScene = config.scenes[nextSceneId]
+                  const nextSceneSources = getSafeSceneSources(nextScene)
                   const currentSourceId = d.sourceWidgetSettings?.sourceId
-                  const nextSourceId = nextScene?.sources.some((source) => source.id === currentSourceId)
+                  const nextSourceId = nextSceneSources.some((source) => source.id === currentSourceId)
                     ? currentSourceId
-                    : (nextScene?.sources[0]?.id ?? '')
+                    : (nextSceneSources[0]?.id ?? '')
 
                   d.sourceWidgetSettings = nextSceneId
                     ? {
@@ -3302,6 +3871,8 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
   const config      = useAdminStore((s) => s.config)
   const saveConfig  = useAdminStore((s) => s.saveConfig)
   const linkedApp   = config.applications.find((a) => a.targetSceneId === sceneId)
+  const scene = config.scenes[sceneId]
+  const defaultSnapshot = useMemo(() => resolveSceneDefaultSnapshot(sceneId, scene), [scene, sceneId])
 
   const updateAppTransitions = (key: 'introTransitions' | 'exitTransitions', steps: TransitionStep[]) => {
     if (!linkedApp) return
@@ -3311,8 +3882,49 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
     saveConfig({ applications: apps })
   }
 
+  const restoreDefaults = async () => {
+    const snapshot = clone(defaultSnapshot)
+    const nextScene: Scene = {
+      ...scene,
+      label: snapshot.label,
+      backgroundOpaque: snapshot.backgroundOpaque,
+      sources: clone(snapshot.sources),
+      style: snapshot.style ? clone(snapshot.style) : undefined,
+      lobbyConfig: snapshot.lobbyConfig ? clone(snapshot.lobbyConfig) : undefined,
+      introTransitions: snapshot.introTransitions ? clone(snapshot.introTransitions) : undefined,
+      exitTransitions: snapshot.exitTransitions ? clone(snapshot.exitTransitions) : undefined,
+      musicTrack: snapshot.musicTrack,
+      defaultConfig: scene.defaultConfig ?? snapshot,
+    }
+
+    let applications = config.applications
+    if (linkedApp) {
+      const appDefaults = resolveApplicationDefaultSnapshot(linkedApp)
+      const { widgetDefaults: _widgetDefaults, ...linkedAppDefaults } = appDefaults
+      applications = config.applications.map((entry) => (
+        entry.id === linkedApp.id
+          ? { ...entry, ...linkedAppDefaults, defaultConfig: entry.defaultConfig ?? appDefaults }
+          : entry
+      ))
+    }
+
+    await saveConfig({
+      scenes: {
+        ...config.scenes,
+        [sceneId]: nextScene,
+      },
+      applications,
+    })
+  }
+
   return (
     <div className="space-y-3">
+      <ConfigNotice tone="info" className="flex items-center justify-between gap-3 px-3 py-2">
+        <span className="text-[10px] leading-relaxed text-zinc-400">Each editor section still resets to the last saved state. `Restore Defaults` resets the full scene to its stored default snapshot, including style, sources, music, and linked app transitions.</span>
+        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
+          Restore Defaults
+        </Btn>
+      </ConfigNotice>
       <div className="space-y-0 pt-1">
       <ConfigSectionPanel label="Sources" first>
         <SourcesEditor sceneId={sceneId} />
@@ -3838,6 +4450,15 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
     return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
   }
 
+  if (selected.kind === 'default-styling') {
+    return (
+      <div className="space-y-5">
+        <EnvironmentLiveNotice targetState={STATE.DESKTOP} label="Global Theme" />
+        <DefaultStylingEditor />
+      </div>
+    )
+  }
+
   if (selected.kind === 'audio')       return <AudioPanel />
   if (selected.kind === 'keybinds')    return <KeybindEditor />
   if (selected.kind === 'archive')     return <ArchivePanel />
@@ -3926,6 +4547,10 @@ function RightPane({ selected, onClose, onSelectItem }: {
     headerIcon = layout?.icon ?? '📐'
     headerLabel = layout?.label ?? 'Widget Layout'
     headerMeta = layout?.source === 'system' ? 'System Layout' : 'User Layout'
+  } else if (selected.kind === 'default-styling') {
+    headerIcon = '🎨'
+    headerLabel = 'Global Theme'
+    headerMeta = 'Utility'
   } else if (selected.kind === 'audio')       { headerIcon = '🔊'; headerLabel = 'Audio'; headerMeta = 'Utility' }
   else if (selected.kind === 'keybinds')    { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
   else if (selected.kind === 'archive')     { headerIcon = '📁'; headerLabel = 'Archive'; headerMeta = 'Utility' }
@@ -3950,7 +4575,9 @@ function RightPane({ selected, onClose, onSelectItem }: {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto bg-zinc-950/55 p-3">
-        <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
+        <RightPaneErrorBoundary>
+          <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
+        </RightPaneErrorBoundary>
       </div>
     </div>
   )
@@ -4355,6 +4982,7 @@ function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLibrary, s
       <div className="flex-1" />
 
       <SectionLabel hint="Auxiliary panels that are not runtime applications.">Utilities</SectionLabel>
+      <SidebarBtn icon="🎨" label="Global Theme" active={isActive({ kind: 'default-styling' })} onClick={() => onSelect({ kind: 'default-styling' })} />
       <SidebarBtn icon="📁" label="Archive" active={isActive({ kind: 'archive' })} onClick={() => onSelect({ kind: 'archive' })} />
       <SidebarBtn icon="🌌" label="Ambiance" active={isActive({ kind: 'ambiance' })} onClick={() => onSelect({ kind: 'ambiance' })} />
       <SidebarBtn icon="🗂" label="Asset Library" active={libraryOpen} onClick={onLibrary} />

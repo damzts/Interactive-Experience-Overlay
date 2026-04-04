@@ -117,6 +117,34 @@ function normalizeWidgetThemeIntensity(value: number | undefined, fallback: numb
   return Math.min(3, Math.max(0, Math.round((value as number) * 100) / 100))
 }
 
+function normalizeWidgetThemeConfig(config?: Partial<WidgetThemeConfig> | null): WidgetThemeConfig {
+  const widgetSkin = normalizeWidgetSkinTheme(config?.skin)
+  const widgetPreset = DEFAULT_WIDGET_THEME_PRESETS[widgetSkin]
+
+  return {
+    ...widgetPreset,
+    ...config,
+    skin: widgetSkin,
+    animation: normalizeWidgetThemeAnimation(config?.animation ?? widgetPreset.animation),
+    atmosphere: normalizeWidgetThemeAtmosphere(config?.atmosphere ?? widgetPreset.atmosphere),
+    motionIntensity: normalizeWidgetThemeIntensity(config?.motionIntensity, widgetPreset.motionIntensity),
+    glowIntensity: normalizeWidgetThemeIntensity(config?.glowIntensity, widgetPreset.glowIntensity),
+  }
+}
+
+function normalizeWidgetThemeOverrides(value?: DesktopConfig['widgetThemeOverrides']) {
+  if (!value) return undefined
+
+  const entries = Object.entries(value).reduce<Record<string, WidgetThemeConfig>>((acc, [widgetId, theme]) => {
+    const normalizedId = typeof widgetId === 'string' ? widgetId.trim() : ''
+    if (!normalizedId) return acc
+    acc[normalizedId] = normalizeWidgetThemeConfig(theme)
+    return acc
+  }, {})
+
+  return Object.keys(entries).length ? entries : undefined
+}
+
 function buildSolidGradient(color: string) {
   return `linear-gradient(180deg, ${color} 0%, ${color} 100%)`
 }
@@ -386,9 +414,34 @@ export function withLobbyConfigDefaults(config?: Partial<LobbyConfig> | null): L
   }
 }
 
+function buildDefaultGlobalThemeDefaultConfig(): DesktopConfig['globalThemeDefault'] {
+  return {
+    theme: 'win98',
+    widgetTheme: normalizeWidgetThemeConfig(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
+    appearance: {
+      fontFamily: 'default',
+      accentColor: '#00ff41',
+      textColor: '#ffffff',
+    },
+  }
+}
+
+function normalizeGlobalThemeDefaultConfig(value?: Partial<DesktopConfig['globalThemeDefault']> | null): DesktopConfig['globalThemeDefault'] {
+  const defaults = buildDefaultGlobalThemeDefaultConfig()
+  return {
+    theme: normalizeDesktopTheme(value?.theme as DesktopTheme | 'win vista' | undefined),
+    widgetTheme: normalizeWidgetThemeConfig(value?.widgetTheme ?? defaults.widgetTheme),
+    appearance: {
+      ...defaults.appearance,
+      ...value?.appearance,
+    },
+  }
+}
+
 export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   theme: 'win98',
   widgetTheme: { ...DEFAULT_WIDGET_THEME_PRESETS.metalheart },
+  globalThemeDefault: buildDefaultGlobalThemeDefaultConfig(),
   defaultIconSize: 'normal',
   autoArrangeIcons: false,
   iconAnimation: 'none',
@@ -1075,22 +1128,14 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
   const { notifications: _legacyNotifications, stickyNotes: _legacyStickyNotes, ...rest } = source
   const legacyRecycleBin: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings> = source.recycleBin ?? {}
   const { emptyIcon: _legacyEmptyIcon, fullIcon: _legacyFullIcon, ...recycleBin } = legacyRecycleBin
-  const widgetSkin = normalizeWidgetSkinTheme(source.widgetTheme?.skin)
-  const widgetPreset = DEFAULT_WIDGET_THEME_PRESETS[widgetSkin]
 
   return {
     ...DEFAULT_DESKTOP_CONFIG,
     ...rest,
     theme: normalizeDesktopTheme(source.theme as DesktopTheme | 'win vista' | undefined),
-    widgetTheme: {
-      ...widgetPreset,
-      ...source.widgetTheme,
-      skin: widgetSkin,
-      animation: normalizeWidgetThemeAnimation(source.widgetTheme?.animation ?? widgetPreset.animation),
-      atmosphere: normalizeWidgetThemeAtmosphere(source.widgetTheme?.atmosphere ?? widgetPreset.atmosphere),
-      motionIntensity: normalizeWidgetThemeIntensity(source.widgetTheme?.motionIntensity, widgetPreset.motionIntensity),
-      glowIntensity: normalizeWidgetThemeIntensity(source.widgetTheme?.glowIntensity, widgetPreset.glowIntensity),
-    },
+    widgetTheme: normalizeWidgetThemeConfig(source.widgetTheme),
+    globalThemeDefault: normalizeGlobalThemeDefaultConfig(source.globalThemeDefault),
+    widgetThemeOverrides: normalizeWidgetThemeOverrides(source.widgetThemeOverrides),
     recycleBin: {
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
       ...recycleBin,

@@ -73,6 +73,16 @@ export interface WidgetThemeConfig {
   glowIntensity: number
 }
 
+export interface GlobalThemeDefaultConfig {
+  theme: DesktopTheme
+  widgetTheme: WidgetThemeConfig
+  appearance: {
+    fontFamily: string
+    accentColor: string
+    textColor: string
+  }
+}
+
 export interface WidgetWindowSize {
   /** Width in pixels for the widget window chrome. */
   width?: number
@@ -121,6 +131,55 @@ export interface StickyNotesSettings {
 export interface RecycleBinSettings {
   emptyIcon: string
   fullIcon: string
+}
+
+export interface ApplicationDefaultSnapshot {
+  id: string
+  label: string
+  icon: string
+  appType: ApplicationType
+  targetSceneId: string
+  widgetSource?: WidgetLayoutSource
+  widgetComponent?: WidgetComponentType
+  transitionType?: string
+  introTransition?: string
+  exitTransition?: string
+  introTransitions?: TransitionStep[]
+  exitTransitions?: TransitionStep[]
+  iconPosition?: { x: number; y: number }
+  iconSize?: 'small' | 'normal' | 'large'
+  launchPipeline?: {
+    effects: EffectConfig[]
+    delayMs: number
+  }
+  gallerySettings?: {
+    randomOrder?: boolean
+    autoPlay?: boolean
+    intervalSec?: number
+  }
+  cameraSettings?: {
+    preferredDeviceLabel?: string
+    mirror?: boolean
+  }
+  sourceWidgetSettings?: SourceWidgetSettings
+  stickyNotesSettings?: StickyNotesSettings
+  recycleBinSettings?: RecycleBinSettings
+  widgetDefaults?: {
+    windowSize?: WidgetWindowSize
+    defaultZIndex?: number
+    themeOverride?: WidgetThemeConfig
+  }
+}
+
+export interface SceneDefaultSnapshot {
+  label: string
+  backgroundOpaque: boolean
+  sources: SourceInstance[]
+  style?: OverlayStyle
+  lobbyConfig?: LobbyConfig
+  introTransitions?: TransitionStep[]
+  exitTransitions?: TransitionStep[]
+  musicTrack?: string
 }
 
 /** A desktop application icon that launches a scene or opens a widget */
@@ -179,6 +238,8 @@ export interface Application {
   stickyNotesSettings?: StickyNotesSettings
   /** Optional icon assets for the Recycle Bin decoration app. */
   recycleBinSettings?: RecycleBinSettings
+  /** Persisted factory snapshot used to restore this application/widget to defaults. */
+  defaultConfig?: ApplicationDefaultSnapshot
 }
 
 /** A scene is an ordered list of source instances */
@@ -201,6 +262,8 @@ export interface Scene {
   exitTransitions?: TransitionStep[]
   /** Background music track URL to play when this scene is active. */
   musicTrack?: string
+  /** Persisted factory snapshot used to restore this scene to defaults. */
+  defaultConfig?: SceneDefaultSnapshot
 }
 
 /** ── Overlay style system ─────────────────────────────────────── */
@@ -258,6 +321,10 @@ export interface DesktopConfig {
   theme: DesktopTheme
   /** Widget chrome preset and tint overrides shared by all widget windows. */
   widgetTheme: WidgetThemeConfig
+  /** User-defined default snapshot for the Global Theme utility. */
+  globalThemeDefault: GlobalThemeDefaultConfig
+  /** Optional per-widget chrome overrides, keyed by widget id. */
+  widgetThemeOverrides?: Record<string, WidgetThemeConfig>
   /** Icon size applied to all icons when no per-app iconSize is set */
   defaultIconSize: 'small' | 'normal' | 'large'
   /** When true: icons snap to auto-column; when false: icons use absolute iconPosition */

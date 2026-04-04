@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { withDesktopConfigDefaults } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { patchDesktopConfig } from './configPersistence'
 import { socket } from '../socket/client'
 import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieom/shared'
+import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 
 const TASKBAR_HEIGHT_PX = 40
 
@@ -104,8 +106,10 @@ export function DesktopWindow({
   onClose,
   children,
 }: DesktopWindowProps) {
+  const rawDesktopConfig = useAppStore((store) => store.config.desktopConfig)
   const configPos = useAppStore((store) => store.config.desktopConfig?.widgetPositions?.[id])
   const sizeOverride = useAppStore((store) => store.config.desktopConfig?.widgetSizes?.[id])
+  const widgetThemeOverride = withDesktopConfigDefaults(rawDesktopConfig).widgetThemeOverrides?.[id]
   const windowSeed = hashString(id)
   const motionPhase = (windowSeed % 17) / 2
   const hueShift = (windowSeed % 9) - 4
@@ -399,7 +403,7 @@ export function DesktopWindow({
     e.stopPropagation()
   }
 
-  return (
+  const frame = (
     <div
       ref={frameRef}
       className={`window desktop-window desktop-window--${state} ${windowClassName}`.trim()}
@@ -451,6 +455,14 @@ export function DesktopWindow({
           background: 'var(--widget-resize-handle, linear-gradient(135deg, transparent 0%, transparent 35%, #4f4f4f 35%, #4f4f4f 55%, #bfbfbf 55%, #bfbfbf 75%, #4f4f4f 75%, #4f4f4f 100%))',
         }}
       />
+    </div>
+  )
+
+  if (!widgetThemeOverride) return frame
+
+  return (
+    <div className={buildWidgetThemeScopeClassNames(widgetThemeOverride)} style={buildWidgetThemeVars(widgetThemeOverride)}>
+      {frame}
     </div>
   )
 }
