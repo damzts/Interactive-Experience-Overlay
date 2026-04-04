@@ -9,8 +9,10 @@
 import { registerEffect } from './registry'
 
 import {
+  type DeathOverlayConfig,
   type DesktopNotificationEffectConfig,
   type NotificationBoxConfig,
+  type ReviveOverlayConfig,
   type TerminalToastConfig,
   type FloatiesConfig,
   type CorruptionBurstConfig,
@@ -21,6 +23,7 @@ import {
   type StaticBurstConfig,
   type ImageOverlayConfig,
   type VideoOverlayConfig,
+  type VictoryOverlayConfig,
 } from '@ieom/shared'
 
 import { runDeathOverlay }      from '../transitions/DeathOverlay'
@@ -39,9 +42,9 @@ import { runStaticBurst }       from '../transitions/StaticBurstConfigured'
 import { runImageOverlay }      from '../transitions/ImageOverlay'
 import { runVideoOverlay }      from '../transitions/VideoOverlay'
 
-registerEffect('death-overlay',    ()    => runDeathOverlay())
-registerEffect('victory-overlay',  ()    => runVictoryOverlay())
-registerEffect('revive-overlay',   ()    => runReviveOverlay())
+registerEffect('death-overlay',    (cfg) => runDeathOverlay(cfg as DeathOverlayConfig))
+registerEffect('victory-overlay',  (cfg) => runVictoryOverlay(cfg as VictoryOverlayConfig))
+registerEffect('revive-overlay',   (cfg) => runReviveOverlay(cfg as ReviveOverlayConfig))
 registerEffect('desktop-notification', (cfg) => runDesktopNotification(cfg as DesktopNotificationEffectConfig))
 registerEffect('notification-box', (cfg) => runNotificationBox(cfg as NotificationBoxConfig))
 registerEffect('terminal-toast',   (cfg) => runSysMessage(cfg as TerminalToastConfig))

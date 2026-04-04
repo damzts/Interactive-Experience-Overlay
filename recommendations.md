@@ -2,6 +2,31 @@
 
 This file holds backlog and polish notes that were previously embedded in `architecture.md`.
 
+## Current Required Actions
+
+The admin Asset Library refactor is only partially finished at the source-file level. The extracted path is live, but `Dashboard.tsx` still contains legacy local implementations that should be removed so the file matches the actual runtime structure.
+
+1. Remove the dead local `EventForm` implementation from `packages/admin/src/components/Dashboard.tsx`.
+	The extracted version already lives in `packages/admin/src/components/asset-library/EventForm.tsx`, and the live Asset Library flow should use that file only. Delete the old local `function EventForm(...)` block entirely instead of keeping two copies that can drift.
+
+2. Remove the dead local `AssetLibraryPanel` implementation from `packages/admin/src/components/Dashboard.tsx`.
+	The live render path already mounts `AssetLibraryPanel` from `packages/admin/src/components/AssetLibraryPanel.tsx` through `ExtractedAssetLibraryPanel`. Delete the old local `function AssetLibraryPanel(...)` block so `Dashboard.tsx` becomes orchestration-only for the library modal.
+
+3. Prune any now-unused imports, constants, and helper types from `packages/admin/src/components/Dashboard.tsx` after those deletions.
+	This cleanup should include any Asset Library-specific imports that are only needed by the dead local blocks, especially event editor helpers, source preset helpers, transition helpers, and catalog-related types that no longer participate in the live Dashboard path.
+
+4. Re-run diagnostics on `packages/admin/src/components/Dashboard.tsx`, `packages/admin/src/components/AssetLibraryPanel.tsx`, and the extracted asset-library modules.
+	The goal is to catch stale references immediately after removing the dead code. Do not assume import cleanup is complete until TypeScript diagnostics are clean.
+
+5. Rebuild the admin package with `pnpm --filter @ieom/admin build` after the cleanup.
+	The last known good state built successfully, so the same build should still pass after dead-code removal. If it fails, fix only regressions introduced by this cleanup pass.
+
+6. Once the dead-code removal is stable, review whether the remaining inline Catalog and Transitions tab bodies inside `packages/admin/src/components/AssetLibraryPanel.tsx` should also move into dedicated files.
+	This is not a blocker for correctness, but it is the logical next step if the goal is to keep the Asset Library modular and easy for future agents to navigate.
+
+7. Keep `packages/admin/src/components/Dashboard.tsx` limited to page-level orchestration and shared editors that are still truly local to the page.
+	Any modal-specific logic, tab-specific UI, or reusable config helper tables should continue to live in dedicated modules rather than growing back into Dashboard.
+
 ## Things To Cut
 
 The **EffectsLayer** file still exists as a reserved `null` render in `packages/overlay/src/layers/EffectsLayer.tsx`, but the runtime mounts `CSSEffectsLayer` instead. If there is no concrete plan to revive a separate post-processing layer, delete the unused file and any references to it so the architecture does not drift away from the real runtime.
@@ -47,4 +72,5 @@ Current implementation notes:
 - The admin styling system is centralized in `packages/admin/src/components/ui.tsx` and `admin.css`.
 
 - OBS still does not passively expose arbitrary hotkey presses back to IEOM, so OBS-scoped bindings remain server-executed rather than passively observed.
+
 - Lobby background rendering is still split by renderer: color/gradient backgrounds can tint the 3D hall, while image/video/pattern backgrounds remain CSS-backed behind the lobby canvas.

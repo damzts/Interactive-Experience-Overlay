@@ -100,7 +100,162 @@ export function createEffectDraft(type: EffectType): EffectConfig {
     }
   }
 
+  if (type === 'notification-box') {
+    return {
+      type,
+      cfg: {
+        title: 'System Notice',
+        body: 'A notification box has been triggered.',
+        icon: 'ℹ️',
+        autoDismiss: 4,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'terminal-toast') {
+    return {
+      type,
+      cfg: {
+        messages: ['[ SYSTEM ] Draft event test', '[ STATUS ] Preview path active'],
+        duration: 3,
+        position: 'bottom-right',
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'floaties') {
+    return {
+      type,
+      cfg: {
+        count: 18,
+        duration: 4,
+        speed: 1,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'corruption-burst') {
+    return {
+      type,
+      cfg: {
+        intensity: 'medium',
+        duration: 1.4,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'network-glitch') {
+    return {
+      type,
+      cfg: {
+        message: '[ NETWORK INTERRUPTION ]',
+        duration: 2,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'vignette-pulse') {
+    return {
+      type,
+      cfg: {
+        color: '#ff3b3b',
+        opacity: 0.85,
+        duration: 1.8,
+        text: '',
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'screen-shake') {
+    return {
+      type,
+      cfg: {
+        intensity: 'medium',
+        duration: 0.8,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'typewriter') {
+    return {
+      type,
+      cfg: {
+        text: 'EVENT EXECUTED',
+        position: 'center',
+        color: '#8df6ff',
+        fontSize: 48,
+        duration: 2.6,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'static-burst') {
+    return {
+      type,
+      cfg: {
+        opacity: 0.9,
+        duration: 0.9,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'image-overlay') {
+    return {
+      type,
+      cfg: {
+        src: '',
+        opacity: 1,
+        duration: 3,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'video-overlay') {
+    return {
+      type,
+      cfg: {
+        src: '',
+        opacity: 1,
+        duration: 0,
+        loop: false,
+      },
+      delay: 0,
+    }
+  }
+
+  if (type === 'death-overlay' || type === 'victory-overlay' || type === 'revive-overlay') {
+    return {
+      type,
+      cfg: { speed: 1 },
+      delay: 0,
+    } as EffectConfig
+  }
+
   return { type, cfg: {}, delay: 0 } as EffectConfig
+}
+
+export function normalizeEventEffectConfig(effect: EffectConfig): EffectConfig {
+  const base = createEffectDraft(effect.type) as EffectConfig & { cfg?: Record<string, unknown> }
+  const current = effect as EffectConfig & { cfg?: Record<string, unknown> }
+  return {
+    ...base,
+    ...current,
+    cfg: {
+      ...(base.cfg ?? {}),
+      ...(current.cfg ?? {}),
+    },
+    delay: current.delay ?? base.delay ?? 0,
+  } as EffectConfig
 }
 
 function createEventDef(): EventDef {

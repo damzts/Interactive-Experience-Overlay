@@ -13,7 +13,7 @@ import { TRANSITION_ICONS, TRANSITION_OPTIONS, encodeMediaTransitionValue, getMe
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { MediaEntry, SourcePreset } from '@ieom/shared'
 
-export function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
+export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean; onHide: () => void; onClose: () => void }) {
   const config = useAdminStore((state) => state.config)
   const mediaLibrary = useAdminStore((state) => state.config.mediaLibrary ?? [])
   const eventDefs = useAdminStore((state) => (state.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
@@ -404,7 +404,8 @@ export function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   }
 
   const handleTriggerEvent = (def: EventDef) => {
-    socket.emit('keybind:execute', { scope: 'admin', action: `event:${def.id}` })
+    socket.emit('event:preview', def)
+    onHide()
   }
 
   const assetLibraryTabs = [
@@ -416,6 +417,7 @@ export function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <AssetLibraryModal
+      isOpen={isOpen}
       onClose={onClose}
       tabs={assetLibraryTabs}
       activeTab={tab}

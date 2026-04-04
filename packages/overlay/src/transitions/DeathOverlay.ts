@@ -1,15 +1,18 @@
 import gsap from 'gsap'
+import type { DeathOverlayConfig } from '@ieom/shared'
 
 /** Runs the DEATH overlay animation — red vignette + YOU DIED text.
  *  Not a state transition; called directly from useSocket on overlay:show event.
  *  Auto-clears after 3 seconds. */
-export function runDeathOverlay() {
+export function runDeathOverlay(cfg?: DeathOverlayConfig) {
   const overlay = document.getElementById('tl-death-overlay')
   const text = document.getElementById('tl-death-text')
+  const speed = Math.max(cfg?.speed ?? 1, 0.1)
 
   if (!overlay || !text) return
 
   const tl = gsap.timeline()
+  tl.timeScale(speed)
 
   tl.set(overlay, { opacity: 0 })
     .set(text, { opacity: 0, scale: 1.4 })

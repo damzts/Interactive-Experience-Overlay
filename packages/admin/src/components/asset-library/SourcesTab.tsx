@@ -427,36 +427,66 @@ export function SourcesTabContent({
           </ConfigCard>
 
           <ConfigCard className="space-y-4 p-5 sm:p-6">
-            <div className="space-y-3 border-b border-zinc-800/80 pb-5">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Preset Summary</div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <ConfigCard className="text-left p-3">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Preset Id</div>
-                  <div className="mt-1 text-sm font-semibold text-zinc-100">{sourcePresetOriginalId ?? 'Draft until saved'}</div>
-                </ConfigCard>
-                <ConfigCard className="text-left p-3">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Type</div>
-                  <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedSourceMeta.label}</div>
-                </ConfigCard>
-                <ConfigCard className="text-left p-3">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Used In Scenes</div>
-                  <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedSourceUsageCount}</div>
-                </ConfigCard>
+            <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-4 py-3">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Editor</div>
+              <div className="text-xs text-zinc-500">Primary source preset authoring card.</div>
+            </div>
+
+            <div className="grid items-start gap-4 xl:grid-cols-2">
+              <div className="min-w-0">
+                <ConfigSectionPanel label="Preset Summary" first>
+                  <div className="space-y-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                          <span className="text-zinc-500">Label</span>
+                          <span className="truncate text-right font-semibold text-zinc-100">{editingSourcePreset.label}</span>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                          <span className="text-zinc-500">Preset Id</span>
+                          <span className="truncate text-right font-semibold text-zinc-100">{sourcePresetOriginalId ?? 'Draft until saved'}</span>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                          <span className="text-zinc-500">Type</span>
+                          <span className="truncate text-right font-semibold text-zinc-100">{selectedSourceMeta.label}</span>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                          <span className="text-zinc-500">Used In Scenes</span>
+                          <span className="text-right font-semibold text-zinc-100">{selectedSourceUsageCount}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                      Review the selected draft details and configure the preset below.
+                    </div>
+                  </div>
+                </ConfigSectionPanel>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Details</div>
-              <div className="text-sm text-zinc-400">Review the selected draft details and configure the preset below.</div>
-            </div>
+              <div className="min-w-0">
+                <ConfigSectionPanel label="Actions" first>
+                  <div className="space-y-4">
+                    <div className="text-sm text-zinc-500">{sourceDraftCreatesNewPreset ? 'Editing new source preset draft' : `Editing ${editingSourcePreset.label}`}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-4 py-2 text-sm">
+                        {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
+                      </Btn>
+                      <Btn type="button" variant="danger" onClick={deleteSourcePresetDraft} className="px-4 py-2 text-sm">
+                        {sourcePresetOriginalId ? 'Delete Preset' : 'Delete Draft'}
+                      </Btn>
+                    </div>
+                  </div>
+                </ConfigSectionPanel>
+              </div>
 
-            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 px-4 py-3">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Configure Preset</div>
-              <div className="mt-1 text-sm text-zinc-400">Adjust the selected draft or saved preset below, then save when ready.</div>
-            </div>
-
-            <div className="grid grid-cols-[280px_minmax(0,1fr)] items-start gap-4">
-              <div className="sticky top-0 space-y-0">
+              <div className="min-w-0">
                 <ConfigSectionPanel label="Identity" first>
                   <div className="space-y-3">
                     <div>
@@ -475,23 +505,9 @@ export function SourcesTabContent({
                     </div>
                   </div>
                 </ConfigSectionPanel>
-                <ConfigSectionPanel label="Source Settings">
-                  <div className="space-y-3">
-                    {selectedSourceMeta.fields.map((field) => (
-                      <SourceField
-                        key={field.key}
-                        field={field}
-                        value={editingSourcePreset.config[field.key]}
-                        onChange={(value) => patchSourcePresetDraft({
-                          config: { ...editingSourcePreset.config, [field.key]: value },
-                        })}
-                      />
-                    ))}
-                  </div>
-                </ConfigSectionPanel>
               </div>
 
-              <div className="space-y-0">
+              <div className="min-w-0">
                 <ConfigSectionPanel label="Default Position" first>
                   <div className="grid grid-cols-4 gap-2">
                     {(['x', 'y', 'width', 'height'] as const).map((field) => (
@@ -512,40 +528,41 @@ export function SourcesTabContent({
                     ))}
                   </div>
                 </ConfigSectionPanel>
+              </div>
 
-                <ConfigSectionPanel label="Actions">
-                  <div className="flex flex-wrap gap-2">
-                    <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-4 py-2 text-sm">
-                      {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
-                    </Btn>
-                    <Btn type="button" variant="danger" onClick={deleteSourcePresetDraft} className="px-4 py-2 text-sm">
-                      {sourcePresetOriginalId ? 'Delete Preset' : 'Delete Draft'}
-                    </Btn>
+              <div className="min-w-0">
+                <ConfigSectionPanel label="Source Settings" first>
+                  <div className="space-y-3">
+                    {selectedSourceMeta.fields.map((field) => (
+                      <SourceField
+                        key={field.key}
+                        field={field}
+                        value={editingSourcePreset.config[field.key]}
+                        onChange={(value) => patchSourcePresetDraft({
+                          config: { ...editingSourcePreset.config, [field.key]: value },
+                        })}
+                      />
+                    ))}
                   </div>
-                </ConfigSectionPanel>
-
-                <ConfigSectionPanel label="Scene Usage">
-                  <div className="space-y-2 text-sm text-zinc-400">
-                    <div>This preset can now be attached from each scene's Sources section.</div>
-                    <div>Scenes only control visibility, stacking, and position. Plugin configuration lives here.</div>
-                  </div>
-                </ConfigSectionPanel>
-
-                <ConfigSectionPanel label="Preview">
-                  <SourcePresetPreview
-                    preset={editingSourcePreset}
-                    meta={selectedSourceMeta}
-                    onPositionChange={({ x, y }) => patchSourcePresetDraft({
-                      defaultPosition: {
-                        ...(editingSourcePreset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }),
-                        x,
-                        y,
-                      },
-                    })}
-                  />
                 </ConfigSectionPanel>
               </div>
             </div>
+          </ConfigCard>
+
+          <ConfigCard className="p-5 sm:p-6">
+            <ConfigSectionPanel label="Preview" first>
+              <SourcePresetPreview
+                preset={editingSourcePreset}
+                meta={selectedSourceMeta}
+                onPositionChange={({ x, y }) => patchSourcePresetDraft({
+                  defaultPosition: {
+                    ...(editingSourcePreset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }),
+                    x,
+                    y,
+                  },
+                })}
+              />
+            </ConfigSectionPanel>
           </ConfigCard>
         </>
       ) : (

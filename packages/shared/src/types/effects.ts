@@ -138,9 +138,14 @@ export interface VideoOverlayConfig {
 // These wrap the original hardcoded animations so they can be composed
 // with other effects in the stack like any other effect type.
 
-export interface DeathOverlayConfig   { /* fixed animation — no parameters */ }
-export interface VictoryOverlayConfig { /* fixed animation — no parameters */ }
-export interface ReviveOverlayConfig  { /* fixed animation — no parameters */ }
+export interface BuiltInOverlayTimingConfig {
+  /** Playback speed multiplier. 1 = normal speed. */
+  speed?: number
+}
+
+export interface DeathOverlayConfig extends BuiltInOverlayTimingConfig {}
+export interface VictoryOverlayConfig extends BuiltInOverlayTimingConfig {}
+export interface ReviveOverlayConfig extends BuiltInOverlayTimingConfig {}
 
 // ── Discriminated union ─────────────────────────────────────────
 // delay?: seconds before this effect fires within the stack (default 0)

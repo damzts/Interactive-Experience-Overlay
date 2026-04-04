@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io'
 import {
   STATE,
   mergeAppConfig,
+  withEventConfigDefaults,
   withDesktopAmbianceDefaults,
   withDesktopConfigDefaults,
   type AmbianceSimulationStartedPayload,
@@ -832,6 +833,12 @@ export function setupSocketHandlers(
     socket.on('overlay:trigger', (payload: OverlayTriggerPayload) => {
       scheduler?.noteActivity()
       machine.triggerOverlay(payload)
+    })
+
+    socket.on('event:preview', (eventDef: EventConfig, callback) => {
+      scheduler?.noteActivity()
+      const result = executeConfiguredEvent(withEventConfigDefaults(eventDef))
+      if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
     })
 
     socket.on('keybind:execute', (payload, callback) => {

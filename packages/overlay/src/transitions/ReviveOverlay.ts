@@ -1,16 +1,19 @@
 import gsap from 'gsap'
+import type { ReviveOverlayConfig } from '@ieom/shared'
 
 /** REVIVE overlay — "Restarting process..." boot sequence.
  *  Plays on top of current scene, no state change. Auto-clears after ~3s. */
-export function runReviveOverlay() {
+export function runReviveOverlay(cfg?: ReviveOverlayConfig) {
   const overlay = document.getElementById('tl-revive-overlay')
   const line1   = document.getElementById('tl-revive-line1')
   const line2   = document.getElementById('tl-revive-line2')
   const bar     = document.getElementById('tl-revive-bar-fill')
+  const speed = Math.max(cfg?.speed ?? 1, 0.1)
 
   if (!overlay || !line1 || !line2 || !bar) return
 
   const tl = gsap.timeline()
+  tl.timeScale(speed)
 
   tl.set(overlay, { opacity: 0 })
     .set([line1, line2], { opacity: 0 })

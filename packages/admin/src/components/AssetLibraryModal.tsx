@@ -10,6 +10,7 @@ type AssetLibraryTab = {
 }
 
 export function AssetLibraryModal({
+  isOpen,
   onClose,
   tabs,
   activeTab,
@@ -17,6 +18,7 @@ export function AssetLibraryModal({
   sidebarChildren,
   contentChildren,
 }: {
+  isOpen: boolean
   onClose: () => void
   tabs: readonly AssetLibraryTab[]
   activeTab: string
@@ -25,7 +27,10 @@ export function AssetLibraryModal({
   contentChildren: ReactNode
 }) {
   return (
-    <FloatingWindowShell frameClassName="h-[98vh] max-h-[1040px] max-w-none w-[min(1760px,calc(100vw-8px))]" layerClassName="z-[60]">
+    <FloatingWindowShell
+      frameClassName="h-[98vh] max-h-[1040px] max-w-none w-[min(1760px,calc(100vw-8px))]"
+      layerClassName={`z-[60]${isOpen ? '' : ' hidden'}`}
+    >
       <FloatingWindowHeader icon="🗂" title="Asset Library" onClose={onClose} />
 
       <div className="flex-1 min-h-0 overflow-hidden p-5 sm:p-6">

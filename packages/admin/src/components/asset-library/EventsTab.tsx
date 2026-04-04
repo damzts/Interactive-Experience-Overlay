@@ -1,4 +1,4 @@
-import { Btn, ConfigCard, ConfigNotice } from '../ui'
+import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../ui'
 import { EventForm } from './EventForm'
 import { describeEventSetup, type EventDef, type EventPresetId } from './eventPresets'
 
@@ -115,61 +115,86 @@ export function EventsTabContent({
 
       {editingEvent ? (
         <ConfigCard className="space-y-4 p-5 sm:p-6">
-          <div className="space-y-3 border-b border-zinc-800/80 pb-5">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Event Summary</div>
-            <div className="grid gap-3 sm:grid-cols-4">
-              <ConfigCard className="text-left p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Event Id</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-100">{eventDraftOriginalId ?? 'Draft until saved'}</div>
-              </ConfigCard>
-              <ConfigCard className="text-left p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Setup</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-100">{describeEventSetup(editingEvent)}</div>
-              </ConfigCard>
-              <ConfigCard className="text-left p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Runtime Actions</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-100">{editingEvent.actions?.length ?? 0}</div>
-              </ConfigCard>
-              <ConfigCard className="text-left p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Overlay Effects</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-100">{editingEvent.effects.length}</div>
-              </ConfigCard>
+          <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-4 py-3">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Event Editor</div>
+            <div className="text-xs text-zinc-500">Primary event authoring card.</div>
+          </div>
+
+          <div className="grid items-start gap-4 xl:grid-cols-2">
+            <div className="min-w-0">
+              <ConfigSectionPanel label="Event Summary" first>
+                <div className="space-y-3">
+                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Label</span>
+                      <span className="truncate text-right font-semibold text-zinc-100">{editingEvent.label}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Event Id</span>
+                      <span className="truncate text-right font-semibold text-zinc-100">{eventDraftOriginalId ?? 'Draft until saved'}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Setup</span>
+                      <span className="truncate text-right font-semibold text-zinc-100">{describeEventSetup(editingEvent)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Runtime Actions</span>
+                      <span className="text-right font-semibold text-zinc-100">{editingEvent.actions?.length ?? 0}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Overlay Effects</span>
+                      <span className="text-right font-semibold text-zinc-100">{editingEvent.effects.length}</span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                    Create or refine event identity, trigger rules, runtime actions, and overlay effects below.
+                  </div>
+                </div>
+              </ConfigSectionPanel>
+            </div>
+
+            <div className="min-w-0">
+              <ConfigSectionPanel label="Actions" first>
+                <div className="space-y-3">
+                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Editing</span>
+                      <span className="truncate text-right font-semibold text-zinc-100">{editingEventCreatesNew ? 'New event draft' : editingEvent.label}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                      <span className="text-zinc-500">Save Action</span>
+                      <span className="text-right font-semibold text-zinc-100">{editingEventCreatesNew ? 'Save Event' : 'Update Event'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-3">
+                    <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
+                      {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
+                    </Btn>
+                    {!editingEventCreatesNew && (
+                      <Btn type="button" variant="primary" onClick={() => onTriggerEvent(editingEvent)} className="px-4 py-2 text-sm">
+                        Test Draft
+                      </Btn>
+                    )}
+                    <Btn type="button" variant="danger" onClick={deleteEventDraft} className="px-4 py-2 text-sm">
+                      {editingEventCreatesNew ? 'Delete Draft' : 'Delete Event'}
+                    </Btn>
+                  </div>
+                </div>
+              </ConfigSectionPanel>
+            </div>
+
+            <div className="min-w-0 xl:col-span-2">
+              <EventForm
+                def={editingEvent}
+                onUpdate={patchEventDraft}
+                showOverview={false}
+                showDeleteButton={false}
+                layout="flat-grid"
+              />
             </div>
           </div>
-
-          <div className="space-y-1">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Event Details</div>
-            <div className="text-sm text-zinc-400">Adjust the selected draft or saved event below, then save when ready.</div>
-          </div>
-
-          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/45 px-4 py-3">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Configure Event</div>
-            <div className="mt-1 text-sm text-zinc-400">Create or refine event identity, trigger rules, runtime actions, and overlay effects.</div>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 px-0.5">
-            <div className="text-sm text-zinc-500">{editingEventCreatesNew ? 'Editing new event draft' : `Editing ${editingEvent.label}`}</div>
-            <div className="flex flex-wrap gap-2">
-              <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
-                {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
-              </Btn>
-              {!editingEventCreatesNew && (
-                <Btn type="button" variant="primary" onClick={() => onTriggerEvent(editingEvent)} className="px-4 py-2 text-sm">
-                  Fire Now
-                </Btn>
-              )}
-              <Btn type="button" variant="danger" onClick={deleteEventDraft} className="px-4 py-2 text-sm">
-                {editingEventCreatesNew ? 'Delete Draft' : 'Delete Event'}
-              </Btn>
-            </div>
-          </div>
-
-          <EventForm
-            def={editingEvent}
-            onUpdate={patchEventDraft}
-            showOverview={false}
-            showDeleteButton={false}
-          />
         </ConfigCard>
       ) : (
         <ConfigNotice tone="info" className="py-8 text-center">

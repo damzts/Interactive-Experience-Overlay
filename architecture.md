@@ -9,6 +9,7 @@ Maintain it with these rules:
 - Keep it compact enough to load as working context.
 - Preserve the core runtime model, ownership boundaries, sync model, and extension rules.
 - Prefer stable concepts over file-by-file implementation notes.
+- For admin/editor layout spacing, default to `gap-4` between sibling cards, list items, and section blocks unless a documented exception is required.
 - Do not turn it into a backlog, changelog, or dump.
 - When the project grows, summarize patterns here and move long detail to purpose-specific docs.
 - Update this file when architecture or workflow changes in ways that affect how an agent should understand, use, or extend the project.
@@ -268,6 +269,10 @@ Constraint:
 ## Admin
 
 `@ieom/admin` is the authoring and control surface.
+
+UI spacing convention:
+
+- default to `gap-4` for editor grids, stacked card lists, and adjacent section blocks unless a specific layout requires a different value
 
 Main responsibilities:
 
