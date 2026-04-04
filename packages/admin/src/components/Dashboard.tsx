@@ -20,27 +20,63 @@ import {
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance, SourcePreset, AppConfig,
-  DesktopNotificationEffectConfig, EffectType, EffectConfig, EventAction, EventConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
+  DesktopNotificationEffectConfig, EffectType, EventAction, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
   RecycleBinSettings, StickyNotesSettings, WidgetComponentType, WidgetThemeConfig, ApplicationDefaultSnapshot, SceneDefaultSnapshot,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
 import { useAdminStore } from '../store/useAdminStore'
 import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../assets/catalog'
-import { AssetCatalogPanel, AssetSelectionInput } from './AssetLibrary'
+import { AssetSelectionInput } from './AssetLibrary'
+import { AssetLibraryModal } from './AssetLibraryModal'
+import { AssetLibraryPanel as ExtractedAssetLibraryPanel } from './AssetLibraryPanel'
+import {
+  DESKTOP_THEMES,
+  GOOGLE_FONTS,
+  ICON_ANIMATIONS,
+  SCREENSAVER_PRESETS,
+  WIDGET_SKINS,
+  WIDGET_THEME_ANIMATIONS,
+  WIDGET_THEME_ATMOSPHERES,
+  iconSizeToSliderValue,
+  labelizeIconSize,
+  sliderValueToIconSize,
+} from './adminDesktopOptions'
+import {
+  DEFAULT_EVENT_DEFS,
+  EVENT_PRESET_OPTIONS,
+  LAUNCH_PIPELINE_EFFECT_TYPES,
+  createEffectDraft,
+  createEventActionDraft,
+  createEventPreset,
+  describeEventSetup,
+  EVENT_EFFECT_TYPES,
+  COMMON_EVENT_ACTION_KINDS,
+  COMMON_EVENT_EFFECT_TYPES,
+  getEventActionLabel,
+  normalizeDesktopNotificationEffectConfig,
+  type EventDef,
+  type EventPresetId,
+} from './asset-library/eventPresets'
+import { SourceField, SourcePresetPreview } from './asset-library/SourcesTab'
+import { getSafeSceneSources, SOURCE_CATALOG, type CatalogEntry } from './sourceCatalog'
+import {
+  TRANSITION_ICONS,
+  TRANSITION_OPTIONS,
+  TRANSITION_TEST_BUTTON_CLASS,
+  encodeMediaTransitionValue,
+  formatBuiltInTransitionValue,
+  getMediaTransitionLabel,
+  parseBuiltInTransitionValue,
+  parseMediaTransitionValue,
+  stepToStr,
+  strToStep,
+} from './transitionLibrary'
 import { Panel, Toggle, Slider, Btn, HexColorInput, isSameDraft, IconGlyph, ConfigApplyBar, ConfigSectionPanel, FloatingWindowShell, FloatingWindowHeader, ConfigCard, ConfigNotice, ConfigChoiceButton, ConfigPreviewButton, ConfigSwatchButton, ConfigToolbar } from './ui'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ArchivePanel } from '../pages/ArchivePanel'
 import { KeybindEditor } from '../pages/KeybindEditor'
 import { AudioPanel }   from '../pages/AudioPanel'
 import { AmbiancePanel } from '../pages/AmbiancePanel'
-
-type SafeSceneLike = Pick<Scene, 'id' | 'label'> & {
-  sources?: Scene['sources'] | null
-}
-
-function getSafeSceneSources(scene?: SafeSceneLike | null) {
-  return Array.isArray(scene?.sources) ? scene.sources : []
-}
 
 class RightPaneErrorBoundary extends Component<
   { children: ReactNode },
@@ -109,17 +145,6 @@ const PARTICLE_PRESETS: { id: ParticlePreset; icon: string; label: string }[] = 
   { id: 'matrix',    icon: '⌥', label: 'Matrix'    },
   { id: 'fireflies', icon: '◉', label: 'Fireflies' },
   { id: 'ash',       icon: '◦', label: 'Ash'       },
-]
-
-const GOOGLE_FONTS = [
-  { name: 'System Default',  css: 'default'         },
-  { name: 'Press Start 2P',  css: 'Press Start 2P'  },
-  { name: 'VT323',           css: 'VT323'           },
-  { name: 'Orbitron',        css: 'Orbitron'        },
-  { name: 'Share Tech Mono', css: 'Share Tech Mono' },
-  { name: 'Rajdhani',        css: 'Rajdhani'        },
-  { name: 'Audiowide',       css: 'Audiowide'       },
-  { name: 'Electrolize',     css: 'Electrolize'     },
 ]
 
 const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', '#eab308', '#ef4444', '#ffffff']
@@ -539,188 +564,7 @@ function LabeledHexColorRow({
   )
 }
 
-const TRANSITION_OPTIONS = [
-  { id: 'instant',       label: 'Instant',        desc: 'Immediate cut, no animation' },
-  { id: 'fade',          label: 'Fade',           desc: 'Cross-fade through black' },
-  { id: 'zoom-in',       label: 'Zoom In',        desc: 'Camera rushes into CRT screen' },
-  { id: 'zoom-out',      label: 'Zoom Out',       desc: 'Screen shrinks back to 3D room' },
-  { id: 'win98-loading', label: 'Win98 Loading',  desc: 'Windows 98 progress dialog' },
-  { id: 'crt-wipe',      label: 'CRT Wipe',       desc: 'Static fills screen then clears' },
-  { id: 'channel-sweep', label: 'Channel Sweep',  desc: 'TV channel-change scan-line' },
-  { id: 'boot-sequence', label: 'Boot Sequence',  desc: 'BIOS POST text and progress bar' },
-  { id: 'glitch-burst',  label: 'Glitch Burst',   desc: 'Digital glitch explosion' },
-  { id: 'static-burst',  label: 'Static Burst',   desc: 'TV static fill then clear' },
-  { id: 'wipe-left',     label: 'Wipe Left',      desc: 'Black panel sweeps from right' },
-  { id: 'wipe-right',    label: 'Wipe Right',     desc: 'Black panel sweeps from left' },
-]
-
-// ── Source catalog ────────────────────────────────────────────────
-interface FieldDef {
-  key: string; label: string
-  type: 'text' | 'number' | 'color' | 'boolean' | 'select'
-  assetKinds?: AssetKind[]
-  options?: string[]; min?: number; max?: number; step?: number; placeholder?: string
-}
-interface CatalogEntry {
-  type: string; label: string; icon: string; desc: string
-  defaultConfig: Record<string, unknown>
-  fields: FieldDef[]
-  defaultPosition?: { x: number; y: number; width: number; height: number }
-}
-const SOURCE_CATALOG: CatalogEntry[] = [
-  {
-    type: 'image-slideshow', label: 'Game Slideshow', icon: '🎞', desc: 'Auto-cycling scraped game screenshots',
-    defaultConfig: { interval: 6, shuffle: true },
-    fields: [
-      { key: 'interval', label: 'Interval (s)', type: 'number', min: 1, max: 60, step: 1 },
-      { key: 'shuffle',  label: 'Shuffle',      type: 'boolean' },
-    ],
-  },
-  {
-    type: 'image-static', label: 'Static Image', icon: '🖼', desc: 'Single image — local path or URL',
-    defaultConfig: { url: '', objectFit: 'cover', opacity: 1 },
-    fields: [
-      { key: 'url',       label: 'URL / Path', type: 'text', assetKinds: ['image'], placeholder: '/assets/backgrounds/name.jpg' },
-      { key: 'objectFit', label: 'Fit',        type: 'select', options: ['cover', 'contain', 'fill'] },
-      { key: 'opacity',   label: 'Opacity',    type: 'number', min: 0, max: 1, step: 0.05 },
-    ],
-  },
-  {
-    type: 'video-loop', label: 'Video Loop', icon: '🎬', desc: 'Muted looping video — local path or URL',
-    defaultConfig: { url: '', opacity: 1 },
-    fields: [
-      { key: 'url',     label: 'URL / Path', type: 'text', assetKinds: ['video'], placeholder: '/assets/video/name.mp4' },
-      { key: 'opacity', label: 'Opacity',    type: 'number', min: 0, max: 1, step: 0.05 },
-    ],
-  },
-  {
-    type: 'solid-color', label: 'Solid Color', icon: '⬛', desc: 'Flat opaque color fill',
-    defaultConfig: { color: '#000000' },
-    fields: [
-      { key: 'color', label: 'Color', type: 'color' },
-    ],
-  },
-  {
-    type: 'color-overlay', label: 'Color Overlay', icon: '🎨', desc: 'Semi-transparent color wash',
-    defaultConfig: { color: '#000000', opacity: 0.5 },
-    fields: [
-      { key: 'color',   label: 'Color',   type: 'color' },
-      { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
-    ],
-  },
-  {
-    type: 'crt-effect', label: 'CRT Scanlines', icon: '📺', desc: 'Retro scanline + vignette overlay',
-    defaultConfig: { scanlineIntensity: 0.25, vignetteStrength: 0.5 },
-    fields: [
-      { key: 'scanlineIntensity', label: 'Scanlines', type: 'number', min: 0, max: 1, step: 0.05 },
-      { key: 'vignetteStrength',  label: 'Vignette',  type: 'number', min: 0, max: 1, step: 0.05 },
-    ],
-  },
-  {
-    type: 'vignette', label: 'Vignette', icon: '◉', desc: 'Edge-darkening radial gradient',
-    defaultConfig: { color: '#000000', strength: 0.6 },
-    fields: [
-      { key: 'color',    label: 'Color',    type: 'color' },
-      { key: 'strength', label: 'Strength', type: 'number', min: 0, max: 1, step: 0.05 },
-    ],
-  },
-  {
-    type: 'noise-grain', label: 'Film Grain', icon: '📽', desc: 'Animated film grain noise (overlay blend)',
-    defaultConfig: { opacity: 0.08, animated: true },
-    fields: [
-      { key: 'opacity',  label: 'Opacity',  type: 'number', min: 0, max: 0.5, step: 0.01 },
-      { key: 'animated', label: 'Animated', type: 'boolean' },
-    ],
-  },
-  {
-    type: 'text-widget', label: 'Text Label', icon: '✍', desc: 'Static or typewriter text block',
-    defaultConfig: { content: 'Label', font: 'vt323', fontSize: 28, color: '#ffffff', typewriterMode: false },
-    fields: [
-      { key: 'content',        label: 'Content',    type: 'text' },
-      { key: 'font',           label: 'Font',       type: 'select', options: ['vt323', 'press-start', 'monospace', 'serif'] },
-      { key: 'fontSize',       label: 'Size',       type: 'number', min: 8, max: 200, step: 2 },
-      { key: 'color',          label: 'Color',      type: 'color' },
-      { key: 'typewriterMode', label: 'Typewriter', type: 'boolean' },
-    ],
-  },
-  {
-    type: 'clock-widget', label: 'Clock', icon: '🕐', desc: 'Live digital clock display',
-    defaultConfig: { format: '24h', color: '#00ff41', fontSize: 36, font: 'vt323' },
-    defaultPosition: { x: 1680, y: 20, width: 220, height: 60 },
-    fields: [
-      { key: 'format',   label: 'Format', type: 'select', options: ['24h', '12h', '24h-sec', '12h-sec'] },
-      { key: 'color',    label: 'Color',  type: 'color' },
-      { key: 'fontSize', label: 'Size',   type: 'number', min: 8, max: 200, step: 2 },
-      { key: 'font',     label: 'Font',   type: 'select', options: ['vt323', 'press-start', 'monospace', 'serif'] },
-    ],
-  },
-]
-
 // ── TransitionPicker ─────────────────────────────────────────────
-
-const TRANSITION_ICONS: Record<string, string> = {
-  'instant':       '⚡',
-  'fade':          '🌫',
-  'zoom-in':       '🔍',
-  'zoom-out':      '🔎',
-  'win98-loading': '💾',
-  'crt-wipe':      '📺',
-  'channel-sweep': '📡',
-  'boot-sequence': '🖥',
-  'glitch-burst':  '⚠',
-  'static-burst':  '📻',
-  'wipe-left':     '◀',
-  'wipe-right':    '▶',
-}
-
-const TRANSITION_TEST_BUTTON_CLASS = 'rounded border border-cyan-500/40 bg-cyan-600/25 px-3 py-1.5 text-xs text-cyan-300 transition-colors hover:bg-cyan-600/40 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:bg-zinc-900 disabled:text-zinc-700'
-const TRANSITION_DELETE_BUTTON_CLASS = 'rounded border border-red-500/35 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/20'
-
-function encodeMediaTransitionValue(entry: Pick<MediaEntry, 'type' | 'url' | 'name' | 'duration'>) {
-  const trimmedName = entry.name.trim()
-  const hasDur = entry.type === 'image' && entry.duration != null && entry.duration > 0
-  let encoded = `media:${entry.type}:${entry.url}`
-  if (trimmedName || hasDur) encoded += `||${trimmedName}`
-  if (hasDur) encoded += `||dur=${entry.duration}`
-  return encoded
-}
-
-function parseMediaTransitionValue(value: string) {
-  const body = value.slice(6)
-  const colon = body.indexOf(':')
-  const type = colon >= 0 ? body.slice(0, colon) : body
-  const rest = colon >= 0 ? body.slice(colon + 1) : ''
-  const parts = rest.split('||')
-  const url = parts[0] ?? ''
-  const name = parts[1] ?? ''
-  const durPart = parts.slice(2).find((part) => part.startsWith('dur='))
-  const duration = durPart ? parseFloat(durPart.slice(4)) : undefined
-  return {
-    type: type as MediaEntry['type'],
-    url,
-    name,
-    duration,
-  }
-}
-
-function parseBuiltInTransitionValue(value: string) {
-  const queryIndex = value.indexOf('?')
-  const id = queryIndex >= 0 ? value.slice(0, queryIndex) : value
-  const duration = queryIndex >= 0 ? new URLSearchParams(value.slice(queryIndex + 1)).get('duration') : null
-  return {
-    id,
-    duration: duration ? parseFloat(duration) : undefined,
-  }
-}
-
-function formatBuiltInTransitionValue(id: string, durationDraft: string) {
-  const duration = parseFloat(durationDraft)
-  return Number.isFinite(duration) && duration > 0 ? `${id}?duration=${duration}` : id
-}
-
-function getMediaTransitionLabel(entry: Pick<MediaEntry, 'name' | 'url'>) {
-  return entry.name.trim() || entry.url.split('/').pop() || 'Untitled transition'
-}
 
 function TransitionPicker({
   value,
@@ -857,309 +701,6 @@ function TransitionPicker({
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (v: unknown) => void }) {
-  return (
-    <div className="flex items-center gap-2">
-      <label className="text-[10px] text-zinc-500 w-16 shrink-0">{field.label}</label>
-      {field.type === 'color' && (
-        <HexColorInput
-          value={String(value ?? '#000000')}
-          onChange={(nextValue) => onChange(nextValue)}
-          className="flex-1 min-w-0 gap-1"
-          pickerClassName="w-6 h-5 shrink-0"
-          textClassName="flex-1 font-mono text-[10px] min-w-0"
-        />
-      )}
-      {field.type === 'number' && (
-        <input type="number" value={Number(value ?? 0)}
-          min={field.min} max={field.max} step={field.step}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="flex-1 font-mono text-xs" />
-      )}
-      {field.type === 'text' && (
-        field.assetKinds?.length ? (
-          <div className="flex-1 min-w-0">
-            <AssetSelectionInput
-              value={String(value ?? '')}
-              onChange={(nextValue) => onChange(nextValue)}
-              kinds={field.assetKinds}
-              modalTitle={field.label}
-              placeholder={field.placeholder}
-              buttonLabel="Browse Assets"
-              previewKind={field.assetKinds[0] ?? 'auto'}
-            />
-          </div>
-        ) : (
-          <input type="text" value={String(value ?? '')} placeholder={field.placeholder}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1 text-xs" />
-        )
-      )}
-      {field.type === 'boolean' && (
-        <input type="checkbox" checked={Boolean(value)}
-          onChange={(e) => onChange(e.target.checked)} />
-      )}
-      {field.type === 'select' && (
-        <select value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} className="flex-1 text-xs">
-          {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      )}
-    </div>
-  )
-}
-
-function resolveSourcePreviewFontFamily(font: unknown) {
-  switch (String(font ?? '').toLowerCase()) {
-    case 'vt323':
-      return 'VT323, monospace'
-    case 'press-start':
-      return '"Press Start 2P", monospace'
-    case 'serif':
-      return 'serif'
-    default:
-      return 'monospace'
-  }
-}
-
-function formatSourcePreviewClock(format: unknown) {
-  const now = new Date()
-  const use12Hour = String(format ?? '').startsWith('12h')
-  const includeSeconds = String(format ?? '').includes('sec')
-  return now.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: includeSeconds ? '2-digit' : undefined,
-    hour12: use12Hour,
-  })
-}
-
-function SourcePresetPreview({
-  preset,
-  meta,
-  onPositionChange,
-}: {
-  preset: SourcePreset
-  meta?: CatalogEntry
-  onPositionChange?: (position: { x: number; y: number }) => void
-}) {
-  const config = preset.config ?? {}
-  const opacityValue = Math.max(0, Math.min(1, Number(config.opacity ?? 1)))
-  const stageRef = useRef<HTMLDivElement | null>(null)
-  const [dragState, setDragState] = useState<{
-    pointerId: number
-    startClientX: number
-    startClientY: number
-    startX: number
-    startY: number
-  } | null>(null)
-  const sourcePosition = {
-    x: Math.max(0, Math.min(1920, Number(preset.defaultPosition?.x ?? 0))),
-    y: Math.max(0, Math.min(1080, Number(preset.defaultPosition?.y ?? 0))),
-    width: Math.max(80, Math.min(1920, Number(preset.defaultPosition?.width ?? 1920))),
-    height: Math.max(48, Math.min(1080, Number(preset.defaultPosition?.height ?? 1080))),
-  }
-  const previewFrameStyle = {
-    left: `${(sourcePosition.x / 1920) * 100}%`,
-    top: `${(sourcePosition.y / 1080) * 100}%`,
-    width: `${(sourcePosition.width / 1920) * 100}%`,
-    height: `${(sourcePosition.height / 1080) * 100}%`,
-  } as const
-
-  let previewNode: React.ReactNode
-
-  switch (preset.pluginType) {
-    case 'image-static': {
-      const url = String(config.url ?? '').trim()
-      const objectFit = ['cover', 'contain', 'fill'].includes(String(config.objectFit ?? 'cover')) ? String(config.objectFit) as 'cover' | 'contain' | 'fill' : 'cover'
-      previewNode = url ? (
-        <img src={url} alt={preset.label} className="h-full w-full" style={{ objectFit, opacity: opacityValue }} />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
-          Select an image asset to preview it here.
-        </div>
-      )
-      break
-    }
-    case 'video-loop': {
-      const url = String(config.url ?? '').trim()
-      previewNode = url ? (
-        <video src={url} className="h-full w-full object-cover" style={{ opacity: opacityValue }} muted autoPlay loop playsInline />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
-          Select a video asset to preview it here.
-        </div>
-      )
-      break
-    }
-    case 'solid-color': {
-      previewNode = <div className="h-full w-full" style={{ background: String(config.color ?? '#000000') }} />
-      break
-    }
-    case 'color-overlay': {
-      previewNode = (
-        <div className="relative h-full w-full overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#1f2937,transparent_55%),linear-gradient(135deg,#0f172a,#020617)]" />
-          <div className="absolute inset-0" style={{ background: String(config.color ?? '#000000'), opacity: opacityValue }} />
-        </div>
-      )
-      break
-    }
-    case 'image-slideshow': {
-      const interval = Number(config.interval ?? 6)
-      previewNode = (
-        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#1e293b,transparent_55%),linear-gradient(135deg,#111827,#020617)] px-6">
-          <div className="grid w-full max-w-xl grid-cols-3 gap-3">
-            {[0, 1, 2].map((index) => (
-              <div
-                key={index}
-                className={'rounded-xl border border-zinc-700/80 bg-zinc-900/85 p-3 text-center transition-transform ' + (index === 1 ? 'scale-105 shadow-[0_0_0_1px_rgba(34,211,238,0.3)]' : 'opacity-70')}
-              >
-                <div className="mb-3 text-3xl">🎞</div>
-                <div className="text-[11px] font-medium text-zinc-200">Frame {index + 1}</div>
-              </div>
-            ))}
-          </div>
-          <div className="absolute bottom-3 left-3 flex gap-2 text-[10px] text-zinc-300">
-            <span className="rounded-full border border-zinc-700/80 bg-zinc-950/70 px-2 py-1">{Number.isFinite(interval) ? interval : 6}s</span>
-            <span className="rounded-full border border-zinc-700/80 bg-zinc-950/70 px-2 py-1">{Boolean(config.shuffle) ? 'Shuffle' : 'Sequence'}</span>
-          </div>
-        </div>
-      )
-      break
-    }
-    case 'crt-effect': {
-      const scanlineIntensity = Math.max(0, Math.min(1, Number(config.scanlineIntensity ?? 0.25)))
-      const vignetteStrength = Math.max(0, Math.min(1, Number(config.vignetteStrength ?? 0.5)))
-      previewNode = (
-        <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(180deg,#0f172a,#020617)]">
-          <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.18),transparent_60%)]" />
-          <div className="absolute inset-0" style={{ opacity: 0.15 + scanlineIntensity * 0.45, backgroundImage: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.10) 0px, rgba(255,255,255,0.10) 1px, transparent 1px, transparent 4px)' }} />
-          <div className="absolute inset-0" style={{ background: `radial-gradient(circle, transparent 35%, rgba(0,0,0,${0.2 + vignetteStrength * 0.6}) 100%)` }} />
-        </div>
-      )
-      break
-    }
-    case 'vignette': {
-      const strength = Math.max(0, Math.min(1, Number(config.strength ?? 0.6)))
-      previewNode = (
-        <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(135deg,#1d4ed8,#0f172a_60%,#020617)]">
-          <div className="absolute inset-0" style={{ background: `radial-gradient(circle, transparent 40%, ${String(config.color ?? '#000000')} ${60 + strength * 20}%)`, opacity: 0.4 + strength * 0.5 }} />
-        </div>
-      )
-      break
-    }
-    case 'noise-grain': {
-      const grainOpacity = Math.max(0, Math.min(0.5, Number(config.opacity ?? 0.08)))
-      previewNode = (
-        <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(135deg,#111827,#020617)]">
-          <div className="absolute inset-0" style={{ opacity: 0.4, backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.08) 0 1px, transparent 1px), radial-gradient(circle at 80% 30%, rgba(255,255,255,0.05) 0 1px, transparent 1px), radial-gradient(circle at 40% 70%, rgba(255,255,255,0.08) 0 1px, transparent 1px)', backgroundSize: '18px 18px, 22px 22px, 16px 16px' }} />
-          <div className="absolute bottom-3 left-3 rounded-full border border-zinc-700/80 bg-zinc-950/70 px-2 py-1 text-[10px] text-zinc-300">Opacity {grainOpacity.toFixed(2)}</div>
-        </div>
-      )
-      break
-    }
-    case 'text-widget': {
-      const fontSize = Math.max(8, Number(config.fontSize ?? 28))
-      const content = String(config.content ?? 'Label')
-      previewNode = (
-        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#1f2937,transparent_55%),linear-gradient(135deg,#111827,#020617)] px-6 text-center">
-          <div style={{ color: String(config.color ?? '#ffffff'), fontSize: `${fontSize}px`, fontFamily: resolveSourcePreviewFontFamily(config.font) }}>
-            {Boolean(config.typewriterMode) ? `${content}_` : content}
-          </div>
-        </div>
-      )
-      break
-    }
-    case 'clock-widget': {
-      const fontSize = Math.max(8, Number(config.fontSize ?? 36))
-      previewNode = (
-        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,#0f3d2f,transparent_55%),linear-gradient(135deg,#111827,#020617)] px-6 text-center">
-          <div style={{ color: String(config.color ?? '#00ff41'), fontSize: `${fontSize}px`, fontFamily: resolveSourcePreviewFontFamily(config.font) }}>
-            {formatSourcePreviewClock(config.format)}
-          </div>
-        </div>
-      )
-      break
-    }
-    default: {
-      previewNode = (
-        <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
-          Preview unavailable for this source type.
-        </div>
-      )
-    }
-  }
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!onPositionChange) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setDragState({
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: sourcePosition.x,
-      startY: sourcePosition.y,
-    })
-  }
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState || dragState.pointerId !== event.pointerId || !onPositionChange || !stageRef.current) return
-    const rect = stageRef.current.getBoundingClientRect()
-    if (!rect.width || !rect.height) return
-
-    const deltaX = ((event.clientX - dragState.startClientX) / rect.width) * 1920
-    const deltaY = ((event.clientY - dragState.startClientY) / rect.height) * 1080
-    const nextX = Math.max(0, Math.min(1920 - sourcePosition.width, Math.round(dragState.startX + deltaX)))
-    const nextY = Math.max(0, Math.min(1080 - sourcePosition.height, Math.round(dragState.startY + deltaY)))
-    onPositionChange({ x: nextX, y: nextY })
-  }
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragState?.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    setDragState(null)
-  }
-
-  return (
-    <div className="space-y-3">
-      <div ref={stageRef} className="relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
-        <div className="absolute left-3 top-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] text-zinc-300">
-          {meta?.icon ?? '▣'} {meta?.label ?? preset.pluginType}
-        </div>
-        <div className="absolute bottom-3 right-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] font-mono text-zinc-300">
-          {Math.round(preset.defaultPosition?.width ?? 1920)} x {Math.round(preset.defaultPosition?.height ?? 1080)}
-        </div>
-        <div className="absolute bottom-3 left-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] font-mono text-zinc-300">
-          {Math.round(sourcePosition.x)}, {Math.round(sourcePosition.y)}
-        </div>
-        <div
-          className={'absolute overflow-hidden rounded-xl border border-cyan-400/35 bg-zinc-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.1),0_12px_32px_rgba(2,6,23,0.4)] ' + (onPositionChange ? (dragState ? 'cursor-grabbing' : 'cursor-grab') : '')}
-          style={previewFrameStyle}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        >
-          <div className="absolute inset-0">{previewNode}</div>
-          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
-        </div>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-3 text-[10px] text-zinc-500">
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">label: {preset.label || meta?.label || 'Draft'}</div>
-      </div>
-      <div className="text-[10px] text-zinc-500">Drag the preview frame to update x and y.</div>
     </div>
   )
 }
@@ -1312,439 +853,6 @@ const BG_TYPES: { id: BackgroundType; label: string }[] = [
   { id: 'pattern',   label: 'Pattern'  },
 ]
 
-const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; label: string }[] = [
-  { id: 'starfield',      label: 'Starfield'      },
-  { id: 'flying-windows', label: 'Flying Windows' },
-  { id: 'marquee',        label: 'Marquee Text'   },
-  { id: 'pipes',          label: 'Pipes 3D'       },
-  { id: 'gallery-scroll', label: 'Game Gallery'   },
-  { id: 'blank',          label: 'Black Screen'   },
-]
-
-const DESKTOP_THEMES: { id: DesktopConfig['theme']; label: string }[] = [
-  { id: 'win98', label: 'Win98' },
-  { id: 'frutiger aero', label: 'Frutiger Aero' },
-  { id: 'y2k candy', label: 'Y2K Candy' },
-  { id: 'midnight chrome', label: 'Midnight Chrome' },
-  { id: 'sunset boulevard', label: 'Sunset Boulevard' },
-  { id: 'coastal glass', label: 'Coastal Glass' },
-  { id: 'amber terminal', label: 'Amber Terminal' },
-  { id: 'custom', label: 'Custom' },
-]
-
-const WIDGET_SKINS: Array<{
-  id: DesktopConfig['widgetTheme']['skin']
-  label: string
-  description: string
-}> = [
-  {
-    id: 'metalheart',
-    label: 'Metalheart',
-    description: 'Brushed alloy shell with hot-pink hardware and arcade steel highlights.',
-  },
-  {
-    id: 'genx soft club',
-    label: 'GenX Soft Club',
-    description: 'Pastel nightclub plastic with glossy mint and bubblegum accents.',
-  },
-  {
-    id: 'chromecore',
-    label: 'Chromecore',
-    description: 'Polished silver utility chrome with cool cyan trims.',
-  },
-  {
-    id: 'y2k futurism',
-    label: 'Y2K Futurism',
-    description: 'Dark glossy shell with neon cyan-magenta title lighting.',
-  },
-  {
-    id: 'transparent',
-    label: 'Transparent',
-    description: 'Glass-panel widget chrome for overlays that need to stay airy.',
-  },
-  {
-    id: 'aqua pop',
-    label: 'Aqua Pop',
-    description: 'Glossy candy-aqua shell with bright dashboard glass energy.',
-  },
-  {
-    id: 'mallsoft pearl',
-    label: 'Mallsoft Pearl',
-    description: 'Dreamy retail-kiosk pearl plastic with soft blush bloom.',
-  },
-  {
-    id: 'messenger glow',
-    label: 'Messenger Glow',
-    description: 'Buddy-list greens and silver utility plastics with lively presence.',
-  },
-  {
-    id: 'limewire plasma',
-    label: 'Limewire Plasma',
-    description: 'Acid green transfer-energy skin with cyber scan movement.',
-  },
-  {
-    id: 'cyber y2k',
-    label: 'Cyber Y2K',
-    description: 'Chrome-neon club futurism with magenta cyan voltage.',
-  },
-  {
-    id: 'digital futurism',
-    label: 'Digital Futurism',
-    description: 'Sleek concept-device glass and luminous interface metal.',
-  },
-  {
-    id: 'ssx rush',
-    label: 'SSX Rush',
-    description: 'Extreme-sports dashboard energy with hot slopes and arcade speed.',
-  },
-  {
-    id: 'ps2 drift',
-    label: 'PS2 Drift',
-    description: 'Late-night menu blues and sixth-gen menu-space ambience.',
-  },
-  {
-    id: 'xbox blade',
-    label: 'Xbox Blade',
-    description: 'Early-2000s techno utility green with dashboard scan grit.',
-  },
-  {
-    id: 'cel street',
-    label: 'Cel Street',
-    description: 'Jet Set street graphics with graphic outlines and painted energy.',
-  },
-  {
-    id: 'aero nova',
-    label: 'Aero Nova',
-    description: 'Frutiger Aero turned brighter, wetter, and more kinetic.',
-  },
-  {
-    id: 'aero opaline',
-    label: 'Aero Opaline',
-    description: 'Pearlescent glass, aquatic light, and premium Aero softness.',
-  },
-  {
-    id: 'dial-up candy',
-    label: 'Dial-Up Candy',
-    description: 'ISP-install-CD gloss, modem LEDs, and bright portal blues.',
-  },
-  {
-    id: 'webcore flash',
-    label: 'Webcore Flash',
-    description: 'Button-heavy portal aesthetics with blinkie-banner energy.',
-  },
-  {
-    id: 'lan party',
-    label: 'LAN Party',
-    description: 'CRT utility green with late-night file-share atmosphere.',
-  },
-]
-
-const WIDGET_THEME_ANIMATIONS: Array<{
-  id: DesktopConfig['widgetTheme']['animation']
-  label: string
-  description: string
-}> = [
-  { id: 'steady', label: 'Steady', description: 'Minimal motion, stable and polished.' },
-  { id: 'pulse', label: 'Pulse', description: 'Breathing chrome and soft accent surges.' },
-  { id: 'shimmer', label: 'Shimmer', description: 'Traveling specular highlights and gloss sweeps.' },
-  { id: 'aurora', label: 'Aurora', description: 'Slow morphing light bands and neon drift.' },
-  { id: 'broadcast', label: 'Broadcast', description: 'Scan, flicker, and transmission energy.' },
-]
-
-const WIDGET_THEME_ATMOSPHERES: Array<{
-  id: DesktopConfig['widgetTheme']['atmosphere']
-  label: string
-}> = [
-  { id: 'clean', label: 'Clean' },
-  { id: 'sparkle', label: 'Sparkle' },
-  { id: 'scanlines', label: 'Scanlines' },
-  { id: 'grid', label: 'Grid' },
-  { id: 'nebula', label: 'Nebula' },
-]
-
-const ICON_ANIMATIONS: { id: DesktopConfig['iconAnimation']; label: string }[] = [
-  { id: 'none', label: 'Static' },
-  { id: 'pulse', label: 'Pulse' },
-  { id: 'float', label: 'Float' },
-  { id: 'jiggle', label: 'Jiggle' },
-  { id: 'drift', label: 'Drift' },
-  { id: 'orbit', label: 'Orbit' },
-  { id: 'breathe', label: 'Breathe' },
-  { id: 'reactive', label: 'Reactive' },
-]
-
-const DESKTOP_ICON_SIZES: DesktopConfig['defaultIconSize'][] = ['small', 'normal', 'large']
-
-function iconSizeToSliderValue(size: DesktopConfig['defaultIconSize']) {
-  return DESKTOP_ICON_SIZES.indexOf(size)
-}
-
-function sliderValueToIconSize(value: number): DesktopConfig['defaultIconSize'] {
-  return DESKTOP_ICON_SIZES[Math.max(0, Math.min(DESKTOP_ICON_SIZES.length - 1, Math.round(value)))]
-}
-
-function labelizeIconSize(size: DesktopConfig['defaultIconSize']) {
-  return size.charAt(0).toUpperCase() + size.slice(1)
-}
-
-// ── Events def ─────────────────────────────────────────────────────
-
-type EventDef = EventConfig & {
-  builtIn?: boolean
-}
-
-type EventPresetId = 'blank' | 'signal-burst' | 'theme-shift' | 'widget-mood' | 'layout-recall' | 'ambiance-boost'
-
-const DEFAULT_EVENT_DEFS: EventDef[] = []
-
-const EVENT_PRESET_OPTIONS: Array<{
-  id: EventPresetId
-  icon: string
-  label: string
-  description: string
-}> = [
-  { id: 'blank', icon: '⚡', label: 'Blank Event', description: 'Start from scratch with an empty event record.' },
-  { id: 'signal-burst', icon: '📡', label: 'Signal Burst', description: 'Desktop notification plus glitch-style overlay burst.' },
-  { id: 'theme-shift', icon: '🎨', label: 'Theme Shift', description: 'Swap the desktop and shared widget chrome into a new mood.' },
-  { id: 'widget-mood', icon: '🪟', label: 'Widget Mood', description: 'Restyle one or more widgets without changing the whole desktop.' },
-  { id: 'layout-recall', icon: '🗂', label: 'Layout Recall', description: 'Snap the live desktop into a saved widget layout.' },
-  { id: 'ambiance-boost', icon: '🌀', label: 'Ambiance Boost', description: 'Turn up live widget activity for a more dynamic desktop.' },
-]
-
-const COMMON_EVENT_ACTION_KINDS: EventAction['kind'][] = [
-  'desktop-config',
-  'widget-theme-overrides',
-  'widget-layout',
-  'widget-command',
-  'ambiance-patch',
-]
-
-const COMMON_EVENT_EFFECT_TYPES: EffectType[] = [
-  'desktop-notification',
-  'network-glitch',
-  'floaties',
-  'static-burst',
-]
-
-function getEventActionLabel(kind: EventAction['kind']) {
-  if (kind === 'desktop-config') return 'Desktop look'
-  if (kind === 'widget-theme-overrides') return 'Widget mood'
-  if (kind === 'widget-layout') return 'Widget layout'
-  if (kind === 'widget-command') return 'Widget state'
-  return 'Ambiance'
-}
-
-function describeEventSetup(def: EventDef) {
-  if (def.actions?.length && def.effects.length) return 'Automation + overlay FX'
-  if (def.actions?.length) return 'Runtime automation only'
-  if (def.effects.length) return 'Overlay FX only'
-  return 'Empty draft'
-}
-
-const LAUNCH_PIPELINE_EFFECT_TYPES: EffectType[] = [
-  'static-burst', 'screen-shake', 'vignette-pulse', 'network-glitch',
-  'death-overlay', 'victory-overlay', 'revive-overlay',
-  'terminal-toast', 'notification-box', 'typewriter',
-  'floaties', 'corruption-burst', 'image-overlay', 'video-overlay',
-]
-
-const EVENT_EFFECT_TYPES: EffectType[] = [
-  'desktop-notification',
-  ...LAUNCH_PIPELINE_EFFECT_TYPES,
-]
-
-const DEFAULT_DESKTOP_NOTIFICATION_EFFECT_CONFIG: DesktopNotificationEffectConfig = {
-  title: 'Desktop popup',
-  body: 'This is a desktop notification event.',
-  icon: '📣',
-  durationMs: DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
-}
-
-function normalizeDesktopNotificationEffectConfig(
-  cfg?: Partial<DesktopNotificationEffectConfig> | null,
-): DesktopNotificationEffectConfig {
-  return {
-    ...DEFAULT_DESKTOP_NOTIFICATION_EFFECT_CONFIG,
-    ...cfg,
-  }
-}
-
-function createEffectDraft(type: EffectType): EffectConfig {
-  if (type === 'desktop-notification') {
-    return {
-      type,
-      cfg: structuredClone(DEFAULT_DESKTOP_NOTIFICATION_EFFECT_CONFIG),
-      delay: 0,
-    }
-  }
-
-  return { type, cfg: {}, delay: 0 } as EffectConfig
-}
-
-function createEventDef(): EventDef {
-  return {
-    id: 'custom-' + Date.now(),
-    label: 'New Event',
-    icon: '⚡',
-    color: 'text-cyan-400',
-    desc: '',
-    effects: [],
-    actions: [],
-    auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 },
-  }
-}
-
-function createEventActionDraft(kind: EventAction['kind']): EventAction {
-  if (kind === 'desktop-config') {
-    return {
-      kind,
-      patch: {
-        theme: 'win98',
-        iconAnimation: 'none',
-        iconMotion: 1,
-        widgetTheme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
-      },
-    }
-  }
-
-  if (kind === 'widget-theme-overrides') {
-    return {
-      kind,
-      widgetIds: [],
-      clearExisting: false,
-      theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
-    }
-  }
-
-  if (kind === 'widget-layout') {
-    return {
-      kind,
-      layoutId: '',
-    }
-  }
-
-  if (kind === 'widget-command') {
-    return {
-      kind,
-      widgetId: 'music',
-      action: 'toggle',
-    }
-  }
-
-  return {
-    kind,
-    patch: {
-      enabled: true,
-      intervalSeconds: 30,
-      maxOpenWidgets: 2,
-      openWhileOneOpenChance: 0.35,
-    },
-  }
-}
-
-function createEventPreset(
-  presetId: EventPresetId,
-  options?: {
-    widgetIds?: string[]
-    layoutId?: string
-  },
-): EventDef {
-  const base = createEventDef()
-  const firstWidgetId = options?.widgetIds?.[0] ?? 'music'
-
-  if (presetId === 'signal-burst') {
-    return {
-      ...base,
-      label: 'Signal Burst',
-      icon: '📡',
-      desc: 'Broadcast interruption pulse with a runtime heads-up message.',
-      effects: [
-        { type: 'network-glitch', cfg: { message: '[ SIGNAL INTERRUPTION ]', duration: 2 }, delay: 0 },
-        { type: 'desktop-notification', cfg: { title: 'Signal burst', body: 'Transmission noise washed across the desktop.', icon: '📡', durationMs: 3200 }, delay: 0.2 },
-      ],
-    }
-  }
-
-  if (presetId === 'theme-shift') {
-    return {
-      ...base,
-      label: 'Theme Shift',
-      icon: '🎨',
-      desc: 'Push the whole desktop into a new live chrome mood.',
-      actions: [{
-        kind: 'desktop-config',
-        patch: {
-          theme: 'frutiger aero',
-          iconAnimation: 'float',
-          iconMotion: 1.2,
-          widgetTheme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS['aero nova']),
-          screenSaver: {
-            enabled: true,
-            timeoutMinutes: 6,
-            preset: 'starfield',
-          },
-        },
-      }],
-    }
-  }
-
-  if (presetId === 'widget-mood') {
-    return {
-      ...base,
-      label: 'Widget Mood',
-      icon: '🪟',
-      desc: 'Restyle specific widgets for a temporary personality shift.',
-      actions: [{
-        kind: 'widget-theme-overrides',
-        widgetIds: options?.widgetIds?.slice(0, 2) ?? [firstWidgetId],
-        clearExisting: false,
-        theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS['digital futurism']),
-      }],
-    }
-  }
-
-  if (presetId === 'layout-recall') {
-    return {
-      ...base,
-      label: 'Layout Recall',
-      icon: '🗂',
-      desc: 'Snap the live desktop into a saved widget arrangement.',
-      actions: [{
-        kind: 'widget-layout',
-        layoutId: options?.layoutId ?? '',
-      }],
-    }
-  }
-
-  if (presetId === 'ambiance-boost') {
-    return {
-      ...base,
-      label: 'Ambiance Boost',
-      icon: '🌀',
-      desc: 'Increase live widget motion and open-window churn.',
-      actions: [{
-        kind: 'ambiance-patch',
-        patch: {
-          enabled: true,
-          intervalSeconds: 18,
-          maxOpenWidgets: 3,
-          openWhileOneOpenChance: 0.65,
-        },
-      }],
-      auto: {
-        ...base.auto,
-        enabled: true,
-        mode: 'interval',
-        intervalMin: 12,
-        chance: 0.65,
-        cooldownMin: 8,
-        allowedStates: [STATE.DESKTOP],
-      },
-    }
-  }
-
-  return base
-}
 // ── Selected item union ────────────────────────────────────────────
 
 type SelectedItem =
@@ -1979,17 +1087,6 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
 
 // ── TransitionList ────────────────────────────────────────────────
 // Converts between the TransitionPicker string encoding and TransitionStep.
-function stepToStr(step: TransitionStep): string {
-  if (step.id.startsWith('media:')) return step.id
-  return step.duration ? `${step.id}?duration=${step.duration}` : step.id
-}
-function strToStep(s: string): TransitionStep {
-  if (!s || s.startsWith('media:')) return { id: s }
-  const qi  = s.indexOf('?')
-  const id  = qi >= 0 ? s.slice(0, qi) : s
-  const dur = qi >= 0 ? new URLSearchParams(s.slice(qi + 1)).get('duration') : null
-  return { id, ...(dur ? { duration: parseFloat(dur) } : {}) }
-}
 
 /** Ordered pipeline editor — each step is a full TransitionPicker row. */
 function TransitionList({
@@ -5268,42 +4365,21 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
     socket.emit('keybind:execute', { scope: 'admin', action: `event:${def.id}` })
   }
 
-  return (
-    <FloatingWindowShell frameClassName="h-[98vh] max-h-[1040px] max-w-none w-[min(1760px,calc(100vw-8px))]" layerClassName="z-[60]">
-      <FloatingWindowHeader icon="🗂" title="Asset Library" onClose={onClose} />
+  const assetLibraryTabs = [
+    { id: 'catalog', label: 'Catalog', icon: '🗂', meta: 'Assets and saved media' },
+    { id: 'events', label: 'Events', icon: '⚡', meta: `${eventDefs.length} configured` },
+    { id: 'sources', label: 'Sources', icon: '📺', meta: `${sourcePresets.length} configured` },
+    { id: 'transitions', label: 'Transitions', icon: '✨', meta: `${sortedTransitionLibrary.length} saved` },
+  ] as const
 
-      <div className="flex-1 min-h-0 overflow-hidden p-5 sm:p-6">
-        <div className="grid h-full min-h-0 gap-5 grid-cols-[320px_minmax(0,1fr)]">
-          <ConfigCard className="min-h-0 overflow-hidden p-4 sm:p-5">
-            <div className="flex h-full min-h-0 flex-col gap-4">
-              <div className="grid gap-1.5">
-                {([
-                  { id: 'catalog', label: 'Catalog', icon: '🗂', meta: 'Assets and saved media' },
-                  { id: 'events', label: 'Events', icon: '⚡', meta: `${eventDefs.length} configured` },
-                  { id: 'sources', label: 'Sources', icon: '📺', meta: `${sourcePresets.length} configured` },
-                  { id: 'transitions', label: 'Transitions', icon: '✨', meta: `${sortedTransitionLibrary.length} saved` },
-                ] as const).map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setTab(entry.id)}
-                    className={
-                      'rounded-xl border px-3 py-3 text-left transition-colors ' +
-                      (tab === entry.id
-                        ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
-                        : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
-                    }
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base leading-none">{entry.icon}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold">{entry.label}</div>
-                        <div className="text-[10px] text-zinc-500">{entry.meta}</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+  return (
+    <AssetLibraryModal
+      onClose={onClose}
+      tabs={assetLibraryTabs}
+      activeTab={tab}
+      onTabChange={(nextTab) => setTab(nextTab as typeof tab)}
+      sidebarChildren={(
+        <>
 
               {tab === 'catalog' && (
                 <>
@@ -5538,10 +4614,10 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                   </div>
                 </>
               )}
-            </div>
-          </ConfigCard>
-
-          <div className="min-w-0 min-h-0 overflow-y-auto pr-1">
+        </>
+      )}
+      contentChildren={(
+        <>
             {tab === 'catalog' && (
               <div className="space-y-4">
                 {selectedCatalogAsset ? (
@@ -6006,10 +5082,9 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                 </ConfigSectionPanel>
               </div>
             )}
-          </div>
-        </div>
-      </div>
-    </FloatingWindowShell>
+        </>
+      )}
+    />
   )
 }
 
@@ -6075,8 +5150,6 @@ function LivePreview() {
     </div>
   )
 }
-
-// ── RightPane ──────────────────────────────────────────────────────
 
 function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; label: string }) {
   const currentState = useAdminStore((s) => s.currentState)
@@ -6890,7 +5963,7 @@ export function Dashboard() {
         <LivePreview />
         <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
       </div>
-      {libraryOpen && <AssetLibraryPanel onClose={() => setLibraryOpen(false)} />}
+      {libraryOpen && <ExtractedAssetLibraryPanel onClose={() => setLibraryOpen(false)} />}
       {settingsOpen && (
         <SettingsModal
           tab={settingsTab}
@@ -6901,3 +5974,6 @@ export function Dashboard() {
     </div>
   )
 }
+
+
+
