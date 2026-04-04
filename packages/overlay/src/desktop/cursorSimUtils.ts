@@ -486,6 +486,7 @@ export async function interactWithWidgetByRecipe(
     moveMaxMs?: number
     postDelayMinMs?: number
     postDelayMaxMs?: number
+    performNativeClick?: boolean
   } = {},
 ) {
   if (!selectors.length) return false;
@@ -494,6 +495,7 @@ export async function interactWithWidgetByRecipe(
     moveMaxMs = 860,
     postDelayMinMs = 140,
     postDelayMaxMs = 420,
+    performNativeClick = true,
   } = options;
   const root = document.querySelector(`[data-widget-id="${widgetId}"]`) as HTMLElement | null;
   if (!root) return false;
@@ -530,7 +532,9 @@ export async function interactWithWidgetByRecipe(
   const pool = visibleCandidates.length > 0 ? visibleCandidates : candidates;
   const target = pool[Math.floor(Math.random() * pool.length)];
   await moveCursorAndClick(cursor, target, randomRange(moveMinMs, moveMaxMs));
-  target.click();
+  if (performNativeClick) {
+    target.click();
+  }
   await new Promise((resolve) => setTimeout(resolve, randomRange(postDelayMinMs, postDelayMaxMs)));
   return true;
 }

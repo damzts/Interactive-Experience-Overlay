@@ -1,11 +1,20 @@
 import type { Server } from 'socket.io'
 import { appendLog } from '../db/db.js'
 import { getConfig } from '../routes/config.js'
-import { withDesktopAmbianceDefaults } from '@ieom/shared'
-import type { AmbianceDiagnosticsPayload, AmbianceSimulationPayload, AmbianceWidgetBehavior, OverlayClientDiagnostics } from '@ieom/shared'
+import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieom/shared'
+import type {
+  AmbianceDiagnosticsPayload,
+  AmbianceHistoryEntry,
+  AmbianceSimulationDonePayload,
+  AmbianceSimulationPayload,
+  AmbianceWidgetBehavior,
+  OverlayClientDiagnostics,
+} from '@ieom/shared'
 
 const SIMULATION_ACCEPT_TIMEOUT_MS = 4000
+const SIMULATION_START_TIMEOUT_MS = 5000
 const SIMULATION_FALLBACK_TIMEOUT_MS = 30000
+const AMBIANCE_HISTORY_LIMIT = 50
 const DEFAULT_BEHAVIOR: AmbianceWidgetBehavior = {
   enabled: true,
   openChance: 0.18,
@@ -57,6 +66,7 @@ function pickWeightedAction(
 export class AmbianceManager {
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private acceptTimeout: ReturnType<typeof setTimeout> | null = null
+  private startTimeout: ReturnType<typeof setTimeout> | null = null
   private simulationTimeout: ReturnType<typeof setTimeout> | null = null
   private getOpenWidgetIds?: () => Set<string>
   private getSimulationLeaderSocketId?: () => string | null
@@ -64,7 +74,7 @@ export class AmbianceManager {
   private lastActionAtByWidget = new Map<string, number>()
   private lastWidgetId: string | null = null
   private simulationInFlight = false
-  private pendingPhase: 'awaiting-acceptance' | 'running' | null = null
+  private pendingPhase: 'awaiting-acceptance' | 'awaiting-start' | 'running' | null = null
   private inFlightActionId: string | null = null
   private actionSequence = 0
   private lastStartedAt: number | null = null
@@ -73,6 +83,12 @@ export class AmbianceManager {
   private lastActionWidgetId: string | null = null
   private lastAction: 'open' | 'close' | 'interact' | null = null
   private lastSkipReason: string | null = null
+  private leaderReady = false
+  private leaderLeaseDurationMs = 0
+  private leaderLeaseExpiresAt: number | null = null
+  private leaderLastHeartbeatAt: number | null = null
+  private history: AmbianceHistoryEntry[] = []
+  private historySequence = 0
   private diagnosticsListener?: (payload: AmbianceDiagnosticsPayload) => void
 
   constructor(private io: Server) {}
@@ -121,9 +137,64 @@ export class AmbianceManager {
     this.emitDiagnostics()
   }
 
-  markSimulationCompleted(actionId?: string) {
+  isSimulationInFlight() {
+    return this.simulationInFlight
+  }
+
+  setLeaderLeaseState(state: {
+    ready: boolean
+    leaseDurationMs: number
+    expiresAt: number | null
+    lastHeartbeatAt: number | null
+  }) {
+    this.leaderReady = state.ready
+    this.leaderLeaseDurationMs = state.leaseDurationMs
+    this.leaderLeaseExpiresAt = state.expiresAt
+    this.leaderLastHeartbeatAt = state.lastHeartbeatAt
+    this.emitDiagnostics()
+  }
+
+  clearHistory() {
+    if (this.history.length === 0) return
+    this.history = []
+    this.emitDiagnostics()
+  }
+
+  recordHistory(
+    type: AmbianceHistoryEntry['type'],
+    message: string,
+    metadata: Omit<Partial<AmbianceHistoryEntry>, 'id' | 'timestamp' | 'type' | 'message'> = {},
+  ) {
+    const entry: AmbianceHistoryEntry = {
+      id: `ambiance-history-${Date.now()}-${++this.historySequence}`,
+      timestamp: Date.now(),
+      type,
+      message,
+      ...metadata,
+    }
+    this.history = [entry, ...this.history].slice(0, AMBIANCE_HISTORY_LIMIT)
+    this.emitDiagnostics()
+  }
+
+  markSimulationCompleted(
+    actionId?: string,
+    payload?: Pick<AmbianceSimulationDonePayload, 'ok' | 'durationMs'>,
+    options?: { recordHistory?: boolean },
+  ) {
     if (actionId && this.inFlightActionId && actionId !== this.inFlightActionId) {
       return
+    }
+    if ((options?.recordHistory ?? true) && this.inFlightActionId) {
+      this.recordHistory(
+        'simulate-done',
+        `simulation finished${payload?.ok === false ? ' with failure' : ''}`,
+        {
+          actionId: this.inFlightActionId,
+          widgetId: this.lastActionWidgetId ?? undefined,
+          action: this.lastAction ?? undefined,
+          leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+        },
+      )
     }
     this.clearSimulationInFlight()
     this.emitDiagnostics()
@@ -137,24 +208,41 @@ export class AmbianceManager {
       clearTimeout(this.acceptTimeout)
       this.acceptTimeout = null
     }
+    if (this.startTimeout) {
+      clearTimeout(this.startTimeout)
+      this.startTimeout = null
+    }
     if (this.simulationTimeout) {
       clearTimeout(this.simulationTimeout)
       this.simulationTimeout = null
     }
   }
 
-  markSimulationDispatched(actionId: string) {
+  markSimulationDispatched(payload: AmbianceSimulationPayload) {
     this.clearSimulationInFlight()
     this.simulationInFlight = true
     this.pendingPhase = 'awaiting-acceptance'
-    this.inFlightActionId = actionId
+    this.inFlightActionId = payload.actionId
+    this.recordHistory('simulate-dispatched', `simulation dispatched for ${payload.widgetId}`, {
+      actionId: payload.actionId,
+      widgetId: payload.widgetId,
+      action: payload.action,
+      leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+    })
     this.acceptTimeout = setTimeout(() => {
+      const actionId = this.inFlightActionId
       this.simulationInFlight = false
       this.pendingPhase = null
       this.inFlightActionId = null
       this.acceptTimeout = null
       appendLog('ambiance-sim', 'simulation acceptance timeout, releasing lock')
       this.lastSkipReason = 'simulation acceptance timeout released lock'
+      this.recordHistory('simulate-accept-timeout', 'simulation acceptance timeout released lock', {
+        actionId: actionId ?? undefined,
+        widgetId: this.lastActionWidgetId ?? undefined,
+        action: this.lastAction ?? undefined,
+        leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+      })
       this.emitDiagnostics()
     }, SIMULATION_ACCEPT_TIMEOUT_MS)
     this.emitDiagnostics()
@@ -171,14 +259,64 @@ export class AmbianceManager {
       clearTimeout(this.acceptTimeout)
       this.acceptTimeout = null
     }
+    this.pendingPhase = 'awaiting-start'
+    this.recordHistory('simulate-accepted', 'leader accepted simulation job', {
+      actionId: this.inFlightActionId ?? undefined,
+      widgetId: this.lastActionWidgetId ?? undefined,
+      action: this.lastAction ?? undefined,
+      leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+    })
+    this.startTimeout = setTimeout(() => {
+      const inFlightActionId = this.inFlightActionId
+      this.simulationInFlight = false
+      this.pendingPhase = null
+      this.inFlightActionId = null
+      this.startTimeout = null
+      appendLog('ambiance-sim', 'simulation start timeout, releasing lock')
+      this.lastSkipReason = 'simulation start timeout released lock'
+      this.recordHistory('simulate-start-timeout', 'simulation start timeout released lock', {
+        actionId: inFlightActionId ?? undefined,
+        widgetId: this.lastActionWidgetId ?? undefined,
+        action: this.lastAction ?? undefined,
+        leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+      })
+      this.emitDiagnostics()
+    }, SIMULATION_START_TIMEOUT_MS)
+    this.emitDiagnostics()
+  }
+
+  markSimulationStarted(actionId?: string) {
+    if (actionId && this.inFlightActionId && actionId !== this.inFlightActionId) {
+      return
+    }
+    if (!this.simulationInFlight) {
+      return
+    }
+    if (this.startTimeout) {
+      clearTimeout(this.startTimeout)
+      this.startTimeout = null
+    }
     this.pendingPhase = 'running'
+    this.recordHistory('simulate-started', 'leader started executing simulation', {
+      actionId: this.inFlightActionId ?? undefined,
+      widgetId: this.lastActionWidgetId ?? undefined,
+      action: this.lastAction ?? undefined,
+      leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+    })
     this.simulationTimeout = setTimeout(() => {
+      const inFlightActionId = this.inFlightActionId
       this.simulationInFlight = false
       this.pendingPhase = null
       this.inFlightActionId = null
       this.simulationTimeout = null
       appendLog('ambiance-sim', 'simulation completion timeout, releasing lock')
       this.lastSkipReason = 'simulation completion timeout released lock'
+      this.recordHistory('simulate-completion-timeout', 'simulation completion timeout released lock', {
+        actionId: inFlightActionId ?? undefined,
+        widgetId: this.lastActionWidgetId ?? undefined,
+        action: this.lastAction ?? undefined,
+        leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
+      })
       this.emitDiagnostics()
     }, SIMULATION_FALLBACK_TIMEOUT_MS)
     this.emitDiagnostics()
@@ -208,7 +346,12 @@ export class AmbianceManager {
       leaderClientKind: leaderClient?.kind ?? null,
       leaderClientPort: leaderClient?.port ?? null,
       leaderClientLabel: leaderClient?.label ?? null,
+      leaderReady: this.leaderReady,
+      leaderLeaseDurationMs: this.leaderLeaseDurationMs,
+      leaderLeaseExpiresAt: this.leaderLeaseExpiresAt,
+      leaderLastHeartbeatAt: this.leaderLastHeartbeatAt,
       overlayClients,
+      history: this.history,
       openWidgetCount,
       enabledWidgetCount,
       maxOpenWidgets: Math.max(1, simConfig.maxOpenWidgets ?? 2),
@@ -331,8 +474,23 @@ export class AmbianceManager {
     }
 
     const actionId = `${Date.now()}-${++this.actionSequence}`
-    this.io.to(leaderSocketId).emit('ambiance:simulate', { ...picked, actionId })
-    this.markSimulationDispatched(actionId)
+    const mirrorPolicy = picked.action === 'interact'
+      ? getAmbianceInteractMirrorPolicy(picked.widgetId)
+      : 'shared-safe'
+    const sharedIntent = picked.action === 'interact'
+      ? (() => {
+          const intent = pickAmbianceInteractionIntent(picked.widgetId)
+          return intent ? buildWidgetSimulationIntent(actionId, intent) : null
+        })()
+      : null
+    const payload: AmbianceSimulationPayload = {
+      ...picked,
+      actionId,
+      mirrorPolicy,
+      sharedIntent,
+    }
+    this.io.to(leaderSocketId).emit('ambiance:simulate', payload)
+    this.markSimulationDispatched(payload)
     this.lastActionAtByWidget.set(picked.widgetId, Date.now())
     this.lastWidgetId = picked.widgetId
     this.lastActionAt = Date.now()

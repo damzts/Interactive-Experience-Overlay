@@ -73,8 +73,10 @@ Useful socket events:
 - widgets/runtime shell: `widget:toggle`, `widget:layout:apply`, `desktop:notify`, `desktop:recycle-bin`
 - live desktop motion: `desktop:icon:drag`, `desktop:widget:drag`, `desktop:widget:resize`
 - Start menu sync: `desktop:start-menu:state`, `desktop:start-menu:phase`
-- ambiance flow: `ambiance:leader`, `ambiance:leader:request`, `ambiance:simulate`, `ambiance:simulate:accepted`, `ambiance:simulate:done`
+- ambiance flow: `ambiance:leader`, `ambiance:leader:request`, `ambiance:leader:heartbeat`, `ambiance:simulate`, `ambiance:simulate:accepted`, `ambiance:simulate:started`, `ambiance:simulate:done`
+- overlay readiness / recovery: `overlay:runtime:status`, `overlay:resync`, `overlay:force-resync`
 - leader cursor sync: `cursor:mirror`, `cursor:mirror:menu-timeline`
+- shared widget intents: `widget:simulate:intent`
 - utility/runtime control: `desktop:screen-saver:test`, `keybind:execute`, `panic`, `obs:status`
 
 Usage rules:
@@ -135,6 +137,8 @@ Runtime-only server state:
 - recycle-bin fullness
 - Start menu shell state
 - ambiance leader overlay socket id
+- ambiance leader lease heartbeat / expiry timestamps
+- ambiance lifecycle history ring buffer for diagnostics
 
 Rule:
 
@@ -218,11 +222,17 @@ Key behaviors:
 - ambiance actions are server-selected
 - only an overlay client can be elected as ambiance leader
 - overlay sockets self-identify as `runtime`, `embedded-preview`, or `dev`; the server prefers the top-level runtime overlay before falling back to preview/dev overlays
+- an overlay is not eligible to lead until it reports runtime readiness: desktop mounted, cursor controller available, and widget runtime ready
+- ambiance leadership is a short renewable lease, not just a connected socket; the leader must heartbeat or the server expires it and elects a replacement
 - disabling widget ambiance clears the current leader and suppresses re-election until ambiance is enabled again
-- the elected overlay acknowledges `ambiance:simulate` before executing it and later reports completion
+- the elected overlay acknowledges `ambiance:simulate`, later reports `started` when the first real execution step begins, and finally reports completion
+- higher-ranked overlays can replace a lower-ranked leader only when no ambiance action is in flight; if leadership is lost mid-flight the server requests an overlay resync before continuing
 - the leader executes the actual ambiance choreography; other clients follow by consuming mirrored cursor/menu events and the shared widget state broadcasts emitted from the leader
 - `open` and `close` actions are usually consistent across clients because the leader emits explicit widget state changes
-- `interact` actions are only fully executed on the leader unless they also emit shared runtime state; followers mirror cursor motion but do not automatically replay arbitrary DOM interactions
+- `interact` actions are classified server-side as `shared-safe`, `leader-only`, or `unsafe-requires-runtime-event`
+- `shared-safe` interactions still use leader cursor choreography, but their real effect is broadcast as explicit shared widget intents so followers converge without replaying arbitrary DOM clicks
+- `leader-only` interactions intentionally remain local to the leader runtime
+- `unsafe-requires-runtime-event` interactions are not considered safely mirrored until a dedicated shared runtime event exists
 - Start menu state is synchronized as runtime state
 - reconnect snapshots include widget ids, recycle-bin state, and Start menu state
 
@@ -258,6 +268,7 @@ Important consequence:
 - the embedded preview is a real overlay socket, not a cosmetic mirror
 - previewing `3000` creates an embedded runtime overlay client alongside the admin socket
 - diagnostics should distinguish overlay identity by kind and port so it is clear whether ambiance leadership belongs to OBS/runtime or the embedded preview
+- diagnostics should also expose overlay readiness, leader lease expiry, last heartbeat, and a short ambiance lifecycle history so admin debugging does not depend on raw logs
 
 Preview-only behavior:
 
@@ -371,8 +382,10 @@ High-value event groups:
 - desktop runtime: `widget:toggle`, `desktop:state:request`, `desktop:notify`, `desktop:recycle-bin`
 - live shell motion: `desktop:icon:drag`, `desktop:widget:drag`, `desktop:widget:resize`
 - Start menu sync: `desktop:start-menu:state`, `desktop:start-menu:phase`
-- ambiance sync: `ambiance:leader`, `ambiance:leader:request`, `ambiance:simulate`, `ambiance:simulate:accepted`, `ambiance:simulate:done`
+- ambiance sync: `ambiance:leader`, `ambiance:leader:request`, `ambiance:leader:heartbeat`, `ambiance:simulate`, `ambiance:simulate:accepted`, `ambiance:simulate:started`, `ambiance:simulate:done`
+- overlay recovery: `overlay:runtime:status`, `overlay:resync`, `overlay:force-resync`
 - cursor mirroring: `cursor:mirror`, `cursor:mirror:menu-timeline`
+- mirrored widget intents: `widget:simulate:intent`
 - widget layouts: `widget:layout:apply`
 - utilities: `desktop:screen-saver:test`, `panic`, `obs:status`, `keybind:execute`
 

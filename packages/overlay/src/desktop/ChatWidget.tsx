@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
+import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
 
 interface Message {
   user: string
@@ -31,6 +32,13 @@ export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open',
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
   }, [messages])
+
+  useEffect(() => {
+    return addWidgetSimulationIntentListener((payload) => {
+      if (payload.widgetId !== 'chat' || payload.kind !== 'chat:add-message') return
+      setMessages((prev) => [...prev, payload.message])
+    })
+  }, [])
 
   const handleSend = () => {
     const txt = input.trim()

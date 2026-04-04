@@ -1,7 +1,8 @@
-import type { Application } from '@ieom/shared'
+import type { Application, WidgetSimulationIntentPayload } from '@ieom/shared'
 
 export interface WidgetInteractionStep {
   selectors: string[]
+  intentKind?: WidgetSimulationIntentPayload['kind']
   weight?: number
   moveMinMs?: number
   moveMaxMs?: number
@@ -25,35 +26,35 @@ const RECIPES: Partial<Record<string, Partial<WidgetSimulationRecipe>>> = {
   browser: {
     menuPath: () => ['Programs', 'GALLERY.exe'],
     interactionPlan: [
-      { selectors: ['button[data-sim-action="gallery-play"]'], weight: 0.4 },
-      { selectors: ['button[data-sim-action="gallery-next"]'], weight: 0.4 },
-      { selectors: ['button[data-sim-action="gallery-prev"]'], weight: 0.2 },
+      { selectors: ['button[data-sim-action="gallery-play"]'], intentKind: 'gallery:next', weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-next"]'], intentKind: 'gallery:next', weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-prev"]'], intentKind: 'gallery:previous', weight: 0.2 },
     ],
     interactionChance: 0.85,
   },
   gallery: {
     menuPath: (app) => ['Programs', app.label],
     interactionPlan: [
-      { selectors: ['button[data-sim-action="gallery-play"]'], weight: 0.4 },
-      { selectors: ['button[data-sim-action="gallery-next"]'], weight: 0.4 },
-      { selectors: ['button[data-sim-action="gallery-prev"]'], weight: 0.2 },
+      { selectors: ['button[data-sim-action="gallery-play"]'], intentKind: 'gallery:next', weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-next"]'], intentKind: 'gallery:next', weight: 0.4 },
+      { selectors: ['button[data-sim-action="gallery-prev"]'], intentKind: 'gallery:previous', weight: 0.2 },
     ],
     interactionChance: 0.85,
   },
   music: {
     menuPath: (app) => ['Programs', app.label],
     interactionPlan: [
-      { selectors: ['button[data-sim-action="music-play"]'], weight: 0.45 },
-      { selectors: ['button[data-sim-action="music-next"]'], weight: 0.35 },
-      { selectors: ['button[data-sim-action="music-prev"]'], weight: 0.2 },
+      { selectors: ['button[data-sim-action="music-play"]'], intentKind: 'music:play-pause', weight: 0.45 },
+      { selectors: ['button[data-sim-action="music-next"]'], intentKind: 'music:next', weight: 0.35 },
+      { selectors: ['button[data-sim-action="music-prev"]'], intentKind: 'music:prev', weight: 0.2 },
     ],
     interactionChance: 0.8,
   },
   spotify: {
     menuPath: (app) => ['Programs', app.label],
     interactionPlan: [
-      { selectors: ['button[data-sim-action="music-play"]'], weight: 0.55 },
-      { selectors: ['button[data-sim-action="music-next"]'], weight: 0.45 },
+      { selectors: ['button[data-sim-action="music-play"]'], intentKind: 'music:play-pause', weight: 0.55 },
+      { selectors: ['button[data-sim-action="music-next"]'], intentKind: 'music:next', weight: 0.45 },
     ],
     interactionChance: 0.8,
   },
@@ -62,6 +63,7 @@ const RECIPES: Partial<Record<string, Partial<WidgetSimulationRecipe>>> = {
     interactionPlan: [
       {
         selectors: ['[data-sim-action="archive-log"]'],
+        intentKind: undefined,
         weight: 1,
         moveMinMs: 520,
         moveMaxMs: 980,
@@ -74,7 +76,7 @@ const RECIPES: Partial<Record<string, Partial<WidgetSimulationRecipe>>> = {
   chat: {
     menuPath: (app) => ['Programs', app.label],
     interactionPlan: [
-      { selectors: ['button[data-sim-action="chat-send"]'], weight: 1 },
+      { selectors: ['button[data-sim-action="chat-send"]'], intentKind: 'chat:add-message', weight: 1 },
     ],
     interactionChance: 0.6,
   },
@@ -88,6 +90,7 @@ const RECIPES: Partial<Record<string, Partial<WidgetSimulationRecipe>>> = {
           'button[data-sim-action="sticky-color-d8f8d0"]',
           'button[data-sim-action="sticky-color-cde8ff"]',
         ],
+        intentKind: 'sticky:set-color',
         weight: 1,
       },
     ],
@@ -115,4 +118,21 @@ export function pickWidgetInteractionStep(recipe: WidgetSimulationRecipe): Widge
     if (target <= 0) return steps[i]
   }
   return steps[steps.length - 1]
+}
+
+export function getWidgetInteractionStepForIntent(
+  app: Application,
+  intent: WidgetSimulationIntentPayload,
+): WidgetInteractionStep | null {
+  const recipe = getWidgetSimulationRecipe(app)
+
+  if (intent.kind === 'sticky:set-color') {
+    return {
+      selectors: [`button[data-sim-action="sticky-color-${intent.color.replace('#', '')}"]`],
+      intentKind: intent.kind,
+    }
+  }
+
+  const step = recipe.interactionPlan.find((candidate) => candidate.intentKind === intent.kind)
+  return step ?? null
 }

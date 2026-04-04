@@ -83,12 +83,21 @@ export interface AmbianceSimulationPayload {
   actionId: string
   widgetId: string
   action: 'open' | 'close' | 'interact'
+  mirrorPolicy: AmbianceMirrorPolicy
+  sharedIntent: WidgetSimulationIntentPayload | null
 }
 
 export interface AmbianceSimulationAcceptedPayload {
   actionId: string
   widgetId: string
   action: 'open' | 'close' | 'interact'
+}
+
+export interface AmbianceSimulationStartedPayload {
+  actionId: string
+  widgetId: string
+  action: 'open' | 'close' | 'interact'
+  startedAt?: number
 }
 
 export interface AmbianceSimulationDonePayload {
@@ -101,12 +110,76 @@ export interface AmbianceSimulationDonePayload {
 
 export type OverlayClientKind = 'runtime' | 'embedded-preview' | 'dev' | 'unknown'
 
+export type AmbianceMirrorPolicy = 'shared-safe' | 'leader-only' | 'unsafe-requires-runtime-event'
+
+export interface OverlayRuntimeStatusPayload {
+  mounted: boolean
+  cursorReady: boolean
+  widgetRegistryReady: boolean
+  ready: boolean
+}
+
 export interface OverlayClientDiagnostics {
   socketId: string
   kind: OverlayClientKind
   port: string | null
   label: string
+  mounted: boolean
+  cursorReady: boolean
+  widgetRegistryReady: boolean
+  ready: boolean
+  readyAt: number | null
+  lastHeartbeatAt: number | null
 }
+
+export interface AmbianceHistoryEntry {
+  id: string
+  timestamp: number
+  type:
+    | 'leader-elected'
+    | 'leader-cleared'
+    | 'leader-expired'
+    | 'simulate-dispatched'
+    | 'simulate-accepted'
+    | 'simulate-started'
+    | 'simulate-done'
+    | 'simulate-accept-timeout'
+    | 'simulate-start-timeout'
+    | 'simulate-completion-timeout'
+    | 'resync-requested'
+  message: string
+  actionId?: string
+  widgetId?: string
+  action?: 'open' | 'close' | 'interact'
+  leaderSocketId?: string | null
+}
+
+type WidgetSimulationIntentBase = {
+  actionId: string
+  widgetId: string
+}
+
+type WidgetSimulationIntentSeedBase = {
+  widgetId: string
+}
+
+export type WidgetSimulationIntentSeed =
+  | (WidgetSimulationIntentSeedBase & { kind: 'gallery:next' })
+  | (WidgetSimulationIntentSeedBase & { kind: 'gallery:previous' })
+  | (WidgetSimulationIntentSeedBase & { kind: 'music:prev' })
+  | (WidgetSimulationIntentSeedBase & { kind: 'music:play-pause' })
+  | (WidgetSimulationIntentSeedBase & { kind: 'music:next' })
+  | (WidgetSimulationIntentSeedBase & { kind: 'sticky:set-color'; color: string })
+  | (WidgetSimulationIntentSeedBase & { kind: 'chat:add-message'; message: { user: string; text: string; color: string } })
+
+export type WidgetSimulationIntentPayload =
+  | (WidgetSimulationIntentBase & { kind: 'gallery:next' })
+  | (WidgetSimulationIntentBase & { kind: 'gallery:previous' })
+  | (WidgetSimulationIntentBase & { kind: 'music:prev' })
+  | (WidgetSimulationIntentBase & { kind: 'music:play-pause' })
+  | (WidgetSimulationIntentBase & { kind: 'music:next' })
+  | (WidgetSimulationIntentBase & { kind: 'sticky:set-color'; color: string })
+  | (WidgetSimulationIntentBase & { kind: 'chat:add-message'; message: { user: string; text: string; color: string } })
 
 export interface ObsStatusPayload {
   connected: boolean
@@ -151,13 +224,18 @@ export interface AmbianceDiagnosticsPayload {
   lastActionWidgetId: string | null
   lastAction: 'open' | 'close' | 'interact' | null
   inFlight: boolean
-  pendingPhase: 'awaiting-acceptance' | 'running' | null
+  pendingPhase: 'awaiting-acceptance' | 'awaiting-start' | 'running' | null
   pendingActionId: string | null
   leaderSocketId: string | null
   leaderClientKind: OverlayClientKind | null
   leaderClientPort: string | null
   leaderClientLabel: string | null
+  leaderReady: boolean
+  leaderLeaseDurationMs: number
+  leaderLeaseExpiresAt: number | null
+  leaderLastHeartbeatAt: number | null
   overlayClients: OverlayClientDiagnostics[]
+  history: AmbianceHistoryEntry[]
   openWidgetCount: number
   enabledWidgetCount: number
   maxOpenWidgets: number
@@ -210,6 +288,8 @@ export interface ServerToClientEvents {
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void
   'runtime:diagnostics': (payload: RuntimeDiagnosticsPayload) => void
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
+  'overlay:resync': (payload: { reason: string }) => void
+  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   'cursor:mirror': (payload: CursorMirrorPayload) => void
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
   'widget:toggle': (widgetId: string) => void
@@ -230,8 +310,14 @@ export interface ClientToServerEvents {
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   'ambiance:leader:request': (callback: (payload: { socketId: string | null }) => void) => void
+  'ambiance:leader:heartbeat': () => void
+  'ambiance:history:clear': () => void
+  'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void
+  'overlay:force-resync': (payload?: { reason?: string }) => void
   'ambiance:simulate:accepted': (payload: AmbianceSimulationAcceptedPayload) => void
+  'ambiance:simulate:started': (payload: AmbianceSimulationStartedPayload) => void
   'ambiance:simulate:done': (payload: AmbianceSimulationDonePayload) => void
+  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   'state:request': (callback: (state: STATE) => void) => void
   'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
   'widget:toggle': (widgetId: string) => void

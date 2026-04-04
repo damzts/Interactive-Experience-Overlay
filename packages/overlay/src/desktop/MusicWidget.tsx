@@ -1,5 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { DesktopWindow } from './DesktopWindow'
+import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
+
+const TRACKS = [
+  'lo-fi beats to stream to — track 01',
+  'night drive cassette — track 02',
+  'signal bloom — track 03',
+] as const
 
 /** Animated VU bar — 8 vertical bars that bounce independently */
 function VUBar() {
@@ -47,10 +54,38 @@ interface Props {
 
 export function MusicWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
   const [elapsed, setElapsed] = useState(0)
+  const [trackIndex, setTrackIndex] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(true)
 
   useEffect(() => {
+    if (!isPlaying) return
     const id = setInterval(() => setElapsed((e) => e + 1), 1000)
     return () => clearInterval(id)
+  }, [isPlaying])
+
+  const runTransportAction = (action: 'music:prev' | 'music:play-pause' | 'music:next') => {
+    if (action === 'music:play-pause') {
+      setIsPlaying((prev) => !prev)
+      return
+    }
+
+    setTrackIndex((prev) => {
+      if (action === 'music:prev') {
+        return (prev - 1 + TRACKS.length) % TRACKS.length
+      }
+      return (prev + 1) % TRACKS.length
+    })
+    setElapsed(0)
+    setIsPlaying(true)
+  }
+
+  useEffect(() => {
+    return addWidgetSimulationIntentListener((payload) => {
+      if (payload.widgetId !== 'music') return
+      if (payload.kind === 'music:prev' || payload.kind === 'music:play-pause' || payload.kind === 'music:next') {
+        runTransportAction(payload.kind)
+      }
+    })
   }, [])
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -75,15 +110,26 @@ export function MusicWidget({ onClose, onMinimize, onFocus, windowState = 'open'
         <div className="widget-stack">
           <div className="widget-panel widget-panel--display widget-panel--music-display">
             <div className="widget-led-copy">NOW PLAYING</div>
-            <TrackMarquee text="lo-fi beats to stream to — track 01" />
+            <TrackMarquee text={TRACKS[trackIndex]} />
             <div className="widget-meta-row">
               <span className="widget-led-accent">{fmt(elapsed)}</span>
               <VUBar />
             </div>
           </div>
           <div className="widget-toolbar widget-toolbar--music">
-            {[['|◀', 'music-prev'], ['■', 'music-stop'], ['▶', 'music-play'], ['▶|', 'music-next'], ['↺', 'music-loop']].map(([label, simAction], i) => (
-              <button key={i} data-sim-action={simAction} className="widget-toolbar-button">{label}</button>
+            {[['|◀', 'music-prev'], ['■', 'music-play'], ['▶', 'music-play'], ['▶|', 'music-next'], ['↺', 'music-loop']].map(([label, simAction], i) => (
+              <button
+                key={i}
+                data-sim-action={simAction}
+                className="widget-toolbar-button"
+                onClick={() => {
+                  if (simAction === 'music-prev') runTransportAction('music:prev')
+                  if (simAction === 'music-play') runTransportAction('music:play-pause')
+                  if (simAction === 'music-next') runTransportAction('music:next')
+                }}
+              >
+                {label}
+              </button>
             ))}
           </div>
           <div className="widget-input-row">

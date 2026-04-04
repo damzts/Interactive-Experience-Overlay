@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { useAppStore } from '../store/useAppStore'
+import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
 
 interface DesktopWidgetProps {
   appId?: string
@@ -99,6 +100,19 @@ export function GalleryWidget({ appId, onClose, onMinimize, onFocus, windowState
     }, ms)
     return () => window.clearInterval(timer)
   }, [assets.length, gallerySettings.autoPlay, gallerySettings.intervalSec, showNext])
+
+  useEffect(() => {
+    return addWidgetSimulationIntentListener((payload) => {
+      if (payload.widgetId !== (appId ?? 'gallery')) return
+      if (payload.kind === 'gallery:next') {
+        showNext()
+        return
+      }
+      if (payload.kind === 'gallery:previous') {
+        showPrevious()
+      }
+    })
+  }, [appId, showNext, showPrevious])
 
   return (
     <DesktopWindow

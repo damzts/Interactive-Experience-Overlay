@@ -3,6 +3,8 @@ import {
   STATE,
   withDesktopAmbianceDefaults,
   withDesktopConfigDefaults,
+  type AmbianceSimulationStartedPayload,
+  type AmbianceHistoryEntry,
   type TransitionStep,
   type TransitionPlayPayload,
   type DesktopNotificationPayload,
@@ -14,12 +16,14 @@ import {
   type AmbianceSimulationDonePayload,
   type OverlayClientDiagnostics,
   type OverlayClientKind,
+  type OverlayRuntimeStatusPayload,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type InterServerEvents,
   type SocketData,
   type KeybindExecutionPayload,
   type OverlayTriggerPayload,
+  type WidgetSimulationIntentPayload,
   type WidgetSimulationCommandPayload,
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
@@ -101,15 +105,22 @@ export function setupSocketHandlers(
     getObsStatus?: () => import('@ieom/shared').ObsStatusPayload
   },
 ) {
+  const LEADER_LEASE_DURATION_MS = 5000
+  const LEADER_LEASE_SWEEP_MS = 1000
+  const RUNTIME_DIAGNOSTICS_MIN_INTERVAL_MS = 1000
   const openWidgetIds = new Set<string>()
   const socketClientTypes = new Map<string, 'overlay' | 'admin' | 'unknown'>()
   const overlayClientDiagnostics = new Map<string, OverlayClientDiagnostics>()
   let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
   let startMenuState: { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } = { open: false, activeRoot: null }
   let simulationLeaderSocketId: string | null = null
+  let leaderLeaseExpiresAt: number | null = null
+  let leaderLastHeartbeatAt: number | null = null
   let acceptedSimulatedToggles = 0
   let rejectedSimulatedToggles = 0
   let runtimeDiagnosticsQueued = false
+  let runtimeDiagnosticsFlushTimer: ReturnType<typeof setTimeout> | null = null
+  let lastRuntimeDiagnosticsEmitAt = 0
 
   // Give managers access to live widget state
   ambianceManager.setOpenWidgetIdsGetter(() => openWidgetIds)
@@ -142,6 +153,16 @@ export function setupSocketHandlers(
     io.emit('ambiance:leader', { socketId: simulationLeaderSocketId })
   }
 
+  const updateLeaderLeaseDiagnostics = () => {
+    const leaderInfo = simulationLeaderSocketId ? overlayClientDiagnostics.get(simulationLeaderSocketId) : null
+    ambianceManager.setLeaderLeaseState({
+      ready: leaderInfo?.ready ?? false,
+      leaseDurationMs: LEADER_LEASE_DURATION_MS,
+      expiresAt: leaderLeaseExpiresAt,
+      lastHeartbeatAt: leaderLastHeartbeatAt,
+    })
+  }
+
   const emitSimulationMetrics = () => {
     io.emit('ambiance:metrics', {
       accepted: acceptedSimulatedToggles,
@@ -151,6 +172,11 @@ export function setupSocketHandlers(
 
   const emitRuntimeDiagnostics = () => {
     runtimeDiagnosticsQueued = false
+    if (runtimeDiagnosticsFlushTimer) {
+      clearTimeout(runtimeDiagnosticsFlushTimer)
+      runtimeDiagnosticsFlushTimer = null
+    }
+    lastRuntimeDiagnosticsEmitAt = Date.now()
     io.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
       ambiance: ambianceManager.getDiagnostics(),
@@ -160,9 +186,18 @@ export function setupSocketHandlers(
   const queueRuntimeDiagnosticsEmit = () => {
     if (runtimeDiagnosticsQueued) return
     runtimeDiagnosticsQueued = true
-    queueMicrotask(() => {
+    const flush = () => {
+      runtimeDiagnosticsFlushTimer = null
       emitRuntimeDiagnostics()
-    })
+    }
+
+    const waitMs = Math.max(0, RUNTIME_DIAGNOSTICS_MIN_INTERVAL_MS - (Date.now() - lastRuntimeDiagnosticsEmitAt))
+    if (waitMs === 0) {
+      queueMicrotask(flush)
+      return
+    }
+
+    runtimeDiagnosticsFlushTimer = setTimeout(flush, waitMs)
   }
 
   scheduler.setDiagnosticsListener(() => {
@@ -211,6 +246,12 @@ export function setupSocketHandlers(
       kind,
       port,
       label,
+      mounted: false,
+      cursorReady: false,
+      widgetRegistryReady: false,
+      ready: false,
+      readyAt: null,
+      lastHeartbeatAt: null,
     }
   }
 
@@ -222,42 +263,139 @@ export function setupSocketHandlers(
     return 0
   }
 
+  const isOverlayLeadershipReady = (client: OverlayClientDiagnostics | undefined | null) => !!client?.ready
+
+  const emitOverlayResync = (reason: string) => {
+    for (const candidate of io.sockets.sockets.values()) {
+      if (socketClientTypes.get(candidate.id) !== 'overlay') continue
+      candidate.emit('overlay:resync', { reason })
+    }
+    ambianceManager.recordHistory('resync-requested', `overlay resync requested: ${reason}`, {
+      leaderSocketId: simulationLeaderSocketId,
+    })
+  }
+
+  const refreshLeaderLease = (socketId: string) => {
+    if (!simulationLeaderSocketId || socketId !== simulationLeaderSocketId) return
+    const now = Date.now()
+    leaderLastHeartbeatAt = now
+    leaderLeaseExpiresAt = now + LEADER_LEASE_DURATION_MS
+    const leaderInfo = overlayClientDiagnostics.get(socketId)
+    if (leaderInfo) {
+      overlayClientDiagnostics.set(socketId, {
+        ...leaderInfo,
+        lastHeartbeatAt: now,
+      })
+    }
+    updateLeaderLeaseDiagnostics()
+    queueRuntimeDiagnosticsEmit()
+  }
+
+  const promoteSimulationLeader = (socketId: string, reason: string) => {
+    simulationLeaderSocketId = socketId
+    refreshLeaderLease(socketId)
+    emitSimulationLeader()
+    ambianceManager.recordHistory('leader-elected', reason, { leaderSocketId: socketId })
+    queueRuntimeDiagnosticsEmit()
+  }
+
   const isAmbianceLeaderEnabled = () => withDesktopAmbianceDefaults(getConfig().desktopAmbiance).widgetSimulation.enabled
 
-  const clearSimulationLeader = () => {
-    if (!simulationLeaderSocketId) return
-    ambianceManager.markSimulationCompleted()
+  const clearSimulationLeader = (
+    reason: string,
+    options?: {
+      expired?: boolean
+      resyncReason?: string
+    },
+  ) => {
+    if (!simulationLeaderSocketId) {
+      leaderLeaseExpiresAt = null
+      leaderLastHeartbeatAt = null
+      updateLeaderLeaseDiagnostics()
+      return
+    }
+    const previousLeaderSocketId = simulationLeaderSocketId
+    const shouldResync = !!options?.resyncReason || ambianceManager.isSimulationInFlight()
+    ambianceManager.markSimulationCompleted(undefined, undefined, { recordHistory: false })
     simulationLeaderSocketId = null
+    leaderLeaseExpiresAt = null
+    leaderLastHeartbeatAt = null
     emitSimulationLeader()
+    updateLeaderLeaseDiagnostics()
+    ambianceManager.recordHistory(options?.expired ? 'leader-expired' : 'leader-cleared', reason, {
+      leaderSocketId: previousLeaderSocketId,
+    })
+    if (shouldResync) {
+      emitOverlayResync(options?.resyncReason ?? 'leader-cleared')
+    }
     queueRuntimeDiagnosticsEmit()
   }
 
   const syncSimulationLeaderState = () => {
     if (!isAmbianceLeaderEnabled()) {
-      clearSimulationLeader()
+      clearSimulationLeader('ambiance disabled cleared simulation leader')
       return
     }
-    electSimulationLeaderIfNeeded()
+    electSimulationLeaderIfNeeded('sync')
   }
 
-  const electSimulationLeaderIfNeeded = () => {
+  const electSimulationLeaderIfNeeded = (reason: string) => {
     if (!isAmbianceLeaderEnabled()) {
-      clearSimulationLeader()
+      clearSimulationLeader('ambiance disabled cleared simulation leader')
       return
     }
+    const currentLeader = simulationLeaderSocketId ? overlayClientDiagnostics.get(simulationLeaderSocketId) : null
+    const readyCandidates = [...overlayClientDiagnostics.values()]
+      .filter((candidate) => isOverlayLeadershipReady(candidate))
+      .sort((left, right) => getOverlayLeaderRank(right) - getOverlayLeaderRank(left))[0]
+
     if (
       simulationLeaderSocketId
       && io.sockets.sockets.has(simulationLeaderSocketId)
       && socketClientTypes.get(simulationLeaderSocketId) === 'overlay'
+      && isOverlayLeadershipReady(currentLeader)
+      && leaderLeaseExpiresAt !== null
+      && leaderLeaseExpiresAt > Date.now()
     ) {
+      if (
+        readyCandidates
+        && readyCandidates.socketId !== simulationLeaderSocketId
+        && getOverlayLeaderRank(readyCandidates) > getOverlayLeaderRank(currentLeader ?? undefined)
+        && !ambianceManager.isSimulationInFlight()
+      ) {
+        promoteSimulationLeader(readyCandidates.socketId, `higher-ranked overlay promoted leader (${reason})`)
+      }
       return
     }
-    const nextLeader = [...overlayClientDiagnostics.values()]
-      .sort((left, right) => getOverlayLeaderRank(right) - getOverlayLeaderRank(left))[0]
-    simulationLeaderSocketId = nextLeader?.socketId ?? null
-    emitSimulationLeader()
-    queueRuntimeDiagnosticsEmit()
+
+    if (!readyCandidates) {
+      clearSimulationLeader('no ready overlay leader is available')
+      return
+    }
+
+    if (readyCandidates.socketId !== simulationLeaderSocketId) {
+      promoteSimulationLeader(readyCandidates.socketId, `ready overlay elected leader (${reason})`)
+      return
+    }
+
+    refreshLeaderLease(readyCandidates.socketId)
   }
+
+  updateLeaderLeaseDiagnostics()
+
+  setInterval(() => {
+    if (!simulationLeaderSocketId || leaderLeaseExpiresAt === null) {
+      return
+    }
+    if (leaderLeaseExpiresAt > Date.now()) {
+      return
+    }
+    clearSimulationLeader('leader lease expired before disconnect', {
+      expired: true,
+      resyncReason: 'leader-lease-expired',
+    })
+    electSimulationLeaderIfNeeded('lease-expired')
+  }, LEADER_LEASE_SWEEP_MS)
 
   const triggerConfiguredEvent = (eventId: string): { ok: boolean; error?: string } => {
     const normalized = normalizeActionId(eventId)
@@ -416,16 +554,10 @@ export function setupSocketHandlers(
     }
     console.log(`[socket] connected: ${socket.id}`)
 
-    const currentLeaderInfo = simulationLeaderSocketId ? overlayClientDiagnostics.get(simulationLeaderSocketId) : undefined
-    const shouldPromoteOverlayLeader = clientType === 'overlay'
-      && getOverlayLeaderRank(overlayInfo ?? undefined) > getOverlayLeaderRank(currentLeaderInfo)
-    if (clientType === 'overlay' && isAmbianceLeaderEnabled() && (!simulationLeaderSocketId || shouldPromoteOverlayLeader)) {
-      simulationLeaderSocketId = socket.id
-      emitSimulationLeader()
-      queueRuntimeDiagnosticsEmit()
-    } else {
-      socket.emit('ambiance:leader', { socketId: simulationLeaderSocketId })
+    if (clientType === 'overlay') {
+      electSimulationLeaderIfNeeded('connect')
     }
+    socket.emit('ambiance:leader', { socketId: simulationLeaderSocketId })
     socket.emit('ambiance:metrics', {
       accepted: acceptedSimulatedToggles,
       rejected: rejectedSimulatedToggles,
@@ -444,6 +576,60 @@ export function setupSocketHandlers(
 
     socket.on('ambiance:leader:request', (callback) => {
       callback({ socketId: simulationLeaderSocketId })
+    })
+
+    socket.on('ambiance:leader:heartbeat', () => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      refreshLeaderLease(socket.id)
+    })
+
+    socket.on('ambiance:history:clear', () => {
+      if (socketClientTypes.get(socket.id) !== 'admin') {
+        return
+      }
+      ambianceManager.clearHistory()
+      queueRuntimeDiagnosticsEmit()
+    })
+
+    socket.on('overlay:runtime:status', (payload: OverlayRuntimeStatusPayload) => {
+      if (socketClientTypes.get(socket.id) !== 'overlay') {
+        return
+      }
+      const current = overlayClientDiagnostics.get(socket.id)
+      if (!current) {
+        return
+      }
+      overlayClientDiagnostics.set(socket.id, {
+        ...current,
+        mounted: payload.mounted,
+        cursorReady: payload.cursorReady,
+        widgetRegistryReady: payload.widgetRegistryReady,
+        ready: payload.ready,
+        readyAt: payload.ready ? current.readyAt ?? Date.now() : null,
+      })
+
+      if (socket.id === simulationLeaderSocketId) {
+        if (payload.ready) {
+          refreshLeaderLease(socket.id)
+        } else {
+          clearSimulationLeader('leader reported not ready', {
+            resyncReason: 'leader-not-ready',
+          })
+        }
+      }
+
+      electSimulationLeaderIfNeeded('runtime-status')
+      queueRuntimeDiagnosticsEmit()
+    })
+
+    socket.on('overlay:force-resync', (payload?: { reason?: string }) => {
+      if (socketClientTypes.get(socket.id) !== 'admin') {
+        return
+      }
+      emitOverlayResync(payload?.reason?.trim() || 'admin-force-resync')
+      queueRuntimeDiagnosticsEmit()
     })
 
     socket.on('desktop:state:request', (callback) => {
@@ -546,14 +732,28 @@ export function setupSocketHandlers(
       ambianceManager.markSimulationAccepted(payload.actionId)
     })
 
+    socket.on('ambiance:simulate:started', (payload: AmbianceSimulationStartedPayload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      ambianceManager.markSimulationStarted(payload.actionId)
+    })
+
     socket.on('ambiance:simulate:done', (payload: AmbianceSimulationDonePayload) => {
       if (socket.id !== simulationLeaderSocketId) {
         return
       }
-      ambianceManager.markSimulationCompleted(payload.actionId)
+      ambianceManager.markSimulationCompleted(payload.actionId, payload)
       if (!payload.ok) {
         console.warn(`[ambiance] Simulation reported failure for ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
       }
+    })
+
+    socket.on('widget:simulate:intent', (payload: WidgetSimulationIntentPayload) => {
+      if (socket.id !== simulationLeaderSocketId) {
+        return
+      }
+      io.emit('widget:simulate:intent', payload)
     })
 
     socket.on('cursor:mirror', (payload) => {
@@ -622,10 +822,12 @@ export function setupSocketHandlers(
       socketClientTypes.delete(socket.id)
       overlayClientDiagnostics.delete(socket.id)
       if (socket.id === simulationLeaderSocketId) {
-        ambianceManager.markSimulationCompleted()
-        simulationLeaderSocketId = null
+        clearSimulationLeader('leader disconnected', {
+          resyncReason: 'leader-disconnected',
+        })
         syncSimulationLeaderState()
       } else {
+        electSimulationLeaderIfNeeded('disconnect')
         queueRuntimeDiagnosticsEmit()
       }
     })

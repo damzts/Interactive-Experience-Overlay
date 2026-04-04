@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
 import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'
-import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayStyle } from '@ieom/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload, OverlayStyle } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
@@ -11,10 +11,9 @@ import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
 import { patchApplicationConfig, patchDesktopConfig, replaceConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
-import { CursorSimExample } from './CursorSimExample'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
-import { getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
+import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
 import { DesktopWidgetProps, getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration } from './widgetRegistry'
 import React from 'react';
 
@@ -381,6 +380,12 @@ export function Desktop({ apps }: DesktopProps) {
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [draggingId, setDraggingId]       = useState<string | null>(null)
   const [simulationLeaderId, setSimulationLeaderId] = useState<string | null>(null)
+  const [overlayRuntimeStatus, setOverlayRuntimeStatus] = useState<OverlayRuntimeStatusPayload>({
+    mounted: false,
+    cursorReady: false,
+    widgetRegistryReady: false,
+    ready: false,
+  })
 
   const openWidgets = useAppStore((s) => s.openWidgets)
   const closingWidgets = useAppStore((s) => s.closingWidgets)
@@ -405,6 +410,7 @@ export function Desktop({ apps }: DesktopProps) {
     rafId: null,
     pending: null,
   })
+  const overlayRuntimeStatusSignatureRef = useRef('')
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
@@ -414,14 +420,59 @@ export function Desktop({ apps }: DesktopProps) {
   const supportedApps = useMemo(() => apps, [apps])
 
   const isSimulationLeader = simulationLeaderId !== null && simulationLeaderId === socket.id;
-  const isEmbeddedPreview = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.self !== window.top;
-    } catch {
-      return true;
+  const overlayRuntimeReady = overlayRuntimeStatus.ready
+
+  useEffect(() => {
+    const emitRuntimeStatus = (force = false) => {
+      const nextStatus: OverlayRuntimeStatusPayload = {
+        mounted: true,
+        cursorReady: !!(window as any).__cursorOverlayController,
+        widgetRegistryReady: supportedApps.length > 0,
+        ready: !!(window as any).__cursorOverlayController && supportedApps.length > 0,
+      }
+      const signature = JSON.stringify(nextStatus)
+      if (force || overlayRuntimeStatusSignatureRef.current !== signature) {
+        overlayRuntimeStatusSignatureRef.current = signature
+        setOverlayRuntimeStatus(nextStatus)
+        socket.emit('overlay:runtime:status', nextStatus)
+      }
     }
-  }, []);
+
+    const onConnect = () => emitRuntimeStatus(true)
+
+    socket.on('connect', onConnect)
+    emitRuntimeStatus(true)
+
+    if (overlayRuntimeReady) {
+      return () => {
+        socket.off('connect', onConnect)
+      }
+    }
+
+    const timer = window.setInterval(emitRuntimeStatus, 1000)
+
+    return () => {
+      window.clearInterval(timer)
+      socket.off('connect', onConnect)
+    }
+  }, [overlayRuntimeReady, supportedApps])
+
+  useEffect(() => {
+    if (!isSimulationLeader || !overlayRuntimeReady) return
+
+    const emitHeartbeat = () => {
+      socket.emit('ambiance:leader:heartbeat')
+    }
+
+    emitHeartbeat()
+    const timer = window.setInterval(emitHeartbeat, 2000)
+    socket.on('connect', emitHeartbeat)
+
+    return () => {
+      window.clearInterval(timer)
+      socket.off('connect', emitHeartbeat)
+    }
+  }, [isSimulationLeader, overlayRuntimeReady])
 
   useEffect(() => {
     const onLeader = (payload: { socketId: string | null }) => {
@@ -495,7 +546,7 @@ export function Desktop({ apps }: DesktopProps) {
   }, [])
 
   useEffect(() => {
-    if (!isSimulationLeader) return;
+    if (!isSimulationLeader || !overlayRuntimeReady) return;
 
     const runAmbianceSimulation = async (payload: AmbianceSimulationPayload) => {
       const startedAt = Date.now();
@@ -506,6 +557,13 @@ export function Desktop({ apps }: DesktopProps) {
 
         const app = supportedApps.find((candidate) => candidate.id === payload.widgetId && candidate.appType === 'widget');
         if (!app) return;
+
+        socket.emit('ambiance:simulate:started', {
+          actionId: payload.actionId,
+          widgetId: payload.widgetId,
+          action: payload.action,
+          startedAt,
+        })
 
         if (payload.action === 'close') {
           simEmittingRef.current = true;
@@ -566,6 +624,25 @@ export function Desktop({ apps }: DesktopProps) {
         }
 
         const recipe = getWidgetSimulationRecipe(app);
+
+        if (payload.sharedIntent && payload.mirrorPolicy === 'shared-safe') {
+          const sharedStep = getWidgetInteractionStepForIntent(app, payload.sharedIntent)
+          if (!sharedStep) {
+            return
+          }
+
+          await interactWithWidgetByRecipe(cursor, app.id, sharedStep.selectors, {
+            moveMinMs: sharedStep.moveMinMs,
+            moveMaxMs: sharedStep.moveMaxMs,
+            postDelayMinMs: sharedStep.postDelayMinMs,
+            postDelayMaxMs: sharedStep.postDelayMaxMs,
+            performNativeClick: false,
+          })
+          socket.emit('widget:simulate:intent', payload.sharedIntent)
+          ok = true
+          return
+        }
+
         const step = pickWidgetInteractionStep(recipe);
         if (!step) {
           ok = true;
@@ -639,7 +716,7 @@ export function Desktop({ apps }: DesktopProps) {
         cursor.setVisible(false);
       }
     };
-  }, [emitStartMenuState, isSimulationLeader, supportedApps]);
+  }, [emitStartMenuState, isSimulationLeader, overlayRuntimeReady, supportedApps]);
 
   const themeStyle = useMemo(
     () => ({
@@ -1293,7 +1370,6 @@ export function Desktop({ apps }: DesktopProps) {
 
   return (
     <CursorOverlayProvider>
-      <CursorSimExample />
       <div
         ref={desktopRef}
         className={`desktop ${THEME_CLASSNAME[desktopConfig.theme]} ${widgetThemeClassNames}`}

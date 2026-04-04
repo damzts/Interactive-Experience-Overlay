@@ -11,6 +11,7 @@ import {
   type ObsStatusPayload,
   type EffectConfig,
   type TransitionPlayPayload,
+  type WidgetSimulationIntentPayload,
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 import { socket } from './client'
@@ -19,6 +20,7 @@ import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
 import { runWidgetCursorSimulation } from '../desktop/cursorSimUtils'
+import { dispatchWidgetSimulationIntent } from '../desktop/widgetSimulationEvents'
 
 const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngine.play>[0]>> = {
   'death-overlay':    'death',
@@ -63,8 +65,7 @@ export function useSocket() {
       reactiveTimer.current = setTimeout(() => setReactiveIconId(null), 720)
     }
 
-    // Called on initial connect AND every reconnect — keeps state in sync after drops
-    const onConnect = () => {
+    const requestRuntimeSnapshot = () => {
       socket.emit('state:request', (serverState: STATE) => {
         setVisualState(serverState as Exclude<STATE, typeof STATE.TRANSITIONING>)
         pulseReactiveIcon(serverState)
@@ -73,6 +74,11 @@ export function useSocket() {
         syncDesktopRuntimeState(payload)
       })
       fetch('/api/config').then((r) => r.json()).then(setConfig).catch(() => {})
+    }
+
+    // Called on initial connect AND every reconnect — keeps state in sync after drops
+    const onConnect = () => {
+      requestRuntimeSnapshot()
     }
 
     // Fire immediately if already connected (page load), else wait for connect event
@@ -202,6 +208,14 @@ export function useSocket() {
       })
     }
 
+    const onOverlayResync = () => {
+      requestRuntimeSnapshot()
+    }
+
+    const onWidgetSimulationIntent = (payload: WidgetSimulationIntentPayload) => {
+      dispatchWidgetSimulationIntent(payload)
+    }
+
     const onAny = () => {
       markSocketActivity()
     }
@@ -215,6 +229,8 @@ export function useSocket() {
     socket.on('widget:toggle', onWidgetToggle)
     socket.on('desktop:notify', onDesktopNotify)
     socket.on('desktop:recycle-bin', onDesktopRecycleBin)
+    socket.on('overlay:resync', onOverlayResync)
+    socket.on('widget:simulate:intent', onWidgetSimulationIntent)
     socket.on('cursor:mirror', onCursorMirror)
     socket.on('cursor:mirror:menu-timeline', onMirrorMenuTimeline)
     socket.onAny(onAny)
@@ -231,6 +247,8 @@ export function useSocket() {
       socket.off('widget:toggle', onWidgetToggle)
       socket.off('desktop:notify', onDesktopNotify)
       socket.off('desktop:recycle-bin', onDesktopRecycleBin)
+      socket.off('overlay:resync', onOverlayResync)
+      socket.off('widget:simulate:intent', onWidgetSimulationIntent)
       socket.off('cursor:mirror', onCursorMirror)
       socket.off('cursor:mirror:menu-timeline', onMirrorMenuTimeline)
       socket.offAny(onAny)

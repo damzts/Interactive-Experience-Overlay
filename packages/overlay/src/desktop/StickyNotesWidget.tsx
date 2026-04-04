@@ -3,6 +3,7 @@ import { DEFAULT_STICKY_NOTES_SETTINGS } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
 import { patchApplicationConfig } from './configPersistence'
+import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
 
 const NOTE_COLORS = ['#fff2a8', '#ffd3e0', '#d8f8d0', '#cde8ff']
 
@@ -16,6 +17,7 @@ function saveStickyNote(appId: string, text: string, color: string) {
 }
 
 interface StickyNotesWidgetProps {
+  appId?: string
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void
@@ -43,6 +45,13 @@ export function StickyNotesWidget({
     setText(noteConfig.text)
     setColor(noteConfig.color)
   }, [noteConfig])
+
+  useEffect(() => {
+    return addWidgetSimulationIntentListener((payload) => {
+      if (payload.widgetId !== appId || payload.kind !== 'sticky:set-color') return
+      setColor(payload.color)
+    })
+  }, [appId])
 
   const scheduleSave = (nextText: string, nextColor: string) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
