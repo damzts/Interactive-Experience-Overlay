@@ -1179,6 +1179,120 @@ export function withDesktopAmbianceDefaults(config?: Partial<DesktopAmbianceConf
   }
 }
 
+export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): AppConfig {
+  const currentDesktopConfig = withDesktopConfigDefaults(base.desktopConfig)
+  const currentDesktopAmbiance = withDesktopAmbianceDefaults(base.desktopAmbiance)
+  const nextDesktopConfig = updates.desktopConfig
+    ? {
+        ...currentDesktopConfig,
+        ...updates.desktopConfig,
+        widgetTheme: updates.desktopConfig.widgetTheme
+          ? { ...currentDesktopConfig.widgetTheme, ...updates.desktopConfig.widgetTheme }
+          : currentDesktopConfig.widgetTheme,
+        globalThemeDefault: updates.desktopConfig.globalThemeDefault
+          ? {
+              ...currentDesktopConfig.globalThemeDefault,
+              ...updates.desktopConfig.globalThemeDefault,
+              widgetTheme: updates.desktopConfig.globalThemeDefault.widgetTheme
+                ? {
+                    ...currentDesktopConfig.globalThemeDefault.widgetTheme,
+                    ...updates.desktopConfig.globalThemeDefault.widgetTheme,
+                  }
+                : currentDesktopConfig.globalThemeDefault.widgetTheme,
+              appearance: updates.desktopConfig.globalThemeDefault.appearance
+                ? {
+                    ...currentDesktopConfig.globalThemeDefault.appearance,
+                    ...updates.desktopConfig.globalThemeDefault.appearance,
+                  }
+                : currentDesktopConfig.globalThemeDefault.appearance,
+            }
+          : currentDesktopConfig.globalThemeDefault,
+        widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides
+          ? {
+              ...(currentDesktopConfig.widgetThemeOverrides ?? {}),
+              ...updates.desktopConfig.widgetThemeOverrides,
+            }
+          : currentDesktopConfig.widgetThemeOverrides,
+        widgetPositions: updates.desktopConfig.widgetPositions
+          ? { ...(currentDesktopConfig.widgetPositions ?? {}), ...updates.desktopConfig.widgetPositions }
+          : currentDesktopConfig.widgetPositions,
+        widgetSizes: updates.desktopConfig.widgetSizes
+          ? { ...(currentDesktopConfig.widgetSizes ?? {}), ...updates.desktopConfig.widgetSizes }
+          : currentDesktopConfig.widgetSizes,
+        widgetDefaultZIndices: updates.desktopConfig.widgetDefaultZIndices
+          ? { ...(currentDesktopConfig.widgetDefaultZIndices ?? {}), ...updates.desktopConfig.widgetDefaultZIndices }
+          : currentDesktopConfig.widgetDefaultZIndices,
+        widgetZIndices: updates.desktopConfig.widgetZIndices
+          ? { ...(currentDesktopConfig.widgetZIndices ?? {}), ...updates.desktopConfig.widgetZIndices }
+          : currentDesktopConfig.widgetZIndices,
+        recycleBin: updates.desktopConfig.recycleBin
+          ? { ...currentDesktopConfig.recycleBin, ...updates.desktopConfig.recycleBin }
+          : currentDesktopConfig.recycleBin,
+        screenSaver: updates.desktopConfig.screenSaver
+          ? { ...currentDesktopConfig.screenSaver, ...updates.desktopConfig.screenSaver }
+          : currentDesktopConfig.screenSaver,
+        systemSounds: updates.desktopConfig.systemSounds
+          ? { ...currentDesktopConfig.systemSounds, ...updates.desktopConfig.systemSounds }
+          : currentDesktopConfig.systemSounds,
+      }
+    : currentDesktopConfig
+
+  const nextOverlayStyle = updates.overlayStyle
+    ? {
+        ...base.overlayStyle,
+        ...updates.overlayStyle,
+        background: updates.overlayStyle.background
+          ? { ...base.overlayStyle.background, ...updates.overlayStyle.background }
+          : base.overlayStyle.background,
+        effects: updates.overlayStyle.effects
+          ? { ...base.overlayStyle.effects, ...updates.overlayStyle.effects }
+          : base.overlayStyle.effects,
+        particles: updates.overlayStyle.particles
+          ? { ...base.overlayStyle.particles, ...updates.overlayStyle.particles }
+          : base.overlayStyle.particles,
+      }
+    : base.overlayStyle
+
+  return {
+    ...base,
+    ...updates,
+    scenes: updates.scenes ? { ...base.scenes, ...updates.scenes } : base.scenes,
+    applications: updates.applications ?? base.applications,
+    keybinds: updates.keybinds
+      ? {
+          ...base.keybinds,
+          ...updates.keybinds,
+          obs: updates.keybinds.obs ? { ...base.keybinds.obs, ...updates.keybinds.obs } : base.keybinds.obs,
+          admin: updates.keybinds.admin ? { ...base.keybinds.admin, ...updates.keybinds.admin } : base.keybinds.admin,
+        }
+      : base.keybinds,
+    obs: updates.obs ? { ...base.obs, ...updates.obs } : base.obs,
+    audio: updates.audio ? { ...base.audio, ...updates.audio } : base.audio,
+    overlayStyle: nextOverlayStyle,
+    desktopConfig: nextDesktopConfig,
+    desktopAmbiance: updates.desktopAmbiance
+      ? {
+          ...currentDesktopAmbiance,
+          ...updates.desktopAmbiance,
+          widgetSimulation: updates.desktopAmbiance.widgetSimulation
+            ? {
+                ...currentDesktopAmbiance.widgetSimulation,
+                ...updates.desktopAmbiance.widgetSimulation,
+                behaviors: updates.desktopAmbiance.widgetSimulation.behaviors
+                  ? {
+                      ...currentDesktopAmbiance.widgetSimulation.behaviors,
+                      ...updates.desktopAmbiance.widgetSimulation.behaviors,
+                    }
+                  : currentDesktopAmbiance.widgetSimulation.behaviors,
+              }
+            : currentDesktopAmbiance.widgetSimulation,
+        }
+      : currentDesktopAmbiance,
+    events: updates.events ?? base.events,
+    mediaLibrary: updates.mediaLibrary ?? base.mediaLibrary,
+  }
+}
+
 export const DEFAULT_CONFIG: AppConfig = {
   scenes: {
     LOBBY: {

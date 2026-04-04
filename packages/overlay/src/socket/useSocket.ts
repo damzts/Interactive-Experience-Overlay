@@ -33,6 +33,7 @@ export function useSocket() {
   const setPendingVisualState = useAppStore((s) => s.setPendingVisualState)
   const setPendingTransition = useAppStore((s) => s.setPendingTransition)
   const setConfig = useAppStore((s) => s.setConfig)
+  const patchConfig = useAppStore((s) => s.patchConfig)
   const setObsConnected = useAppStore((s) => s.setObsConnected)
   const enqueueDesktopNotification = useAppStore((s) => s.enqueueDesktopNotification)
   const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
@@ -120,6 +121,10 @@ export function useSocket() {
       setConfig(config)
     }
 
+    const onConfigPatch = (updates: Partial<AppConfig>) => {
+      patchConfig(updates)
+    }
+
     const onObsStatus = (payload: { connected: boolean }) => {
       setObsConnected(payload.connected)
     }
@@ -203,6 +208,7 @@ export function useSocket() {
     socket.on('transition:play', onTransitionPlay)
     socket.on('overlay:show', onOverlayShow)
     socket.on('config:update', onConfigUpdate)
+    socket.on('config:patch', onConfigPatch)
     socket.on('obs:status', onObsStatus)
     socket.on('widget:toggle', onWidgetToggle)
     socket.on('desktop:notify', onDesktopNotify)
@@ -218,6 +224,7 @@ export function useSocket() {
       socket.off('transition:play', onTransitionPlay)
       socket.off('overlay:show', onOverlayShow)
       socket.off('config:update', onConfigUpdate)
+      socket.off('config:patch', onConfigPatch)
       socket.off('obs:status', onObsStatus)
       socket.off('widget:toggle', onWidgetToggle)
       socket.off('desktop:notify', onDesktopNotify)

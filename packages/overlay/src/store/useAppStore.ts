@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { STATE, DEFAULT_CONFIG, DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE } from '@ieom/shared'
+import { STATE, DEFAULT_CONFIG, DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE, mergeAppConfig } from '@ieom/shared'
 import type {
   AppConfig,
   DesktopNotificationPayload,
@@ -46,6 +46,8 @@ interface AppStore {
   pendingVisualState: VisualState | null
   pendingTransition: PendingTransition | null
   config: AppConfig
+  previewBaseConfig: AppConfig | null
+  previewConfigPatch: Partial<AppConfig> | null
   configLoaded: boolean
   obsConnected: boolean
   openWidgets: Set<string>
@@ -62,6 +64,9 @@ interface AppStore {
   setPendingTransition: (t: PendingTransition) => void
   clearPendingTransition: () => void
   setConfig: (c: AppConfig) => void
+  patchConfig: (updates: Partial<AppConfig>) => void
+  applyPreviewConfig: (updates: Partial<AppConfig>) => void
+  clearPreviewConfig: () => void
   setObsConnected: (b: boolean) => void
   openWidget: (id: string) => void
   closeWidget: (id: string) => void
@@ -82,6 +87,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   pendingVisualState: null,
   pendingTransition: null,
   config: DEFAULT_CONFIG,
+  previewBaseConfig: null,
+  previewConfigPatch: null,
   configLoaded: false,
   obsConnected: false,
   openWidgets: new Set<string>(),
@@ -97,7 +104,50 @@ export const useAppStore = create<AppStore>((set, get) => ({
   clearPendingVisualState: () => set({ pendingVisualState: null }),
   setPendingTransition: (t) => set({ pendingTransition: t }),
   clearPendingTransition: () => set({ pendingTransition: null }),
-  setConfig: (c) => set({ config: c, configLoaded: true }),
+  setConfig: (c) => set((state) => {
+    if (!state.previewConfigPatch) {
+      return { config: c, configLoaded: true }
+    }
+
+    return {
+      config: mergeAppConfig(c, state.previewConfigPatch),
+      previewBaseConfig: c,
+      configLoaded: true,
+    }
+  }),
+  patchConfig: (updates) => set((state) => {
+    const nextBaseConfig = mergeAppConfig(state.previewBaseConfig ?? state.config, updates)
+    if (!state.previewConfigPatch) {
+      return { config: nextBaseConfig, configLoaded: true }
+    }
+
+    return {
+      config: mergeAppConfig(nextBaseConfig, state.previewConfigPatch),
+      previewBaseConfig: nextBaseConfig,
+      configLoaded: true,
+    }
+  }),
+  applyPreviewConfig: (updates) => set((state) => {
+    const previewBaseConfig = state.previewBaseConfig ?? state.config
+    return {
+      previewBaseConfig,
+      previewConfigPatch: updates,
+      config: mergeAppConfig(previewBaseConfig, updates),
+      configLoaded: true,
+    }
+  }),
+  clearPreviewConfig: () => set((state) => {
+    if (!state.previewBaseConfig) {
+      return { previewConfigPatch: null }
+    }
+
+    return {
+      config: state.previewBaseConfig,
+      previewBaseConfig: null,
+      previewConfigPatch: null,
+      configLoaded: true,
+    }
+  }),
   setObsConnected: (b) => set({ obsConnected: b }),
   openWidget: (id) => {
     clearWidgetCloseTimer(id)

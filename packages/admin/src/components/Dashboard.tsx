@@ -18,7 +18,7 @@ import {
 } from '@ieom/shared'
 import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
-  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance,
+  Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance, AppConfig,
   DesktopNotificationEffectConfig, EffectType, EffectConfig, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
   RecycleBinSettings, StickyNotesSettings, WidgetComponentType, WidgetThemeConfig, ApplicationDefaultSnapshot, SceneDefaultSnapshot,
 } from '@ieom/shared'
@@ -130,6 +130,21 @@ function clone<T>(value: T): T {
   return structuredClone(value)
 }
 
+const CONFIG_PREVIEW_MESSAGE_TYPE = 'ieom:config-preview'
+
+function postPreviewConfigPatch(patch: Partial<AppConfig> | null) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  const previewFrame = document.querySelector('iframe[title="Overlay Preview"]') as HTMLIFrameElement | null
+  if (!previewFrame?.contentWindow) return
+
+  previewFrame.contentWindow.postMessage(
+    patch
+      ? { type: CONFIG_PREVIEW_MESSAGE_TYPE, patch }
+      : { type: CONFIG_PREVIEW_MESSAGE_TYPE, clear: true },
+    '*',
+  )
+}
+
 function clampWidgetDimension(value: number, min: number, max: number, fallback: number) {
   if (!Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(min, Math.round(value)))
@@ -164,8 +179,7 @@ function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'id'>, desk
   return override ? structuredClone(override) : null
 }
 
-function buildApplicationDefaultSnapshot(app: Application, desktopConfig: DesktopConfig): ApplicationDefaultSnapshot {
-  const source = DEFAULT_CONFIG.applications.find((entry) => entry.id === app.id) ?? app
+function createApplicationSnapshot(source: Application, desktopConfig: DesktopConfig): ApplicationDefaultSnapshot {
   return {
     id: source.id,
     label: source.label,
@@ -197,23 +211,32 @@ function buildApplicationDefaultSnapshot(app: Application, desktopConfig: Deskto
   }
 }
 
+function buildApplicationDefaultSnapshot(app: Application, desktopConfig: DesktopConfig): ApplicationDefaultSnapshot {
+  const source = DEFAULT_CONFIG.applications.find((entry) => entry.id === app.id) ?? app
+  return createApplicationSnapshot(source, desktopConfig)
+}
+
 function resolveApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
   const sourceDesktopConfig = withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig)
   return app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app, sourceDesktopConfig)
 }
 
+function createSceneSnapshot(scene: Scene): SceneDefaultSnapshot {
+  return {
+    label: scene.label,
+    backgroundOpaque: scene.backgroundOpaque,
+    sources: clone(scene.sources ?? []),
+    style: scene.style ? clone(scene.style) : undefined,
+    lobbyConfig: scene.lobbyConfig ? clone(scene.lobbyConfig) : undefined,
+    introTransitions: scene.introTransitions ? clone(scene.introTransitions) : undefined,
+    exitTransitions: scene.exitTransitions ? clone(scene.exitTransitions) : undefined,
+    musicTrack: scene.musicTrack,
+  }
+}
+
 function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): SceneDefaultSnapshot {
   const source = DEFAULT_CONFIG.scenes[sceneId] ?? scene
-  return {
-    label: source.label,
-    backgroundOpaque: source.backgroundOpaque,
-    sources: clone(source.sources ?? []),
-    style: source.style ? clone(source.style) : undefined,
-    lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
-    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
-    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
-    musicTrack: source.musicTrack,
-  }
+  return createSceneSnapshot(source)
 }
 
 function resolveSceneDefaultSnapshot(sceneId: string, scene: Scene): SceneDefaultSnapshot {
@@ -897,7 +920,7 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
   const [showCatalog, setShowCatalog] = useState(false)
 
   const save = (next: SourceInstance[]) =>
-    saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...config.scenes[sceneId], sources: next } } })
+    saveConfig({ scenes: { [sceneId]: { ...config.scenes[sceneId], sources: next } } })
 
   const toggle   = (id: string) => save(sources.map((s) => s.id === id ? { ...s, visible: !s.visible } : s))
   const remove   = (id: string) => { save(sources.filter((s) => s.id !== id)); if (expanded === id) setExpanded(null) }
@@ -1339,7 +1362,7 @@ function StyleEditor({ sceneId }: { sceneId: string }) {
     if (!dirty) return
     setSaving(true)
     const scene = config.scenes[sceneId]
-    await saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...scene, style } } })
+    await saveConfig({ scenes: { [sceneId]: { ...scene, style } } })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
@@ -1625,7 +1648,6 @@ function LobbyConfigEditor() {
     setSaving(true)
     await saveConfig({
       scenes: {
-        ...config.scenes,
         [STATE.LOBBY]: {
           ...config.scenes[STATE.LOBBY],
           lobbyConfig: form,
@@ -1776,7 +1798,6 @@ function DesktopConfigEditor() {
     await saveConfig({
       desktopConfig: form,
       scenes: {
-        ...config.scenes,
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
           introTransitions: introTransitions.length ? introTransitions : undefined,
@@ -1932,11 +1953,29 @@ function DefaultStylingEditor() {
   const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const liveApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dirty = theme !== sourceDesktopConfig.theme
     || !isSameDraft(appearance, sourceAppearance)
     || !isSameDraft(widgetTheme, sourceDesktopConfig.widgetTheme)
+  const previewPatch = useMemo<Partial<AppConfig>>(() => {
+    const nextDesktopStyle = structuredClone(sourceStyle)
+    nextDesktopStyle.fontFamily = appearance.fontFamily
+    nextDesktopStyle.accentColor = appearance.accentColor
+    nextDesktopStyle.textColor = appearance.textColor
+
+    return {
+      desktopConfig: {
+        theme,
+        widgetTheme,
+      },
+      scenes: {
+        [STATE.DESKTOP]: {
+          ...config.scenes[STATE.DESKTOP],
+          style: nextDesktopStyle,
+        },
+      },
+    }
+  }, [appearance, config.scenes, sourceStyle, theme, widgetTheme])
 
   useEffect(() => {
     setTheme(sourceDesktopConfig.theme)
@@ -1956,12 +1995,10 @@ function DefaultStylingEditor() {
 
     await saveConfig({
       desktopConfig: {
-        ...sourceDesktopConfig,
         theme,
         widgetTheme,
       },
       scenes: {
-        ...config.scenes,
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
           style: nextDesktopStyle,
@@ -1991,12 +2028,10 @@ function DefaultStylingEditor() {
 
     await saveConfig({
       desktopConfig: {
-        ...sourceDesktopConfig,
         theme: sourceThemeDefault.theme,
         widgetTheme: structuredClone(sourceThemeDefault.widgetTheme),
       },
       scenes: {
-        ...config.scenes,
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
           style: nextDesktopStyle,
@@ -2013,20 +2048,12 @@ function DefaultStylingEditor() {
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
     if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
-    if (liveApplyTimer.current) clearTimeout(liveApplyTimer.current)
+    postPreviewConfigPatch(null)
   }, [])
 
   useEffect(() => {
-    if (!dirty || saving) return
-    if (liveApplyTimer.current) clearTimeout(liveApplyTimer.current)
-    liveApplyTimer.current = setTimeout(() => {
-      void apply()
-    }, 180)
-
-    return () => {
-      if (liveApplyTimer.current) clearTimeout(liveApplyTimer.current)
-    }
-  }, [apply, dirty, saving])
+    postPreviewConfigPatch(dirty ? previewPatch : null)
+  }, [dirty, previewPatch])
 
   const saveCurrentAsDefault = useCallback(async () => {
     if (!saveDefaultArmed) {
@@ -2045,9 +2072,6 @@ function DefaultStylingEditor() {
 
     await saveConfig({
       desktopConfig: {
-        ...sourceDesktopConfig,
-        theme,
-        widgetTheme: structuredClone(widgetTheme),
         globalThemeDefault: {
           theme,
           widgetTheme: structuredClone(widgetTheme),
@@ -2055,7 +2079,6 @@ function DefaultStylingEditor() {
         },
       },
       scenes: {
-        ...config.scenes,
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
           style: nextDesktopStyle,
@@ -2314,11 +2337,12 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   const [recycleBinFullOnStart, setRecycleBinFullOnStart] = useState(() => desktopConfig.recycleBin.fullOnStart)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
   const [detectedCameras, setDetectedCameras] = useState<{ deviceId: string; label: string }[]>([])
   const [detectingCameras, setDetectingCameras] = useState(false)
   const [cameraLabelsGranted, setCameraLabelsGranted] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const widgetThemeLiveApplyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const defaultSnapshot = useMemo(() => resolveApplicationDefaultSnapshot(app), [app])
 
   const enumerateCameras = useCallback(async (requestPermission = false) => {
@@ -2388,6 +2412,22 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     && !widgetSizeDirty
     && !widgetDefaultZIndexDirty
     && !recycleBinFullOnStartDirty
+  const widgetThemePreviewPatch = useMemo<Partial<AppConfig> | null>(() => {
+    if (form.appType !== 'widget') return null
+
+    const nextOverrides = { ...(desktopConfig.widgetThemeOverrides ?? {}) }
+    if (widgetThemeOverrideEnabled) {
+      nextOverrides[form.id] = structuredClone(widgetThemeOverride)
+    } else {
+      delete nextOverrides[form.id]
+    }
+
+    return {
+      desktopConfig: {
+        widgetThemeOverrides: Object.keys(nextOverrides).length ? nextOverrides : undefined,
+      },
+    }
+  }, [desktopConfig.widgetThemeOverrides, form, widgetThemeOverride, widgetThemeOverrideEnabled])
 
   useEffect(() => {
     setForm(app)
@@ -2396,12 +2436,14 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     setWidgetThemeOverrideEnabled(!!resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setWidgetThemeOverride(structuredClone(resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)) ?? withDesktopConfigDefaults(config.desktopConfig).widgetTheme))
     setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
+    setSaveDefaultArmed(false)
     setSaved(false)
   }, [app, config.desktopConfig])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
-    if (widgetThemeLiveApplyTimer.current) clearTimeout(widgetThemeLiveApplyTimer.current)
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+    postPreviewConfigPatch(null)
   }, [])
 
   const update = (updater: (d: Application) => void) => {
@@ -2427,52 +2469,41 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     })
   }
 
-  const apply = async () => {
-    if (!dirty) return
-    setSaving(true)
-    const apps = [...config.applications]
-    const idx  = apps.findIndex((entry) => entry.id === form.id)
-    if (idx !== -1) apps[idx] = form
-    else apps.push(form)
-
-    const scene = config.scenes[form.targetSceneId]
-    const updates: Partial<typeof config> = { applications: apps }
+  const buildDraftPersistence = useCallback((includeDefaultSnapshot: boolean) => {
+    const draftApp: Application = clone(form)
+    const scene = config.scenes[draftApp.targetSceneId]
+    const updates: Partial<typeof config> = { applications: [] }
     let nextDesktopConfig: DesktopConfig | null = null
     const ensureNextDesktopConfig = () => {
       if (!nextDesktopConfig) nextDesktopConfig = structuredClone(withDesktopConfigDefaults(config.desktopConfig))
       return nextDesktopConfig
     }
 
-    if (scene) {
-      const updatedScene = { ...scene, label: form.label }
-      updates.scenes = { ...config.scenes, [form.targetSceneId]: updatedScene }
-    }
-
-    if (form.appType === 'widget') {
+    if (draftApp.appType === 'widget') {
       const nextDesktop = ensureNextDesktopConfig()
       const normalizedWidth = clampWidgetDimension(widgetSize.width, 180, 1400, sourceWidgetSize.width)
       const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
-      const defaults = getDefaultWidgetSize(form)
+      const defaults = getDefaultWidgetSize(draftApp)
       const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
       const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
+      const nextWidgetThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
 
       if (normalizedWidth === defaults.width && normalizedHeight === defaults.height) {
-        delete nextWidgetSizes[form.id]
+        delete nextWidgetSizes[draftApp.id]
       } else {
-        nextWidgetSizes[form.id] = { width: normalizedWidth, height: normalizedHeight }
+        nextWidgetSizes[draftApp.id] = { width: normalizedWidth, height: normalizedHeight }
       }
 
-      nextWidgetDefaultZIndices[form.id] = Math.max(0, Math.round(widgetDefaultZIndex))
+      nextWidgetDefaultZIndices[draftApp.id] = Math.max(0, Math.round(widgetDefaultZIndex))
+
+      if (widgetThemeOverrideEnabled) {
+        nextWidgetThemeOverrides[draftApp.id] = structuredClone(widgetThemeOverride)
+      } else {
+        delete nextWidgetThemeOverrides[draftApp.id]
+      }
 
       nextDesktop.widgetSizes = Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined
       nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
-
-      const nextWidgetThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
-      if (widgetThemeOverrideEnabled) {
-        nextWidgetThemeOverrides[form.id] = structuredClone(widgetThemeOverride)
-      } else {
-        delete nextWidgetThemeOverrides[form.id]
-      }
       nextDesktop.widgetThemeOverrides = Object.keys(nextWidgetThemeOverrides).length ? nextWidgetThemeOverrides : undefined
     }
 
@@ -2483,8 +2514,42 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       }
     }
 
-    if (nextDesktopConfig) {
-      updates.desktopConfig = nextDesktopConfig
+    if (includeDefaultSnapshot) {
+      draftApp.defaultConfig = createApplicationSnapshot(
+        draftApp,
+        nextDesktopConfig ?? withDesktopConfigDefaults(config.desktopConfig),
+      )
+    }
+
+    const apps = [...config.applications]
+    const idx = apps.findIndex((entry) => entry.id === draftApp.id)
+    if (idx !== -1) apps[idx] = draftApp
+    else apps.push(draftApp)
+    updates.applications = apps
+
+    if (scene) {
+      updates.scenes = {
+        [draftApp.targetSceneId]: {
+          ...scene,
+          label: draftApp.label,
+        },
+      }
+    }
+
+    if (nextDesktopConfig) updates.desktopConfig = nextDesktopConfig
+
+    return updates
+  }, [config.applications, config.desktopConfig, config.scenes, desktopConfig.recycleBin.fullOnStart, form, isRecycleBinDecoration, recycleBinFullOnStart, sourceWidgetSize.height, sourceWidgetSize.width, widgetDefaultZIndex, widgetSize.height, widgetSize.width, widgetThemeOverride, widgetThemeOverrideEnabled])
+
+  const apply = async () => {
+    if (!dirty) return
+    setSaving(true)
+    const updates = buildDraftPersistence(false)
+
+    if (themeOnlyDirty && updates.desktopConfig) {
+      updates.applications = undefined
+      updates.scenes = undefined
+      updates.desktopConfig = { widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides }
     }
 
     await saveConfig(updates)
@@ -2502,20 +2567,13 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     setWidgetThemeOverrideEnabled(!!resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
     setWidgetThemeOverride(structuredClone(resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)) ?? withDesktopConfigDefaults(config.desktopConfig).widgetTheme))
     setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
+    setSaveDefaultArmed(false)
     setSaved(false)
   }
 
   useEffect(() => {
-    if (!themeOnlyDirty || saving) return
-    if (widgetThemeLiveApplyTimer.current) clearTimeout(widgetThemeLiveApplyTimer.current)
-    widgetThemeLiveApplyTimer.current = setTimeout(() => {
-      void apply()
-    }, 180)
-
-    return () => {
-      if (widgetThemeLiveApplyTimer.current) clearTimeout(widgetThemeLiveApplyTimer.current)
-    }
-  }, [apply, saving, themeOnlyDirty])
+    postPreviewConfigPatch(widgetThemeOverrideDirty ? widgetThemePreviewPatch : null)
+  }, [widgetThemeOverrideDirty, widgetThemePreviewPatch])
 
   const restoreDefaults = async () => {
     const snapshot = clone(defaultSnapshot)
@@ -2536,10 +2594,29 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     setSaving(true)
     await saveConfig(updates)
     setSaving(false)
+    setSaveDefaultArmed(false)
     setSaved(true)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
   }
+
+  const saveCurrentAsDefault = useCallback(async () => {
+    if (!saveDefaultArmed) {
+      setSaveDefaultArmed(true)
+      if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+      saveDefaultTimer.current = setTimeout(() => setSaveDefaultArmed(false), 3500)
+      return
+    }
+
+    setSaving(true)
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+    await saveConfig(buildDraftPersistence(true))
+    setSaveDefaultArmed(false)
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [buildDraftPersistence, saveConfig, saveDefaultArmed])
 
   const defaultWidgetSize = getDefaultWidgetSize(form)
   const hasWidgetSizeOverride = !!desktopConfig.widgetSizes?.[form.id]
@@ -2548,12 +2625,19 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   return (
     <div className="space-y-3">
       <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-      <ConfigNotice tone="info" className="flex items-center justify-between gap-3 px-3 py-2">
-        <span className="text-[10px] leading-relaxed text-zinc-400">`Reset` returns to the last saved config. `Restore Defaults` re-applies the stored default snapshot for this application or widget.</span>
-        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
+      <div className="flex justify-end gap-2">
+        <Btn
+          type="button"
+          variant={saveDefaultArmed ? 'warning' : 'default'}
+          onClick={() => { void saveCurrentAsDefault() }}
+          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+        >
+          {saveDefaultArmed ? 'Click Again to Confirm' : 'Save Current as Default'}
+        </Btn>
+        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
           Restore Defaults
         </Btn>
-      </ConfigNotice>
+      </div>
       <div className="space-y-0 pt-3">
         <ConfigSectionPanel label="Identity" first>
             <div className="space-y-3">
@@ -3873,6 +3957,17 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
   const linkedApp   = config.applications.find((a) => a.targetSceneId === sceneId)
   const scene = config.scenes[sceneId]
   const defaultSnapshot = useMemo(() => resolveSceneDefaultSnapshot(sceneId, scene), [scene, sceneId])
+  const [saving, setSaving] = useState(false)
+  const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
+  const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setSaveDefaultArmed(false)
+  }, [sceneId, scene, linkedApp])
+
+  useEffect(() => () => {
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+  }, [])
 
   const updateAppTransitions = (key: 'introTransitions' | 'exitTransitions', steps: TransitionStep[]) => {
     if (!linkedApp) return
@@ -3908,23 +4003,74 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
       ))
     }
 
+    setSaving(true)
     await saveConfig({
       scenes: {
-        ...config.scenes,
         [sceneId]: nextScene,
       },
       applications,
     })
+    setSaving(false)
+    setSaveDefaultArmed(false)
+  }
+
+  const saveCurrentAsDefault = async () => {
+    if (!saveDefaultArmed) {
+      setSaveDefaultArmed(true)
+      if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+      saveDefaultTimer.current = setTimeout(() => setSaveDefaultArmed(false), 3500)
+      return
+    }
+
+    setSaving(true)
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+
+    let applications = config.applications
+    if (linkedApp) {
+      const appSnapshot = createApplicationSnapshot(linkedApp, withDesktopConfigDefaults(config.desktopConfig))
+      applications = config.applications.map((entry) => (
+        entry.id === linkedApp.id
+          ? { ...entry, defaultConfig: appSnapshot }
+          : entry
+      ))
+    }
+
+    await saveConfig({
+      scenes: {
+        [sceneId]: {
+          ...scene,
+          defaultConfig: createSceneSnapshot(scene),
+        },
+      },
+      applications,
+    })
+
+    setSaving(false)
+    setSaveDefaultArmed(false)
   }
 
   return (
     <div className="space-y-3">
-      <ConfigNotice tone="info" className="flex items-center justify-between gap-3 px-3 py-2">
-        <span className="text-[10px] leading-relaxed text-zinc-400">Each editor section still resets to the last saved state. `Restore Defaults` resets the full scene to its stored default snapshot, including style, sources, music, and linked app transitions.</span>
-        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
+      <div className="flex justify-end gap-2">
+        <Btn
+          type="button"
+          variant={saveDefaultArmed ? 'warning' : 'default'}
+          onClick={() => { void saveCurrentAsDefault() }}
+          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+          disabled={saving}
+        >
+          {saveDefaultArmed ? 'Click Again to Confirm' : 'Save Current as Default'}
+        </Btn>
+        <Btn
+          type="button"
+          variant="warning"
+          onClick={() => { void restoreDefaults() }}
+          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+          disabled={saving}
+        >
           Restore Defaults
         </Btn>
-      </ConfigNotice>
+      </div>
       <div className="space-y-0 pt-1">
       <ConfigSectionPanel label="Sources" first>
         <SourcesEditor sceneId={sceneId} />
@@ -3961,7 +4107,7 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
           value={config.scenes[sceneId]?.musicTrack ?? ''}
           onChange={(e) => {
             const val = e.target.value.trim() || undefined
-            saveConfig({ scenes: { ...config.scenes, [sceneId]: { ...config.scenes[sceneId], musicTrack: val } } })
+            saveConfig({ scenes: { [sceneId]: { ...config.scenes[sceneId], musicTrack: val } } })
           }}
           className="w-full font-mono text-xs"
         />

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { STATE, DEFAULT_CONFIG } from '@ieom/shared'
+import { STATE, DEFAULT_CONFIG, mergeAppConfig } from '@ieom/shared'
 import type { AppConfig, DesktopRuntimeStatePayload } from '@ieom/shared'
 
 export type PreviewTarget = 'runtime' | 'dev'
@@ -25,6 +25,26 @@ function storePreviewTarget(target: PreviewTarget) {
   }
 }
 
+function findSingleChangedApplication(
+  currentApplications: AppConfig['applications'],
+  nextApplications: AppConfig['applications'],
+) {
+  if (currentApplications.length !== nextApplications.length) return null
+
+  let changedIndex = -1
+
+  for (let index = 0; index < currentApplications.length; index += 1) {
+    const currentApp = currentApplications[index]
+    const nextApp = nextApplications[index]
+    if (currentApp.id !== nextApp.id) return null
+    if (JSON.stringify(currentApp) === JSON.stringify(nextApp)) continue
+    if (changedIndex !== -1) return null
+    changedIndex = index
+  }
+
+  return changedIndex === -1 ? null : nextApplications[changedIndex]
+}
+
 interface AdminStore {
   currentState: STATE
   obsConnected: boolean
@@ -44,6 +64,7 @@ interface AdminStore {
   setClientCount: (n: number) => void
   setLastError: (e: string | null) => void
   setConfig: (c: AppConfig) => void
+  patchConfig: (updates: Partial<AppConfig>) => void
   setPreviewTarget: (target: PreviewTarget) => void
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
@@ -73,6 +94,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   setClientCount: (n) => set({ clientCount: n }),
   setLastError: (e) => set({ lastError: e }),
   setConfig: (c) => set({ config: c, configLoaded: true }),
+  patchConfig: (updates) => set((state) => ({ config: mergeAppConfig(state.config, updates), configLoaded: true })),
   setPreviewTarget: (target) => {
     storePreviewTarget(target)
     set({ previewTarget: target })
@@ -103,13 +125,34 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   saveConfig: async (updates: Partial<AppConfig>) => {
-    const merged = { ...get().config, ...updates }
+    const merged = mergeAppConfig(get().config, updates)
     try {
-      const res = await fetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(merged),
-      })
+      const keys = Object.keys(updates)
+      let res: Response
+
+      if (keys.length === 1 && updates.applications) {
+        const changedApp = findSingleChangedApplication(get().config.applications, updates.applications)
+        if (changedApp) {
+          res = await fetch(`/api/config/applications/${encodeURIComponent(changedApp.id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(changedApp),
+          })
+        } else {
+          res = await fetch('/api/config', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+          })
+        }
+      } else {
+        res = await fetch('/api/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+      }
+
       if (res.ok) {
         set({ config: merged })
       } else {

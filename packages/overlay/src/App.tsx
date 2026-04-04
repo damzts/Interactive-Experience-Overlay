@@ -13,12 +13,31 @@ import { Desktop } from './desktop/Desktop'
 import { LobbyScene } from './lobby/LobbyScene'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 
+const CONFIG_PREVIEW_MESSAGE_TYPE = 'ieom:config-preview'
+
 export default function App() {
   const visualState   = useAppStore((s) => s.visualState)
   const config        = useAppStore((s) => s.config)
+  const applyPreviewConfig = useAppStore((s) => s.applyPreviewConfig)
+  const clearPreviewConfig = useAppStore((s) => s.clearPreviewConfig)
 
   // Wire socket events to the store
   useSocket()
+
+  useEffect(() => {
+    const handlePreviewMessage = (event: MessageEvent) => {
+      const data = event.data
+      if (!data || typeof data !== 'object' || data.type !== CONFIG_PREVIEW_MESSAGE_TYPE) return
+      if (data.clear) {
+        clearPreviewConfig()
+        return
+      }
+      if (data.patch) applyPreviewConfig(data.patch)
+    }
+
+    window.addEventListener('message', handlePreviewMessage)
+    return () => window.removeEventListener('message', handlePreviewMessage)
+  }, [applyPreviewConfig, clearPreviewConfig])
 
   useEffect(() => { audioEngine.init() }, [])
 

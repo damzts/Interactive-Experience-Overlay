@@ -127,6 +127,7 @@ export interface ServerToClientEvents {
   'transition:play': (payload: TransitionPlayPayload) => void
   'overlay:show': (payload: OverlayTriggerPayload) => void
   'config:update': (config: AppConfig) => void
+  'config:patch': (updates: Partial<AppConfig>) => void
   'obs:status': (payload: { connected: boolean }) => void
   'ambiance:leader': (payload: { socketId: string | null }) => void
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void

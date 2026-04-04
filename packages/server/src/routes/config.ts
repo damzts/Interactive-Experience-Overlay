@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, mergeAppConfig, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
 
@@ -204,10 +204,42 @@ export function getConfig() {
   return config
 }
 
-export function persistConfig(next: AppConfig, machine?: Pick<SceneMachine, 'emit'>) {
+function buildConfigPatchPayload(config: AppConfig, updates: Partial<AppConfig>): Partial<AppConfig> {
+  const patch: Record<string, unknown> = {}
+  const nextDesktopConfig = withDesktopConfigDefaults(config.desktopConfig)
+
+  for (const key of Object.keys(updates) as Array<keyof AppConfig>) {
+    if (key === 'desktopConfig' && updates.desktopConfig) {
+      const desktopPatch: Record<string, unknown> = {}
+      for (const desktopKey of Object.keys(updates.desktopConfig) as Array<keyof NonNullable<AppConfig['desktopConfig']>>) {
+        desktopPatch[desktopKey] = nextDesktopConfig[desktopKey]
+      }
+      patch.desktopConfig = desktopPatch
+      continue
+    }
+
+    if (key === 'scenes' && updates.scenes) {
+      const scenesPatch: Record<string, unknown> = {}
+      for (const sceneKey of Object.keys(updates.scenes)) {
+        scenesPatch[sceneKey] = config.scenes[sceneKey]
+      }
+      patch.scenes = scenesPatch
+      continue
+    }
+
+    patch[key] = config[key]
+  }
+
+  return patch as Partial<AppConfig>
+}
+
+export function persistConfig(next: AppConfig, machine?: Pick<SceneMachine, 'emit'>, updates?: Partial<AppConfig>) {
   config = withConfigDefaults(next)
   setDbConfig('appConfig', config)
   machine?.emit('config:update', config)
+  if (updates && Object.keys(updates).length > 0) {
+    machine?.emit('config:patch', buildConfigPatchPayload(config, updates), config)
+  }
   return config
 }
 
@@ -215,8 +247,8 @@ export async function configRoute(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { machine: SceneMachine },
 ) {
-  const save = (next: AppConfig) => {
-    persistConfig(next, opts.machine)
+  const save = (next: AppConfig, updates?: Partial<AppConfig>) => {
+    persistConfig(next, opts.machine, updates)
   }
 
   app.get('/api/config', async (_req, _reply) => {
@@ -232,12 +264,21 @@ export async function configRoute(
     }
   })
 
+  app.patch<{ Body: Partial<AppConfig> }>('/api/config', async (req, reply) => {
+    try {
+      save(mergeAppConfig(config, req.body), req.body)
+      return { ok: true }
+    } catch (e) {
+      return reply.code(400).send({ ok: false, error: String(e) })
+    }
+  })
+
   /** PATCH /api/config/audio — update only volume fields without touching the rest of the config */
   app.patch<{ Body: Partial<AppConfig['audio']> }>(
     '/api/config/audio',
     async (req, reply) => {
       try {
-        save({ ...config, audio: { ...config.audio, ...req.body } })
+        save({ ...config, audio: { ...config.audio, ...req.body } }, { audio: { ...config.audio, ...req.body } })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })
@@ -285,7 +326,7 @@ export async function configRoute(
             ? req.body.widgetLayouts
             : currentDesktop.widgetLayouts,
         })
-        save({ ...config, desktopConfig: nextDesktop })
+        save({ ...config, desktopConfig: nextDesktop }, { desktopConfig: nextDesktop })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })
@@ -307,7 +348,7 @@ export async function configRoute(
             : app
         ))
 
-        save({ ...config, applications })
+        save({ ...config, applications }, { applications })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })
@@ -320,7 +361,7 @@ export async function configRoute(
     '/api/config/obs',
     async (req, reply) => {
       try {
-        save({ ...config, obs: { ...config.obs, ...req.body } })
+        save({ ...config, obs: { ...config.obs, ...req.body } }, { obs: { ...config.obs, ...req.body } })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })

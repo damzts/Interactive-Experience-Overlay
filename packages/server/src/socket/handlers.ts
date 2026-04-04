@@ -264,9 +264,11 @@ export function setupSocketHandlers(
     io.emit('state:update', payload)
   })
 
-  machine.on('config:update', (config: AppConfig) => {
-    io.emit('config:update', config)
+  machine.on('config:patch', (updates: Partial<AppConfig>, _config: AppConfig) => {
+    io.emit('config:patch', updates)
+  })
 
+  machine.on('config:update', (config: AppConfig) => {
     const nextRecycleBinFull = withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart
     if (nextRecycleBinFull !== recycleBinFull) {
       recycleBinFull = nextRecycleBinFull

@@ -9,6 +9,7 @@ export default function App() {
   const setObsConnected = useAdminStore((s) => s.setObsConnected)
   const fetchConfig = useAdminStore((s) => s.fetchConfig)
   const setConfig = useAdminStore((s) => s.setConfig)
+  const patchConfig = useAdminStore((s) => s.patchConfig)
   const syncDesktopRuntimeState = useAdminStore((s) => s.syncDesktopRuntimeState)
   const toggleWidgetRuntimeState = useAdminStore((s) => s.toggleWidgetRuntimeState)
   const setRecycleBinFull = useAdminStore((s) => s.setRecycleBinFull)
@@ -51,6 +52,10 @@ export default function App() {
       setConfig(config)
     })
 
+    socket.on('config:patch', (updates) => {
+      patchConfig(updates)
+    })
+
     socket.on('ambiance:leader', ({ socketId }) => {
       setSimulationLeaderId(socketId)
     })
@@ -66,10 +71,11 @@ export default function App() {
       socket.off('desktop:recycle-bin')
       socket.off('obs:status')
       socket.off('config:update')
+      socket.off('config:patch')
       socket.off('ambiance:leader')
       socket.off('ambiance:metrics')
     }
-  }, [fetchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsConnected, setRecycleBinFull, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
+  }, [fetchConfig, patchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsConnected, setRecycleBinFull, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

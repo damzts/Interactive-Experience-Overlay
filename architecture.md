@@ -76,9 +76,9 @@ The legacy repo-root `assets/sfx/` and `assets/music/` paths should not be used 
 
 Key structures:
 
-**AppConfig** is the root persisted object. It holds scenes, applications, keybinds, OBS credentials, audio volumes, default overlay style, desktop config, desktop ambiance config, and saved event definitions.
+**AppConfig** is the root persisted object. It holds scenes, applications, keybinds, OBS credentials, audio volumes, default overlay style, desktop config, desktop ambiance config, and saved event definitions. It also carries the operator-authored default snapshots that power `Restore Defaults` flows in the admin.
 
-**Scene** defines a visual state. A scene contains plugin `sources`, an optional `style`, optional `lobbyConfig`, optional `introTransitions` and `exitTransitions`, and an optional `musicTrack`. A scene can represent an environment (`LOBBY`, `DESKTOP`) or a user-created application scene.
+**Scene** defines a visual state. A scene contains plugin `sources`, an optional `style`, optional `lobbyConfig`, optional `introTransitions` and `exitTransitions`, and an optional `musicTrack`. A scene can represent an environment (`LOBBY`, `DESKTOP`) or a user-created application scene. `Scene.defaultConfig` stores the saved default snapshot for that scene so the editor can restore the full authored scene state later.
 
 **SourceInstance** is a placed, sized, and z-indexed plugin instance with a freeform config object. It is the atomic unit rendered by the overlay `LayerStack`.
 
@@ -93,9 +93,9 @@ Widget applications can also carry two secondary classifications:
 - `widgetSource`: `'system'` for built-in desktop widgets that must exist, or `'user'` for operator-created widgets
 - `widgetComponent`: the runtime base component used by the widget window, such as `camera`, `source`, `gallery`, `music`, `archive`, `chat`, or `sticky-notes`
 
-`Application.icon` can be an emoji glyph or an uploaded image path/URL. `Application.iconPosition` is the persisted source of truth for manual icon placement when auto-arrange is off.
+`Application.icon` can be an emoji glyph or an uploaded image path/URL. `Application.iconPosition` is the persisted source of truth for manual icon placement when auto-arrange is off. `Application.defaultConfig` stores the saved default snapshot for that application; for widgets this includes widget-window defaults such as size, baseline z-index, and widget-specific theme override.
 
-**DesktopConfig** holds desktop-runtime configuration: theme preset, default icon size, auto-arrange toggle, ambient icon animation mode, icon motion strength, sticky note defaults, recycle-bin defaults, widget positions/sizes, system sounds, and screen saver behavior.
+**DesktopConfig** holds desktop-runtime configuration: theme preset, default icon size, auto-arrange toggle, ambient icon animation mode, icon motion strength, sticky note defaults, recycle-bin defaults, widget positions/sizes, system sounds, and screen saver behavior. It also stores `globalThemeDefault`, the saved default snapshot for the Global Theme editor.
 
 **DesktopAmbianceConfig** holds automated desktop-simulation settings: master enable flag, evaluation interval, max-open-widget rules, open-while-one-open heuristics, and per-widget open/close/interact behavior tuning.
 
@@ -109,44 +109,61 @@ Widget applications can also carry two secondary classifications:
 
 **TransitionPlayPayload** is the resolved transition payload for one scene change: `{ from: STATE; to: STATE; exit: TransitionStep[]; intro: TransitionStep[] }`.
 
-All Socket.IO events are typed. Key events:
+All app-level Socket.IO events are typed in `packages/shared/src/types/events.ts`. The tables below document the full application contract. Socket.IO transport lifecycle events such as `connect`, `disconnect`, and reconnect attempts are still used by clients, but they are library-level rather than IEOM-specific protocol events.
 
-| Direction | Event | Payload |
+Client to server events:
+
+| Event | Payload | Notes |
 |---|---|---|
-| client -> server | `scene:change` | target `STATE` |
-| client -> server | `desktop:state:request` | callback |
-| client -> server | `widget:toggle` | widget app id |
-| client -> server | `widget:simulate` | widget app id, leader-only |
-| client -> server | `widget:simulate:action` | `{ widgetId, action: 'open' | 'close' | 'toggle' }`, leader-only |
-| client -> server | `ambiance:simulate:done` | `{ actionId, widgetId, action, ok, durationMs? }`, leader-only |
-| client -> server | `desktop:icon:drag` | `{ appId, x, y, phase }` |
-| client -> server | `desktop:widget:drag` | `{ widgetId, x, y, phase }` |
-| client -> server | `desktop:widget:resize` | `{ widgetId, x, y, width, height, phase }` |
-| client -> server | `desktop:start-menu:state` | `{ open, activeRoot }` |
-| client -> server | `desktop:start-menu:phase` | `{ phase, targetAppId? }`, leader-only |
-| client -> server | `desktop:notify` | `{ title, body, icon?, durationMs? }` |
-| client -> server | `desktop:recycle-bin` | `{ full }` |
-| client -> server | `keybind:execute` | `{ scope, key?, action? }` |
-| client -> server | `overlay:trigger` | `OverlayTriggerPayload` |
-| client -> server | `transition:preview` | `TransitionStep[]` |
-| client -> server | `state:request` | callback |
-| client -> server | `panic` | none |
-| server -> client | `state:update` | `{ state, previousState }` |
-| server -> client | `transition:play` | `TransitionPlayPayload` |
-| server -> client | `overlay:show` | `OverlayTriggerPayload` |
-| server -> client | `config:update` | `AppConfig` |
-| server -> client | `obs:status` | `{ connected }` |
-| server -> client | `ambiance:leader` | `{ socketId: string | null }` |
-| server -> client | `ambiance:metrics` | `{ accepted, rejected }` |
-| server -> client | `ambiance:simulate` | `{ actionId, widgetId, action: 'open' | 'close' | 'interact' }` |
-| server -> client | `desktop:icon:drag` | `{ appId, x, y, phase }` |
-| server -> client | `desktop:widget:drag` | `{ widgetId, x, y, phase }` |
-| server -> client | `desktop:widget:resize` | `{ widgetId, x, y, width, height, phase }` |
-| server -> client | `desktop:start-menu:state` | `{ open, activeRoot }` |
-| server -> client | `desktop:start-menu:phase` | `{ phase, targetAppId? }` |
-| server -> client | `widget:toggle` | widget app id |
-| server -> client | `desktop:notify` | `{ title, body, icon?, durationMs? }` |
-| server -> client | `desktop:recycle-bin` | `{ full }` |
+| `scene:change` | target `STATE`, optional callback `(err: string | null) => void` | Requests a machine transition. The server resolves intro/exit pipelines authoritatively before changing state. |
+| `overlay:trigger` | `OverlayTriggerPayload` | Triggers a configured overlay effect stack through the scene machine. |
+| `keybind:execute` | `KeybindExecutionPayload`, optional callback `(err: string | null) => void` | Runs an admin or OBS-scoped keybind action on the server. |
+| `ambiance:leader:request` | callback `({ socketId: string | null }) => void` | Returns the currently elected ambiance simulation leader. |
+| `ambiance:simulate:done` | `{ actionId, widgetId, action, ok, durationMs? }` | Leader reports completion of an ambiance action so the server can release cadence lock. |
+| `state:request` | callback `(state: STATE) => void` | Returns the current machine state for reconnect/bootstrap. |
+| `desktop:state:request` | callback `DesktopRuntimeStatePayload` | Returns desktop runtime state: open widgets, recycle-bin fullness, and Start menu shell state. |
+| `widget:toggle` | widget app id | Toggles a widget open/closed in server-owned desktop runtime state. |
+| `widget:simulate` | widget app id | Legacy leader-only simulated toggle path used by ambiance automation. |
+| `widget:simulate:action` | `{ widgetId, action: 'open' | 'close' | 'toggle' }` | Leader-only deterministic widget runtime command. |
+| `widget:layout:apply` | layout id | Applies a saved widget layout through the server. |
+| `desktop:icon:drag` | `{ appId, x, y, phase }` | Live icon drag mirror channel; final persistence still happens through HTTP PATCH on drag end. |
+| `desktop:widget:drag` | `{ widgetId, x, y, phase }` | Live widget-window drag mirror channel. |
+| `desktop:widget:resize` | `{ widgetId, x, y, width, height, phase }` | Live widget-window resize mirror channel. |
+| `cursor:mirror` | `{ kind: 'move', x, y, duration? }` or `{ kind: 'click' }` or `{ kind: 'visible', visible }` | Leader-only mirrored cursor choreography for ambiance simulation. |
+| `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Leader-only mirrored Start menu choreography timeline for ambiance-open flows. |
+| `desktop:notify` | `{ title, body, icon?, durationMs? }` | Broadcasts a desktop notification/toast. |
+| `desktop:recycle-bin` | `{ full }` | Updates authoritative recycle-bin fullness runtime state. |
+| `desktop:start-menu:state` | `{ open, activeRoot }` | Synchronizes Start menu shell open/section state across clients. |
+| `desktop:start-menu:phase` | `{ phase, targetAppId? }` | Leader-only choreography milestone broadcast for simulated Start menu actions. |
+| `desktop:screen-saver:test` | `{ preset }` | Triggers a runtime screen saver preview without waiting for idle timeout. |
+| `transition:preview` | `TransitionStep[]` | Dry-runs a transition pipeline in place without changing machine state. |
+| `panic` | none | Forces immediate return to `DESKTOP`. |
+
+Server to client events:
+
+| Event | Payload | Notes |
+|---|---|---|
+| `state:update` | `{ state, previousState }` | Broadcast authoritative machine state changes. |
+| `transition:play` | `TransitionPlayPayload` | Broadcast resolved transition steps to render locally on clients. |
+| `overlay:show` | `OverlayTriggerPayload` | Broadcast overlay effect stack for rendering. |
+| `config:update` | `AppConfig` | Full config snapshot. Used on bootstrap and for full convergence flows. |
+| `config:patch` | `Partial<AppConfig>` | Partial config update containing only changed top-level sections. |
+| `obs:status` | `{ connected }` | Broadcast OBS bridge connectivity state. |
+| `ambiance:leader` | `{ socketId: string | null }` | Announces the current ambiance simulation leader. |
+| `ambiance:metrics` | `{ accepted, rejected }` | Reports leader-only simulation command acceptance/rejection counters. |
+| `ambiance:simulate` | `{ actionId, widgetId, action: 'open' | 'close' | 'interact' }` | Server-issued ambiance action sent to the elected leader. |
+| `cursor:mirror` | `CursorMirrorPayload` | Mirrored cursor motion/click/visibility events rebroadcast from the leader. |
+| `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Mirrored Start menu choreography timeline rebroadcast from the leader. |
+| `widget:toggle` | widget app id | Broadcast widget runtime open/close toggle after server state changes. |
+| `widget:layout:apply` | layout id | Broadcast that a saved widget layout was applied. |
+| `desktop:icon:drag` | `{ appId, x, y, phase }` | Broadcast live icon drag movement from another client. |
+| `desktop:widget:drag` | `{ widgetId, x, y, phase }` | Broadcast live widget drag movement from another client. |
+| `desktop:widget:resize` | `{ widgetId, x, y, width, height, phase }` | Broadcast live widget resize movement from another client. |
+| `desktop:notify` | `{ title, body, icon?, durationMs? }` | Broadcast a desktop notification/toast. |
+| `desktop:recycle-bin` | `{ full }` | Broadcast authoritative recycle-bin fullness. |
+| `desktop:start-menu:state` | `{ open, activeRoot }` | Broadcast authoritative Start menu shell state. |
+| `desktop:start-menu:phase` | `{ phase, targetAppId? }` | Broadcast Start menu choreography milestones. |
+| `desktop:screen-saver:test` | `{ preset }` | Broadcast a screen saver preview request to runtime clients. |
 
 Desktop runtime state that is not part of the main scene machine still has a typed contract. Overlay clients request a `desktop:state:request` snapshot on connect/reconnect so late-joining browser sources recover the current open-widget set and recycle-bin state.
 
@@ -166,12 +183,13 @@ The server maintains a persistent WebSocket connection to OBS using `obs-websock
 
 ### Config Authority and REST API
 
-The server is the single source of truth for `AppConfig`. The admin writes config here; the overlay reads from here; both clients stay in sync through `config:update` broadcasts.
+The server is the single source of truth for `AppConfig`. The admin writes config here; the overlay reads from here; and clients now stay in sync through two complementary socket paths: full `config:update` snapshots for bootstrap/full convergence, and incremental `config:patch` broadcasts for targeted changes.
 
 REST API:
 
 - `GET /api/config` returns the full `AppConfig`
 - `PUT /api/config` replaces the full config, persists it, and broadcasts `config:update`
+- `PATCH /api/config` merges a partial `AppConfig` update, persists the normalized result, and broadcasts `config:patch`
 - `PATCH /api/config/audio` updates only `audio.masterVolume`, `audio.sfxVolume`, and `audio.musicVolume`
 - `PATCH /api/config/desktop` updates only `desktopConfig`
 - `PATCH /api/config/applications/:appId` updates one `Application` record
@@ -189,7 +207,7 @@ Persistence is SQLite with WAL mode. The database currently holds three logical 
 - a timestamped event log
 - a config store containing persisted `AppConfig`
 
-The config store is loaded on startup and rewritten on full config updates.
+The config store is loaded on startup and rewritten whenever the server persists either a full config replacement or a merged partial update.
 
 ### Asset Catalog and Static Hosting
 
@@ -271,6 +289,8 @@ The dashboard is intentionally split into taxonomy sections so operators can tel
 
 The preview can target either `http://localhost:3000` (runtime) or `http://localhost:3001` (direct overlay dev server) through a persisted preview-target setting. The preview shows a badge so the operator can see which source is active. Lobby/Desktop editors can also show live-state notices when the preview/runtime is currently on the wrong environment.
 
+The preview is no longer only a passive mirror. Theme-oriented editors can send unsaved preview-only config patches directly into the embedded overlay iframe via `window.postMessage`. Those draft patches update the preview immediately without calling the REST API or writing to the database. Explicit `Save` is still the persistence boundary.
+
 ### Shared Asset Library
 
 The admin uses a shared catalog-backed asset library instead of separate per-form pickers. Scene backgrounds, scene media sources, application icons, recycle-bin icons, saved media entries, image/video URLs, and other media fields all browse the same server-indexed asset catalog.
@@ -286,6 +306,8 @@ The admin is where scene composition is authored.
 - background music via `musicTrack`
 - intro and exit transition pipelines via `TransitionList`
 
+Scenes use the same stored-default workflow as the rest of the authoring surface. `Save Current as Default` writes the current scene into `Scene.defaultConfig`, and `Restore Defaults` reapplies that snapshot. If the scene is launched by a scene application, restoring the scene also reapplies the linked application's saved transition defaults so the launch path stays aligned with the scene snapshot.
+
 **Application configuration** includes:
 
 - icon, label, and `appType`
@@ -294,6 +316,10 @@ The admin is where scene composition is authored.
 - optional `launchPipeline` for scene apps
 - icon artwork as emoji or uploaded image
 - icon positions persisted back through the application PATCH route when manually dragged in the overlay
+
+Applications and widgets use the same snapshot model. `Save Current as Default` stores the current editor state into `Application.defaultConfig`, and `Restore Defaults` reapplies that stored snapshot. For widgets, the snapshot includes widget-window defaults such as size, baseline z-index, and any widget-specific theme override in addition to the standard application fields.
+
+Widget theme override editing also participates in live preview. While the operator edits a widget-specific theme override, the admin sends preview-only desktop config patches into the embedded preview iframe so the selected widget can be iterated visually before any save occurs.
 
 Application editors now include an explicit runtime-role summary so the operator can see whether the selected record is a scene app, a widget, or a decoration, and what signal it produces at runtime.
 
@@ -314,6 +340,10 @@ The desktop editor owns desktop-specific runtime settings:
 - screen saver behavior
 - system sound paths
 - runtime test actions for desktop notifications and recycle-bin state
+
+The Global Theme utility follows the same pattern. `Save Current as Default` persists the current desktop theme preset, desktop appearance fields, and shared widget theme into `desktopConfig.globalThemeDefault`, and `Restore Defaults` reapplies that stored snapshot instead of falling back to a hardcoded factory theme.
+
+The Global Theme editor also drives the current live-preview workflow. Unsaved changes to desktop theme preset, desktop appearance fields, and shared widget theme are posted into the preview iframe as ephemeral config patches so the operator sees the result immediately. Those preview changes are intentionally non-persistent and are cleared when the draft is reset, the editor is closed, or the page state is re-synced.
 
 Wallpaper/background does not live in the theme panel. It remains in the desktop scene Background/Style editor so the overlay stays transparent unless the operator explicitly configures a background.
 
@@ -364,7 +394,7 @@ Events are edited as persisted `config.events` records inside the dashboard. Eac
 
 **Archive** exposes stream stats and the event log, and allows manual increments and resets.
 
-Config changes are written through PUT or targeted PATCH routes on the server, which immediately rebroadcasts the resulting config to all clients.
+Persisted config changes are usually written through `PATCH /api/config` or more specialized PATCH routes on the server, which then synchronize clients through `config:patch` and, when needed, full `config:update` snapshots. Preview-only edits in the embedded iframe are the exception: they update the preview locally without persisting anything until the operator presses `Save`.
 
 ---
 
@@ -386,6 +416,8 @@ The overlay renders a fixed set of layers in z-order. Each layer is wrapped in a
 | 6 | `TransitionLayer` | Persistent DOM targets used by GSAP/media transitions | resolved `TransitionPlayPayload` |
 
 If a scene defines no `style`, the overlay falls back to `AppConfig.overlayStyle`.
+
+The overlay runtime also supports an iframe-only preview layer on top of socket-backed config. When the admin preview sends an `ieom:config-preview` message, the overlay stores the current config as a preview base, merges the incoming patch ephemerally, and renders from that merged result. Clearing the preview message restores the previous socket/HTTP-backed config without any server round-trip.
 
 ### Desktop Surface
 
@@ -486,17 +518,24 @@ Desktop shell Start menu state follows a runtime side-channel model similar to o
 
 Start menu choreography now has an explicit phase channel (`desktop:start-menu:phase`) for visual simulation sequencing. The elected leader emits phase milestones (`open`, `programs-hover`, `programs-open`, `target-hover`, `target-select`, `clear`) and all clients render the same progression from state instead of relying on DOM click side effects.
 
-Desktop widget-window drag follows the same split channel pattern: while dragging a widget window, clients exchange `desktop:widget:drag` for live mirrored movement; on release, the final window position persists through `PATCH /api/config/desktop` and converges through `config:update`.
+Desktop widget-window drag follows the same split channel pattern: while dragging a widget window, clients exchange `desktop:widget:drag` for live mirrored movement; on release, the final window position persists through `PATCH /api/config/desktop` and converges through `config:patch`.
 
-Desktop widget-window resize uses the same real-time split channel model: while resizing, clients exchange `desktop:widget:resize` for live mirrored size/position updates; on release, the final `widgetSizes` (and clamped `widgetPositions`, when needed) persist through `PATCH /api/config/desktop` and converge through `config:update`.
+Desktop widget-window resize uses the same real-time split channel model: while resizing, clients exchange `desktop:widget:resize` for live mirrored size/position updates; on release, the final `widgetSizes` (and clamped `widgetPositions`, when needed) persist through `PATCH /api/config/desktop` and converge through `config:patch`.
 
 ### Config propagation
 
-Most config changes originate in the admin and are written to the server via PUT or targeted PATCH routes. The overlay also has one direct persistence path: manual desktop icon dragging PATCHes `/api/config/applications/:appId` with a new `iconPosition` on drag end. During drag, motion is intentionally non-persistent and mirrored over sockets (`desktop:icon:drag`) for live sync. In all persisted cases the server rebroadcasts `config:update` so every client converges on the same config.
+Most config changes originate in the admin and are written to the server via `PATCH /api/config` or more specialized PATCH routes. The overlay also has one direct persistence path: manual desktop icon dragging PATCHes `/api/config/applications/:appId` with a new `iconPosition` on drag end. During drag, motion is intentionally non-persistent and mirrored over sockets (`desktop:icon:drag`) for live sync.
 
-Widget window drag uses the same two-phase model: transient motion is mirrored over sockets (`desktop:widget:drag`) while dragging, and persisted widget coordinates are written to `desktopConfig.widgetPositions` on drag end.
+Persisted config writes now converge through two socket layers:
 
-Widget window resize also uses two phases: transient resize motion is mirrored over sockets (`desktop:widget:resize`) while resizing, and final dimensions are written to `desktopConfig.widgetSizes` on resize end.
+- `config:update` remains the full-snapshot path used for initial load, reconnect/bootstrap, and any flow that needs the entire normalized config.
+- `config:patch` is the first-class incremental path used after partial writes. The server emits only the changed top-level sections, with normalized values, and both admin and overlay merge those patches into their local stores.
+
+This split keeps bootstrap simple while making frequent desktop/theme/widget edits much lighter than rebroadcasting the full config object every time.
+
+Widget window drag uses the same two-phase model: transient motion is mirrored over sockets (`desktop:widget:drag`) while dragging, and persisted widget coordinates are written to `desktopConfig.widgetPositions` on drag end, then converge through `config:patch`.
+
+Widget window resize also uses two phases: transient resize motion is mirrored over sockets (`desktop:widget:resize`) while resizing, and final dimensions are written to `desktopConfig.widgetSizes` on resize end, then converge through `config:patch`.
 
 ### Reconnect and state recovery
 
