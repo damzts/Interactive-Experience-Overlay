@@ -552,11 +552,11 @@ export function SaveBar({
       {saved && <span className="admin-text-body text-emerald-300">✔ Saved</span>}
       {(dirty || alwaysShow) && (
         <>
-          <Btn variant="primary" onClick={onSave} disabled={saving || !dirty}>
-            {saving ? 'Saving…' : '💾 Save Changes'}
+          <Btn variant="primary" onClick={onSave} disabled={saving || !dirty} className="px-4 py-2 text-sm">
+            {saving ? 'Saving…' : 'Save Current as Default'}
           </Btn>
-          {onRevert && dirty && (
-            <Btn variant="ghost" onClick={onRevert}>↺ Revert</Btn>
+          {onRevert && (dirty || alwaysShow) && (
+            <Btn variant="ghost" onClick={onRevert} disabled={!dirty}>Restore Defaults</Btn>
           )}
         </>
       )}

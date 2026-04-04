@@ -149,6 +149,7 @@ const PARTICLE_PRESETS: { id: ParticlePreset; icon: string; label: string }[] = 
 ]
 
 const ACCENT_SWATCHES = ['#00ff41', '#06b6d4', '#a855f7', '#f97316', '#ec4899', '#eab308', '#ef4444', '#ffffff']
+const DASHBOARD_SAVE_BUTTON_CLASS = 'px-4 py-2 text-sm'
 
 
 type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
@@ -712,46 +713,55 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
   const scene      = config.scenes[sceneId] as (typeof config.scenes)[string] | undefined
   const sources    = (scene?.sources ?? []) as SourceInstance[]
   const sourcePresets = config.sourcePresets ?? []
-  const [expanded,    setExpanded]    = useState<string | null>(null)
-  const [showCatalog, setShowCatalog] = useState(false)
 
   const save = (next: SourceInstance[]) =>
     saveConfig({ scenes: { [sceneId]: { ...config.scenes[sceneId], sources: next } } })
 
   const toggle   = (id: string) => save(sources.map((s) => s.id === id ? { ...s, visible: !s.visible } : s))
-  const remove   = (id: string) => { save(sources.filter((s) => s.id !== id)); if (expanded === id) setExpanded(null) }
-  const setPos   = (id: string, f: keyof SourceInstance['position'], v: number) =>
-    save(sources.map((s) => s.id === id ? { ...s, position: { ...s.position, [f]: v } } : s))
-  const moveZ    = (id: string, dir: 1 | -1) =>
-    save(sources.map((s) => s.id === id ? { ...s, zIndex: s.zIndex + dir } : s))
+  const remove   = (id: string) => { save(sources.filter((s) => s.id !== id)) }
 
-  const addSource = (preset: SourcePreset) => {
+  const updateSourcePreset = (id: string, presetId: string) => {
+    save(sources.map((source) => source.id === id ? { ...source, sourcePresetId: presetId || undefined } : source))
+  }
+
+  const normalizeSourceOrder = useCallback((ordered: SourceInstance[]) => (
+    ordered.map((source, index) => ({ ...source, zIndex: index }))
+  ), [])
+
+  const moveUp = (id: string) => {
+    const ordered = [...sources].sort((a, b) => a.zIndex - b.zIndex)
+    const index = ordered.findIndex((source) => source.id === id)
+    if (index <= 0) return
+    ;[ordered[index - 1], ordered[index]] = [ordered[index], ordered[index - 1]]
+    save(normalizeSourceOrder(ordered))
+  }
+
+  const moveDown = (id: string) => {
+    const ordered = [...sources].sort((a, b) => a.zIndex - b.zIndex)
+    const index = ordered.findIndex((source) => source.id === id)
+    if (index < 0 || index === ordered.length - 1) return
+    ;[ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]]
+    save(normalizeSourceOrder(ordered))
+  }
+
+  const addSource = (preset?: SourcePreset) => {
     const newSrc: SourceInstance = {
-      id:         `${preset.id}-${Date.now()}`,
-      sourcePresetId: preset.id,
-      position:   preset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
+      id:         `scene-source-${Date.now()}`,
+      sourcePresetId: preset?.id,
+      position:   preset?.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
       zIndex:     sources.length,
       visible:    true,
     }
     save([...sources, newSrc])
-    setShowCatalog(false)
-    setExpanded(newSrc.id)
   }
 
   const sorted = [...sources].sort((a, b) => a.zIndex - b.zIndex)
 
   return (
     <div className="space-y-2">
-      {sorted.length === 0 && (
-        <ConfigNotice tone="info" className="py-3 text-center">
-          No sources yet. Attach a source preset to this scene to render it here.
-        </ConfigNotice>
-      )}
       {sorted.map((src) => {
         const resolved = resolveSourceInstance(src, sourcePresets)
         const meta  = SOURCE_CATALOG.find((c) => c.type === resolved?.pluginType)
-        const preset = sourcePresets.find((entry) => entry.id === src.sourcePresetId)
-        const isExp = expanded === src.id
         return (
           <ConfigCard key={src.id} className="overflow-hidden p-0">
             <div className="flex items-center gap-2 px-3 py-2">
@@ -762,85 +772,58 @@ function SourcesEditor({ sceneId }: { sceneId: string }) {
                 className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (src.visible ? 'bg-emerald-400 hover:bg-emerald-600' : 'bg-zinc-600 hover:bg-zinc-400')}
               />
               <span className="text-[10px] text-zinc-500 shrink-0">{meta?.icon ?? '▣'}</span>
-              <span className="text-[11px] text-zinc-200 flex-1 truncate font-mono">{src.id}</span>
-              <span className="text-[9px] text-zinc-600 shrink-0">{preset?.label ?? resolved?.pluginType ?? 'Unbound'}</span>
-              <Btn type="button" variant={isExp ? 'active' : 'ghost'} onClick={() => setExpanded(isExp ? null : src.id)} className="px-2 py-0.5 text-[10px]">
-                {isExp ? 'Collapse' : 'Edit'}
-              </Btn>
+              <div className="min-w-0 flex-1">
+                <select
+                  value={src.sourcePresetId ?? ''}
+                  onChange={(event) => updateSourcePreset(src.id, event.target.value)}
+                  className="w-full text-xs"
+                >
+                  <option value="">-- Pick source preset --</option>
+                  {sourcePresets.map((preset) => {
+                    const sourceMeta = SOURCE_CATALOG.find((entry) => entry.type === preset.pluginType)
+                    return <option key={preset.id} value={preset.id}>{preset.label} · {sourceMeta?.label ?? preset.pluginType}</option>
+                  })}
+                </select>
+              </div>
+              <div className="flex shrink-0 flex-col gap-1">
+                <Btn
+                  type="button"
+                  variant="ghost"
+                  onClick={() => moveUp(src.id)}
+                  disabled={sorted[0]?.id === src.id}
+                  className="px-2 py-1 text-[10px]"
+                >
+                  Up
+                </Btn>
+                <Btn
+                  type="button"
+                  variant="ghost"
+                  onClick={() => moveDown(src.id)}
+                  disabled={sorted[sorted.length - 1]?.id === src.id}
+                  className="px-2 py-1 text-[10px]"
+                >
+                  Down
+                </Btn>
+              </div>
               <Btn type="button" variant="danger" onClick={() => remove(src.id)} className="px-2 py-0.5 text-[10px]">
                 Delete
               </Btn>
             </div>
-            {isExp && (
-              <div className="space-y-3 border-t border-zinc-800/80 px-3 py-3">
-                <div>
-                  <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Source Preset</div>
-                  <select
-                    value={src.sourcePresetId ?? ''}
-                    onChange={(event) => save(sources.map((entry) => entry.id === src.id ? { ...entry, sourcePresetId: event.target.value || undefined } : entry))}
-                    className="w-full text-xs"
-                  >
-                    <option value="">— Select preset —</option>
-                    {sourcePresets.map((presetOption) => (
-                      <option key={presetOption.id} value={presetOption.id}>{presetOption.label}</option>
-                    ))}
-                  </select>
-                  {preset && <div className="mt-1 text-[10px] text-zinc-500">{preset.pluginType}</div>}
-                </div>
-                <div>
-                  <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Position (px on 1920×1080)</div>
-                  <div className="grid grid-cols-4 gap-1">
-                    {(['x', 'y', 'width', 'height'] as const).map((f) => (
-                      <div key={f}>
-                        <div className="text-[8px] text-zinc-600 mb-0.5">{f}</div>
-                        <input type="number" value={src.position[f]}
-                          onChange={(e) => setPos(src.id, f, Number(e.target.value))}
-                          className="w-full font-mono text-[10px] px-1 py-0.5" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] text-zinc-600 uppercase tracking-wider">Z-index</span>
-                  <span className="font-mono text-[10px] text-zinc-400 w-4 text-center">{src.zIndex}</span>
-                  <Btn type="button" onClick={() => moveZ(src.id,  1)} className="px-2 py-0.5 text-[10px]">Up</Btn>
-                  <Btn type="button" onClick={() => moveZ(src.id, -1)} className="px-2 py-0.5 text-[10px]">Down</Btn>
-                </div>
-              </div>
-            )}
           </ConfigCard>
         )
       })}
 
-      {showCatalog ? (
-        <ConfigCard className="mt-1">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Attach source preset</span>
-            <Btn type="button" variant="ghost" onClick={() => setShowCatalog(false)} className="px-2 py-0.5 text-[10px]">Close</Btn>
-          </div>
-          <div className="max-h-64 space-y-1.5 overflow-y-auto">
-            {sourcePresets.length ? sourcePresets.map((preset) => {
-              const meta = SOURCE_CATALOG.find((entry) => entry.type === preset.pluginType)
-              return (
-                <button key={preset.id} type="button" onClick={() => addSource(preset)}
-                className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75">
-                <div className="flex items-center gap-2">
-                <span className="text-base">{meta?.icon ?? '▣'}</span>
-                <div className="min-w-0">
-                  <div className="text-[11px] text-zinc-200 font-medium">{preset.label}</div>
-                  <div className="text-[9px] text-zinc-500 truncate">{meta?.label ?? preset.pluginType}</div>
-                </div>
-                </div>
-              </button>
-              )
-            }) : <ConfigNotice tone="info">No source presets yet. Create them from the Asset Library Sources tab first.</ConfigNotice>}
-          </div>
-        </ConfigCard>
-      ) : (
-        <Btn type="button" onClick={() => setShowCatalog(true)} variant="ghost"
-          className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200">
-          + Attach Source Preset
+      {sourcePresets.length ? (
+        <Btn
+          type="button"
+          onClick={() => addSource()}
+          variant="ghost"
+          className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200"
+        >
+          Add
         </Btn>
+      ) : (
+        <ConfigNotice tone="info">No source presets yet. Create them from the Asset Library Sources tab first.</ConfigNotice>
       )}
     </div>
   )
@@ -883,6 +866,10 @@ function summarizeTransitionModel(steps?: TransitionStep[]) {
   if (!steps?.length) return 'none'
   const ids = steps.map((step) => step.id).join(' -> ')
   return `${steps.length} step${steps.length === 1 ? '' : 's'}: ${ids}`
+}
+
+function compactTransitionSteps(steps: TransitionStep[]) {
+  return steps.filter((step) => step.id)
 }
 
 function formatIconPositionModel(position?: { x: number; y: number }) {
@@ -1097,46 +1084,85 @@ function TransitionList({
   value: TransitionStep[]
   onChange: (steps: TransitionStep[]) => void
 }) {
+  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
   const steps = value ?? []
+
+  const userTransitions = useMemo(
+    () => [...mediaLibrary].sort((left, right) => getMediaTransitionLabel(left).localeCompare(getMediaTransitionLabel(right))),
+    [mediaLibrary],
+  )
+
+  const addStep = (step: TransitionStep) => {
+    onChange([...steps, step])
+  }
 
   const updateStep = (idx: number, str: string) => {
     const next = [...steps]
     next[idx] = strToStep(str)
-    onChange(next.filter((s) => s.id))
+    onChange(next)
   }
-
-  const removeStep = (idx: number) => onChange(steps.filter((_, i) => i !== idx))
 
   const moveUp = (idx: number) => {
     if (idx === 0) return
-    const next = [...steps];
-    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+    const next = [...steps]
+    ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
     onChange(next)
   }
 
   const moveDown = (idx: number) => {
     if (idx === steps.length - 1) return
-    const next = [...steps];
-    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+    const next = [...steps]
+    ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
     onChange(next)
   }
+
+  const transitionOptions = useMemo(() => ([
+    ...TRANSITION_OPTIONS.map((transition) => ({
+      value: transition.id,
+      label: `${transition.label} · ${transition.id}`,
+      group: 'system' as const,
+    })),
+    ...userTransitions.map((entry) => ({
+      value: encodeMediaTransitionValue(entry),
+      label: getMediaTransitionLabel(entry),
+      group: 'user' as const,
+      subtitle: entry.url,
+    })),
+  ]), [userTransitions])
+
+  const removeStep = (idx: number) => onChange(steps.filter((_, i) => i !== idx))
 
   return (
     <div className="space-y-2">
       {steps.map((step, idx) => (
-        <div key={idx} className="flex items-start gap-2">
-          <div className="flex-1 min-w-0">
-            <TransitionPicker
+        <div key={`${step.id}-${idx}`} className="flex items-start gap-2 rounded-lg border border-zinc-800/80 bg-zinc-950/50 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <select
               value={stepToStr(step)}
-              onChange={(str) => updateStep(idx, str)}
-              placeholder="— Pick transition —"
-            />
+              onChange={(event) => updateStep(idx, event.target.value)}
+              className="w-full text-xs"
+            >
+              <option value="">-- Pick transition --</option>
+              <optgroup label="System transitions">
+                {transitionOptions.filter((option) => option.group === 'system').map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </optgroup>
+              {transitionOptions.some((option) => option.group === 'user') && (
+                <optgroup label="User transitions">
+                  {transitionOptions.filter((option) => option.group === 'user').map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
           </div>
-          <div className="flex flex-col gap-1 shrink-0 pt-0.5">
+          <div className="flex shrink-0 flex-col gap-1">
             <Btn
               type="button"
               variant="ghost"
-              onClick={() => moveUp(idx)} disabled={idx === 0}
+              onClick={() => moveUp(idx)}
+              disabled={idx === 0}
               className="px-2 py-1 text-[10px]"
             >
               Up
@@ -1144,7 +1170,8 @@ function TransitionList({
             <Btn
               type="button"
               variant="ghost"
-              onClick={() => moveDown(idx)} disabled={idx === steps.length - 1}
+              onClick={() => moveDown(idx)}
+              disabled={idx === steps.length - 1}
               className="px-2 py-1 text-[10px]"
             >
               Down
@@ -1154,20 +1181,24 @@ function TransitionList({
             type="button"
             variant="danger"
             onClick={() => removeStep(idx)}
-            className="mt-0.5 px-2 py-1 text-[10px]"
+            className="px-2 py-1 text-[10px]"
           >
             Delete
           </Btn>
         </div>
       ))}
-      <Btn
-        type="button"
-        variant="ghost"
-        onClick={() => onChange([...steps, { id: '' }])}
-        className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200"
-      >
-        + Add Step
-      </Btn>
+      {transitionOptions.length ? (
+        <Btn
+          type="button"
+          onClick={() => addStep({ id: '' })}
+          variant="ghost"
+          className="mt-1 w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs text-zinc-400 hover:text-cyan-200"
+        >
+          Add
+        </Btn>
+      ) : (
+        <ConfigNotice tone="info">No transitions available yet. Create user transitions in the Asset Library Transitions tab first.</ConfigNotice>
+      )}
     </div>
   )
 }
@@ -1215,8 +1246,8 @@ function LobbyConfigEditor() {
         [STATE.LOBBY]: {
           ...config.scenes[STATE.LOBBY],
           lobbyConfig: form,
-          introTransitions: introTransitions.length ? introTransitions : undefined,
-          exitTransitions: exitTransitions.length ? exitTransitions : undefined,
+          introTransitions: compactTransitionSteps(introTransitions).length ? compactTransitionSteps(introTransitions) : undefined,
+          exitTransitions: compactTransitionSteps(exitTransitions).length ? compactTransitionSteps(exitTransitions) : undefined,
         },
       },
     })
@@ -1235,7 +1266,7 @@ function LobbyConfigEditor() {
 
   return (
     <div className="space-y-3">
-      <ConfigApplyBar label="Lobby Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
+      <ConfigApplyBar label="Lobby Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="space-y-0 pt-3">
       <ConfigSectionPanel label="Transitions" first>
         <div className="space-y-3">
@@ -1364,8 +1395,8 @@ function DesktopConfigEditor() {
       scenes: {
         [STATE.DESKTOP]: {
           ...config.scenes[STATE.DESKTOP],
-          introTransitions: introTransitions.length ? introTransitions : undefined,
-          exitTransitions: exitTransitions.length ? exitTransitions : undefined,
+          introTransitions: compactTransitionSteps(introTransitions).length ? compactTransitionSteps(introTransitions) : undefined,
+          exitTransitions: compactTransitionSteps(exitTransitions).length ? compactTransitionSteps(exitTransitions) : undefined,
         },
       },
     })
@@ -1384,7 +1415,7 @@ function DesktopConfigEditor() {
 
   return (
     <div className="space-y-3">
-      <ConfigApplyBar label="Desktop Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
+      <ConfigApplyBar label="Desktop Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="space-y-0 pt-3">
       <ConfigSectionPanel label="Transitions" first>
         <div className="space-y-3">
@@ -1761,7 +1792,7 @@ function DefaultStylingEditor() {
           type="button"
           variant={pendingConfirmAction === 'save-global-theme' ? 'warning' : 'default'}
           onClick={() => { void saveGlobalTheme() }}
-          className="justify-center px-3 py-2 text-[11px] uppercase tracking-[0.16em]"
+          className={`justify-center ${DASHBOARD_SAVE_BUTTON_CLASS}`}
         >
           {pendingConfirmAction === 'save-global-theme' ? 'Confirm Save Global Theme' : 'Save Global Theme'}
         </Btn>
@@ -2305,16 +2336,16 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   return (
     <div className="space-y-3">
       <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-      <div className="flex justify-end gap-2">
+      <div className="ml-auto flex w-fit flex-wrap gap-2">
         <Btn
           type="button"
-          variant={saveDefaultArmed ? 'warning' : 'default'}
+          variant={saveDefaultArmed ? 'warning' : 'primary'}
           onClick={() => { void saveCurrentAsDefault() }}
-          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+          className={DASHBOARD_SAVE_BUTTON_CLASS}
         >
           {saveDefaultArmed ? 'Click Again to Confirm' : 'Save Current as Default'}
         </Btn>
-        <Btn type="button" variant="warning" onClick={() => { void restoreDefaults() }} className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]">
+        <Btn type="button" variant="ghost" onClick={() => { void restoreDefaults() }} className={DASHBOARD_SAVE_BUTTON_CLASS}>
           Restore Defaults
         </Btn>
       </div>
@@ -4012,21 +4043,21 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end gap-2">
+      <div className="ml-auto flex w-fit flex-wrap gap-2">
         <Btn
           type="button"
-          variant={saveDefaultArmed ? 'warning' : 'default'}
+          variant={saveDefaultArmed ? 'warning' : 'primary'}
           onClick={() => { void saveCurrentAsDefault() }}
-          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+          className={DASHBOARD_SAVE_BUTTON_CLASS}
           disabled={saving}
         >
           {saveDefaultArmed ? 'Click Again to Confirm' : 'Save Current as Default'}
         </Btn>
         <Btn
           type="button"
-          variant="warning"
+          variant="ghost"
           onClick={() => { void restoreDefaults() }}
-          className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em]"
+          className={DASHBOARD_SAVE_BUTTON_CLASS}
           disabled={saving}
         >
           Restore Defaults
@@ -4863,7 +4894,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                     <div className="flex items-center justify-between gap-3 px-0.5">
                       <div className="text-sm text-zinc-500">{editingEventCreatesNew ? 'Editing new event draft' : `Editing ${editingEvent.label}`}</div>
                       <div className="flex flex-wrap gap-2">
-                        <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
+                        <Btn type="button" variant="primary" onClick={saveEventDraft} className={DASHBOARD_SAVE_BUTTON_CLASS}>
                           {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
                         </Btn>
                         {!editingEventCreatesNew && (
@@ -5010,7 +5041,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
                         <ConfigSectionPanel label="Actions">
                           <div className="flex flex-wrap gap-2">
-                            <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-4 py-2 text-sm">
+                            <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className={DASHBOARD_SAVE_BUTTON_CLASS}>
                               {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
                             </Btn>
                             {canDeleteSourcePreset && (
@@ -5179,7 +5210,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
                           variant="primary"
                           onClick={() => void handleSave()}
                           disabled={!url}
-                          className="flex-1 text-sm"
+                          className={`flex-1 ${DASHBOARD_SAVE_BUTTON_CLASS}`}
                         >
                           Save Transition
                         </Btn>
