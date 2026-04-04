@@ -13,8 +13,20 @@ import { StickyNotesWidget } from './StickyNotesWidget'
 import { GalleryWidget } from './GalleryWidget'
 import { CameraWidget } from './CameraWidget'
 import { SourceWidget } from './SourceWidget'
-import { ShimejiPetWidget } from './ShimejiPetWidget'
-import { AuraOrbWidget } from './AuraOrbWidget'
+import { SpectrumAnalyzerWidget } from './SpectrumAnalyzerWidget'
+import { EqualizerRackWidget } from './EqualizerRackWidget'
+import { WaveScopeWidget } from './WaveScopeWidget'
+import { PlaylistDeckWidget } from './PlaylistDeckWidget'
+import { NetMeterWidget } from './NetMeterWidget'
+import { MediaDeckWidget } from './MediaDeckWidget'
+import { CDRipperWidget } from './CDRipperWidget'
+import { SignalLabWidget } from './SignalLabWidget'
+import { BroadcastSchedulerWidget } from './BroadcastSchedulerWidget'
+import { WeatherConsoleWidget } from './WeatherConsoleWidget'
+import { ClockTowerWidget } from './ClockTowerWidget'
+import { NewswireDeskWidget } from './NewswireDeskWidget'
+import { CityNavigatorWidget } from './CityNavigatorWidget'
+import { LCDDolphinsWidget } from './LCDDolphinsWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
@@ -45,8 +57,20 @@ const WIDGET_COMPONENTS: Partial<Record<WidgetComponentType, React.ComponentType
   gallery: GalleryWidget,
   camera: CameraWidget,
   source: SourceWidget,
-  shimeji: ShimejiPetWidget,
-  'aura-orb': AuraOrbWidget,
+  'spectrum-analyzer': SpectrumAnalyzerWidget,
+  'equalizer-rack': EqualizerRackWidget,
+  'wave-scope': WaveScopeWidget,
+  'playlist-deck': PlaylistDeckWidget,
+  'net-meter': NetMeterWidget,
+  'media-deck': MediaDeckWidget,
+  'cd-ripper': CDRipperWidget,
+  'signal-lab': SignalLabWidget,
+  'broadcast-scheduler': BroadcastSchedulerWidget,
+  'weather-console': WeatherConsoleWidget,
+  'clock-tower': ClockTowerWidget,
+  'newswire-desk': NewswireDeskWidget,
+  'city-navigator': CityNavigatorWidget,
+  'lcd-dolphins': LCDDolphinsWidget,
 }
 
 function resolveWidgetComponent(app: Application) {
@@ -662,6 +686,68 @@ function buildWidgetThemeVars(widgetTheme: WidgetThemeConfig): React.CSSProperti
       '--widget-input-text': '#1a4960',
       '--widget-input-border': '#9ad6d1',
       '--widget-backdrop-filter': 'blur(10px) saturate(124%)',
+    })
+  } else if (widgetTheme.skin === 'dial-up candy') {
+    Object.assign(vars, {
+      '--widget-shell-bg': 'linear-gradient(180deg, #f8fbff 0%, #bfe8ff 34%, #82c2ff 100%)',
+      '--widget-shell-highlight': '#ffffff',
+      '--widget-shell-shadow': '#6e9fcb',
+      '--widget-shell-outline': '#35618e',
+      '--widget-shell-shadow-drop': '0 14px 28px rgba(56, 105, 151, 0.24)',
+      '--widget-title-start': '#f3fbff',
+      '--widget-title-text': '#20344d',
+      '--widget-title-shadow': '0 1px 0 rgba(255, 255, 255, 0.84)',
+      '--widget-body-bg': 'rgba(241, 249, 255, 0.95)',
+      '--widget-body-text': '#20344d',
+      '--widget-body-overlay': 'linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(171, 227, 255, 0.16) 40%, rgba(255, 255, 255, 0) 100%)',
+      '--widget-control-bg': 'linear-gradient(180deg, #ffffff 0%, #d7f1ff 100%)',
+      '--widget-control-text': '#21415e',
+      '--widget-control-border': '#75acd4',
+      '--widget-input-bg': 'rgba(255, 255, 255, 0.96)',
+      '--widget-input-text': '#21415e',
+      '--widget-input-border': '#97c7e3',
+    })
+  } else if (widgetTheme.skin === 'webcore flash') {
+    Object.assign(vars, {
+      '--widget-shell-bg': 'linear-gradient(180deg, #fff9c8 0%, #ffb54a 40%, #ff5988 100%)',
+      '--widget-shell-highlight': '#fffef4',
+      '--widget-shell-shadow': '#cb5f50',
+      '--widget-shell-outline': '#34204b',
+      '--widget-shell-shadow-drop': '0 16px 28px rgba(134, 52, 73, 0.24)',
+      '--widget-title-start': '#fff8da',
+      '--widget-title-text': '#281b3d',
+      '--widget-title-shadow': '0 1px 0 rgba(255, 255, 255, 0.72)',
+      '--widget-body-bg': 'rgba(255, 248, 225, 0.95)',
+      '--widget-body-text': '#281b3d',
+      '--widget-body-overlay': 'linear-gradient(180deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 205, 123, 0.12) 42%, rgba(255, 255, 255, 0) 100%)',
+      '--widget-control-bg': 'linear-gradient(180deg, #fff9df 0%, #ffd56b 100%)',
+      '--widget-control-text': '#2d2140',
+      '--widget-control-border': '#8a437d',
+      '--widget-input-bg': 'rgba(255, 252, 242, 0.96)',
+      '--widget-input-text': '#2d2140',
+      '--widget-input-border': '#d28b69',
+    })
+  } else if (widgetTheme.skin === 'lan party') {
+    Object.assign(vars, {
+      '--widget-shell-bg': 'linear-gradient(180deg, #17352d 0%, #09130f 100%)',
+      '--widget-shell-highlight': '#8dffd7',
+      '--widget-shell-shadow': '#050907',
+      '--widget-shell-outline': '#67ffcc',
+      '--widget-shell-shadow-drop': '0 12px 34px rgba(0, 0, 0, 0.58), 0 0 24px rgba(103, 255, 204, 0.18)',
+      '--widget-title-start': '#0c1713',
+      '--widget-title-text': '#e7fff7',
+      '--widget-title-shadow': '0 0 12px rgba(103, 255, 204, 0.2)',
+      '--widget-title-border': 'rgba(103, 255, 204, 0.22)',
+      '--widget-body-bg': 'linear-gradient(180deg, rgba(8, 15, 13, 0.96) 0%, rgba(11, 30, 25, 0.94) 100%)',
+      '--widget-body-text': '#e7fff7',
+      '--widget-body-overlay': 'linear-gradient(180deg, rgba(103, 255, 204, 0.08) 0%, rgba(255, 255, 255, 0) 28%)',
+      '--widget-body-border': 'rgba(103, 255, 204, 0.12)',
+      '--widget-control-bg': 'linear-gradient(180deg, #183026 0%, #09130f 100%)',
+      '--widget-control-text': '#e7fff7',
+      '--widget-control-border': '#58d2a9',
+      '--widget-input-bg': 'rgba(4, 10, 8, 0.94)',
+      '--widget-input-text': '#e7fff7',
+      '--widget-input-border': '#49b491',
     })
   }
 

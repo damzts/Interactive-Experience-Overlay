@@ -972,6 +972,21 @@ const WIDGET_SKINS: Array<{
     label: 'Aero Opaline',
     description: 'Pearlescent glass, aquatic light, and premium Aero softness.',
   },
+  {
+    id: 'dial-up candy',
+    label: 'Dial-Up Candy',
+    description: 'ISP-install-CD gloss, modem LEDs, and bright portal blues.',
+  },
+  {
+    id: 'webcore flash',
+    label: 'Webcore Flash',
+    description: 'Button-heavy portal aesthetics with blinkie-banner energy.',
+  },
+  {
+    id: 'lan party',
+    label: 'LAN Party',
+    description: 'CRT utility green with late-night file-share atmosphere.',
+  },
 ]
 
 const WIDGET_THEME_ANIMATIONS: Array<{

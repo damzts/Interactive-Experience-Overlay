@@ -99,7 +99,7 @@ export function TransitionLayer() {
         </div>
       </div>
 
-      {/* Idle overlay — floating terminal floaties (shimeji-like) */}
+      {/* Idle overlay — floating terminal floaties */}
       <div id="tl-idle-container" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', overflow: 'hidden' }} />
 
       {/* Sys message — terminal toast, repositioned per cfg */}

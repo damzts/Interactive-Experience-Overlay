@@ -50,7 +50,7 @@ export type ApplicationType = 'scene' | 'widget' | 'decoration'
 
 export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
 export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
-export type WidgetSkinTheme = 'metalheart' | 'genx soft club' | 'chromecore' | 'y2k futurism' | 'transparent' | 'aqua pop' | 'mallsoft pearl' | 'messenger glow' | 'limewire plasma' | 'cyber y2k' | 'digital futurism' | 'ssx rush' | 'ps2 drift' | 'xbox blade' | 'cel street' | 'aero nova' | 'aero opaline'
+export type WidgetSkinTheme = 'metalheart' | 'genx soft club' | 'chromecore' | 'y2k futurism' | 'transparent' | 'aqua pop' | 'mallsoft pearl' | 'messenger glow' | 'limewire plasma' | 'cyber y2k' | 'digital futurism' | 'ssx rush' | 'ps2 drift' | 'xbox blade' | 'cel street' | 'aero nova' | 'aero opaline' | 'dial-up candy' | 'webcore flash' | 'lan party'
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
 
@@ -106,7 +106,7 @@ export interface WidgetLayoutDefinition {
   items: WidgetLayoutItem[]
 }
 
-export type WidgetComponentType = 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source' | 'sticky-notes' | 'shimeji' | 'aura-orb' | 'generic'
+export type WidgetComponentType = 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source' | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope' | 'playlist-deck' | 'net-meter' | 'media-deck' | 'cd-ripper' | 'signal-lab' | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk' | 'city-navigator' | 'lcd-dolphins' | 'generic'
 
 export interface SourceWidgetSettings {
   sceneId?: string
