@@ -126,30 +126,23 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
       defaultPosition={{ x: 260, y: 80 }}
       zIndex={zIndex}
       state={windowState}
+      windowClassName="desktop-window--camera"
+      bodyClassName="desktop-window-body--camera"
       onFocus={onFocus}
       onMinimize={onMinimize}
       onClose={onClose}
-      bodyStyle={{ padding: 0 }}
+      bodyStyle={{ padding: 12 }}
     >
       <div
-        style={{
-          width:      '100%',
-          aspectRatio: '16 / 9',
-          background: '#111',
-          display:    'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow:   'hidden',
-          position:   'relative',
-        }}
+        className="widget-panel widget-camera-frame"
       >
         {loading && !error && (
-          <span style={{ color: '#d4d4d4', fontSize: 11 }}>Iniciando cámara...</span>
+          <span className="widget-empty-state">Iniciando cámara...</span>
         )}
         {error && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '0 12px' }}>
-            <span style={{ fontSize: 22 }}>📷</span>
-            <span style={{ color: '#f87171', fontSize: 10, textAlign: 'center' }}>{error}</span>
+          <div className="widget-camera-status">
+            <span className="widget-camera-status-icon">📷</span>
+            <span className="widget-empty-state widget-empty-state--error">{error}</span>
           </div>
         )}
         <video

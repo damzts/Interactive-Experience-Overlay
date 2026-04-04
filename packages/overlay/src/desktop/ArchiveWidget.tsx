@@ -46,25 +46,29 @@ export function ArchiveWidget({ onClose, onMinimize, onFocus, windowState = 'ope
       defaultPosition={{ x: 900, y: 120 }}
       zIndex={zIndex}
       state={windowState}
+      windowClassName="desktop-window--archive"
+      bodyClassName="desktop-window-body--archive"
       onFocus={onFocus}
       onMinimize={onMinimize}
       onClose={onClose}
-      bodyStyle={{ padding: '8px 10px' }}
+      bodyStyle={{ padding: '12px' }}
     >
-        <div style={{ background: '#000', border: '2px inset', padding: '6px 8px', marginBottom: 8, fontFamily: 'VT323, monospace', fontSize: 13, color: '#00aaff', lineHeight: 1.6 }}>
-          <div>SESSION ACTIVE</div>
-          <div style={{ color: '#fff' }}>{dateStr}</div>
-          <div>UPTIME: <span style={{ color: '#00ff88' }}>{sessionTime}</span></div>
-          <div>STATE: <span style={{ color: '#ffaa00' }}>{String(visualState)}</span></div>
+      <div className="widget-stack">
+        <div className="widget-panel widget-panel--display widget-panel--archive-hero">
+          <div className="widget-led-copy">SESSION ACTIVE</div>
+          <div className="widget-led-subtle">{dateStr}</div>
+          <div className="widget-led-row">UPTIME <span className="widget-led-accent">{sessionTime}</span></div>
+          <div className="widget-led-row">STATE <span className="widget-led-warn">{String(visualState)}</span></div>
         </div>
-        <div style={{ marginBottom: 4, fontFamily: 'MS Sans Serif, Arial', fontSize: 11, fontWeight: 'bold' }}>State Log:</div>
-        <div style={{ background: '#fff', border: '2px inset', height: 120, overflowY: 'auto', padding: '2px 4px', fontFamily: 'VT323, monospace', fontSize: 12 }}>
+        <div className="widget-section-title">State Log</div>
+        <div className="widget-panel widget-panel--scroll widget-panel--terminal">
           {log.map((entry, i) => (
-            <div key={i} data-sim-action="archive-log" style={{ color: i === 0 ? '#000080' : '#666', lineHeight: 1.4 }}>
+            <div key={i} data-sim-action="archive-log" className={`widget-log-entry ${i === 0 ? 'widget-log-entry--active' : ''}`}>
               [{entry.time}] {entry.state}
             </div>
           ))}
         </div>
+      </div>
     </DesktopWindow>
   )
 }

@@ -50,6 +50,28 @@ export type ApplicationType = 'scene' | 'widget' | 'decoration'
 
 export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
 export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
+export type WidgetSkinTheme = 'metalheart' | 'genx soft club' | 'chromecore' | 'y2k futurism' | 'transparent' | 'aqua pop' | 'mallsoft pearl' | 'messenger glow' | 'limewire plasma' | 'cyber y2k' | 'digital futurism' | 'ssx rush' | 'ps2 drift' | 'xbox blade' | 'cel street' | 'aero nova' | 'aero opaline'
+export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
+export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
+
+export interface WidgetThemeConfig {
+  /** Widget chrome preset, similar to classic app skins. */
+  skin: WidgetSkinTheme
+  /** Google Font name, or 'default'. */
+  fontFamily: string
+  /** Accent/tint used to push the selected skin. */
+  accentColor: string
+  /** Main widget text color. */
+  textColor: string
+  /** Continuous animation profile applied to widget chrome and panels. */
+  animation: WidgetThemeAnimation
+  /** Decorative texture layer living above the skin. */
+  atmosphere: WidgetThemeAtmosphere
+  /** 0-3 scalar controlling how active skin motion appears. */
+  motionIntensity: number
+  /** 0-3 scalar controlling bloom, glow, and accent light. */
+  glowIntensity: number
+}
 
 export interface WidgetWindowSize {
   /** Width in pixels for the widget window chrome. */
@@ -84,7 +106,7 @@ export interface WidgetLayoutDefinition {
   items: WidgetLayoutItem[]
 }
 
-export type WidgetComponentType = 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source' | 'sticky-notes' | 'generic'
+export type WidgetComponentType = 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source' | 'sticky-notes' | 'shimeji' | 'aura-orb' | 'generic'
 
 export interface SourceWidgetSettings {
   sceneId?: string
@@ -234,6 +256,8 @@ export interface OverlayStyle {
 export interface DesktopConfig {
   /** Desktop chrome preset: taskbar, title bars, menus, and controls */
   theme: DesktopTheme
+  /** Widget chrome preset and tint overrides shared by all widget windows. */
+  widgetTheme: WidgetThemeConfig
   /** Icon size applied to all icons when no per-app iconSize is set */
   defaultIconSize: 'small' | 'normal' | 'large'
   /** When true: icons snap to auto-column; when false: icons use absolute iconPosition */

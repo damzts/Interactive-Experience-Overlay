@@ -3,6 +3,7 @@ import {
   DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   DEFAULT_RECYCLE_BIN_SETTINGS,
   DEFAULT_STICKY_NOTES_SETTINGS,
+  DEFAULT_WIDGET_THEME_PRESETS,
   getDefaultWidgetWindowSize,
   getDefaultWidgetZIndex,
   getWidgetComponent,
@@ -881,6 +882,121 @@ const DESKTOP_THEMES: { id: DesktopConfig['theme']; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ]
 
+const WIDGET_SKINS: Array<{
+  id: DesktopConfig['widgetTheme']['skin']
+  label: string
+  description: string
+}> = [
+  {
+    id: 'metalheart',
+    label: 'Metalheart',
+    description: 'Brushed alloy shell with hot-pink hardware and arcade steel highlights.',
+  },
+  {
+    id: 'genx soft club',
+    label: 'GenX Soft Club',
+    description: 'Pastel nightclub plastic with glossy mint and bubblegum accents.',
+  },
+  {
+    id: 'chromecore',
+    label: 'Chromecore',
+    description: 'Polished silver utility chrome with cool cyan trims.',
+  },
+  {
+    id: 'y2k futurism',
+    label: 'Y2K Futurism',
+    description: 'Dark glossy shell with neon cyan-magenta title lighting.',
+  },
+  {
+    id: 'transparent',
+    label: 'Transparent',
+    description: 'Glass-panel widget chrome for overlays that need to stay airy.',
+  },
+  {
+    id: 'aqua pop',
+    label: 'Aqua Pop',
+    description: 'Glossy candy-aqua shell with bright dashboard glass energy.',
+  },
+  {
+    id: 'mallsoft pearl',
+    label: 'Mallsoft Pearl',
+    description: 'Dreamy retail-kiosk pearl plastic with soft blush bloom.',
+  },
+  {
+    id: 'messenger glow',
+    label: 'Messenger Glow',
+    description: 'Buddy-list greens and silver utility plastics with lively presence.',
+  },
+  {
+    id: 'limewire plasma',
+    label: 'Limewire Plasma',
+    description: 'Acid green transfer-energy skin with cyber scan movement.',
+  },
+  {
+    id: 'cyber y2k',
+    label: 'Cyber Y2K',
+    description: 'Chrome-neon club futurism with magenta cyan voltage.',
+  },
+  {
+    id: 'digital futurism',
+    label: 'Digital Futurism',
+    description: 'Sleek concept-device glass and luminous interface metal.',
+  },
+  {
+    id: 'ssx rush',
+    label: 'SSX Rush',
+    description: 'Extreme-sports dashboard energy with hot slopes and arcade speed.',
+  },
+  {
+    id: 'ps2 drift',
+    label: 'PS2 Drift',
+    description: 'Late-night menu blues and sixth-gen menu-space ambience.',
+  },
+  {
+    id: 'xbox blade',
+    label: 'Xbox Blade',
+    description: 'Early-2000s techno utility green with dashboard scan grit.',
+  },
+  {
+    id: 'cel street',
+    label: 'Cel Street',
+    description: 'Jet Set street graphics with graphic outlines and painted energy.',
+  },
+  {
+    id: 'aero nova',
+    label: 'Aero Nova',
+    description: 'Frutiger Aero turned brighter, wetter, and more kinetic.',
+  },
+  {
+    id: 'aero opaline',
+    label: 'Aero Opaline',
+    description: 'Pearlescent glass, aquatic light, and premium Aero softness.',
+  },
+]
+
+const WIDGET_THEME_ANIMATIONS: Array<{
+  id: DesktopConfig['widgetTheme']['animation']
+  label: string
+  description: string
+}> = [
+  { id: 'steady', label: 'Steady', description: 'Minimal motion, stable and polished.' },
+  { id: 'pulse', label: 'Pulse', description: 'Breathing chrome and soft accent surges.' },
+  { id: 'shimmer', label: 'Shimmer', description: 'Traveling specular highlights and gloss sweeps.' },
+  { id: 'aurora', label: 'Aurora', description: 'Slow morphing light bands and neon drift.' },
+  { id: 'broadcast', label: 'Broadcast', description: 'Scan, flicker, and transmission energy.' },
+]
+
+const WIDGET_THEME_ATMOSPHERES: Array<{
+  id: DesktopConfig['widgetTheme']['atmosphere']
+  label: string
+}> = [
+  { id: 'clean', label: 'Clean' },
+  { id: 'sparkle', label: 'Sparkle' },
+  { id: 'scanlines', label: 'Scanlines' },
+  { id: 'grid', label: 'Grid' },
+  { id: 'nebula', label: 'Nebula' },
+]
+
 const ICON_ANIMATIONS: { id: DesktopConfig['iconAnimation']; label: string }[] = [
   { id: 'none', label: 'Static' },
   { id: 'pulse', label: 'Pulse' },
@@ -1610,6 +1726,92 @@ function DesktopConfigEditor() {
               step={5}
               unit="%"
               onChange={(value) => update((d) => { d.iconMotion = value / 100 })}
+            />
+          </div>
+        </div>
+      </ConfigSectionPanel>
+      <ConfigSectionPanel label="Widget Theme">
+        <div className="space-y-4">
+          <div className="text-[10px] text-zinc-500 leading-relaxed">
+            Widget themes behave like classic application skins. The selected skin restyles shared widget chrome, controls, and window furniture across every widget, and can stay in motion the whole time the desktop is live.
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {WIDGET_SKINS.map((skin) => (
+              <ConfigChoiceButton
+                key={skin.id}
+                type="button"
+                selected={form.widgetTheme.skin === skin.id}
+                onClick={() => update((d) => { d.widgetTheme = { ...DEFAULT_WIDGET_THEME_PRESETS[skin.id] } })}
+                className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
+                title={skin.description}
+              >
+                <span className="text-[11px] font-semibold leading-none">{skin.label}</span>
+                <span className="text-[10px] leading-relaxed text-zinc-500">{skin.description}</span>
+              </ConfigChoiceButton>
+            ))}
+          </div>
+          <div className="border-t border-zinc-800 pt-3">
+            <ThemeAppearanceFields
+              appearance={form.widgetTheme}
+              onChange={(updater) => update((d) => { updater(d.widgetTheme) })}
+              helperText="Each skin ships with its own baseline palette and font. Use these overrides when you want to tint the skin without switching presets."
+            />
+          </div>
+          <div className="border-t border-zinc-800 pt-3 space-y-3">
+            <div>
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Live Motion</div>
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                Animation changes how light, gloss, and ornament move across the widget shell. Atmosphere adds an always-on texture layer so the desktop feels alive even when viewers stare at it for a long time.
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {WIDGET_THEME_ANIMATIONS.map((animation) => (
+                <ConfigChoiceButton
+                  key={animation.id}
+                  type="button"
+                  selected={form.widgetTheme.animation === animation.id}
+                  onClick={() => update((d) => { d.widgetTheme.animation = animation.id })}
+                  className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case"
+                  title={animation.description}
+                >
+                  <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
+                  <span className="text-[10px] leading-relaxed text-zinc-500">{animation.description}</span>
+                </ConfigChoiceButton>
+              ))}
+            </div>
+            <div>
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Atmosphere</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
+                  <ConfigChoiceButton
+                    key={atmosphere.id}
+                    type="button"
+                    selected={form.widgetTheme.atmosphere === atmosphere.id}
+                    onClick={() => update((d) => { d.widgetTheme.atmosphere = atmosphere.id })}
+                    className="py-2 text-[11px]"
+                  >
+                    {atmosphere.label}
+                  </ConfigChoiceButton>
+                ))}
+              </div>
+            </div>
+            <Slider
+              label="Motion"
+              value={Math.round(form.widgetTheme.motionIntensity * 100)}
+              min={0}
+              max={300}
+              step={5}
+              unit="%"
+              onChange={(value) => update((d) => { d.widgetTheme.motionIntensity = value / 100 })}
+            />
+            <Slider
+              label="Glow"
+              value={Math.round(form.widgetTheme.glowIntensity * 100)}
+              min={0}
+              max={300}
+              step={5}
+              unit="%"
+              onChange={(value) => update((d) => { d.widgetTheme.glowIntensity = value / 100 })}
             />
           </div>
         </div>

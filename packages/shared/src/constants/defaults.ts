@@ -9,6 +9,10 @@ import type {
   RecycleBinSettings,
   SourceWidgetSettings,
   StickyNotesSettings,
+  WidgetThemeAnimation,
+  WidgetThemeAtmosphere,
+  WidgetThemeConfig,
+  WidgetSkinTheme,
   WidgetComponentType,
   WidgetLayoutDefinition,
   WidgetLayoutItem,
@@ -66,6 +70,50 @@ function normalizeDesktopTheme(theme?: DesktopTheme | 'win vista'): DesktopTheme
   return 'win98'
 }
 
+function normalizeWidgetSkinTheme(theme?: WidgetSkinTheme): WidgetSkinTheme {
+  if (
+    theme === 'metalheart'
+    || theme === 'genx soft club'
+    || theme === 'chromecore'
+    || theme === 'y2k futurism'
+    || theme === 'transparent'
+    || theme === 'aqua pop'
+    || theme === 'mallsoft pearl'
+    || theme === 'messenger glow'
+    || theme === 'limewire plasma'
+    || theme === 'cyber y2k'
+    || theme === 'digital futurism'
+    || theme === 'ssx rush'
+    || theme === 'ps2 drift'
+    || theme === 'xbox blade'
+    || theme === 'cel street'
+    || theme === 'aero nova'
+    || theme === 'aero opaline'
+  ) {
+    return theme
+  }
+  return 'metalheart'
+}
+
+function normalizeWidgetThemeAnimation(value?: WidgetThemeAnimation): WidgetThemeAnimation {
+  if (value === 'steady' || value === 'pulse' || value === 'shimmer' || value === 'aurora' || value === 'broadcast') {
+    return value
+  }
+  return 'shimmer'
+}
+
+function normalizeWidgetThemeAtmosphere(value?: WidgetThemeAtmosphere): WidgetThemeAtmosphere {
+  if (value === 'clean' || value === 'sparkle' || value === 'scanlines' || value === 'grid' || value === 'nebula') {
+    return value
+  }
+  return 'sparkle'
+}
+
+function normalizeWidgetThemeIntensity(value: number | undefined, fallback: number) {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(3, Math.max(0, Math.round((value as number) * 100) / 100))
+}
+
 function buildSolidGradient(color: string) {
   return `linear-gradient(180deg, ${color} 0%, ${color} 100%)`
 }
@@ -73,6 +121,179 @@ function buildSolidGradient(color: string) {
 export const DEFAULT_STICKY_NOTES_SETTINGS: StickyNotesSettings = {
   text: 'Reminder:\n- queue scenes\n- test alerts\n- hydrate',
   color: '#fff2a8',
+}
+
+export const DEFAULT_WIDGET_THEME_PRESETS: Record<WidgetSkinTheme, WidgetThemeConfig> = {
+  metalheart: {
+    skin: 'metalheart',
+    fontFamily: 'Audiowide',
+    accentColor: '#ff5c8a',
+    textColor: '#f8fbff',
+    animation: 'shimmer',
+    atmosphere: 'sparkle',
+    motionIntensity: 0.95,
+    glowIntensity: 1.2,
+  },
+  'genx soft club': {
+    skin: 'genx soft club',
+    fontFamily: 'Electrolize',
+    accentColor: '#ff94d6',
+    textColor: '#2c1430',
+    animation: 'pulse',
+    atmosphere: 'sparkle',
+    motionIntensity: 1.15,
+    glowIntensity: 0.85,
+  },
+  chromecore: {
+    skin: 'chromecore',
+    fontFamily: 'Rajdhani',
+    accentColor: '#7fe0ff',
+    textColor: '#152433',
+    animation: 'shimmer',
+    atmosphere: 'grid',
+    motionIntensity: 0.8,
+    glowIntensity: 0.95,
+  },
+  'y2k futurism': {
+    skin: 'y2k futurism',
+    fontFamily: 'Orbitron',
+    accentColor: '#2cf7ff',
+    textColor: '#ebfbff',
+    animation: 'aurora',
+    atmosphere: 'nebula',
+    motionIntensity: 1.35,
+    glowIntensity: 1.6,
+  },
+  transparent: {
+    skin: 'transparent',
+    fontFamily: 'Share Tech Mono',
+    accentColor: '#b8f4ff',
+    textColor: '#effcff',
+    animation: 'broadcast',
+    atmosphere: 'scanlines',
+    motionIntensity: 1,
+    glowIntensity: 1.05,
+  },
+  'aqua pop': {
+    skin: 'aqua pop',
+    fontFamily: 'Rajdhani',
+    accentColor: '#4ddcff',
+    textColor: '#08374c',
+    animation: 'shimmer',
+    atmosphere: 'sparkle',
+    motionIntensity: 1.05,
+    glowIntensity: 1.25,
+  },
+  'mallsoft pearl': {
+    skin: 'mallsoft pearl',
+    fontFamily: 'Electrolize',
+    accentColor: '#ffb8e8',
+    textColor: '#5a2b58',
+    animation: 'aurora',
+    atmosphere: 'nebula',
+    motionIntensity: 0.9,
+    glowIntensity: 1.15,
+  },
+  'messenger glow': {
+    skin: 'messenger glow',
+    fontFamily: 'Audiowide',
+    accentColor: '#75ffb2',
+    textColor: '#16352a',
+    animation: 'pulse',
+    atmosphere: 'grid',
+    motionIntensity: 1.15,
+    glowIntensity: 1,
+  },
+  'limewire plasma': {
+    skin: 'limewire plasma',
+    fontFamily: 'Share Tech Mono',
+    accentColor: '#7aff54',
+    textColor: '#e8ffe1',
+    animation: 'broadcast',
+    atmosphere: 'scanlines',
+    motionIntensity: 1.35,
+    glowIntensity: 1.45,
+  },
+  'cyber y2k': {
+    skin: 'cyber y2k',
+    fontFamily: 'Orbitron',
+    accentColor: '#ff6dff',
+    textColor: '#f4fbff',
+    animation: 'aurora',
+    atmosphere: 'grid',
+    motionIntensity: 1.45,
+    glowIntensity: 1.7,
+  },
+  'digital futurism': {
+    skin: 'digital futurism',
+    fontFamily: 'Audiowide',
+    accentColor: '#56f0ff',
+    textColor: '#eafcff',
+    animation: 'shimmer',
+    atmosphere: 'nebula',
+    motionIntensity: 1.1,
+    glowIntensity: 1.35,
+  },
+  'ssx rush': {
+    skin: 'ssx rush',
+    fontFamily: 'Rajdhani',
+    accentColor: '#ff8e2b',
+    textColor: '#fff7ee',
+    animation: 'pulse',
+    atmosphere: 'sparkle',
+    motionIntensity: 1.55,
+    glowIntensity: 1.2,
+  },
+  'ps2 drift': {
+    skin: 'ps2 drift',
+    fontFamily: 'Electrolize',
+    accentColor: '#6ba4ff',
+    textColor: '#edf3ff',
+    animation: 'broadcast',
+    atmosphere: 'grid',
+    motionIntensity: 1.1,
+    glowIntensity: 1.1,
+  },
+  'xbox blade': {
+    skin: 'xbox blade',
+    fontFamily: 'Share Tech Mono',
+    accentColor: '#79ff5a',
+    textColor: '#efffe7',
+    animation: 'broadcast',
+    atmosphere: 'scanlines',
+    motionIntensity: 1.25,
+    glowIntensity: 1.3,
+  },
+  'cel street': {
+    skin: 'cel street',
+    fontFamily: 'Audiowide',
+    accentColor: '#ffd447',
+    textColor: '#1a1f2f',
+    animation: 'pulse',
+    atmosphere: 'clean',
+    motionIntensity: 1.2,
+    glowIntensity: 0.9,
+  },
+  'aero nova': {
+    skin: 'aero nova',
+    fontFamily: 'Rajdhani',
+    accentColor: '#59d7ff',
+    textColor: '#103b58',
+    animation: 'aurora',
+    atmosphere: 'sparkle',
+    motionIntensity: 1.05,
+    glowIntensity: 1.45,
+  },
+  'aero opaline': {
+    skin: 'aero opaline',
+    fontFamily: 'Electrolize',
+    accentColor: '#7ceee7',
+    textColor: '#1a4960',
+    animation: 'shimmer',
+    atmosphere: 'nebula',
+    motionIntensity: 0.95,
+    glowIntensity: 1.25,
+  },
 }
 
 export const DEFAULT_RECYCLE_BIN_SETTINGS: RecycleBinSettings = {
@@ -134,6 +355,7 @@ export function withLobbyConfigDefaults(config?: Partial<LobbyConfig> | null): L
 
 export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   theme: 'win98',
+  widgetTheme: { ...DEFAULT_WIDGET_THEME_PRESETS.metalheart },
   defaultIconSize: 'normal',
   autoArrangeIcons: false,
   iconAnimation: 'none',
@@ -174,13 +396,15 @@ export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height
   'sticky-notes': { width: 260, height: 290 },
   gallery: { width: 430, height: 320 },
   browser: { width: 430, height: 320 },
+  'desktop-pet': { width: 180, height: 180 },
+  'aura-orb': { width: 220, height: 220 },
 }
 
 export const DEFAULT_WIDGET_DEFAULT_Z_INDICES = {
   ...DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices,
 }
 
-export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera'] as const
+export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera', 'desktop-pet', 'aura-orb'] as const
 
 const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
   browser: 'gallery',
@@ -191,6 +415,8 @@ const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType,
   chat: 'chat',
   'sticky-notes': 'sticky-notes',
   camera: 'camera',
+  'desktop-pet': 'shimeji',
+  'aura-orb': 'aura-orb',
 }
 
 const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
@@ -201,6 +427,8 @@ const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
   'music',
   'source',
   'sticky-notes',
+  'shimeji',
+  'aura-orb',
   'generic',
 ])
 
@@ -212,6 +440,8 @@ const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width
   music: DEFAULT_WIDGET_WINDOW_SIZES.music,
   source: { width: 420, height: 320 },
   'sticky-notes': DEFAULT_WIDGET_WINDOW_SIZES['sticky-notes'],
+  shimeji: DEFAULT_WIDGET_WINDOW_SIZES['desktop-pet'],
+  'aura-orb': DEFAULT_WIDGET_WINDOW_SIZES['aura-orb'],
   generic: { width: 260, height: 240 },
 }
 
@@ -223,6 +453,8 @@ const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> = 
   music: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.music ?? 10,
   source: 25,
   'sticky-notes': DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.['sticky-notes'] ?? 30,
+  shimeji: 75,
+  'aura-orb': 65,
   generic: 0,
 }
 
@@ -750,11 +982,22 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
   const { notifications: _legacyNotifications, stickyNotes: _legacyStickyNotes, ...rest } = source
   const legacyRecycleBin: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings> = source.recycleBin ?? {}
   const { emptyIcon: _legacyEmptyIcon, fullIcon: _legacyFullIcon, ...recycleBin } = legacyRecycleBin
+  const widgetSkin = normalizeWidgetSkinTheme(source.widgetTheme?.skin)
+  const widgetPreset = DEFAULT_WIDGET_THEME_PRESETS[widgetSkin]
 
   return {
     ...DEFAULT_DESKTOP_CONFIG,
     ...rest,
     theme: normalizeDesktopTheme(source.theme as DesktopTheme | 'win vista' | undefined),
+    widgetTheme: {
+      ...widgetPreset,
+      ...source.widgetTheme,
+      skin: widgetSkin,
+      animation: normalizeWidgetThemeAnimation(source.widgetTheme?.animation ?? widgetPreset.animation),
+      atmosphere: normalizeWidgetThemeAtmosphere(source.widgetTheme?.atmosphere ?? widgetPreset.atmosphere),
+      motionIntensity: normalizeWidgetThemeIntensity(source.widgetTheme?.motionIntensity, widgetPreset.motionIntensity),
+      glowIntensity: normalizeWidgetThemeIntensity(source.widgetTheme?.glowIntensity, widgetPreset.glowIntensity),
+    },
     recycleBin: {
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
       ...recycleBin,
@@ -970,6 +1213,30 @@ export const DEFAULT_CONFIG: AppConfig = {
       widgetComponent: 'camera' as const,
       transitionType: 'instant',
       iconPosition: { x: 16, y: 496 },
+      iconSize: 'normal' as const,
+    },
+    {
+      id: 'desktop-pet',
+      label: 'Shimeji Buddy',
+      icon: '🐾',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'shimeji' as const,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 576 },
+      iconSize: 'normal' as const,
+    },
+    {
+      id: 'aura-orb',
+      label: 'Aura Orb',
+      icon: '🫧',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'aura-orb' as const,
+      transitionType: 'instant',
+      iconPosition: { x: 16, y: 656 },
       iconSize: 'normal' as const,
     },
   ],

@@ -6,6 +6,15 @@ import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieom
 
 const TASKBAR_HEIGHT_PX = 40
 
+function hashString(input: string) {
+  let hash = 0
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(index)
+    hash |= 0
+  }
+  return Math.abs(hash)
+}
+
 function clampDimension(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)))
 }
@@ -70,6 +79,7 @@ interface DesktopWindowProps {
   defaultPosition: { x: number; y: number }
   zIndex?: number
   state?: 'open' | 'closing'
+  windowClassName?: string
   bodyStyle?: React.CSSProperties
   bodyClassName?: string
   onFocus?: () => void
@@ -86,6 +96,7 @@ export function DesktopWindow({
   defaultPosition,
   zIndex = 60,
   state = 'open',
+  windowClassName = '',
   bodyStyle,
   bodyClassName = '',
   onFocus,
@@ -95,6 +106,9 @@ export function DesktopWindow({
 }: DesktopWindowProps) {
   const configPos = useAppStore((store) => store.config.desktopConfig?.widgetPositions?.[id])
   const sizeOverride = useAppStore((store) => store.config.desktopConfig?.widgetSizes?.[id])
+  const windowSeed = hashString(id)
+  const motionPhase = (windowSeed % 17) / 2
+  const hueShift = (windowSeed % 9) - 4
   const frameRef = useRef<HTMLDivElement | null>(null)
   const dragging = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
@@ -388,7 +402,7 @@ export function DesktopWindow({
   return (
     <div
       ref={frameRef}
-      className={`window desktop-window desktop-window--${state}`}
+      className={`window desktop-window desktop-window--${state} ${windowClassName}`.trim()}
       style={{
         position: 'absolute',
         left: pos.x,
@@ -399,7 +413,9 @@ export function DesktopWindow({
         flexDirection: 'column',
         userSelect: 'none',
         zIndex,
-        boxShadow: '4px 4px 0 #000',
+        boxShadow: 'var(--widget-shell-shadow-drop, 4px 4px 0 #000)',
+        ['--widget-phase' as string]: `${motionPhase}s`,
+        ['--widget-hue-shift' as string]: `${hueShift}deg`,
       }}
       onMouseDown={onFocus}
       data-widget-id={id}
@@ -413,7 +429,7 @@ export function DesktopWindow({
         </div>
       </div>
       <div
-        className={`window-body ${bodyClassName}`.trim()}
+        className={`window-body desktop-window-body ${bodyClassName}`.trim()}
         style={{
           ...bodyStyle,
           ...(liveSize.height ? { flex: 1, overflow: 'auto' } : {}),
@@ -432,8 +448,7 @@ export function DesktopWindow({
           width: 12,
           height: 12,
           cursor: 'nwse-resize',
-          background:
-            'linear-gradient(135deg, transparent 0%, transparent 35%, #4f4f4f 35%, #4f4f4f 55%, #bfbfbf 55%, #bfbfbf 75%, #4f4f4f 75%, #4f4f4f 100%)',
+          background: 'var(--widget-resize-handle, linear-gradient(135deg, transparent 0%, transparent 35%, #4f4f4f 35%, #4f4f4f 55%, #bfbfbf 55%, #bfbfbf 75%, #4f4f4f 75%, #4f4f4f 100%))',
         }}
       />
     </div>

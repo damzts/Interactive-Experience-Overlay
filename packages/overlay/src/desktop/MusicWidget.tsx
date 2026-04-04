@@ -14,13 +14,12 @@ function VUBar() {
   }, [])
   const BAR_COLORS = ['#00ff88', '#00ff88', '#00cc66', '#00aa44', '#ffaa00', '#ff6600', '#ff3300', '#ff0000']
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 32, padding: '0 2px' }}>
+    <div className="widget-vu-meter">
       {heights.map((h, i) => (
-        <div key={i} style={{
-          width: 8, height: `${h}%`,
+        <div key={i} className="widget-vu-meter-bar" style={{
+          height: `${h}%`,
           background: BAR_COLORS[i],
-          transition: 'height 0.1s ease',
-          boxShadow: `0 0 4px ${BAR_COLORS[i]}88`,
+          boxShadow: `0 0 6px ${BAR_COLORS[i]}88`,
         }} />
       ))}
     </div>
@@ -30,15 +29,8 @@ function VUBar() {
 /** Scrolling track-name marquee */
 function TrackMarquee({ text }: { text: string }) {
   return (
-    <div style={{ overflow: 'hidden', width: '100%', position: 'relative', height: 18 }}>
-      <span style={{
-        display: 'inline-block',
-        whiteSpace: 'nowrap',
-        fontFamily: 'MS Sans Serif, Arial, sans-serif',
-        fontSize: 12,
-        color: '#000080',
-        animation: text.length > 28 ? 'music-scroll 8s linear infinite' : 'none',
-      }}>
+    <div className="widget-track-marquee">
+      <span className="widget-track-marquee-text" style={{ animation: text.length > 28 ? 'music-scroll 8s linear infinite' : 'none' }}>
         {text}
       </span>
     </div>
@@ -73,28 +65,32 @@ export function MusicWidget({ onClose, onMinimize, onFocus, windowState = 'open'
         defaultPosition={{ x: 60, y: 120 }}
         zIndex={zIndex}
         state={windowState}
+        windowClassName="desktop-window--music"
+        bodyClassName="desktop-window-body--music"
         onFocus={onFocus}
         onMinimize={onMinimize}
         onClose={onClose}
-        bodyStyle={{ padding: '8px 10px' }}
+        bodyStyle={{ padding: '12px' }}
       >
-          <div style={{ background: '#000', border: '2px inset', padding: '6px 8px', marginBottom: 8, minHeight: 52 }}>
-            <div style={{ fontFamily: 'VT323, monospace', fontSize: 11, color: '#00ff88', marginBottom: 2 }}>NOW PLAYING</div>
+        <div className="widget-stack">
+          <div className="widget-panel widget-panel--display widget-panel--music-display">
+            <div className="widget-led-copy">NOW PLAYING</div>
             <TrackMarquee text="lo-fi beats to stream to — track 01" />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-              <span style={{ fontFamily: 'VT323, monospace', fontSize: 13, color: '#00ff88' }}>{fmt(elapsed)}</span>
+            <div className="widget-meta-row">
+              <span className="widget-led-accent">{fmt(elapsed)}</span>
               <VUBar />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8 }}>
+          <div className="widget-toolbar widget-toolbar--music">
             {[['|◀', 'music-prev'], ['■', 'music-stop'], ['▶', 'music-play'], ['▶|', 'music-next'], ['↺', 'music-loop']].map(([label, simAction], i) => (
-              <button key={i} data-sim-action={simAction} style={{ width: 30, height: 22, fontFamily: 'Arial', fontSize: 11, cursor: 'pointer' }}>{label}</button>
+              <button key={i} data-sim-action={simAction} className="widget-toolbar-button">{label}</button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontFamily: 'MS Sans Serif, Arial', fontSize: 11, width: 44 }}>Volume:</span>
-            <input type="range" min={0} max={100} defaultValue={70} style={{ flex: 1, height: 16 }} />
+          <div className="widget-input-row">
+            <span className="widget-label">Volume</span>
+            <input type="range" min={0} max={100} defaultValue={70} className="widget-slider" />
           </div>
+        </div>
       </DesktopWindow>
     </>
   )

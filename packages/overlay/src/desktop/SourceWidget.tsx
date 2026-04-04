@@ -23,24 +23,10 @@ function SourceWidgetPlaceholder({
   detail: string
 }) {
   return (
-    <div
-      style={{
-        minHeight: 260,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        padding: '18px 20px',
-        background: '#050505',
-        color: '#d4d4d4',
-        textAlign: 'center',
-      }}
-    >
-      <span style={{ fontSize: 24 }}>{icon}</span>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{title}</div>
-      <div style={{ maxWidth: 280, fontSize: 10, lineHeight: 1.5, color: '#9ca3af' }}>{detail}</div>
+    <div className="widget-panel widget-source-placeholder">
+      <span className="widget-source-placeholder-icon">{icon}</span>
+      <div className="widget-source-placeholder-title">{title}</div>
+      <div className="widget-source-placeholder-detail">{detail}</div>
     </div>
   )
 }
@@ -74,10 +60,12 @@ export function SourceWidget({ appId, onClose, onMinimize, onFocus, windowState 
       defaultPosition={{ x: 320, y: 96 }}
       zIndex={zIndex}
       state={windowState}
+      windowClassName="desktop-window--source"
+      bodyClassName="desktop-window-body--source"
       onFocus={onFocus}
       onMinimize={onMinimize}
       onClose={onClose}
-      bodyStyle={{ padding: 0, background: '#050505' }}
+      bodyStyle={{ padding: 12 }}
     >
       {!sceneId || !sourceId ? (
         <SourceWidgetPlaceholder
@@ -104,7 +92,7 @@ export function SourceWidget({ appId, onClose, onMinimize, onFocus, windowState 
           detail={`No renderer is registered for plugin type \"${source.pluginType}\".`}
         />
       ) : (
-        <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 260, background: '#050505', overflow: 'hidden' }}>
+        <div className="widget-panel widget-source-canvas">
           <Renderer config={source.config} />
         </div>
       )}

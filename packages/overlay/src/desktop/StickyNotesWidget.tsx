@@ -59,54 +59,43 @@ export function StickyNotesWidget({
       defaultPosition={{ x: 280, y: 110 }}
       zIndex={zIndex}
       state={windowState}
+      windowClassName="desktop-window--sticky-notes"
+      bodyClassName="desktop-window-body--sticky-notes"
       onFocus={onFocus}
       onMinimize={onMinimize}
       onClose={onClose}
-      bodyStyle={{ padding: 10, background: color }}
+      bodyStyle={{ padding: 12 }}
     >
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        {NOTE_COLORS.map((swatch) => (
-          <button
-            key={swatch}
-            data-sim-action={`sticky-color-${swatch.replace('#', '')}`}
-            onClick={() => {
-              setColor(swatch)
-              scheduleSave(text, swatch)
-            }}
-            title={swatch}
-            style={{
-              width: 18,
-              height: 18,
-              borderRadius: 2,
-              border: swatch === color ? '2px solid #000080' : '1px solid #666',
-              background: swatch,
-              cursor: 'pointer',
-            }}
-          />
-        ))}
-      </div>
+      <div className="widget-stack">
+        <div className="widget-note-swatches">
+          {NOTE_COLORS.map((swatch) => (
+            <button
+              key={swatch}
+              data-sim-action={`sticky-color-${swatch.replace('#', '')}`}
+              onClick={() => {
+                setColor(swatch)
+                scheduleSave(text, swatch)
+              }}
+              title={swatch}
+              className={`widget-note-swatch ${swatch === color ? 'widget-note-swatch--active' : ''}`}
+              style={{ background: swatch }}
+            />
+          ))}
+        </div>
 
-      <textarea
-        value={text}
-        onChange={(e) => {
-          const nextText = e.target.value
-          setText(nextText)
-          scheduleSave(nextText, color)
-        }}
-        placeholder="Write something..."
-        style={{
-          width: '100%',
-          minHeight: 170,
-          resize: 'none',
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          fontFamily: 'Comic Sans MS, Chalkboard SE, cursive',
-          fontSize: 17,
-          lineHeight: 1.35,
-          color: '#2a2208',
-        }}
-      />
+        <div className="widget-note-sheet" style={{ background: color }}>
+          <textarea
+            value={text}
+            onChange={(e) => {
+              const nextText = e.target.value
+              setText(nextText)
+              scheduleSave(nextText, color)
+            }}
+            placeholder="Write something..."
+            className="widget-note-editor"
+          />
+        </div>
+      </div>
     </DesktopWindow>
   )
 }

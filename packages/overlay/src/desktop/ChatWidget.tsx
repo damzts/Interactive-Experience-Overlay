@@ -47,34 +47,27 @@ export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open',
       defaultPosition={{ x: 1580, y: 60 }}
       zIndex={zIndex}
       state={windowState}
+      windowClassName="desktop-window--chat"
+      bodyClassName="desktop-window-body--chat"
       onFocus={onFocus}
       onMinimize={onMinimize}
       onClose={onClose}
-      bodyStyle={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}
+      bodyStyle={{ padding: '12px', display: 'flex', flexDirection: 'column' }}
     >
-        {/* Message list */}
+      <div className="widget-stack widget-stack--fill">
         <div
           ref={listRef}
-          style={{
-            background: '#fff',
-            border: '2px inset',
-            height: 200,
-            overflowY: 'auto',
-            padding: '4px 6px',
-            fontFamily: 'MS Sans Serif, Arial, sans-serif',
-            fontSize: 11,
-          }}
+          className="widget-panel widget-panel--scroll widget-chat-log"
         >
           {messages.map((m, i) => (
-            <div key={i} style={{ marginBottom: 3, lineHeight: 1.4 }}>
+            <div key={i} className="widget-chat-message">
               <span style={{ color: m.color, fontWeight: 'bold' }}>{m.user}: </span>
-              <span style={{ color: '#000' }}>{m.text}</span>
+              <span>{m.text}</span>
             </div>
           ))}
         </div>
 
-        {/* Input row */}
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div className="widget-input-row widget-input-row--chat">
           <input
             data-sim-action="chat-input"
             type="text"
@@ -82,10 +75,11 @@ export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open',
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
             placeholder="Say something…"
-            style={{ flex: 1, fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 11 }}
+            className="widget-text-input"
           />
-          <button data-sim-action="chat-send" onClick={handleSend} style={{ fontFamily: 'MS Sans Serif, Arial, sans-serif', fontSize: 11 }}>Send</button>
+          <button data-sim-action="chat-send" onClick={handleSend} className="widget-send-button">Send</button>
         </div>
+      </div>
     </DesktopWindow>
   )
 }

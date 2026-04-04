@@ -108,27 +108,20 @@ export function GalleryWidget({ appId, onClose, onMinimize, onFocus, windowState
       defaultPosition={{ x: 220, y: 90 }}
       zIndex={zIndex}
       state={windowState}
+      windowClassName="desktop-window--gallery"
+      bodyClassName="desktop-window-body--gallery"
       onFocus={onFocus}
       onMinimize={onMinimize}
       onClose={onClose}
-      bodyStyle={{ padding: 8, color: '#202020' }}
+      bodyStyle={{ padding: 12 }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="widget-stack">
         <div
-          style={{
-            width: '100%',
-            aspectRatio: '16 / 9',
-            background: '#111',
-            border: '1px solid #808080',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-          }}
+          className="widget-panel widget-gallery-frame"
         >
-          {loading && <div style={{ color: '#d4d4d4', fontSize: 11 }}>Cargando imagenes...</div>}
-          {!loading && error && <div style={{ color: '#f87171', fontSize: 11, padding: '0 12px', textAlign: 'center' }}>{error}</div>}
-          {!loading && !error && !current && <div style={{ color: '#d4d4d4', fontSize: 11 }}>No hay imagenes en el catalogo.</div>}
+          {loading && <div className="widget-empty-state">Cargando imagenes...</div>}
+          {!loading && error && <div className="widget-empty-state widget-empty-state--error">{error}</div>}
+          {!loading && !error && !current && <div className="widget-empty-state">No hay imagenes en el catalogo.</div>}
           {!loading && !error && current && (
             <img
               src={current.url}
@@ -139,11 +132,11 @@ export function GalleryWidget({ appId, onClose, onMinimize, onFocus, windowState
           )}
         </div>
 
-        <div style={{ fontSize: 11, color: '#444', minHeight: 16 }}>
+        <div className="widget-caption-row">
           {current ? `${current.name} (${currentIndex + 1}/${assets.length})` : 'Sin seleccion'}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div className="widget-toolbar widget-toolbar--gallery">
           <button data-sim-action="gallery-prev" type="button" onClick={showPrevious} disabled={assets.length < 2}>◀ Previous</button>
           <button data-sim-action="gallery-play" type="button" onClick={showNext} disabled={assets.length < 2}>▶ Play</button>
           <button data-sim-action="gallery-next" type="button" onClick={showNext} disabled={assets.length < 2}>Next ▶</button>
