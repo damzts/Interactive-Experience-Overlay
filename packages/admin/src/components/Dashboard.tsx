@@ -4227,6 +4227,7 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
 
           <AssetCatalogPanel
             kinds={['image', 'video', 'audio']}
+            allowFilesystemDelete
             onDeleteSavedEntry={(asset) => { void handleDeleteMediaEntry(asset.id) }}
           />
         </div>
@@ -5142,9 +5143,17 @@ function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLibrary, s
 
 function TopBar() {
   const obsConnected = useAdminStore((s) => s.obsConnected)
-  const currentState = useAdminStore((s) => s.currentState)
   const clientCount  = useAdminStore((s) => s.clientCount)
   const lastError    = useAdminStore((s) => s.lastError)
+  const ambiance = useAdminStore((s) => s.runtimeDiagnostics.ambiance)
+  const overlayClientBadges = useMemo(() => {
+    return ambiance.overlayClients.map((client) => ({
+      key: client.socketId,
+      shortId: client.socketId.slice(0, 8),
+      text: `${client.port ?? '???'} ${client.kind === 'embedded-preview' ? 'preview' : client.kind === 'runtime' ? 'obs' : client.kind}`,
+      title: `${client.label} · ${client.socketId}`,
+    }))
+  }, [ambiance.overlayClients])
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/85 px-3 backdrop-blur-sm">
@@ -5156,7 +5165,15 @@ function TopBar() {
       {clientCount > 0 && (
         <span className="text-[10px] text-zinc-600 font-mono">{clientCount}c</span>
       )}
-      <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-mono text-cyan-300">{currentState}</span>
+      {overlayClientBadges.length === 0 ? (
+        <span className="rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-0.5 text-[10px] font-mono text-zinc-500">
+          No overlay clients
+        </span>
+      ) : overlayClientBadges.map((client) => (
+        <span key={client.key} className="rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-0.5 text-[10px] font-mono text-zinc-300" title={client.title}>
+          {client.text} {client.shortId}
+        </span>
+      ))}
       {lastError && (
         <span className="max-w-[220px] truncate rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-mono text-red-300" title={lastError}>{lastError}</span>
       )}

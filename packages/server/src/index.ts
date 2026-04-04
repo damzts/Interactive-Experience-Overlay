@@ -16,6 +16,7 @@ import { archiveRoute } from './routes/archive.js'
 import { ObsBridge } from './obs/bridge.js'
 import { EventScheduler } from './events/scheduler.js'
 import { AmbianceManager } from './ambiance/manager.js'
+import { withDesktopAmbianceDefaults } from '@ieom/shared'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -107,14 +108,20 @@ const io = new SocketIO(app.server, {
 // Managers for automated behaviors
 const scheduler = new EventScheduler(machine)
 const ambianceManager = new AmbianceManager(io)
+const obsBridge = new ObsBridge(io, machine)
+let activeObsUrl = getConfig().obs.url
+let activeObsPassword = getConfig().obs.password
+let activeAmbianceIntervalSeconds = withDesktopAmbianceDefaults(getConfig().desktopAmbiance).widgetSimulation.intervalSeconds
 
 // Socket handlers wire up all managers
-setupSocketHandlers(io, machine, scheduler, ambianceManager)
+setupSocketHandlers(io, machine, scheduler, ambianceManager, {
+  getObsStatus: () => obsBridge.getStatus(),
+})
 
 // REST routes
 await app.register(configRoute, { machine })
 await app.register(mediaRoute)
-await app.register(archiveRoute)
+await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus() })
 
 // Frontend hosting strategy:
 // - `pnpm dev`: proxy overlay HTTP requests from :3000 -> :3001 so OBS can still use :3000.
@@ -143,13 +150,20 @@ if (IS_DEV_SERVER) {
 }
 
 // OBS WebSocket bridge (graceful — server works without OBS)
-const obsBridge = new ObsBridge(io, machine)
-obsBridge.connect(getConfig().obs.url, getConfig().obs.password)
+obsBridge.connect(activeObsUrl, activeObsPassword)
 
 machine.on('config:update', (config) => {
-  obsBridge.updateConnection(config.obs.url, config.obs.password)
-  scheduler.start()
-  ambianceManager.start()
+  if (config.obs.url !== activeObsUrl || config.obs.password !== activeObsPassword) {
+    activeObsUrl = config.obs.url
+    activeObsPassword = config.obs.password
+    obsBridge.updateConnection(activeObsUrl, activeObsPassword)
+  }
+
+  const nextAmbianceIntervalSeconds = withDesktopAmbianceDefaults(config.desktopAmbiance).widgetSimulation.intervalSeconds
+  if (nextAmbianceIntervalSeconds !== activeAmbianceIntervalSeconds) {
+    activeAmbianceIntervalSeconds = nextAmbianceIntervalSeconds
+    ambianceManager.start()
+  }
 })
 
 // Start managers after all handlers are wired

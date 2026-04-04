@@ -3,6 +3,12 @@ import type { ReactNode } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
 import { Btn, Toggle, ConfigSectionPanel } from '../components/ui'
 
+function formatObsRetry(nextRetryAt: number | null) {
+  if (!nextRetryAt) return null
+  const seconds = Math.max(1, Math.ceil((nextRetryAt - Date.now()) / 1000))
+  return `Retry in ${seconds}s`
+}
+
 export function SettingsPage({
   consolePanel,
   mode = 'general',
@@ -27,6 +33,7 @@ export function SettingsPage({
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
   const obsConnected = useAdminStore((s) => s.obsConnected)
+  const obsStatus = useAdminStore((s) => s.obsStatus)
   const previewUrl = previewTarget === 'runtime' ? overlayRuntimeUrl : overlayDevUrl
 
   useEffect(() => {
@@ -105,6 +112,23 @@ export function SettingsPage({
           <span className={`text-sm font-medium ${obsConnected ? 'text-emerald-400' : 'text-red-500'}`}>
             {obsConnected ? '● Connected' : '○ Disconnected'}
           </span>
+        </div>
+
+        <div className="mb-4 grid gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-3 text-xs text-zinc-400 md:grid-cols-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Target</div>
+            <div className="mt-1 font-mono text-zinc-200">{obsStatus.url}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Reconnect</div>
+            <div className="mt-1 text-zinc-200">
+              {obsStatus.reconnecting ? `Attempt ${obsStatus.reconnectAttempt}${formatObsRetry(obsStatus.nextRetryAt) ? ` · ${formatObsRetry(obsStatus.nextRetryAt)}` : ''}` : 'Idle'}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Last Error</div>
+            <div className="mt-1 text-zinc-200">{obsStatus.lastError ?? 'None'}</div>
+          </div>
         </div>
 
         <div className="mb-3">

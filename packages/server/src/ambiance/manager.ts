@@ -2,9 +2,16 @@ import type { Server } from 'socket.io'
 import { appendLog } from '../db/db.js'
 import { getConfig } from '../routes/config.js'
 import { withDesktopAmbianceDefaults } from '@ieom/shared'
-import type { AmbianceSimulationPayload } from '@ieom/shared'
+import type { AmbianceDiagnosticsPayload, AmbianceSimulationPayload, AmbianceWidgetBehavior, OverlayClientDiagnostics } from '@ieom/shared'
 
+const SIMULATION_ACCEPT_TIMEOUT_MS = 4000
 const SIMULATION_FALLBACK_TIMEOUT_MS = 30000
+const DEFAULT_BEHAVIOR: AmbianceWidgetBehavior = {
+  enabled: true,
+  openChance: 0.18,
+  closeChance: 0.12,
+  interactChance: 0.65,
+}
 type AmbianceCandidateAction = Pick<AmbianceSimulationPayload, 'widgetId' | 'action'>
 
 function shouldTrigger(chance: number): boolean {
@@ -49,16 +56,31 @@ function pickWeightedAction(
 
 export class AmbianceManager {
   private tickTimer: ReturnType<typeof setInterval> | null = null
+  private acceptTimeout: ReturnType<typeof setTimeout> | null = null
   private simulationTimeout: ReturnType<typeof setTimeout> | null = null
   private getOpenWidgetIds?: () => Set<string>
   private getSimulationLeaderSocketId?: () => string | null
+  private getOverlayClientDiagnostics?: () => OverlayClientDiagnostics[]
   private lastActionAtByWidget = new Map<string, number>()
   private lastWidgetId: string | null = null
   private simulationInFlight = false
+  private pendingPhase: 'awaiting-acceptance' | 'running' | null = null
   private inFlightActionId: string | null = null
   private actionSequence = 0
+  private lastStartedAt: number | null = null
+  private lastTickAt: number | null = null
+  private lastActionAt: number | null = null
+  private lastActionWidgetId: string | null = null
+  private lastAction: 'open' | 'close' | 'interact' | null = null
+  private lastSkipReason: string | null = null
+  private diagnosticsListener?: (payload: AmbianceDiagnosticsPayload) => void
 
   constructor(private io: Server) {}
+
+  setDiagnosticsListener(listener?: (payload: AmbianceDiagnosticsPayload) => void) {
+    this.diagnosticsListener = listener
+    this.emitDiagnostics()
+  }
 
   setOpenWidgetIdsGetter(getter: () => Set<string>) {
     this.getOpenWidgetIds = getter
@@ -68,15 +90,22 @@ export class AmbianceManager {
     this.getSimulationLeaderSocketId = getter
   }
 
+  setOverlayClientDiagnosticsGetter(getter: () => OverlayClientDiagnostics[]) {
+    this.getOverlayClientDiagnostics = getter
+  }
+
   start() {
     this.stop()
     const config = withDesktopAmbianceDefaults(getConfig().desktopAmbiance)
     const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
+    this.lastStartedAt = Date.now()
+    this.lastSkipReason = config.widgetSimulation.enabled ? null : 'simulation disabled'
     
     if (intervalMs > 0) {
       this.tickTimer = setInterval(() => this.tick(), intervalMs)
       console.log(`[ambiance] AI simulation manager started. Ticking every ${intervalMs / 1000}s.`)
     }
+    this.emitDiagnostics()
   }
 
   stop() {
@@ -88,6 +117,8 @@ export class AmbianceManager {
     this.clearSimulationInFlight()
     this.lastActionAtByWidget.clear()
     this.lastWidgetId = null
+    this.lastSkipReason = 'manager stopped'
+    this.emitDiagnostics()
   }
 
   markSimulationCompleted(actionId?: string) {
@@ -95,44 +126,143 @@ export class AmbianceManager {
       return
     }
     this.clearSimulationInFlight()
+    this.emitDiagnostics()
   }
 
   private clearSimulationInFlight() {
     this.simulationInFlight = false
+    this.pendingPhase = null
     this.inFlightActionId = null
+    if (this.acceptTimeout) {
+      clearTimeout(this.acceptTimeout)
+      this.acceptTimeout = null
+    }
     if (this.simulationTimeout) {
       clearTimeout(this.simulationTimeout)
       this.simulationTimeout = null
     }
   }
 
-  private markSimulationInFlight(actionId: string) {
+  markSimulationDispatched(actionId: string) {
     this.clearSimulationInFlight()
     this.simulationInFlight = true
+    this.pendingPhase = 'awaiting-acceptance'
     this.inFlightActionId = actionId
+    this.acceptTimeout = setTimeout(() => {
+      this.simulationInFlight = false
+      this.pendingPhase = null
+      this.inFlightActionId = null
+      this.acceptTimeout = null
+      appendLog('ambiance-sim', 'simulation acceptance timeout, releasing lock')
+      this.lastSkipReason = 'simulation acceptance timeout released lock'
+      this.emitDiagnostics()
+    }, SIMULATION_ACCEPT_TIMEOUT_MS)
+    this.emitDiagnostics()
+  }
+
+  markSimulationAccepted(actionId?: string) {
+    if (actionId && this.inFlightActionId && actionId !== this.inFlightActionId) {
+      return
+    }
+    if (!this.simulationInFlight) {
+      return
+    }
+    if (this.acceptTimeout) {
+      clearTimeout(this.acceptTimeout)
+      this.acceptTimeout = null
+    }
+    this.pendingPhase = 'running'
     this.simulationTimeout = setTimeout(() => {
       this.simulationInFlight = false
+      this.pendingPhase = null
       this.inFlightActionId = null
       this.simulationTimeout = null
       appendLog('ambiance-sim', 'simulation completion timeout, releasing lock')
+      this.lastSkipReason = 'simulation completion timeout released lock'
+      this.emitDiagnostics()
     }, SIMULATION_FALLBACK_TIMEOUT_MS)
+    this.emitDiagnostics()
+  }
+
+  getDiagnostics(): AmbianceDiagnosticsPayload {
+    const config = withDesktopAmbianceDefaults(getConfig().desktopAmbiance)
+    const simConfig = config.widgetSimulation
+    const openWidgetCount = this.getOpenWidgetIds?.().size ?? 0
+    const enabledWidgetCount = this.getEffectiveBehaviors().filter(([, behavior]) => behavior.enabled).length
+    const overlayClients = this.getOverlayClientDiagnostics?.() ?? []
+    const leaderSocketId = this.getSimulationLeaderSocketId?.() ?? null
+    const leaderClient = overlayClients.find((client) => client.socketId === leaderSocketId) ?? null
+
+    return {
+      enabled: simConfig.enabled,
+      intervalSeconds: Math.max(1, simConfig.intervalSeconds),
+      lastStartedAt: this.lastStartedAt,
+      lastTickAt: this.lastTickAt,
+      lastActionAt: this.lastActionAt,
+      lastActionWidgetId: this.lastActionWidgetId,
+      lastAction: this.lastAction,
+      inFlight: this.simulationInFlight,
+      pendingPhase: this.pendingPhase,
+      pendingActionId: this.inFlightActionId,
+      leaderSocketId,
+      leaderClientKind: leaderClient?.kind ?? null,
+      leaderClientPort: leaderClient?.port ?? null,
+      leaderClientLabel: leaderClient?.label ?? null,
+      overlayClients,
+      openWidgetCount,
+      enabledWidgetCount,
+      maxOpenWidgets: Math.max(1, simConfig.maxOpenWidgets ?? 2),
+      openWhileOneOpenChance: Math.max(0, Math.min(1, simConfig.openWhileOneOpenChance ?? 0.35)),
+      lastSkipReason: this.lastSkipReason,
+    }
+  }
+
+  private emitDiagnostics() {
+    this.diagnosticsListener?.(this.getDiagnostics())
+  }
+
+  private getEffectiveBehaviors() {
+    const widgetIds = getConfig().applications
+      .filter((app) => app.appType === 'widget')
+      .map((app) => app.id)
+    const configuredBehaviors = withDesktopAmbianceDefaults(getConfig().desktopAmbiance).widgetSimulation.behaviors
+    const hasEnabledBehavior = Object.values(configuredBehaviors).some((behavior) => !!behavior?.enabled)
+
+    return widgetIds.map((widgetId) => {
+      const configured = configuredBehaviors[widgetId]
+      return [
+        widgetId,
+        configured
+          ? configured
+          : hasEnabledBehavior
+            ? { ...DEFAULT_BEHAVIOR, enabled: false }
+            : { ...DEFAULT_BEHAVIOR },
+      ] as const
+    })
   }
 
   private tick() {
     const config = withDesktopAmbianceDefaults(getConfig().desktopAmbiance)
     const simConfig = config.widgetSimulation
+    this.lastTickAt = Date.now()
 
     if (!simConfig.enabled) {
+      this.lastSkipReason = 'simulation disabled'
+      this.emitDiagnostics()
       return
     }
 
     const leaderSocketId = this.getSimulationLeaderSocketId?.() ?? null
     if (!leaderSocketId) {
       this.clearSimulationInFlight()
+      this.lastSkipReason = 'no simulation leader connected'
+      this.emitDiagnostics()
       return
     }
 
     if (this.simulationInFlight) {
+      this.lastSkipReason = 'waiting for prior simulated action to finish'
+      this.emitDiagnostics()
       return
     }
 
@@ -143,23 +273,19 @@ export class AmbianceManager {
     const openWhileOneOpenChance = Math.max(0, Math.min(1, simConfig.openWhileOneOpenChance ?? 0.35))
     const openCount = openWidgetIds.size
     const allowOpenActions = openCount < maxOpenWidgets
-    const widgetIdSet = new Set(
-      getConfig().applications
-        .filter((app) => app.appType === 'widget')
-        .map((app) => app.id),
-    )
-
     const closeCandidates: AmbianceCandidateAction[] = []
     const interactCandidates: AmbianceCandidateAction[] = []
     const openCandidates: AmbianceCandidateAction[] = []
-    const enabledBehaviors = Object.entries(simConfig.behaviors)
+    const enabledBehaviors = this.getEffectiveBehaviors()
       .filter(([, behavior]) => !!behavior?.enabled)
 
-    for (const [widgetId, behavior] of enabledBehaviors) {
-      if (!widgetIdSet.has(widgetId)) {
-        continue
-      }
+    if (enabledBehaviors.length === 0) {
+      this.lastSkipReason = 'no widget behaviors are enabled'
+      this.emitDiagnostics()
+      return
+    }
 
+    for (const [widgetId, behavior] of enabledBehaviors) {
       const lastActionAt = this.lastActionAtByWidget.get(widgetId) ?? 0
       if (Date.now() - lastActionAt < minActionGapMs) {
         continue
@@ -197,14 +323,23 @@ export class AmbianceManager {
 
     const picked = pickWeightedAction(candidates, minActionGapMs, this.lastActionAtByWidget, this.lastWidgetId)
     if (!picked) {
+      this.lastSkipReason = openCount === 0
+        ? 'no widgets passed open thresholds this tick'
+        : 'no widgets passed interaction or close thresholds this tick'
+      this.emitDiagnostics()
       return
     }
 
     const actionId = `${Date.now()}-${++this.actionSequence}`
     this.io.to(leaderSocketId).emit('ambiance:simulate', { ...picked, actionId })
-    this.markSimulationInFlight(actionId)
+    this.markSimulationDispatched(actionId)
     this.lastActionAtByWidget.set(picked.widgetId, Date.now())
     this.lastWidgetId = picked.widgetId
+    this.lastActionAt = Date.now()
+    this.lastActionWidgetId = picked.widgetId
+    this.lastAction = picked.action
+    this.lastSkipReason = null
     appendLog('ambiance-sim', `${picked.action} requested for widget: ${picked.widgetId} (server-authoritative, actionId=${actionId})`)
+    this.emitDiagnostics()
   }
 }

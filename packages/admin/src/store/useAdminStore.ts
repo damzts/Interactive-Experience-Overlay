@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { STATE, DEFAULT_CONFIG, mergeAppConfig } from '@ieom/shared'
-import type { AppConfig, DesktopRuntimeStatePayload } from '@ieom/shared'
+import type { AppConfig, DesktopRuntimeStatePayload, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
 
 export type PreviewTarget = 'runtime' | 'dev'
 
@@ -48,6 +48,7 @@ function findSingleChangedApplication(
 interface AdminStore {
   currentState: STATE
   obsConnected: boolean
+  obsStatus: ObsStatusPayload
   clientCount: number
   lastError: string | null
   config: AppConfig
@@ -58,9 +59,10 @@ interface AdminStore {
   simulationLeaderId: string | null
   ambianceAcceptedCount: number
   ambianceRejectedCount: number
+  runtimeDiagnostics: RuntimeDiagnosticsPayload
 
   setCurrentState: (s: STATE) => void
-  setObsConnected: (b: boolean) => void
+  setObsStatus: (status: ObsStatusPayload) => void
   setClientCount: (n: number) => void
   setLastError: (e: string | null) => void
   setConfig: (c: AppConfig) => void
@@ -71,6 +73,7 @@ interface AdminStore {
   setRecycleBinFull: (full: boolean) => void
   setSimulationLeaderId: (id: string | null) => void
   setAmbianceMetrics: (payload: { accepted: number; rejected: number }) => void
+  setRuntimeDiagnostics: (payload: RuntimeDiagnosticsPayload) => void
   fetchConfig: () => Promise<void>
   saveConfig: (updates: Partial<AppConfig>) => Promise<void>
 }
@@ -78,6 +81,15 @@ interface AdminStore {
 export const useAdminStore = create<AdminStore>((set, get) => ({
   currentState: STATE.DESKTOP,
   obsConnected: false,
+  obsStatus: {
+    connected: false,
+    url: 'ws://localhost:4455',
+    reconnecting: false,
+    reconnectAttempt: 0,
+    retryDelayMs: null,
+    nextRetryAt: null,
+    lastError: null,
+  },
   clientCount: 0,
   lastError: null,
   config: DEFAULT_CONFIG,
@@ -88,9 +100,43 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   simulationLeaderId: null,
   ambianceAcceptedCount: 0,
   ambianceRejectedCount: 0,
+  runtimeDiagnostics: {
+    scheduler: {
+      tickMs: 5000,
+      currentState: STATE.DESKTOP,
+      lastEvaluatedAt: null,
+      lastActivityAt: Date.now(),
+      lastTriggeredEventId: null,
+      lastTriggeredAt: null,
+      activeEventCount: 0,
+      events: [],
+    },
+    ambiance: {
+      enabled: false,
+      intervalSeconds: 30,
+      lastStartedAt: null,
+      lastTickAt: null,
+      lastActionAt: null,
+      lastActionWidgetId: null,
+      lastAction: null,
+      inFlight: false,
+      pendingPhase: null,
+      pendingActionId: null,
+      leaderSocketId: null,
+      leaderClientKind: null,
+      leaderClientPort: null,
+      leaderClientLabel: null,
+      overlayClients: [],
+      openWidgetCount: 0,
+      enabledWidgetCount: 0,
+      maxOpenWidgets: 2,
+      openWhileOneOpenChance: 0.35,
+      lastSkipReason: null,
+    },
+  },
 
   setCurrentState: (s) => set({ currentState: s }),
-  setObsConnected: (b) => set({ obsConnected: b }),
+  setObsStatus: (status) => set({ obsConnected: status.connected, obsStatus: status }),
   setClientCount: (n) => set({ clientCount: n }),
   setLastError: (e) => set({ lastError: e }),
   setConfig: (c) => set({ config: c, configLoaded: true }),
@@ -111,6 +157,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
   setSimulationLeaderId: (id) => set({ simulationLeaderId: id }),
   setAmbianceMetrics: (payload) => set({ ambianceAcceptedCount: payload.accepted, ambianceRejectedCount: payload.rejected }),
+  setRuntimeDiagnostics: (payload) => set({ runtimeDiagnostics: payload }),
 
   fetchConfig: async () => {
     try {

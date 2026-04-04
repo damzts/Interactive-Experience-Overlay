@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { readdirSync, existsSync, statSync } from 'fs'
-import { join, dirname, extname } from 'path'
+import { readdirSync, existsSync, statSync, unlinkSync, rmdirSync } from 'fs'
+import { join, dirname, extname, normalize, relative } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -143,6 +143,35 @@ function scanAssetCatalog(): AssetCatalogCache {
   return assetCatalogCache
 }
 
+function resolveDeletableAssetPath(assetUrl: string) {
+  if (!assetUrl.startsWith('/assets/')) return null
+
+  const sanitizedUrl = assetUrl.split('?')[0]?.split('#')[0] ?? assetUrl
+  const relativeUrlPath = decodeURIComponent(sanitizedUrl.replace(/^\/assets\//, ''))
+  if (!relativeUrlPath) return null
+
+  const normalizedRelativePath = normalize(relativeUrlPath)
+  if (normalizedRelativePath.startsWith('..') || normalizedRelativePath.includes(':')) return null
+  if (/^images[\\/]games(?:[\\/]|$)/i.test(normalizedRelativePath)) return null
+
+  const absolutePath = join(ASSET_ROOT, normalizedRelativePath)
+  const relativeToRoot = relative(ASSET_ROOT, absolutePath)
+  if (relativeToRoot.startsWith('..') || relativeToRoot.includes(':')) return null
+
+  return absolutePath
+}
+
+function pruneEmptyAssetDirectories(startPath: string) {
+  let currentPath = dirname(startPath)
+
+  while (currentPath.startsWith(ASSET_ROOT) && currentPath !== ASSET_ROOT) {
+    if (!existsSync(currentPath)) break
+    if (readdirSync(currentPath).length > 0) break
+    rmdirSync(currentPath)
+    currentPath = dirname(currentPath)
+  }
+}
+
 function scanGames(): MediaCache {
   if (mediaCache) return mediaCache
 
@@ -215,5 +244,38 @@ export async function mediaRoute(app: FastifyInstance) {
     clearMediaCaches()
     const catalog = scanAssetCatalog()
     return { ok: true, total: catalog.assets.length }
+  })
+
+  app.delete<{ Body: { url?: string } }>('/api/assets', async (req, reply) => {
+    const assetUrl = req.body?.url?.trim()
+    if (!assetUrl) {
+      return reply.code(400).send({ error: 'Asset URL is required.' })
+    }
+
+    const assetPath = resolveDeletableAssetPath(assetUrl)
+    if (!assetPath) {
+      return reply.code(400).send({ error: 'Only project assets under /assets can be deleted.' })
+    }
+
+    if (!existsSync(assetPath)) {
+      return reply.code(404).send({ error: 'Asset file not found.' })
+    }
+
+    let stats
+    try {
+      stats = statSync(assetPath)
+    } catch {
+      return reply.code(404).send({ error: 'Asset file not found.' })
+    }
+
+    if (!stats.isFile()) {
+      return reply.code(400).send({ error: 'Only files can be deleted.' })
+    }
+
+    unlinkSync(assetPath)
+    pruneEmptyAssetDirectories(assetPath)
+    clearMediaCaches()
+
+    return { ok: true }
   })
 }

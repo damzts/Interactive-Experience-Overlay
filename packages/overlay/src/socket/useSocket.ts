@@ -5,8 +5,10 @@ import {
   withDesktopConfigDefaults,
   type DesktopNotificationPayload,
   type DesktopRecycleBinPayload,
+  type DesktopRuntimeStatePayload,
   type CursorMirrorPayload,
   type OpenWidgetMenuTimelinePayload,
+  type ObsStatusPayload,
   type EffectConfig,
   type TransitionPlayPayload,
 } from '@ieom/shared'
@@ -67,7 +69,7 @@ export function useSocket() {
         setVisualState(serverState as Exclude<STATE, typeof STATE.TRANSITIONING>)
         pulseReactiveIcon(serverState)
       })
-      socket.emit('desktop:state:request', (payload) => {
+      socket.emit('desktop:state:request', (payload: DesktopRuntimeStatePayload) => {
         syncDesktopRuntimeState(payload)
       })
       fetch('/api/config').then((r) => r.json()).then(setConfig).catch(() => {})
@@ -125,7 +127,7 @@ export function useSocket() {
       patchConfig(updates)
     }
 
-    const onObsStatus = (payload: { connected: boolean }) => {
+    const onObsStatus = (payload: ObsStatusPayload) => {
       setObsConnected(payload.connected)
     }
 

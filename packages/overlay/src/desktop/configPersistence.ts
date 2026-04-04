@@ -1,4 +1,4 @@
-import type { Application, DesktopConfig } from '@ieom/shared'
+import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 
 function throwIfRequestFailed(response: Response) {
@@ -40,6 +40,25 @@ export async function patchApplicationConfig(appId: string, update: Partial<Appl
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(update),
+    })
+    throwIfRequestFailed(response)
+  } catch (error) {
+    useAppStore.getState().setConfig(previousConfig)
+    throw error
+  }
+}
+
+export async function replaceConfig(nextConfig: AppConfig) {
+  const store = useAppStore.getState()
+  const previousConfig = store.config
+
+  store.setConfig(nextConfig)
+
+  try {
+    const response = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(nextConfig),
     })
     throwIfRequestFailed(response)
   } catch (error) {

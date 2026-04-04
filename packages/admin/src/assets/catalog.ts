@@ -81,6 +81,18 @@ export async function uploadAssetFile(file: File): Promise<{ url: string; kind: 
   }
 }
 
+export async function deleteAssetFile(url: string) {
+  const response = await fetch('/api/assets', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  const json = await response.json().catch(() => ({})) as { error?: string }
+  if (!response.ok) {
+    throw new Error(json.error ?? 'Delete failed')
+  }
+}
+
 export function useAssetCatalog() {
   const [assets, setAssets] = useState<AssetRecord[]>([])
   const [loading, setLoading] = useState(true)

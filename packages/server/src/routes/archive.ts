@@ -1,5 +1,10 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
+import type { ObsStatusPayload } from '@ieom/shared'
 import { getAllStats, incrementStat, resetStats, appendLog, getLog, clearLog } from '../db/db.js'
+
+interface ArchiveRouteOptions extends FastifyPluginOptions {
+  getObsStatus?: () => ObsStatusPayload
+}
 
 /**
  * Append an event to the persistent archive log.
@@ -9,7 +14,7 @@ export function appendArchiveEvent(event: string, detail?: string) {
   appendLog(event, detail)
 }
 
-export async function archiveRoute(app: FastifyInstance) {
+export async function archiveRoute(app: FastifyInstance, options: ArchiveRouteOptions) {
   app.get('/api/archive/stats', async () => {
     return getAllStats()
   })
@@ -37,6 +42,23 @@ export async function archiveRoute(app: FastifyInstance) {
 
   // OBS connection test endpoint
   app.get('/api/obs/test', async (_req, reply) => {
-    return reply.code(200).send({ connected: false, message: 'Check OBS — bridge auto-reconnects' })
+    const status = options.getObsStatus?.()
+    if (!status) {
+      return reply.code(200).send({ connected: false, message: 'OBS bridge status is unavailable.' })
+    }
+
+    if (status.connected) {
+      return reply.code(200).send({ connected: true, message: `Connected to ${status.url}` })
+    }
+
+    const retryText = status.nextRetryAt && status.retryDelayMs
+      ? ` Next retry in ${Math.max(1, Math.ceil((status.nextRetryAt - Date.now()) / 1000))}s.`
+      : ''
+    const errorText = status.lastError ? ` ${status.lastError}.` : ''
+
+    return reply.code(200).send({
+      connected: false,
+      message: `Disconnected from ${status.url}.${errorText}${retryText}`.trim(),
+    })
   })
 }

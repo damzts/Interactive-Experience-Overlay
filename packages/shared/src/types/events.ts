@@ -85,12 +85,89 @@ export interface AmbianceSimulationPayload {
   action: 'open' | 'close' | 'interact'
 }
 
+export interface AmbianceSimulationAcceptedPayload {
+  actionId: string
+  widgetId: string
+  action: 'open' | 'close' | 'interact'
+}
+
 export interface AmbianceSimulationDonePayload {
   actionId: string
   widgetId: string
   action: 'open' | 'close' | 'interact'
   ok: boolean
   durationMs?: number
+}
+
+export type OverlayClientKind = 'runtime' | 'embedded-preview' | 'dev' | 'unknown'
+
+export interface OverlayClientDiagnostics {
+  socketId: string
+  kind: OverlayClientKind
+  port: string | null
+  label: string
+}
+
+export interface ObsStatusPayload {
+  connected: boolean
+  url: string
+  reconnecting: boolean
+  reconnectAttempt: number
+  retryDelayMs: number | null
+  nextRetryAt: number | null
+  lastError: string | null
+}
+
+export interface SchedulerEventDiagnostics {
+  id: string
+  label: string
+  enabled: boolean
+  mode: 'interval' | 'idle'
+  effectsCount: number
+  intervalMin: number
+  idleMin: number
+  nextRunAt: number | null
+  idleTriggered: boolean
+  due: boolean
+}
+
+export interface SchedulerDiagnosticsPayload {
+  tickMs: number
+  currentState: STATE
+  lastEvaluatedAt: number | null
+  lastActivityAt: number
+  lastTriggeredEventId: string | null
+  lastTriggeredAt: number | null
+  activeEventCount: number
+  events: SchedulerEventDiagnostics[]
+}
+
+export interface AmbianceDiagnosticsPayload {
+  enabled: boolean
+  intervalSeconds: number
+  lastStartedAt: number | null
+  lastTickAt: number | null
+  lastActionAt: number | null
+  lastActionWidgetId: string | null
+  lastAction: 'open' | 'close' | 'interact' | null
+  inFlight: boolean
+  pendingPhase: 'awaiting-acceptance' | 'running' | null
+  pendingActionId: string | null
+  leaderSocketId: string | null
+  leaderClientKind: OverlayClientKind | null
+  leaderClientPort: string | null
+  leaderClientLabel: string | null
+  overlayClients: OverlayClientDiagnostics[]
+  openWidgetCount: number
+  enabledWidgetCount: number
+  maxOpenWidgets: number
+  openWhileOneOpenChance: number
+  lastSkipReason: string | null
+}
+
+export interface RuntimeDiagnosticsPayload {
+  scheduler: SchedulerDiagnosticsPayload
+  ambiance: AmbianceDiagnosticsPayload
 }
 
 export interface DesktopIconDragPayload {
@@ -128,9 +205,10 @@ export interface ServerToClientEvents {
   'overlay:show': (payload: OverlayTriggerPayload) => void
   'config:update': (config: AppConfig) => void
   'config:patch': (updates: Partial<AppConfig>) => void
-  'obs:status': (payload: { connected: boolean }) => void
+  'obs:status': (payload: ObsStatusPayload) => void
   'ambiance:leader': (payload: { socketId: string | null }) => void
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void
+  'runtime:diagnostics': (payload: RuntimeDiagnosticsPayload) => void
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
   'cursor:mirror': (payload: CursorMirrorPayload) => void
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
@@ -152,6 +230,7 @@ export interface ClientToServerEvents {
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   'ambiance:leader:request': (callback: (payload: { socketId: string | null }) => void) => void
+  'ambiance:simulate:accepted': (payload: AmbianceSimulationAcceptedPayload) => void
   'ambiance:simulate:done': (payload: AmbianceSimulationDonePayload) => void
   'state:request': (callback: (state: STATE) => void) => void
   'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void

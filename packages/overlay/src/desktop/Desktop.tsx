@@ -1,83 +1,26 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
 import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'
-import type { AmbianceSimulationPayload, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayStyle, WidgetComponentType } from '@ieom/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayStyle } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
 import { ScreenSaver } from './ScreenSaver'
-import { MusicWidget } from './MusicWidget'
-import { ArchiveWidget } from './ArchiveWidget'
-import { ChatWidget } from './ChatWidget'
-import { StickyNotesWidget } from './StickyNotesWidget'
-import { GalleryWidget } from './GalleryWidget'
-import { CameraWidget } from './CameraWidget'
-import { SourceWidget } from './SourceWidget'
-import { SpectrumAnalyzerWidget } from './SpectrumAnalyzerWidget'
-import { EqualizerRackWidget } from './EqualizerRackWidget'
-import { WaveScopeWidget } from './WaveScopeWidget'
-import { PlaylistDeckWidget } from './PlaylistDeckWidget'
-import { NetMeterWidget } from './NetMeterWidget'
-import { MediaDeckWidget } from './MediaDeckWidget'
-import { CDRipperWidget } from './CDRipperWidget'
-import { SignalLabWidget } from './SignalLabWidget'
-import { BroadcastSchedulerWidget } from './BroadcastSchedulerWidget'
-import { WeatherConsoleWidget } from './WeatherConsoleWidget'
-import { ClockTowerWidget } from './ClockTowerWidget'
-import { NewswireDeskWidget } from './NewswireDeskWidget'
-import { CityNavigatorWidget } from './CityNavigatorWidget'
-import { LCDDolphinsWidget } from './LCDDolphinsWidget'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
-import { patchApplicationConfig, patchDesktopConfig } from './configPersistence'
+import { patchApplicationConfig, patchDesktopConfig, replaceConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
 import { CursorSimExample } from './CursorSimExample'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
 import { getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
+import { DesktopWidgetProps, getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration } from './widgetRegistry'
 import React from 'react';
-
-interface DesktopWidgetProps {
-  appId?: string
-  defaultCameraLabel?: string
-  defaultMirror?: boolean
-  onClose: () => void
-  onMinimize?: () => void
-  onFocus?: () => void
-  windowState?: 'open' | 'closing'
-  zIndex?: number
-}
-
-/** Maps widget app IDs to their component. Add new widgets here. */
-const WIDGET_COMPONENTS: Partial<Record<WidgetComponentType, React.ComponentType<DesktopWidgetProps>>> = {
-  music: MusicWidget,
-  archive: ArchiveWidget,
-  chat: ChatWidget,
-  'sticky-notes': StickyNotesWidget,
-  gallery: GalleryWidget,
-  camera: CameraWidget,
-  source: SourceWidget,
-  'spectrum-analyzer': SpectrumAnalyzerWidget,
-  'equalizer-rack': EqualizerRackWidget,
-  'wave-scope': WaveScopeWidget,
-  'playlist-deck': PlaylistDeckWidget,
-  'net-meter': NetMeterWidget,
-  'media-deck': MediaDeckWidget,
-  'cd-ripper': CDRipperWidget,
-  'signal-lab': SignalLabWidget,
-  'broadcast-scheduler': BroadcastSchedulerWidget,
-  'weather-console': WeatherConsoleWidget,
-  'clock-tower': ClockTowerWidget,
-  'newswire-desk': NewswireDeskWidget,
-  'city-navigator': CityNavigatorWidget,
-  'lcd-dolphins': LCDDolphinsWidget,
-}
 
 function resolveWidgetComponent(app: Application) {
   const widgetComponent = getWidgetComponent(app)
-  if (!widgetComponent || widgetComponent === 'generic') return null
-  return WIDGET_COMPONENTS[widgetComponent] ?? null
+  return getDesktopWidgetRenderer(widgetComponent)
 }
 
 const THEME_CLASSNAME: Record<DesktopTheme, string> = {
@@ -403,7 +346,7 @@ function computeGridPositions(
   return result
 }
 
-/** Fallback draggable window for any widget ID not registered in WIDGET_COMPONENTS */
+/** Fallback draggable window for any widget without a registered runtime component. */
 function GenericWidget({ app, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: { app: Application } & DesktopWidgetProps) {
   return (
     <DesktopWindow
@@ -552,17 +495,15 @@ export function Desktop({ apps }: DesktopProps) {
   }, [])
 
   useEffect(() => {
-    const cursor = (window as any).__cursorOverlayController;
-    if (isEmbeddedPreview) return;
     if (!isSimulationLeader) return;
-    if (!cursor) return;
-
-    cursor.setVisible(true);
 
     const runAmbianceSimulation = async (payload: AmbianceSimulationPayload) => {
       const startedAt = Date.now();
       let ok = false;
       try {
+        const cursor = (window as any).__cursorOverlayController;
+        if (!cursor) return;
+
         const app = supportedApps.find((candidate) => candidate.id === payload.widgetId && candidate.appType === 'widget');
         if (!app) return;
 
@@ -677,6 +618,11 @@ export function Desktop({ apps }: DesktopProps) {
     }
 
     const onAmbianceSimulate = (payload: AmbianceSimulationPayload) => {
+      socket.emit('ambiance:simulate:accepted', {
+        actionId: payload.actionId,
+        widgetId: payload.widgetId,
+        action: payload.action,
+      })
       ambianceQueueRef.current.push(payload)
       drainAmbianceQueue()
     }
@@ -688,9 +634,12 @@ export function Desktop({ apps }: DesktopProps) {
       ambianceRunningRef.current = false
       simEmittingRef.current = false;
       emitStartMenuState({ open: false, activeRoot: null });
-      cursor.setVisible(false);
+      const cursor = (window as any).__cursorOverlayController;
+      if (cursor) {
+        cursor.setVisible(false);
+      }
     };
-  }, [emitStartMenuState, isEmbeddedPreview, isSimulationLeader, supportedApps]);
+  }, [emitStartMenuState, isSimulationLeader, supportedApps]);
 
   const themeStyle = useMemo(
     () => ({
@@ -729,6 +678,10 @@ export function Desktop({ apps }: DesktopProps) {
 
   const autoArrangeIcons = desktopConfig.autoArrangeIcons
   const defaultIconSize  = desktopConfig.defaultIconSize
+  const arrangedGridPositions = useMemo(
+    () => computeGridPositions(desktopApps, defaultIconSize),
+    [defaultIconSize, desktopApps],
+  )
 
   // Compute collision-free grid positions. In auto-arrange mode every icon
   // gets a grid slot. In manual mode only icons without a saved iconPosition
@@ -912,8 +865,8 @@ export function Desktop({ apps }: DesktopProps) {
 
   const resolveIconPosition = useCallback((app: Application) => {
     return dragPositions[app.id]
-      ?? (autoArrangeIcons ? gridPositions.get(app.id) : (app.iconPosition ?? gridPositions.get(app.id)))
-  }, [autoArrangeIcons, dragPositions, gridPositions])
+      ?? (autoArrangeIcons ? arrangedGridPositions.get(app.id) : (app.iconPosition ?? gridPositions.get(app.id)))
+  }, [arrangedGridPositions, autoArrangeIcons, dragPositions, gridPositions])
 
   useEffect(() => {
     return () => {
@@ -1089,7 +1042,8 @@ export function Desktop({ apps }: DesktopProps) {
   const handleDesktopContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     emitStartMenuState({ open: false, activeRoot: null })
-    setContextMenu({ x: e.clientX, y: e.clientY, type: 'desktop' })
+    const rect = (desktopRef.current ?? document.body).getBoundingClientRect()
+    setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, type: 'desktop' })
   }
 
   const handleIconMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>, app: Application) => {
@@ -1132,6 +1086,96 @@ export function Desktop({ apps }: DesktopProps) {
     emitStartMenuState({ open: false, activeRoot: null })
     setContextMenu(null)
   }, [emitStartMenuState])
+
+  const persistDesktopLayoutRecovery = useCallback(async ({
+    nextApplications = config.applications,
+    nextDesktopConfig = config.desktopConfig,
+    notificationBody,
+  }: {
+    nextApplications?: Application[]
+    nextDesktopConfig?: AppConfig['desktopConfig']
+    notificationBody: string
+  }) => {
+    const nextConfig: AppConfig = {
+      ...config,
+      applications: nextApplications,
+      desktopConfig: nextDesktopConfig,
+    }
+
+    try {
+      await replaceConfig(nextConfig)
+      enqueueDesktopNotification({
+        title: 'Desktop',
+        body: notificationBody,
+        durationMs: 2200,
+      })
+      closeMenus()
+    } catch {
+      enqueueDesktopNotification({
+        title: 'Desktop',
+        body: 'Unable to save the desktop layout change.',
+        icon: '⚠️',
+        durationMs: 2800,
+      })
+    }
+  }, [closeMenus, config, enqueueDesktopNotification])
+
+  const handleArrangeIcons = useCallback(() => {
+    const nextApplications = config.applications.map((app) => {
+      const nextPosition = arrangedGridPositions.get(app.id)
+      if (!nextPosition) return app
+      return {
+        ...app,
+        iconPosition: { ...nextPosition },
+      }
+    })
+
+    return persistDesktopLayoutRecovery({
+      nextApplications,
+      notificationBody: 'Icons snapped into a clean grid.',
+    })
+  }, [arrangedGridPositions, config.applications, persistDesktopLayoutRecovery])
+
+  const handleToggleAutoArrange = useCallback(() => {
+    return persistDesktopLayoutRecovery({
+      nextDesktopConfig: {
+        ...config.desktopConfig,
+        autoArrangeIcons: !autoArrangeIcons,
+      },
+      notificationBody: autoArrangeIcons
+        ? 'Free icon placement restored.'
+        : 'Auto-arrange enabled for desktop icons.',
+    })
+  }, [autoArrangeIcons, config.desktopConfig, persistDesktopLayoutRecovery])
+
+  const handleResetIconLayout = useCallback(() => {
+    const nextApplications = config.applications.map((app) => {
+      if (!desktopApps.some((desktopApp) => desktopApp.id === app.id)) return app
+      const { iconPosition: _iconPosition, ...rest } = app
+      return rest
+    })
+
+    return persistDesktopLayoutRecovery({
+      nextApplications,
+      nextDesktopConfig: {
+        ...config.desktopConfig,
+        autoArrangeIcons: true,
+      },
+      notificationBody: 'Icon layout reset to the automatic desktop grid.',
+    })
+  }, [config.applications, config.desktopConfig, desktopApps, persistDesktopLayoutRecovery])
+
+  const handleResetWidgetWindows = useCallback(() => {
+    return persistDesktopLayoutRecovery({
+      nextDesktopConfig: {
+        ...config.desktopConfig,
+        widgetPositions: undefined,
+        widgetSizes: undefined,
+        widgetZIndices: undefined,
+      },
+      notificationBody: 'Widget windows restored to their saved defaults.',
+    })
+  }, [config.desktopConfig, persistDesktopLayoutRecovery])
 
   const applyWidgetLayoutById = useCallback((layoutId: string) => {
     socket.emit('widget:layout:apply', layoutId)
@@ -1186,6 +1230,21 @@ export function Desktop({ apps }: DesktopProps) {
       socket.off('widget:layout:apply', handleSavedWidgetLayoutApply)
     }
   }, [closeMenus, enqueueDesktopNotification])
+
+  useEffect(() => {
+    visibleWidgets.forEach((app) => {
+      const widgetComponent = getWidgetComponent(app)
+      const WidgetComp = resolveWidgetComponent(app)
+      if (WidgetComp || !warnMissingDesktopWidgetRegistration(app, widgetComponent)) return
+
+      enqueueDesktopNotification({
+        title: 'Missing widget UI',
+        body: `${app.label} is using the generic fallback because ${widgetComponent ?? app.id} is not registered.`,
+        icon: '⚠️',
+        durationMs: 4200,
+      })
+    })
+  }, [enqueueDesktopNotification, visibleWidgets])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1398,10 +1457,14 @@ export function Desktop({ apps }: DesktopProps) {
           >
             {contextMenu.type === 'desktop' ? (
               <>
-                <button className="context-menu-item context-menu-item--disabled">Arrange Icons</button>
+                <button className="context-menu-item" onClick={() => { void handleArrangeIcons() }}>Arrange Icons</button>
+                <button className="context-menu-item" onClick={() => { void handleToggleAutoArrange() }}>
+                  {autoArrangeIcons ? 'Disable Auto Arrange' : 'Enable Auto Arrange'}
+                </button>
                 <button className="context-menu-item" onClick={closeMenus}>Refresh</button>
                 <div className="context-menu-separator" />
-                <button className="context-menu-item context-menu-item--disabled">New Folder</button>
+                <button className="context-menu-item" onClick={() => { void handleResetIconLayout() }}>Reset Icon Layout</button>
+                <button className="context-menu-item" onClick={() => { void handleResetWidgetWindows() }}>Reset Widget Windows</button>
                 <div className="context-menu-separator" />
                 <button className="context-menu-item context-menu-item--disabled">Properties</button>
               </>

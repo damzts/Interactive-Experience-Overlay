@@ -3,6 +3,37 @@ import { useAdminStore } from '../store/useAdminStore'
 import { withDesktopAmbianceDefaults, type DesktopAmbianceConfig, type Application } from '@ieom/shared'
 import { Toggle, Slider, isSameDraft, IconGlyph, ConfigApplyBar, ConfigCard, ConfigNotice, ConfigPageIntro, ConfigSectionPanel } from '../components/ui'
 
+function createDefaultBehavior(enabled = false): DesktopAmbianceConfig['widgetSimulation']['behaviors'][string] {
+  return {
+    enabled,
+    openChance: 0.18,
+    closeChance: 0.12,
+    interactChance: 0.65,
+  }
+}
+
+function formatRelativeTime(timestamp: number | null) {
+  if (!timestamp) return 'Never'
+  const diffMs = Date.now() - timestamp
+  if (diffMs < 1000) return 'Just now'
+  const seconds = Math.round(diffMs / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  return `${hours}h ago`
+}
+
+function formatFutureTime(timestamp: number | null) {
+  if (!timestamp) return 'Not scheduled'
+  const diffMs = timestamp - Date.now()
+  if (diffMs <= 0) return 'Due now'
+  const seconds = Math.ceil(diffMs / 1000)
+  if (seconds < 60) return `In ${seconds}s`
+  const minutes = Math.ceil(seconds / 60)
+  return `In ${minutes}m`
+}
+
 function WidgetBehaviorEditor({
   app,
   behavior,
@@ -68,6 +99,11 @@ export function AmbiancePanel() {
   const allApps      = useAdminStore((s) => s.config.applications)
   const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance)
   const saveConfig   = useAdminStore((s) => s.saveConfig)
+  const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
+  const simulationLeaderId = useAdminStore((s) => s.simulationLeaderId)
+  const ambianceAcceptedCount = useAdminStore((s) => s.ambianceAcceptedCount)
+  const ambianceRejectedCount = useAdminStore((s) => s.ambianceRejectedCount)
+  const runtimeDiagnostics = useAdminStore((s) => s.runtimeDiagnostics)
   const sourceConfig = useMemo(
     () => withDesktopAmbianceDefaults(rawDesktopAmbiance),
     [rawDesktopAmbiance],
@@ -77,6 +113,7 @@ export function AmbiancePanel() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const widgetApps = useMemo(() => allApps.filter((app) => app.appType === 'widget'), [allApps])
 
   const dirty = !isSameDraft(form, sourceConfig)
 
@@ -105,11 +142,32 @@ export function AmbiancePanel() {
   const updateBehavior = useCallback((widgetId: string, updater: (d: DesktopAmbianceConfig['widgetSimulation']['behaviors'][string]) => void) => {
     update('widgetSimulation', (ws) => {
       if (!ws.behaviors[widgetId]) {
-        ws.behaviors[widgetId] = { enabled: false, openChance: 0.1, closeChance: 0.1, interactChance: 0.65 }
+        ws.behaviors[widgetId] = createDefaultBehavior(false)
       }
       updater(ws.behaviors[widgetId])
     })
   }, [update])
+
+  const ensureWidgetBehaviors = useCallback((enableAllWhenEmpty: boolean) => {
+    update('widgetSimulation', (ws) => {
+      const currentEnabledCount = Object.values(ws.behaviors).filter((behavior) => behavior?.enabled).length
+      widgetApps.forEach((app) => {
+        if (!ws.behaviors[app.id]) {
+          ws.behaviors[app.id] = createDefaultBehavior(enableAllWhenEmpty && currentEnabledCount === 0)
+        }
+      })
+
+      if (enableAllWhenEmpty && currentEnabledCount === 0) {
+        widgetApps.forEach((app) => {
+          ws.behaviors[app.id] = {
+            ...createDefaultBehavior(true),
+            ...ws.behaviors[app.id],
+            enabled: true,
+          }
+        })
+      }
+    })
+  }, [update, widgetApps])
 
   const apply = useCallback(async () => {
     if (!dirty) return
@@ -126,8 +184,10 @@ export function AmbiancePanel() {
     setSaved(false)
   }, [sourceConfig])
 
-  const widgetApps = allApps.filter((app) => app.appType === 'widget')
   const simConfig = form.widgetSimulation
+  const scheduler = runtimeDiagnostics.scheduler
+  const ambiance = runtimeDiagnostics.ambiance
+  const activeAutoEvents = scheduler.events.filter((eventDef) => eventDef.enabled)
 
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
@@ -146,9 +206,104 @@ export function AmbiancePanel() {
           </ConfigNotice>
           <Toggle
             checked={simConfig.enabled}
-            onChange={(checked) => update('widgetSimulation', (d) => { d.enabled = checked })}
+            onChange={(checked) => {
+              update('widgetSimulation', (d) => { d.enabled = checked })
+              if (checked) {
+                ensureWidgetBehaviors(true)
+              }
+            }}
             label="Enable Widget Simulation"
           />
+          <ConfigCard className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200">Live Diagnostics</span>
+              <span className="text-[10px] text-zinc-500">Leader: {simulationLeaderId ?? 'none'}</span>
+              <span className="text-[10px] text-zinc-500">Open widgets: {openWidgetIds.length}</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/65 p-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Scheduler Tick</div>
+                <div className="mt-1 text-lg font-semibold text-zinc-100">{Math.round(scheduler.tickMs / 1000)}s</div>
+                <div className="mt-1 text-[11px] text-zinc-500">Last eval: {formatRelativeTime(scheduler.lastEvaluatedAt)}</div>
+              </div>
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/65 p-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Last Activity</div>
+                <div className="mt-1 text-lg font-semibold text-zinc-100">{formatRelativeTime(scheduler.lastActivityAt)}</div>
+                <div className="mt-1 text-[11px] text-zinc-500">State: {scheduler.currentState}</div>
+              </div>
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/65 p-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Ambiance Loop</div>
+                <div className="mt-1 text-lg font-semibold text-zinc-100">{ambiance.intervalSeconds}s</div>
+                <div className="mt-1 text-[11px] text-zinc-500">Last tick: {formatRelativeTime(ambiance.lastTickAt)}</div>
+              </div>
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/65 p-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Last Sim Action</div>
+                <div className="mt-1 text-sm font-semibold text-zinc-100">{ambiance.lastAction ? `${ambiance.lastAction} ${ambiance.lastActionWidgetId ?? ''}`.trim() : 'None yet'}</div>
+                <div className="mt-1 text-[11px] text-zinc-500">{formatRelativeTime(ambiance.lastActionAt)}</div>
+              </div>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-[1.2fr,0.8fr]">
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/65 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Scheduler Queue</div>
+                  <div className="text-[10px] text-zinc-600">{activeAutoEvents.length} active events</div>
+                </div>
+                {activeAutoEvents.length === 0 ? (
+                  <div className="text-[11px] text-zinc-500">No auto-events are enabled.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {activeAutoEvents.map((eventDef) => (
+                      <div key={eventDef.id} className="rounded-lg border border-zinc-800/70 bg-zinc-900/55 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-xs font-medium text-zinc-100">{eventDef.label}</div>
+                            <div className="text-[10px] text-zinc-500">{eventDef.mode === 'interval' ? `Interval every ~${eventDef.intervalMin}m` : `Idle after ${eventDef.idleMin}m`}</div>
+                          </div>
+                          <div className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${eventDef.due ? 'bg-amber-500/15 text-amber-200' : 'bg-cyan-500/10 text-cyan-200'}`}>
+                            {eventDef.mode === 'interval' ? formatFutureTime(eventDef.nextRunAt) : (eventDef.idleTriggered ? 'Idle fired' : 'Waiting')}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/65 p-3 space-y-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Ambiance Runtime</div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Status</span>
+                  <span className={ambiance.enabled ? 'text-emerald-300' : 'text-zinc-500'}>{ambiance.enabled ? 'Enabled' : 'Disabled'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Leader</span>
+                  <span className="text-right text-zinc-100">
+                    {ambiance.leaderSocketId
+                      ? ambiance.leaderSocketId.slice(0, 8)
+                      : 'No overlay leader'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Pending phase</span>
+                  <span className="text-zinc-100">{ambiance.pendingPhase ?? 'Idle'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Widgets in pool</span>
+                  <span className="text-zinc-100">{ambiance.enabledWidgetCount}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Open / max</span>
+                  <span className="text-zinc-100">{ambiance.openWidgetCount} / {ambiance.maxOpenWidgets}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-400">Accepted / rejected</span>
+                  <span className="text-zinc-100">{ambianceAcceptedCount} / {ambianceRejectedCount}</span>
+                </div>
+                <div className="rounded-lg border border-zinc-800/70 bg-zinc-900/55 px-3 py-2 text-[11px] text-zinc-400">
+                  {ambiance.lastSkipReason ? `Last skip: ${ambiance.lastSkipReason}` : 'Last tick produced an action or is waiting for the current one to finish.'}
+                </div>
+              </div>
+            </div>
+          </ConfigCard>
           {simConfig.enabled && (
             <div className="space-y-4 border-l border-zinc-800/80 pl-4">
               <ConfigCard>
@@ -203,7 +358,7 @@ export function AmbiancePanel() {
                       <WidgetBehaviorEditor
                         key={app.id}
                         app={app}
-                        behavior={simConfig.behaviors[app.id] ?? { enabled: false, openChance: 0.1, closeChance: 0.1, interactChance: 0.65 }}
+                        behavior={simConfig.behaviors[app.id] ?? createDefaultBehavior(false)}
                         onChange={(updater) => updateBehavior(app.id, updater)}
                       />
                     ))}

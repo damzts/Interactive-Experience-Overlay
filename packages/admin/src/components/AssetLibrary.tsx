@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { MediaEntry } from '@ieom/shared'
 import { useAdminStore } from '../store/useAdminStore'
 import {
+  deleteAssetFile,
   inferAssetKindFromUrl,
   isLikelyAssetUrl,
   mediaEntryToAsset,
@@ -168,13 +169,15 @@ export function AssetCatalogPanel({
   selectedUrl,
   onSelect,
   onDeleteSavedEntry,
+  allowFilesystemDelete = false,
   savedEntries,
   emptyMessage = 'No matching assets found.',
 }: {
   kinds?: AssetKind[]
   selectedUrl?: string
   onSelect?: (asset: AssetRecord) => void
-  onDeleteSavedEntry?: (asset: AssetRecord) => void
+  onDeleteSavedEntry?: (asset: AssetRecord) => Promise<void> | void
+  allowFilesystemDelete?: boolean
   savedEntries?: MediaEntry[] | false
   emptyMessage?: string
 }) {
@@ -182,6 +185,8 @@ export function AssetCatalogPanel({
   const { assets, error, loading, refresh } = useAssetCatalog()
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<'all' | AssetKind>(kinds.length === 1 ? kinds[0] : 'all')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const savedAssets = useMemo(() => {
     if (savedEntries === false) return []
@@ -202,6 +207,29 @@ export function AssetCatalogPanel({
   const visibleSaved = useMemo(() => savedAssets.filter(matches), [savedAssets, kindFilter, normalizedSearch])
   const visibleProjectAssets = useMemo(() => assets.filter((asset) => asset.source === 'filesystem' && matches(asset)), [assets, kindFilter, normalizedSearch])
   const visibleGameAssets = useMemo(() => assets.filter((asset) => asset.source === 'games' && matches(asset)), [assets, kindFilter, normalizedSearch])
+
+  const handleDelete = async (asset: AssetRecord) => {
+    const actionLabel = asset.source === 'saved' ? 'delete this saved media entry' : 'delete this project asset file'
+    if (typeof window !== 'undefined' && !window.confirm(`Delete ${asset.name}? This will ${actionLabel}.`)) {
+      return
+    }
+
+    setDeleteError(null)
+    setDeletingId(asset.id)
+
+    try {
+      if (asset.source === 'saved') {
+        await onDeleteSavedEntry?.(asset)
+      } else if (asset.source === 'filesystem') {
+        await deleteAssetFile(asset.url)
+      }
+      await refresh()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -238,6 +266,14 @@ export function AssetCatalogPanel({
         <ConfigNotice tone="danger">{error}</ConfigNotice>
       )}
 
+      {deleteError && (
+        <ConfigNotice tone="danger">{deleteError}</ConfigNotice>
+      )}
+
+      {deletingId && (
+        <ConfigNotice tone="info">Deleting asset...</ConfigNotice>
+      )}
+
       {loading && !error && <ConfigNotice tone="info">Loading asset catalog...</ConfigNotice>}
 
       {!loading && !error && visibleSaved.length === 0 && visibleProjectAssets.length === 0 && visibleGameAssets.length === 0 && (
@@ -251,7 +287,7 @@ export function AssetCatalogPanel({
             items={visibleSaved}
             selectedUrl={selectedUrl}
             onSelect={onSelect}
-            onDelete={onDeleteSavedEntry}
+            onDelete={onDeleteSavedEntry ? ((asset) => { void handleDelete(asset) }) : undefined}
             emptyMessage={savedEntries === false ? undefined : undefined}
           />
           <AssetSection
@@ -259,6 +295,7 @@ export function AssetCatalogPanel({
             items={visibleProjectAssets}
             selectedUrl={selectedUrl}
             onSelect={onSelect}
+            onDelete={allowFilesystemDelete ? ((asset) => { void handleDelete(asset) }) : undefined}
           />
           <AssetSection
             title="Game Images"

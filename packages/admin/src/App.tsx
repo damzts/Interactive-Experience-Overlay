@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
-import { STATE, type DesktopRuntimeStatePayload } from '@ieom/shared'
+import { STATE, type DesktopRuntimeStatePayload, type ObsStatusPayload, type RuntimeDiagnosticsPayload } from '@ieom/shared'
 import { socket } from './socket/client'
 import { useAdminStore } from './store/useAdminStore'
 import { Dashboard } from './components/Dashboard'
 
 export default function App() {
   const setCurrentState = useAdminStore((s) => s.setCurrentState)
-  const setObsConnected = useAdminStore((s) => s.setObsConnected)
+  const setObsStatus = useAdminStore((s) => s.setObsStatus)
   const fetchConfig = useAdminStore((s) => s.fetchConfig)
   const setConfig = useAdminStore((s) => s.setConfig)
   const patchConfig = useAdminStore((s) => s.patchConfig)
@@ -15,6 +15,7 @@ export default function App() {
   const setRecycleBinFull = useAdminStore((s) => s.setRecycleBinFull)
   const setSimulationLeaderId = useAdminStore((s) => s.setSimulationLeaderId)
   const setAmbianceMetrics = useAdminStore((s) => s.setAmbianceMetrics)
+  const setRuntimeDiagnostics = useAdminStore((s) => s.setRuntimeDiagnostics)
   const config = useAdminStore((s) => s.config)
 
   useEffect(() => {
@@ -44,8 +45,8 @@ export default function App() {
       setRecycleBinFull(full)
     })
 
-    socket.on('obs:status', ({ connected }: { connected: boolean }) => {
-      setObsConnected(connected)
+    socket.on('obs:status', (payload: ObsStatusPayload) => {
+      setObsStatus(payload)
     })
 
     socket.on('config:update', (config) => {
@@ -64,6 +65,10 @@ export default function App() {
       setAmbianceMetrics(payload)
     })
 
+    socket.on('runtime:diagnostics', (payload: RuntimeDiagnosticsPayload) => {
+      setRuntimeDiagnostics(payload)
+    })
+
     return () => {
       socket.off('connect', requestRuntimeState)
       socket.off('state:update')
@@ -74,8 +79,9 @@ export default function App() {
       socket.off('config:patch')
       socket.off('ambiance:leader')
       socket.off('ambiance:metrics')
+      socket.off('runtime:diagnostics')
     }
-  }, [fetchConfig, patchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsConnected, setRecycleBinFull, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
+  }, [fetchConfig, patchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsStatus, setRecycleBinFull, setRuntimeDiagnostics, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

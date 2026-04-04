@@ -9,7 +9,7 @@ Maintain it with these rules:
 - Keep it compact enough to load as working context.
 - Preserve the core runtime model, ownership boundaries, sync model, and extension rules.
 - Prefer stable concepts over file-by-file implementation notes.
-- Do not turn it into a backlog, changelog, or exhaustive API dump.
+- Do not turn it into a backlog, changelog, or dump.
 - When the project grows, summarize patterns here and move long detail to purpose-specific docs.
 - Update this file when architecture or workflow changes in ways that affect how an agent should understand, use, or extend the project.
 
@@ -28,6 +28,8 @@ Core model:
 - The server owns authoritative runtime state and config persistence.
 - The admin edits config and drives runtime actions.
 - The overlay renders config plus runtime state.
+- The only supported runtime clients are the admin browser and overlay browser instances used for preview and OBS.
+- The admin page can host an embedded overlay preview, which means one admin session may create both an `admin` socket and a separate `overlay` socket.
 
 Tech stack: TypeScript, React, Fastify, Socket.IO, SQLite, OBS WebSocket, GSAP, React Three Fiber, Zustand, 98.css.
 
@@ -45,12 +47,6 @@ Dev ports:
 - server: `3000`
 - overlay: `3001`
 - admin: `3002`
-
-Production behavior:
-
-- the server hosts overlay at `/`
-- the server hosts admin at `/admin`
-- OBS should point at `3000`
 
 ## Useful Interfaces
 
@@ -77,7 +73,7 @@ Useful socket events:
 - widgets/runtime shell: `widget:toggle`, `widget:layout:apply`, `desktop:notify`, `desktop:recycle-bin`
 - live desktop motion: `desktop:icon:drag`, `desktop:widget:drag`, `desktop:widget:resize`
 - Start menu sync: `desktop:start-menu:state`, `desktop:start-menu:phase`
-- ambiance flow: `ambiance:leader`, `ambiance:leader:request`, `ambiance:simulate`, `ambiance:simulate:done`
+- ambiance flow: `ambiance:leader`, `ambiance:leader:request`, `ambiance:simulate`, `ambiance:simulate:accepted`, `ambiance:simulate:done`
 - leader cursor sync: `cursor:mirror`, `cursor:mirror:menu-timeline`
 - utility/runtime control: `desktop:screen-saver:test`, `keybind:execute`, `panic`, `obs:status`
 
@@ -138,7 +134,7 @@ Runtime-only server state:
 - open widget ids
 - recycle-bin fullness
 - Start menu shell state
-- ambiance leader socket id
+- ambiance leader overlay socket id
 
 Rule:
 
@@ -220,7 +216,13 @@ Key behaviors:
 
 - manual widget actions use `widget:toggle`
 - ambiance actions are server-selected
-- only the elected leader executes ambiance cursor/menu choreography
+- only an overlay client can be elected as ambiance leader
+- overlay sockets self-identify as `runtime`, `embedded-preview`, or `dev`; the server prefers the top-level runtime overlay before falling back to preview/dev overlays
+- disabling widget ambiance clears the current leader and suppresses re-election until ambiance is enabled again
+- the elected overlay acknowledges `ambiance:simulate` before executing it and later reports completion
+- the leader executes the actual ambiance choreography; other clients follow by consuming mirrored cursor/menu events and the shared widget state broadcasts emitted from the leader
+- `open` and `close` actions are usually consistent across clients because the leader emits explicit widget state changes
+- `interact` actions are only fully executed on the leader unless they also emit shared runtime state; followers mirror cursor motion but do not automatically replay arbitrary DOM interactions
 - Start menu state is synchronized as runtime state
 - reconnect snapshots include widget ids, recycle-bin state, and Start menu state
 
@@ -250,6 +252,12 @@ Main responsibilities:
 ### Preview Model
 
 The embedded preview can target runtime or overlay-dev mode.
+
+Important consequence:
+
+- the embedded preview is a real overlay socket, not a cosmetic mirror
+- previewing `3000` creates an embedded runtime overlay client alongside the admin socket
+- diagnostics should distinguish overlay identity by kind and port so it is clear whether ambiance leadership belongs to OBS/runtime or the embedded preview
 
 Preview-only behavior:
 
@@ -363,7 +371,7 @@ High-value event groups:
 - desktop runtime: `widget:toggle`, `desktop:state:request`, `desktop:notify`, `desktop:recycle-bin`
 - live shell motion: `desktop:icon:drag`, `desktop:widget:drag`, `desktop:widget:resize`
 - Start menu sync: `desktop:start-menu:state`, `desktop:start-menu:phase`
-- ambiance sync: `ambiance:leader`, `ambiance:leader:request`, `ambiance:simulate`, `ambiance:simulate:done`
+- ambiance sync: `ambiance:leader`, `ambiance:leader:request`, `ambiance:simulate`, `ambiance:simulate:accepted`, `ambiance:simulate:done`
 - cursor mirroring: `cursor:mirror`, `cursor:mirror:menu-timeline`
 - widget layouts: `widget:layout:apply`
 - utilities: `desktop:screen-saver:test`, `panic`, `obs:status`, `keybind:execute`
@@ -388,6 +396,7 @@ Desktop runtime:
 
 - widget/menu/notification/recycle-bin state syncs outside the scene machine
 - drag/resize motion is live over sockets
+- ambiance choreography is leader-executed and follower-mirrored, not fully replayed on every client
 - final state persists through PATCH routes
 
 Config propagation:
