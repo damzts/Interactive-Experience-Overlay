@@ -122,6 +122,18 @@ export function setupSocketHandlers(
   let acceptedSimulatedToggles = 0
   let rejectedSimulatedToggles = 0
   let runtimeConfigOverride: RuntimeConfigOverridePayload = {}
+  const RUNTIME_OVERRIDE_RESET_SCOPES = [
+    'desktop.theme',
+    'desktop.iconAnimation',
+    'desktop.iconMotion',
+    'desktop.widgetTheme',
+    'desktop.screenSaver',
+    'desktop.widgetThemeOverrides',
+    'ambiance.widgetSimulation',
+  ] as const
+  type RuntimeOverrideResetScope = typeof RUNTIME_OVERRIDE_RESET_SCOPES[number]
+  const runtimeOverrideResetTimers = Object.fromEntries(RUNTIME_OVERRIDE_RESET_SCOPES.map((scope) => [scope, null])) as Record<RuntimeOverrideResetScope, ReturnType<typeof setTimeout> | null>
+  const runtimeOverrideResetVersions = Object.fromEntries(RUNTIME_OVERRIDE_RESET_SCOPES.map((scope) => [scope, 0])) as Record<RuntimeOverrideResetScope, number>
   let runtimeDiagnosticsQueued = false
   let runtimeDiagnosticsFlushTimer: ReturnType<typeof setTimeout> | null = null
   let lastRuntimeDiagnosticsEmitAt = 0
@@ -209,6 +221,56 @@ export function setupSocketHandlers(
 
   const applyRuntimeConfigOverride = (updates: RuntimeConfigOverridePayload) => {
     runtimeConfigOverride = mergeRuntimeConfigOverride(runtimeConfigOverride, updates)
+    emitRuntimeConfigOverride()
+  }
+
+  const clearRuntimeOverrideResetTimer = (scope: RuntimeOverrideResetScope) => {
+    if (runtimeOverrideResetTimers[scope]) {
+      clearTimeout(runtimeOverrideResetTimers[scope])
+      runtimeOverrideResetTimers[scope] = null
+    }
+  }
+
+  const clearRuntimeConfigOverrideScopes = (scopes: RuntimeOverrideResetScope[]) => {
+    const nextDesktopConfig = { ...(runtimeConfigOverride.desktopConfig ?? {}) }
+    const nextDesktopAmbiance = { ...(runtimeConfigOverride.desktopAmbiance ?? {}) }
+
+    for (const scope of scopes) {
+      if (scope === 'desktop.theme') delete nextDesktopConfig.theme
+      if (scope === 'desktop.iconAnimation') delete nextDesktopConfig.iconAnimation
+      if (scope === 'desktop.iconMotion') delete nextDesktopConfig.iconMotion
+      if (scope === 'desktop.widgetTheme') delete nextDesktopConfig.widgetTheme
+      if (scope === 'desktop.screenSaver') delete nextDesktopConfig.screenSaver
+      if (scope === 'desktop.widgetThemeOverrides') delete nextDesktopConfig.widgetThemeOverrides
+      if (scope === 'ambiance.widgetSimulation') delete nextDesktopAmbiance.widgetSimulation
+    }
+
+    runtimeConfigOverride = {
+      desktopConfig: Object.keys(nextDesktopConfig).length ? nextDesktopConfig : undefined,
+      desktopAmbiance: Object.keys(nextDesktopAmbiance).length ? nextDesktopAmbiance : undefined,
+    }
+    emitRuntimeConfigOverride()
+  }
+
+  const scheduleRuntimeConfigOverrideReset = (scopes: RuntimeOverrideResetScope[], timeoutSeconds: number) => {
+    for (const scope of scopes) {
+      clearRuntimeOverrideResetTimer(scope)
+      const version = runtimeOverrideResetVersions[scope] + 1
+      runtimeOverrideResetVersions[scope] = version
+      runtimeOverrideResetTimers[scope] = setTimeout(() => {
+        if (runtimeOverrideResetVersions[scope] !== version) return
+        runtimeOverrideResetTimers[scope] = null
+        clearRuntimeConfigOverrideScopes([scope])
+      }, timeoutSeconds * 1000)
+    }
+  }
+
+  const clearAllRuntimeConfigOverrides = () => {
+    for (const scope of RUNTIME_OVERRIDE_RESET_SCOPES) {
+      clearRuntimeOverrideResetTimer(scope)
+      runtimeOverrideResetVersions[scope] += 1
+    }
+    runtimeConfigOverride = {}
     emitRuntimeConfigOverride()
   }
 
@@ -483,15 +545,21 @@ export function setupSocketHandlers(
 
     for (const action of eventDef.actions ?? []) {
       if (action.kind === 'desktop-config') {
-        applyRuntimeConfigOverride({
-          desktopConfig: {
-            ...(action.patch.theme !== undefined ? { theme: action.patch.theme } : {}),
-            ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
-            ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
-            ...(action.patch.widgetTheme ? { widgetTheme: action.patch.widgetTheme } : {}),
-            ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
-          },
-        })
+        const desktopConfigPatch = {
+          ...(action.patch.theme !== undefined ? { theme: action.patch.theme } : {}),
+          ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
+          ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
+          ...(action.patch.widgetTheme ? { widgetTheme: action.patch.widgetTheme } : {}),
+          ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
+        }
+        applyRuntimeConfigOverride({ desktopConfig: desktopConfigPatch })
+        const resetScopes: RuntimeOverrideResetScope[] = []
+        if (desktopConfigPatch.theme !== undefined) resetScopes.push('desktop.theme')
+        if (desktopConfigPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
+        if (desktopConfigPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
+        if (desktopConfigPatch.widgetTheme !== undefined) resetScopes.push('desktop.widgetTheme')
+        if (desktopConfigPatch.screenSaver !== undefined) resetScopes.push('desktop.screenSaver')
+        if (resetScopes.length > 0) scheduleRuntimeConfigOverrideReset(resetScopes, action.timeoutSeconds ?? 30)
         continue
       }
 
@@ -510,6 +578,7 @@ export function setupSocketHandlers(
             widgetThemeOverrides: nextOverrides,
           },
         })
+        scheduleRuntimeConfigOverrideReset(['desktop.widgetThemeOverrides'], action.timeoutSeconds ?? 30)
         continue
       }
 
@@ -535,6 +604,7 @@ export function setupSocketHandlers(
           },
         },
       })
+      scheduleRuntimeConfigOverrideReset(['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
     }
 
     return { ok: true }
@@ -792,6 +862,15 @@ export function setupSocketHandlers(
       }
       emitOverlayResync(payload?.reason?.trim() || 'admin-force-resync')
       queueRuntimeDiagnosticsEmit()
+    })
+
+    socket.on('runtime:config:override:clear', (callback) => {
+      if (socketClientTypes.get(socket.id) !== 'admin') {
+        if (callback) callback('Only admin clients can clear runtime overrides')
+        return
+      }
+      clearAllRuntimeConfigOverrides()
+      if (callback) callback(null)
     })
 
     socket.on('desktop:state:request', (callback) => {

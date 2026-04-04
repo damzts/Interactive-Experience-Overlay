@@ -119,6 +119,24 @@ Default snapshot model:
 - global theme uses `DesktopConfig.globalThemeDefault`
 - admin editors support `Save Current as Default` and `Restore Defaults`
 
+## Configuration Kinds
+
+Use these terms consistently when reasoning about config behavior:
+
+- factory defaults: built-in code-defined defaults from `@ieom/shared`; these are the baseline values used when seeding missing config and when a UI explicitly performs a factory reset
+- persisted authored config: the main saved `AppConfig` record owned by the server and stored across reloads/restarts; this is the canonical user-authored configuration
+- persisted default snapshots: saved reset targets embedded inside persisted config, such as `Scene.defaultConfig`, `Application.defaultConfig`, and `DesktopConfig.globalThemeDefault`; these are not factory defaults unless they still match the built-in baseline
+- runtime override config: server-owned, discardable live patches layered on top of persisted authored config for temporary automation/runtime behavior; these must not be treated as persisted saves
+- admin draft/preview config: local unsaved editor state in the admin, plus preview-only patches sent to the embedded overlay so changes can be seen before save; this is session-local authoring state, not authoritative runtime state
+
+Interpretation rules:
+
+- factory reset means revert to built-in shared defaults
+- restore defaults means revert to the persisted default snapshot for that entity
+- save defaults means write the current authored state into that persisted default snapshot
+- apply/save means write into persisted authored config
+- clear runtime means remove the server runtime override layer without changing persisted authored config
+
 ## Runtime Ownership
 
 Persisted config and runtime state are separate.
@@ -206,7 +224,9 @@ Execution model:
 - scheduler eligibility is server-side and respects transition guard, cooldown, and scene-state filters
 - manual `Fire Now` uses the same configured-event execution path as auto-triggered events
 - automation config actions write into a server-owned runtime override layer instead of the persisted config record
+- config-patch runtime actions are time-bounded and revert to the persisted saved config after their configured timeout expires
 - admin and overlay keep persisted config separate from the effective runtime config, and merge the live override snapshot on top at runtime
+- desktop/theme configuration should be understood as three layers: factory defaults, persisted saved global config, and discardable runtime override
 - runtime shell actions like widget layout apply or widget toggle still execute as live socket-driven runtime actions
 
 ### State Machine

@@ -319,6 +319,7 @@ export interface ClientToServerEvents {
   'scene:change': (target: STATE, callback?: (err: string | null) => void) => void
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   'event:preview': (event: EventConfig, callback?: (err: string | null) => void) => void
+  'runtime:config:override:clear': (callback?: (err: string | null) => void) => void
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   'ambiance:leader:request': (callback: (payload: { socketId: string | null }) => void) => void
   'ambiance:leader:heartbeat': () => void

@@ -422,6 +422,7 @@ export interface AutoTrigger {
 
 export interface EventDesktopConfigAction {
   kind: 'desktop-config'
+  timeoutSeconds?: number
   patch: {
     theme?: DesktopTheme
     iconAnimation?: DesktopIconAnimation
@@ -433,6 +434,7 @@ export interface EventDesktopConfigAction {
 
 export interface EventWidgetThemeOverridesAction {
   kind: 'widget-theme-overrides'
+  timeoutSeconds?: number
   widgetIds: string[]
   clearExisting?: boolean
   theme: Partial<WidgetThemeConfig>
@@ -451,6 +453,7 @@ export interface EventWidgetCommandAction {
 
 export interface EventAmbiancePatchAction {
   kind: 'ambiance-patch'
+  timeoutSeconds?: number
   patch: Partial<AmbianceWidgetSimulationConfig>
 }
 

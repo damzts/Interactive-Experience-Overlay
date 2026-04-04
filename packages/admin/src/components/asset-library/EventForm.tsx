@@ -726,6 +726,12 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'desktop-config' && (
                     <div className="space-y-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                        <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'desktop-config') return
+                          draft.timeoutSeconds = value
+                        })} />
+                      </div>
                       <div className="grid grid-cols-2 gap-2 pl-1">
                         <div>
                           <div className="mb-1 text-[10px] text-zinc-500">Desktop theme</div>
@@ -777,6 +783,12 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'widget-theme-overrides' && (
                     <div className="space-y-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                        <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-theme-overrides') return
+                          draft.timeoutSeconds = value
+                        })} />
+                      </div>
                       <div>
                         <div className="mb-1 text-[10px] text-zinc-500">Target widgets</div>
                         <div className="flex flex-wrap gap-1">
@@ -852,6 +864,12 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'ambiance-patch' && (
                     <div className="grid grid-cols-2 gap-2 pl-1">
+                      <div className="col-span-2 rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                        <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'ambiance-patch') return
+                          draft.timeoutSeconds = value
+                        })} />
+                      </div>
                       <div className="col-span-2">
                         <Toggle checked={action.patch.enabled ?? false} onChange={(value) => updateAction(index, (draft) => {
                           if (draft.kind !== 'ambiance-patch') return

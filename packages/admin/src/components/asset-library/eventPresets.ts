@@ -275,6 +275,7 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
   if (kind === 'desktop-config') {
     return {
       kind,
+      timeoutSeconds: 30,
       patch: {
         theme: 'win98',
         iconAnimation: 'none',
@@ -287,6 +288,7 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
   if (kind === 'widget-theme-overrides') {
     return {
       kind,
+      timeoutSeconds: 30,
       widgetIds: [],
       clearExisting: false,
       theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
@@ -310,6 +312,7 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
 
   return {
     kind,
+    timeoutSeconds: 30,
     patch: {
       enabled: true,
       intervalSeconds: 30,

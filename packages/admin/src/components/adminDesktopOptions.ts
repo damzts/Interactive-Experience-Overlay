@@ -20,15 +20,19 @@ export const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; 
   { id: 'blank', label: 'Black Screen' },
 ]
 
-export const DESKTOP_THEMES: { id: DesktopConfig['theme']; label: string }[] = [
-  { id: 'win98', label: 'Win98' },
-  { id: 'frutiger aero', label: 'Frutiger Aero' },
-  { id: 'y2k candy', label: 'Y2K Candy' },
-  { id: 'midnight chrome', label: 'Midnight Chrome' },
-  { id: 'sunset boulevard', label: 'Sunset Boulevard' },
-  { id: 'coastal glass', label: 'Coastal Glass' },
-  { id: 'amber terminal', label: 'Amber Terminal' },
-  { id: 'custom', label: 'Custom' },
+export const DESKTOP_THEMES: Array<{
+  id: DesktopConfig['theme']
+  label: string
+  description: string
+}> = [
+  { id: 'win98', label: 'Win98', description: 'Classic desktop chrome with utilitarian bevels, neutral panels, and retro shell clarity.' },
+  { id: 'frutiger aero', label: 'Frutiger Aero', description: 'Glossy glass surfaces, aquatic light, and soft optimistic UI polish.' },
+  { id: 'y2k candy', label: 'Y2K Candy', description: 'Bright plastic color, pop-tech gradients, and playful portal-era gloss.' },
+  { id: 'midnight chrome', label: 'Midnight Chrome', description: 'Dark metallic shell styling with cool reflections and broadcast-night weight.' },
+  { id: 'sunset boulevard', label: 'Sunset Boulevard', description: 'Warm nightlife tones, hot highlights, and showtime desktop energy.' },
+  { id: 'coastal glass', label: 'Coastal Glass', description: 'Airy glass chrome with sea-light softness and open, bright framing.' },
+  { id: 'amber terminal', label: 'Amber Terminal', description: 'CRT utility warmth, terminal glow, and focused monochrome control-room mood.' },
+  { id: 'custom', label: 'Custom', description: 'Use your current font and color overrides as a hand-tuned desktop shell profile.' },
 ]
 
 export const WIDGET_SKINS: Array<{

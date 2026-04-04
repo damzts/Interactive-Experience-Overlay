@@ -184,6 +184,8 @@ export function withAutoTriggerDefaults(auto?: Partial<AutoTrigger> | null): Aut
 }
 
 function normalizeEventAction(action: EventAction): EventAction | null {
+  const normalizeRuntimeActionTimeoutSeconds = (value?: number) => Math.max(1, Math.min(3600, Math.round(value ?? 30)))
+
   if (action.kind === 'desktop-config') {
     const patch: NonNullable<Extract<EventAction, { kind: 'desktop-config' }>['patch']> = {}
     if (action.patch.theme !== undefined) patch.theme = normalizeDesktopTheme(action.patch.theme)
@@ -201,13 +203,14 @@ function normalizeEventAction(action: EventAction): EventAction | null {
         preset: action.patch.screenSaver.preset ?? 'starfield',
       }
     }
-    return { kind: 'desktop-config', patch }
+    return { kind: 'desktop-config', patch, timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds) }
   }
 
   if (action.kind === 'widget-theme-overrides') {
     const widgetIds = Array.from(new Set((action.widgetIds ?? []).map((widgetId) => widgetId.trim()).filter(Boolean)))
     return {
       kind: 'widget-theme-overrides',
+      timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
       widgetIds,
       clearExisting: action.clearExisting ?? false,
       theme: normalizeWidgetThemeConfig(action.theme),
@@ -231,6 +234,7 @@ function normalizeEventAction(action: EventAction): EventAction | null {
 
   return {
     kind: 'ambiance-patch',
+    timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
     patch: {
       enabled: action.patch.enabled,
       intervalSeconds: action.patch.intervalSeconds !== undefined
