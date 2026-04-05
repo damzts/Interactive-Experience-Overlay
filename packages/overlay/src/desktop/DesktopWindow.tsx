@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
-import { patchDesktopConfig } from './configPersistence'
 import { socket } from '../socket/client'
 import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieom/shared'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
@@ -45,20 +44,6 @@ function clampWindowPosition(
     x: clampDimension(position.x, 0, maxX),
     y: clampDimension(position.y, 0, maxY),
   }
-}
-
-function saveWidgetPosition(key: string, pos: { x: number; y: number }) {
-  const cfg = useAppStore.getState().config
-  patchDesktopConfig({
-    widgetPositions: { ...cfg.desktopConfig?.widgetPositions, [key]: pos },
-  }).catch(() => {})
-}
-
-function saveWidgetSize(key: string, size: { width: number; height: number }) {
-  const cfg = useAppStore.getState().config
-  patchDesktopConfig({
-    widgetSizes: { ...cfg.desktopConfig?.widgetSizes, [key]: size },
-  }).catch(() => {})
 }
 
 interface WidgetDragBroadcastState {
@@ -287,7 +272,6 @@ export function DesktopWindow({
       if (dragging.current) {
         dragging.current = false
         emitWidgetDrag({ widgetId: id, x: posRef.current.x, y: posRef.current.y, phase: 'end' }, true)
-        saveWidgetPosition(id, posRef.current)
       }
       if (resizing.current) {
         resizing.current = false
@@ -299,11 +283,6 @@ export function DesktopWindow({
           height: sizeRef.current.height ?? resizeStartSize.current.height,
           phase: 'end',
         }, true)
-        saveWidgetPosition(id, posRef.current)
-        saveWidgetSize(id, {
-          width: sizeRef.current.width,
-          height: sizeRef.current.height ?? resizeStartSize.current.height,
-        })
       }
     }
     window.addEventListener('mousemove', onMove)

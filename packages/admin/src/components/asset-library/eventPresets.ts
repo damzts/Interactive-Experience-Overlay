@@ -299,6 +299,7 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
     return {
       kind,
       layoutId: '',
+      timeoutSeconds: 30,
     }
   }
 

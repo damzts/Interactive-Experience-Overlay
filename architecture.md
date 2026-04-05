@@ -70,6 +70,7 @@ Useful socket events:
 - config sync: `config:update`, `config:patch`
 - scene flow: `scene:change`, `state:update`, `transition:play`, `transition:preview`
 - effects: `overlay:trigger`, `overlay:show`
+- runtime override sync/control: `runtime:config:override`, `runtime:config:override:clear`, `runtime:config:override:widget:clear`, `runtime:config:override:widget-layout:clear`
 - runtime recovery: `state:request`, `desktop:state:request`
 - widgets/runtime shell: `widget:toggle`, `widget:layout:apply`, `desktop:notify`, `desktop:recycle-bin`
 - live desktop motion: `desktop:icon:drag`, `desktop:widget:drag`, `desktop:widget:resize`
@@ -117,6 +118,7 @@ Default snapshot model:
 - scenes use `Scene.defaultConfig`
 - applications/widgets use `Application.defaultConfig`
 - global theme uses `DesktopConfig.globalThemeDefault`
+- widget layouts use `WidgetLayoutDefinition.defaultConfig`
 - admin editors support `Save Current as Default` and `Restore Defaults`
 
 ## Configuration Kinds
@@ -132,6 +134,7 @@ Use these terms consistently when reasoning about config behavior:
 Interpretation rules:
 
 - factory reset means revert to built-in shared defaults
+- for widgets and widget layouts, factory reset rebuilds from hardcoded shared defaults; it does not rely on persisted factory snapshots
 - restore defaults means revert to the persisted default snapshot for that entity
 - save defaults means write the current authored state into that persisted default snapshot
 - apply/save means write into persisted authored config
@@ -225,9 +228,10 @@ Execution model:
 - manual `Fire Now` uses the same configured-event execution path as auto-triggered events
 - automation config actions write into a server-owned runtime override layer instead of the persisted config record
 - config-patch runtime actions are time-bounded and revert to the persisted saved config after their configured timeout expires
+- widget-theme-override and widget-layout runtime actions also write into the same runtime override layer and revert by timer/clear action instead of patching persisted config
 - admin and overlay keep persisted config separate from the effective runtime config, and merge the live override snapshot on top at runtime
 - desktop/theme configuration should be understood as three layers: factory defaults, persisted saved global config, and discardable runtime override
-- runtime shell actions like widget layout apply or widget toggle still execute as live socket-driven runtime actions
+- runtime shell actions like widget toggle execute as live socket-driven runtime actions; widget layout apply uses a saved layout definition but applies it as runtime-only widget window overrides
 
 ### State Machine
 
@@ -260,6 +264,9 @@ Desktop runtime state is separate from scene config.
 Key behaviors:
 
 - manual widget actions use `widget:toggle`
+- widget layout apply is runtime-only; it updates widget window position/size/stack-order overrides without rewriting persisted widget defaults
+- manual widget drag/resize end writes runtime widget window overrides on the server, not persisted desktop config
+- saved widget window defaults change only through authored config writes, such as widget editing or explicit capture actions like `Use Current`
 - ambiance actions are server-selected
 - only an overlay client can be elected as ambiance leader
 - overlay sockets self-identify as `runtime`, `embedded-preview`, or `dev`; the server prefers the top-level runtime overlay before falling back to preview/dev overlays
@@ -398,7 +405,8 @@ Desktop runtime includes:
 Sync model:
 
 - motion is mirrored live over sockets
-- final icon/window state persists through PATCH routes
+- icon position persistence still uses config PATCH routes
+- widget window drag/resize final state is treated as runtime override state and does not persist unless an authored config flow explicitly saves it
 
 ### Transitions And Effects
 
@@ -454,8 +462,10 @@ Desktop runtime:
 
 - widget/menu/notification/recycle-bin state syncs outside the scene machine
 - drag/resize motion is live over sockets
+- widget window drag/resize final state lands in the server runtime override layer
+- widget layout apply uses saved layout data to populate runtime widget window overrides
 - ambiance choreography is leader-executed and follower-mirrored, not fully replayed on every client
-- final state persists through PATCH routes
+- icon persistence still uses PATCH routes, but widget window runtime movement/layout changes do not persist unless explicitly saved through admin authoring
 
 Config propagation:
 

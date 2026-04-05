@@ -320,6 +320,8 @@ export interface ClientToServerEvents {
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   'event:preview': (event: EventConfig, callback?: (err: string | null) => void) => void
   'runtime:config:override:clear': (callback?: (err: string | null) => void) => void
+  'runtime:config:override:widget:clear': (widgetId: string, callback?: (err: string | null) => void) => void
+  'runtime:config:override:widget-layout:clear': (widgetIds: string[], callback?: (err: string | null) => void) => void
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   'ambiance:leader:request': (callback: (payload: { socketId: string | null }) => void) => void
   'ambiance:leader:heartbeat': () => void

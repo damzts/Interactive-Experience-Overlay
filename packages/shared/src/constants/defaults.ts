@@ -21,6 +21,7 @@ import type {
   WidgetComponentType,
   WidgetLayoutDefinition,
   WidgetLayoutItem,
+  WidgetLayoutSnapshot,
   WidgetLayoutSource,
 } from '../types/scene.js'
 import type { RuntimeConfigOverridePayload } from '../types/events.js'
@@ -219,7 +220,9 @@ function normalizeEventAction(action: EventAction): EventAction | null {
 
   if (action.kind === 'widget-layout') {
     const layoutId = action.layoutId.trim()
-    return layoutId ? { kind: 'widget-layout', layoutId } : null
+    return layoutId
+      ? { kind: 'widget-layout', layoutId, timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds) }
+      : null
   }
 
   if (action.kind === 'widget-command') {
@@ -911,6 +914,13 @@ function buildWidgetLayoutDefinition(config: {
   source: WidgetLayoutSource
   items: WidgetLayoutItem[]
 }): WidgetLayoutDefinition {
+  const snapshot = {
+    label: config.label,
+    icon: config.icon,
+    description: config.description,
+    items: config.items.map((item) => ({ ...item })),
+  } satisfies WidgetLayoutSnapshot
+
   return {
     id: config.id,
     label: config.label,
@@ -918,6 +928,7 @@ function buildWidgetLayoutDefinition(config: {
     description: config.description,
     source: config.source,
     items: config.items,
+    defaultConfig: snapshot,
   }
 }
 
@@ -1241,6 +1252,23 @@ function normalizeWidgetLayoutItems(items?: WidgetLayoutItem[]) {
   return entries
 }
 
+function normalizeWidgetLayoutSnapshot(snapshot?: WidgetLayoutSnapshot) {
+  if (!snapshot) return undefined
+
+  const label = typeof snapshot.label === 'string' ? snapshot.label.trim() : ''
+  if (!label) return undefined
+
+  const items = normalizeWidgetLayoutItems(snapshot.items)
+  if (items.length === 0) return undefined
+
+  return {
+    label,
+    icon: typeof snapshot.icon === 'string' && snapshot.icon.trim() ? snapshot.icon.trim() : '📐',
+    description: typeof snapshot.description === 'string' && snapshot.description.trim() ? snapshot.description.trim() : undefined,
+    items,
+  } satisfies WidgetLayoutSnapshot
+}
+
 function normalizeWidgetLayouts(value?: DesktopConfig['widgetLayouts']) {
   const normalizedSourceLayouts = (value ?? []).reduce<WidgetLayoutDefinition[]>((acc, layout) => {
     const id = typeof layout.id === 'string' ? layout.id.trim() : ''
@@ -1257,22 +1285,49 @@ function normalizeWidgetLayouts(value?: DesktopConfig['widgetLayouts']) {
       source: layout.source === 'system' ? 'system' : 'user',
       description: typeof layout.description === 'string' && layout.description.trim() ? layout.description.trim() : undefined,
       items,
-    })
+      defaultConfig: normalizeWidgetLayoutSnapshot(layout.defaultConfig),
+    } satisfies WidgetLayoutDefinition)
     return acc
   }, [])
 
-  const defaultSystemLayouts = DEFAULT_SYSTEM_WIDGET_LAYOUTS.map((layout) => ({
-    ...layout,
-    items: normalizeWidgetLayoutItems(layout.items),
-  }))
+  const defaultSystemLayouts: WidgetLayoutDefinition[] = DEFAULT_SYSTEM_WIDGET_LAYOUTS.map((layout) => {
+    const items = normalizeWidgetLayoutItems(layout.items)
+    const defaultSnapshot: WidgetLayoutSnapshot = normalizeWidgetLayoutSnapshot(layout.defaultConfig) ?? {
+      label: layout.label,
+      icon: layout.icon,
+      description: layout.description,
+      items,
+    }
+
+    return {
+      ...layout,
+      items,
+      defaultConfig: defaultSnapshot,
+    } satisfies WidgetLayoutDefinition
+  })
   const systemLayoutIds = new Set(defaultSystemLayouts.map((layout) => layout.id))
-  const mergedById = new Map(defaultSystemLayouts.map((layout) => [layout.id, layout]))
+  const mergedById = new Map<string, WidgetLayoutDefinition>(defaultSystemLayouts.map((layout) => [layout.id, layout]))
 
   for (const layout of normalizedSourceLayouts) {
+    const currentSnapshot: WidgetLayoutSnapshot = {
+      label: layout.label,
+      icon: layout.icon,
+      description: layout.description,
+      items: layout.items.map((item) => ({ ...item })),
+    }
+
     if (systemLayoutIds.has(layout.id)) {
-      mergedById.set(layout.id, { ...layout, source: 'system' })
+      const factoryLayout = defaultSystemLayouts.find((entry) => entry.id === layout.id)
+      mergedById.set(layout.id, {
+        ...layout,
+        source: 'system',
+        defaultConfig: layout.defaultConfig ?? factoryLayout?.defaultConfig ?? currentSnapshot,
+      })
     } else {
-      mergedById.set(layout.id, layout)
+      mergedById.set(layout.id, {
+        ...layout,
+        defaultConfig: layout.defaultConfig ?? currentSnapshot,
+      })
     }
   }
 

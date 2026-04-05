@@ -134,6 +134,7 @@ export function setupSocketHandlers(
   type RuntimeOverrideResetScope = typeof RUNTIME_OVERRIDE_RESET_SCOPES[number]
   const runtimeOverrideResetTimers = Object.fromEntries(RUNTIME_OVERRIDE_RESET_SCOPES.map((scope) => [scope, null])) as Record<RuntimeOverrideResetScope, ReturnType<typeof setTimeout> | null>
   const runtimeOverrideResetVersions = Object.fromEntries(RUNTIME_OVERRIDE_RESET_SCOPES.map((scope) => [scope, 0])) as Record<RuntimeOverrideResetScope, number>
+  const widgetLayoutOverrideResetTimers = new Map<string, ReturnType<typeof setTimeout>>()
   let runtimeDiagnosticsQueued = false
   let runtimeDiagnosticsFlushTimer: ReturnType<typeof setTimeout> | null = null
   let lastRuntimeDiagnosticsEmitAt = 0
@@ -231,6 +232,13 @@ export function setupSocketHandlers(
     }
   }
 
+  const clearWidgetLayoutOverrideResetTimer = (widgetId: string) => {
+    const timer = widgetLayoutOverrideResetTimers.get(widgetId)
+    if (!timer) return
+    clearTimeout(timer)
+    widgetLayoutOverrideResetTimers.delete(widgetId)
+  }
+
   const clearRuntimeConfigOverrideScopes = (scopes: RuntimeOverrideResetScope[]) => {
     const nextDesktopConfig = { ...(runtimeConfigOverride.desktopConfig ?? {}) }
     const nextDesktopAmbiance = { ...(runtimeConfigOverride.desktopAmbiance ?? {}) }
@@ -270,8 +278,74 @@ export function setupSocketHandlers(
       clearRuntimeOverrideResetTimer(scope)
       runtimeOverrideResetVersions[scope] += 1
     }
+    for (const widgetId of widgetLayoutOverrideResetTimers.keys()) {
+      clearWidgetLayoutOverrideResetTimer(widgetId)
+    }
     runtimeConfigOverride = {}
     emitRuntimeConfigOverride()
+  }
+
+  const clearWidgetRuntimeLayoutOverride = (widgetId: string) => {
+    const nextDesktopConfig = { ...(runtimeConfigOverride.desktopConfig ?? {}) }
+    const nextPositions = { ...(nextDesktopConfig.widgetPositions ?? {}) }
+    const nextSizes = { ...(nextDesktopConfig.widgetSizes ?? {}) }
+    const nextZIndices = { ...(nextDesktopConfig.widgetZIndices ?? {}) }
+    let changed = false
+
+    if (widgetId in nextPositions) {
+      delete nextPositions[widgetId]
+      changed = true
+    }
+    if (widgetId in nextSizes) {
+      delete nextSizes[widgetId]
+      changed = true
+    }
+    if (widgetId in nextZIndices) {
+      delete nextZIndices[widgetId]
+      changed = true
+    }
+
+    if (!changed) return false
+
+    if (Object.keys(nextPositions).length) nextDesktopConfig.widgetPositions = nextPositions
+    else delete nextDesktopConfig.widgetPositions
+
+    if (Object.keys(nextSizes).length) nextDesktopConfig.widgetSizes = nextSizes
+    else delete nextDesktopConfig.widgetSizes
+
+    if (Object.keys(nextZIndices).length) nextDesktopConfig.widgetZIndices = nextZIndices
+    else delete nextDesktopConfig.widgetZIndices
+
+    runtimeConfigOverride = {
+      desktopConfig: Object.keys(nextDesktopConfig).length ? nextDesktopConfig : undefined,
+      desktopAmbiance: runtimeConfigOverride.desktopAmbiance,
+    }
+    emitRuntimeConfigOverride()
+    return true
+  }
+
+  const clearWidgetRuntimeLayoutOverrides = (widgetIds: string[]) => {
+    let changed = false
+
+    for (const widgetId of widgetIds) {
+      clearWidgetLayoutOverrideResetTimer(widgetId)
+      if (clearWidgetRuntimeLayoutOverride(widgetId)) {
+        changed = true
+      }
+    }
+
+    return changed
+  }
+
+  const scheduleWidgetLayoutRuntimeOverrideReset = (widgetIds: string[], timeoutSeconds: number) => {
+    for (const widgetId of widgetIds) {
+      clearWidgetLayoutOverrideResetTimer(widgetId)
+      const timer = setTimeout(() => {
+        widgetLayoutOverrideResetTimers.delete(widgetId)
+        clearWidgetRuntimeLayoutOverride(widgetId)
+      }, timeoutSeconds * 1000)
+      widgetLayoutOverrideResetTimers.set(widgetId, timer)
+    }
   }
 
   const toggleWidgetRuntime = (widgetId: string) => {
@@ -583,8 +657,14 @@ export function setupSocketHandlers(
       }
 
       if (action.kind === 'widget-layout') {
+        const currentDesktop = withDesktopConfigDefaults(getConfig().desktopConfig)
+        const layout = (currentDesktop.widgetLayouts ?? []).find((entry) => entry.id === action.layoutId)
         const result = applySavedWidgetLayout(action.layoutId, { persist: false })
         if (!result.ok) return result
+        const layoutWidgetIds = Array.from(new Set((layout?.items ?? []).map((item) => item.widgetId).filter(Boolean)))
+        if (layoutWidgetIds.length > 0) {
+          scheduleWidgetLayoutRuntimeOverrideReset(layoutWidgetIds, action.timeoutSeconds ?? 30)
+        }
         continue
       }
 
@@ -677,14 +757,14 @@ export function setupSocketHandlers(
     const nextSizes = { ...(currentDesktop.widgetSizes ?? {}) }
     const nextRuntimeZIndices = { ...(currentDesktop.widgetZIndices ?? {}) }
     const defaultZIndices = currentDesktop.widgetDefaultZIndices ?? {}
+    const enabledLayoutItems = layoutItems.filter((item) => item.enabled)
 
     for (const item of layoutItems) {
       nextPositions[item.widgetId] = { x: item.x, y: item.y }
       nextSizes[item.widgetId] = { width: item.width, height: item.height }
     }
 
-    const orderedEnabledItems = [...layoutItems]
-      .filter((item) => item.enabled)
+    const orderedEnabledItems = [...enabledLayoutItems]
       .sort((a, b) => {
         if (a.focusPriority !== b.focusPriority) return a.focusPriority - b.focusPriority
         return (defaultZIndices[a.widgetId] ?? 0) - (defaultZIndices[b.widgetId] ?? 0)
@@ -695,13 +775,40 @@ export function setupSocketHandlers(
     }
 
     if (options?.persist === false) {
-      applyRuntimeConfigOverride({
-        desktopConfig: {
-          widgetPositions: nextPositions,
-          widgetSizes: nextSizes,
-          widgetZIndices: nextRuntimeZIndices,
-        },
-      })
+      const nextDesktopConfig = { ...(runtimeConfigOverride.desktopConfig ?? {}) }
+      const nextRuntimePositions = { ...(nextDesktopConfig.widgetPositions ?? {}) }
+      const nextRuntimeSizes = { ...(nextDesktopConfig.widgetSizes ?? {}) }
+      const nextRuntimeZIndices = { ...(nextDesktopConfig.widgetZIndices ?? {}) }
+
+      for (const item of layoutItems) {
+        delete nextRuntimePositions[item.widgetId]
+        delete nextRuntimeSizes[item.widgetId]
+        delete nextRuntimeZIndices[item.widgetId]
+      }
+
+      for (const item of enabledLayoutItems) {
+        nextRuntimePositions[item.widgetId] = { x: item.x, y: item.y }
+        nextRuntimeSizes[item.widgetId] = { width: item.width, height: item.height }
+      }
+
+      for (const [index, item] of orderedEnabledItems.entries()) {
+        nextRuntimeZIndices[item.widgetId] = index
+      }
+
+      if (Object.keys(nextRuntimePositions).length) nextDesktopConfig.widgetPositions = nextRuntimePositions
+      else delete nextDesktopConfig.widgetPositions
+
+      if (Object.keys(nextRuntimeSizes).length) nextDesktopConfig.widgetSizes = nextRuntimeSizes
+      else delete nextDesktopConfig.widgetSizes
+
+      if (Object.keys(nextRuntimeZIndices).length) nextDesktopConfig.widgetZIndices = nextRuntimeZIndices
+      else delete nextDesktopConfig.widgetZIndices
+
+      runtimeConfigOverride = {
+        desktopConfig: Object.keys(nextDesktopConfig).length ? nextDesktopConfig : undefined,
+        desktopAmbiance: runtimeConfigOverride.desktopAmbiance,
+      }
+      emitRuntimeConfigOverride()
     } else {
       const nextConfig = mergeAppConfig(currentConfig, {
         desktopConfig: {
@@ -873,13 +980,50 @@ export function setupSocketHandlers(
       if (callback) callback(null)
     })
 
+    socket.on('runtime:config:override:widget:clear', (widgetId, callback) => {
+      if (socketClientTypes.get(socket.id) !== 'admin') {
+        if (callback) callback('Only admin clients can clear widget runtime overrides')
+        return
+      }
+
+      const normalizedWidgetId = widgetId.trim()
+      if (!normalizedWidgetId) {
+        if (callback) callback('Missing widget id')
+        return
+      }
+
+      clearWidgetRuntimeLayoutOverride(normalizedWidgetId)
+      if (callback) callback(null)
+    })
+
+    socket.on('runtime:config:override:widget-layout:clear', (widgetIds, callback) => {
+      if (socketClientTypes.get(socket.id) !== 'admin') {
+        if (callback) callback('Only admin clients can clear widget layout runtime overrides')
+        return
+      }
+
+      const normalizedWidgetIds = [...new Set(
+        (widgetIds ?? [])
+          .map((widgetId) => widgetId.trim())
+          .filter(Boolean),
+      )]
+
+      if (normalizedWidgetIds.length === 0) {
+        if (callback) callback('Missing widget ids')
+        return
+      }
+
+      clearWidgetRuntimeLayoutOverrides(normalizedWidgetIds)
+      if (callback) callback(null)
+    })
+
     socket.on('desktop:state:request', (callback) => {
       callback(getDesktopRuntimeState())
     })
 
     socket.on('widget:layout:apply', (layoutId) => {
       scheduler?.noteActivity()
-      applySavedWidgetLayout(layoutId)
+      applySavedWidgetLayout(layoutId, { persist: false })
     })
 
     socket.on('desktop:icon:drag', (payload) => {
@@ -891,12 +1035,42 @@ export function setupSocketHandlers(
       if (payload.phase !== 'move') {
         scheduler?.noteActivity()
       }
+      if (payload.phase === 'end') {
+        applyRuntimeConfigOverride({
+          desktopConfig: {
+            widgetPositions: {
+              [payload.widgetId]: {
+                x: Math.max(0, Math.round(payload.x)),
+                y: Math.max(0, Math.round(payload.y)),
+              },
+            },
+          },
+        })
+      }
       socket.broadcast.emit('desktop:widget:drag', payload)
     })
 
     socket.on('desktop:widget:resize', (payload) => {
       if (payload.phase !== 'move') {
         scheduler?.noteActivity()
+      }
+      if (payload.phase === 'end') {
+        applyRuntimeConfigOverride({
+          desktopConfig: {
+            widgetPositions: {
+              [payload.widgetId]: {
+                x: Math.max(0, Math.round(payload.x)),
+                y: Math.max(0, Math.round(payload.y)),
+              },
+            },
+            widgetSizes: {
+              [payload.widgetId]: {
+                width: Math.max(180, Math.round(payload.width)),
+                height: Math.max(140, Math.round(payload.height)),
+              },
+            },
+          },
+        })
       }
       socket.broadcast.emit('desktop:widget:resize', payload)
     })

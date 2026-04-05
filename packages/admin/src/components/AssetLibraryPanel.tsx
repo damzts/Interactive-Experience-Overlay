@@ -43,7 +43,7 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
   } | null>(null)
   const [transitionSearch, setTransitionSearch] = useState('')
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(eventDefs[0]?.id ?? null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const sourcePresets = config.sourcePresets ?? []
   const resetForm = () => {
@@ -51,8 +51,7 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
     setUrl('')
     setDurStr('')
   }
-  const selectedEvent = eventDefs.find((entry) => entry.id === selectedEventId) ?? null
-  const editingEvent = eventDraft?.event ?? selectedEvent
+  const editingEvent = eventDraft?.event ?? null
   const filteredEventDefs = useMemo(() => {
     const query = eventSearch.trim().toLowerCase()
     if (!query) return eventDefs
@@ -145,25 +144,10 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
   }, [url])
 
   useEffect(() => {
-    if (eventDefs.length === 0) {
-      if (selectedEventId !== null) setSelectedEventId(null)
-      return
-    }
-    if (!selectedEventId || !eventDefs.some((def) => def.id === selectedEventId)) {
-      setSelectedEventId(eventDefs[0].id)
+    if (selectedEventId && !eventDefs.some((def) => def.id === selectedEventId)) {
+      setSelectedEventId(null)
     }
   }, [eventDefs, selectedEventId])
-
-  useEffect(() => {
-    if (!selectedEventId) return
-    const eventDef = eventDefs.find((entry) => entry.id === selectedEventId)
-    if (!eventDef) return
-    if (eventDraft?.originalId === eventDef.id) return
-    setEventDraft({
-      event: structuredClone(eventDef),
-      originalId: eventDef.id,
-    })
-  }, [eventDefs, selectedEventId, eventDraft?.originalId])
 
   useEffect(() => {
     if (filteredSourcePresets.length === 0) {
@@ -359,6 +343,16 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
     setSelectedEventId(null)
   }
 
+  const selectEvent = (eventId: string) => {
+    const eventDef = eventDefs.find((entry) => entry.id === eventId)
+    if (!eventDef) return
+    setSelectedEventId(eventId)
+    setEventDraft({
+      event: structuredClone(eventDef),
+      originalId: eventDef.id,
+    })
+  }
+
   const patchEventDraft = (updated: EventDef) => {
     setEventDraft((current) => current ? { ...current, event: updated } : current)
   }
@@ -397,7 +391,7 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
     const id = eventDraft.originalId
     const nextEvents = eventDefs.filter((entry) => entry.id !== id)
     if (selectedEventId === id) {
-      setSelectedEventId(nextEvents[0]?.id ?? null)
+      setSelectedEventId(null)
     }
     void saveConfig({ events: nextEvents })
     setEventDraft(null)
@@ -495,7 +489,7 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
               onEventSearchChange={setEventSearch}
               filteredEventDefs={filteredEventDefs}
               selectedEventId={selectedEventId}
-              onSelectEvent={setSelectedEventId}
+              onSelectEvent={selectEvent}
             />
           )}
 

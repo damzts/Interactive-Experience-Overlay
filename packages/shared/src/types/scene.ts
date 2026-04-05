@@ -114,6 +114,13 @@ export interface WidgetLayoutItem {
   focusPriority: number
 }
 
+export interface WidgetLayoutSnapshot {
+  label: string
+  icon: string
+  description?: string
+  items: WidgetLayoutItem[]
+}
+
 export type WidgetLayoutSource = 'system' | 'user'
 
 export interface WidgetLayoutDefinition {
@@ -123,6 +130,7 @@ export interface WidgetLayoutDefinition {
   source: WidgetLayoutSource
   description?: string
   items: WidgetLayoutItem[]
+  defaultConfig?: WidgetLayoutSnapshot
 }
 
 export type WidgetComponentType = 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source' | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope' | 'playlist-deck' | 'net-meter' | 'media-deck' | 'cd-ripper' | 'signal-lab' | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk' | 'city-navigator' | 'lcd-dolphins' | 'generic'
@@ -174,6 +182,7 @@ export interface ApplicationDefaultSnapshot {
   stickyNotesSettings?: StickyNotesSettings
   recycleBinSettings?: RecycleBinSettings
   widgetDefaults?: {
+    windowPosition?: { x: number; y: number }
     windowSize?: WidgetWindowSize
     defaultZIndex?: number
     themeOverride?: WidgetThemeConfig
@@ -443,6 +452,7 @@ export interface EventWidgetThemeOverridesAction {
 export interface EventWidgetLayoutAction {
   kind: 'widget-layout'
   layoutId: string
+  timeoutSeconds?: number
 }
 
 export interface EventWidgetCommandAction {

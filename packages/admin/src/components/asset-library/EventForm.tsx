@@ -825,15 +825,23 @@ export function EventForm({
                   )}
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'widget-layout' && (
-                    <div>
-                      <div className="mb-1 text-[10px] text-zinc-500">Layout</div>
-                      <select value={action.layoutId} onChange={(event) => updateAction(index, (draft) => {
-                        if (draft.kind !== 'widget-layout') return
-                        draft.layoutId = event.target.value
-                      })} className="w-full text-xs">
-                        <option value="">Select a layout</option>
-                        {widgetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.label}</option>)}
-                      </select>
+                    <div className="space-y-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                        <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-layout') return
+                          draft.timeoutSeconds = value
+                        })} />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] text-zinc-500">Layout</div>
+                        <select value={action.layoutId} onChange={(event) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-layout') return
+                          draft.layoutId = event.target.value
+                        })} className="w-full text-xs">
+                          <option value="">Select a layout</option>
+                          {widgetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.label}</option>)}
+                        </select>
+                      </div>
                     </div>
                   )}
 

@@ -4,6 +4,7 @@ import {
   DEFAULT_DESKTOP_CONFIG,
   DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   DEFAULT_RECYCLE_BIN_SETTINGS,
+  DEFAULT_SYSTEM_WIDGET_LAYOUTS,
   DEFAULT_STICKY_NOTES_SETTINGS,
   DEFAULT_WIDGET_THEME_PRESETS,
   getDefaultWidgetWindowSize,
@@ -22,6 +23,7 @@ import type {
   OverlayStyle, BackgroundType, PatternPreset, ParticlePreset,
   Application, LobbyConfig, DesktopConfig, ApplicationType, Scene, SourceInstance, SourcePreset, AppConfig,
   DesktopNotificationEffectConfig, EffectType, EventAction, MediaEntry, TransitionStep, WidgetLayoutDefinition, WidgetLayoutItem,
+  WidgetLayoutSnapshot,
   RecycleBinSettings, StickyNotesSettings, WidgetComponentType, WidgetThemeConfig, ApplicationDefaultSnapshot, SceneDefaultSnapshot,
 } from '@ieom/shared'
 import { socket } from '../socket/client'
@@ -195,11 +197,26 @@ function resolveWidgetSizeFromConfig(app: Pick<Application, 'id' | 'appType' | '
   }
 }
 
+function resolveWidgetPositionFromConfig(app: Pick<Application, 'id'>, desktopConfig: DesktopConfig) {
+  const raw = desktopConfig.widgetPositions?.[app.id]
+  return {
+    x: Math.max(0, Math.round(raw?.x ?? 0)),
+    y: Math.max(0, Math.round(raw?.y ?? 0)),
+  }
+}
+
 function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
   const value = desktopConfig.widgetDefaultZIndices?.[app.id]
   return Number.isFinite(value)
     ? Math.max(0, Math.round(value as number))
     : getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
+}
+
+function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
+  const value = desktopConfig.widgetZIndices?.[app.id]
+  return Number.isFinite(value)
+    ? Math.max(0, Math.round(value as number))
+    : resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
 }
 
 function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'id'>, desktopConfig: DesktopConfig): WidgetThemeConfig | null {
@@ -231,6 +248,7 @@ function createApplicationSnapshot(source: Application, desktopConfig: DesktopCo
     recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
     widgetDefaults: source.appType === 'widget'
       ? {
+          windowPosition: desktopConfig.widgetPositions?.[source.id] ? clone(desktopConfig.widgetPositions[source.id]) : undefined,
           windowSize: desktopConfig.widgetSizes?.[source.id] ? clone(desktopConfig.widgetSizes[source.id]) : undefined,
           defaultZIndex: desktopConfig.widgetDefaultZIndices?.[source.id],
           themeOverride: desktopConfig.widgetThemeOverrides?.[source.id] ? clone(desktopConfig.widgetThemeOverrides[source.id]) : undefined,
@@ -280,9 +298,20 @@ function applyWidgetDefaultSnapshotToDesktopConfig(
 
   const nextDesktop = clone(withDesktopConfigDefaults(desktopConfig))
   const defaultSize = getDefaultWidgetSize(app)
+  const nextWidgetPositions = { ...(nextDesktop.widgetPositions ?? {}) }
   const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
   const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
   const nextThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
+
+  const snapshotPosition = snapshot.widgetDefaults?.windowPosition
+  if (snapshotPosition) {
+    nextWidgetPositions[app.id] = {
+      x: Math.max(0, Math.round(snapshotPosition.x)),
+      y: Math.max(0, Math.round(snapshotPosition.y)),
+    }
+  } else {
+    delete nextWidgetPositions[app.id]
+  }
 
   const snapshotSize = snapshot.widgetDefaults?.windowSize
   if (snapshotSize?.width !== undefined || snapshotSize?.height !== undefined) {
@@ -311,6 +340,7 @@ function applyWidgetDefaultSnapshotToDesktopConfig(
     delete nextThemeOverrides[app.id]
   }
 
+  nextDesktop.widgetPositions = Object.keys(nextWidgetPositions).length ? nextWidgetPositions : undefined
   nextDesktop.widgetSizes = Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined
   nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
   nextDesktop.widgetThemeOverrides = Object.keys(nextThemeOverrides).length ? nextThemeOverrides : undefined
@@ -364,6 +394,45 @@ function createWidgetLayoutFromCurrentState(
   }
 }
 
+function createWidgetLayoutSnapshot(layout: Pick<WidgetLayoutDefinition, 'label' | 'icon' | 'description' | 'items'>): WidgetLayoutSnapshot {
+  return {
+    label: layout.label,
+    icon: layout.icon,
+    description: layout.description,
+    items: layout.items.map((item) => ({ ...item })),
+  }
+}
+
+function normalizeWidgetLayoutSnapshotForEditor(
+  snapshot: WidgetLayoutSnapshot | undefined,
+  widgetApps: Application[],
+  desktopConfig: DesktopConfig,
+): WidgetLayoutSnapshot | undefined {
+  if (!snapshot) return undefined
+
+  return {
+    label: snapshot.label,
+    icon: snapshot.icon,
+    description: snapshot.description,
+    items: widgetApps.map((app, index) => {
+      const source = snapshot.items.find((item) => item.widgetId === app.id)
+      const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
+
+      return {
+        widgetId: app.id,
+        enabled: source?.enabled ?? fallback.enabled,
+        x: Math.max(0, Math.round(source?.x ?? fallback.x)),
+        y: Math.max(0, Math.round(source?.y ?? fallback.y)),
+        width: clampWidgetDimension(source?.width ?? fallback.width, 180, 1400, fallback.width),
+        height: clampWidgetDimension(source?.height ?? fallback.height, 140, 1000, fallback.height),
+        focusPriority: Number.isFinite(source?.focusPriority)
+          ? Math.round(source!.focusPriority)
+          : fallback.focusPriority,
+      }
+    }),
+  }
+}
+
 function normalizeWidgetLayoutsForEditor(
   widgetLayouts: WidgetLayoutDefinition[] | undefined,
   widgetApps: Application[],
@@ -373,6 +442,7 @@ function normalizeWidgetLayoutsForEditor(
 
   return layouts.map((layout) => ({
     ...layout,
+    defaultConfig: normalizeWidgetLayoutSnapshotForEditor(layout.defaultConfig, widgetApps, desktopConfig),
     items: widgetApps.map((app, index) => {
       const source = layout.items.find((item) => item.widgetId === app.id)
       const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
@@ -1544,9 +1614,20 @@ function DefaultStylingEditor() {
   }), [sourceStyle])
   const sourceThemeDefault = sourceDesktopConfig.globalThemeDefault
   const randomDesktopThemes = useMemo(() => DESKTOP_THEMES.filter((entry) => entry.id !== 'custom'), [])
+  const factoryDesktopConfig = useMemo(() => structuredClone(withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig)), [])
   const factoryDesktopStyle = useMemo(
     () => structuredClone(withOverlayStyleDefaults((DEFAULT_CONFIG.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined)?.style, DEFAULT_CONFIG.overlayStyle)),
     [],
+  )
+  const factorySystemWidgets = useMemo(
+    () => DEFAULT_CONFIG.applications
+      .filter((entry): entry is Application => entry.appType === 'widget' && entry.widgetSource === 'system')
+      .map((entry) => structuredClone(entry)),
+    [],
+  )
+  const factorySystemWidgetById = useMemo(
+    () => new Map(factorySystemWidgets.map((entry) => [entry.id, entry] as const)),
+    [factorySystemWidgets],
   )
   const factoryAppearance = useMemo<ThemeAppearance>(() => ({
     fontFamily: factoryDesktopStyle.fontFamily,
@@ -1682,11 +1763,31 @@ function DefaultStylingEditor() {
     if (!consumeConfirmation('factory-reset')) return
     setSaving(true)
     const nextDesktopStyle = structuredClone(factoryDesktopStyle)
+    const currentFactoryWidgetIds = new Set(
+      config.applications
+        .filter((entry) => factorySystemWidgetById.has(entry.id))
+        .map((entry) => entry.id),
+    )
+    const nextApplications = [
+      ...config.applications.map((entry) => {
+        const factoryWidget = factorySystemWidgetById.get(entry.id)
+        return factoryWidget ? structuredClone(factoryWidget) : entry
+      }),
+      ...factorySystemWidgets
+        .filter((entry) => !currentFactoryWidgetIds.has(entry.id))
+        .map((entry) => structuredClone(entry)),
+    ]
 
     await saveConfig({
+      applications: nextApplications,
       desktopConfig: {
+        ...factoryDesktopConfig,
         theme: DEFAULT_DESKTOP_CONFIG.theme,
         widgetTheme: structuredClone(DEFAULT_DESKTOP_CONFIG.widgetTheme),
+        widgetPositions: undefined,
+        widgetSizes: undefined,
+        widgetThemeOverrides: undefined,
+        widgetLayouts: structuredClone(DEFAULT_SYSTEM_WIDGET_LAYOUTS),
       },
       scenes: {
         [STATE.DESKTOP]: {
@@ -1700,7 +1801,7 @@ function DefaultStylingEditor() {
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [config.scenes, consumeConfirmation, factoryDesktopStyle, saveConfig])
+  }, [config.applications, config.scenes, consumeConfirmation, factoryDesktopConfig, factoryDesktopStyle, factorySystemWidgetById, factorySystemWidgets, saveConfig])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -2032,20 +2133,32 @@ function RecycleBinConfigSection({
 
 function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) {
   const config     = useAdminStore((s) => s.config)
+  const persistedConfig = useAdminStore((s) => s.persistedConfig)
+  const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
-  const initialWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
-  const initialWidgetThemeOverride = resolveWidgetThemeOverrideFromConfig(app, desktopConfig)
+  const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
+  const persistedDesktopConfig = useMemo(() => withDesktopConfigDefaults(persistedConfig.desktopConfig), [persistedConfig.desktopConfig])
+  const persistedApp = useMemo(
+    () => persistedConfig.applications.find((entry) => entry.id === app.id) ?? app,
+    [app, persistedConfig.applications],
+  )
+  const initialWidgetSize = resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig)
+  const runtimeWidgetThemeOverride = runtimeConfigOverride.desktopConfig?.widgetThemeOverrides?.[app.id]
+  const sourceWidgetThemeOverride = resolveWidgetThemeOverrideFromConfig(persistedApp, persistedDesktopConfig)
+  const effectiveWidgetThemeOverride = runtimeWidgetThemeOverride ? structuredClone(runtimeWidgetThemeOverride) : sourceWidgetThemeOverride
   const [form, setForm] = useState<Application>(app)
   const [widgetSize, setWidgetSize] = useState(initialWidgetSize)
+  const [widgetPosition, setWidgetPosition] = useState(() => resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
   const [widgetDefaultZIndex, setWidgetDefaultZIndex] = useState<number>(
-    () => resolveWidgetDefaultZIndexFromConfig(app, desktopConfig),
+    () => resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig),
   )
-  const [widgetThemeOverrideEnabled, setWidgetThemeOverrideEnabled] = useState(() => !!initialWidgetThemeOverride)
-  const [widgetThemeOverride, setWidgetThemeOverride] = useState<WidgetThemeConfig>(() => structuredClone(initialWidgetThemeOverride ?? desktopConfig.widgetTheme))
-  const [recycleBinFullOnStart, setRecycleBinFullOnStart] = useState(() => desktopConfig.recycleBin.fullOnStart)
+  const [widgetThemeOverrideEnabled, setWidgetThemeOverrideEnabled] = useState(() => !!effectiveWidgetThemeOverride)
+  const [widgetThemeOverride, setWidgetThemeOverride] = useState<WidgetThemeConfig>(() => structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+  const [recycleBinFullOnStart, setRecycleBinFullOnStart] = useState(() => persistedDesktopConfig.recycleBin.fullOnStart)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [clearingOverride, setClearingOverride] = useState(false)
+  const [clearOverrideError, setClearOverrideError] = useState<string | null>(null)
   const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
   const [detectedCameras, setDetectedCameras] = useState<{ deviceId: string; label: string }[]>([])
   const [detectingCameras, setDetectingCameras] = useState(false)
@@ -2102,31 +2215,82 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     if (widgetComponent !== 'camera') return
     void enumerateCameras(false)
   }, [widgetComponent, enumerateCameras])
-  const appDirty = !isSameDraft(form, app)
-  const sourceWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
-  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
-  const sourceWidgetThemeOverride = resolveWidgetThemeOverrideFromConfig(app, desktopConfig)
+  const appDirty = !isSameDraft(form, persistedApp)
+  const sourceWidgetPosition = resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig)
+  const sourceWidgetSize = resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig)
+  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig)
+  const liveWidgetPosition = resolveWidgetPositionFromConfig(app, desktopConfig)
+  const liveWidgetSize = resolveWidgetSizeFromConfig(app, desktopConfig)
+  const liveWidgetRuntimeZIndex = resolveWidgetRuntimeZIndex(app, desktopConfig)
+  const runtimeWidgetOverride = runtimeConfigOverride.desktopConfig
+  const runtimeWidgetPositionOverride = runtimeWidgetOverride?.widgetPositions?.[app.id]
+  const runtimeWidgetSizeOverride = runtimeWidgetOverride?.widgetSizes?.[app.id]
+  const runtimeWidgetZIndexOverride = runtimeWidgetOverride?.widgetZIndices?.[app.id]
+  const hasRuntimeWidgetThemeOverride = form.appType === 'widget' && !!runtimeWidgetThemeOverride
+  const runtimeOverrideEntries = form.appType === 'widget'
+    ? [
+        {
+          key: 'Window Position',
+          value: runtimeWidgetPositionOverride
+            ? `${liveWidgetPosition.x}, ${liveWidgetPosition.y}`
+            : `${sourceWidgetPosition.x}, ${sourceWidgetPosition.y}`,
+          active: !!runtimeWidgetPositionOverride,
+        },
+        {
+          key: 'Window Size',
+          value: runtimeWidgetSizeOverride
+            ? `${liveWidgetSize.width}x${liveWidgetSize.height}px`
+            : `${sourceWidgetSize.width}x${sourceWidgetSize.height}px`,
+          active: !!runtimeWidgetSizeOverride,
+        },
+        {
+          key: 'Stack Order',
+          value: runtimeWidgetZIndexOverride !== undefined
+            ? String(liveWidgetRuntimeZIndex)
+            : String(sourceWidgetDefaultZIndex),
+          active: runtimeWidgetZIndexOverride !== undefined,
+        },
+        {
+          key: 'Theme Override',
+          value: runtimeWidgetThemeOverride
+            ? [runtimeWidgetThemeOverride.skin, runtimeWidgetThemeOverride.animation, runtimeWidgetThemeOverride.atmosphere]
+                .filter(Boolean)
+                .join(' / ')
+            : (sourceWidgetThemeOverride
+                ? [sourceWidgetThemeOverride.skin, sourceWidgetThemeOverride.animation, sourceWidgetThemeOverride.atmosphere]
+                    .filter(Boolean)
+                    .join(' / ')
+                : 'Inherited'),
+          active: !!runtimeWidgetThemeOverride,
+        },
+      ]
+    : []
+  const hasRuntimeOverride = runtimeOverrideEntries.some((entry) => entry.active)
+  const widgetPositionDirty = form.appType === 'widget' && (
+    widgetPosition.x !== sourceWidgetPosition.x || widgetPosition.y !== sourceWidgetPosition.y
+  )
   const widgetSizeDirty = form.appType === 'widget' && (
     widgetSize.width !== sourceWidgetSize.width
     || widgetSize.height !== sourceWidgetSize.height
   )
   const widgetDefaultZIndexDirty = form.appType === 'widget' && widgetDefaultZIndex !== sourceWidgetDefaultZIndex
   const widgetThemeOverrideDirty = form.appType === 'widget' && (
-    widgetThemeOverrideEnabled !== !!sourceWidgetThemeOverride
-    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, sourceWidgetThemeOverride ?? desktopConfig.widgetTheme))
+    widgetThemeOverrideEnabled !== !!effectiveWidgetThemeOverride
+    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
   )
-  const recycleBinFullOnStartDirty = isRecycleBinDecoration && recycleBinFullOnStart !== desktopConfig.recycleBin.fullOnStart
-  const dirty = appDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeOverrideDirty || recycleBinFullOnStartDirty
+  const recycleBinFullOnStartDirty = isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart
+  const dirty = appDirty || widgetPositionDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeOverrideDirty || recycleBinFullOnStartDirty
   const themeOnlyDirty = form.appType === 'widget'
     && widgetThemeOverrideDirty
     && !appDirty
+    && !widgetPositionDirty
     && !widgetSizeDirty
     && !widgetDefaultZIndexDirty
     && !recycleBinFullOnStartDirty
   const widgetThemePreviewPatch = useMemo(() => {
     if (form.appType !== 'widget') return null
 
-    const nextOverrides = { ...(desktopConfig.widgetThemeOverrides ?? {}) }
+    const nextOverrides = { ...(persistedDesktopConfig.widgetThemeOverrides ?? {}) }
     if (widgetThemeOverrideEnabled) {
       nextOverrides[form.id] = structuredClone(widgetThemeOverride)
     } else {
@@ -2138,18 +2302,23 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         widgetThemeOverrides: Object.keys(nextOverrides).length ? nextOverrides : undefined,
       },
     } as Partial<AppConfig>
-  }, [desktopConfig.widgetThemeOverrides, form, widgetThemeOverride, widgetThemeOverrideEnabled])
+  }, [form, persistedDesktopConfig.widgetThemeOverrides, widgetThemeOverride, widgetThemeOverrideEnabled])
 
   useEffect(() => {
-    setForm(app)
-    setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetThemeOverrideEnabled(!!resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetThemeOverride(structuredClone(resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)) ?? withDesktopConfigDefaults(config.desktopConfig).widgetTheme))
-    setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
+    setForm(persistedApp)
+    setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
+    setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)
     setSaveDefaultArmed(false)
     setSaved(false)
-  }, [app, config.desktopConfig])
+  }, [persistedApp, persistedDesktopConfig])
+
+  useEffect(() => {
+    if (persistedApp.appType !== 'widget') return
+    setWidgetThemeOverrideEnabled(!!effectiveWidgetThemeOverride)
+    setWidgetThemeOverride(structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+  }, [effectiveWidgetThemeOverride, persistedApp.appType, persistedDesktopConfig.widgetTheme])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -2182,11 +2351,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
   const buildDraftPersistence = useCallback((includeDefaultSnapshot: boolean) => {
     const draftApp: Application = clone(form)
-    const scene = config.scenes[draftApp.targetSceneId]
+    const scene = persistedConfig.scenes[draftApp.targetSceneId]
     const updates: Partial<typeof config> = { applications: [] }
     let nextDesktopConfig: DesktopConfig | null = null
     const ensureNextDesktopConfig = () => {
-      if (!nextDesktopConfig) nextDesktopConfig = structuredClone(withDesktopConfigDefaults(config.desktopConfig))
+      if (!nextDesktopConfig) nextDesktopConfig = structuredClone(persistedDesktopConfig)
       return nextDesktopConfig
     }
 
@@ -2195,9 +2364,15 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
       const normalizedWidth = clampWidgetDimension(widgetSize.width, 180, 1400, sourceWidgetSize.width)
       const normalizedHeight = clampWidgetDimension(widgetSize.height, 140, 1000, sourceWidgetSize.height)
       const defaults = getDefaultWidgetSize(draftApp)
+      const nextWidgetPositions = { ...(nextDesktop.widgetPositions ?? {}) }
       const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
       const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
       const nextWidgetThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
+
+      nextWidgetPositions[draftApp.id] = {
+        x: Math.max(0, Math.round(widgetPosition.x)),
+        y: Math.max(0, Math.round(widgetPosition.y)),
+      }
 
       if (normalizedWidth === defaults.width && normalizedHeight === defaults.height) {
         delete nextWidgetSizes[draftApp.id]
@@ -2213,12 +2388,13 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
         delete nextWidgetThemeOverrides[draftApp.id]
       }
 
+  nextDesktop.widgetPositions = Object.keys(nextWidgetPositions).length ? nextWidgetPositions : undefined
       nextDesktop.widgetSizes = Object.keys(nextWidgetSizes).length ? nextWidgetSizes : undefined
       nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
       nextDesktop.widgetThemeOverrides = Object.keys(nextWidgetThemeOverrides).length ? nextWidgetThemeOverrides : undefined
     }
 
-    if (isRecycleBinDecoration && recycleBinFullOnStart !== desktopConfig.recycleBin.fullOnStart) {
+    if (isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart) {
       ensureNextDesktopConfig().recycleBin = {
         ...ensureNextDesktopConfig().recycleBin,
         fullOnStart: recycleBinFullOnStart,
@@ -2228,11 +2404,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     if (includeDefaultSnapshot) {
       draftApp.defaultConfig = createApplicationSnapshot(
         draftApp,
-        nextDesktopConfig ?? withDesktopConfigDefaults(config.desktopConfig),
+        nextDesktopConfig ?? persistedDesktopConfig,
       )
     }
 
-    const apps = [...config.applications]
+    const apps = [...persistedConfig.applications]
     const idx = apps.findIndex((entry) => entry.id === draftApp.id)
     if (idx !== -1) apps[idx] = draftApp
     else apps.push(draftApp)
@@ -2250,10 +2426,9 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     if (nextDesktopConfig) updates.desktopConfig = nextDesktopConfig
 
     return updates
-  }, [config.applications, config.desktopConfig, config.scenes, desktopConfig.recycleBin.fullOnStart, form, isRecycleBinDecoration, recycleBinFullOnStart, sourceWidgetSize.height, sourceWidgetSize.width, widgetDefaultZIndex, widgetSize.height, widgetSize.width, widgetThemeOverride, widgetThemeOverrideEnabled])
+  }, [config, form, isRecycleBinDecoration, persistedConfig.applications, persistedConfig.scenes, persistedDesktopConfig, recycleBinFullOnStart, sourceWidgetSize.height, sourceWidgetSize.width, widgetDefaultZIndex, widgetPosition.x, widgetPosition.y, widgetSize.height, widgetSize.width, widgetThemeOverride, widgetThemeOverrideEnabled])
 
   const apply = async () => {
-    if (!dirty) return
     setSaving(true)
     const updates = buildDraftPersistence(false)
 
@@ -2272,12 +2447,13 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
   }
 
   const reset = () => {
-    setForm(app)
-    setWidgetSize(resolveWidgetSizeFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetThemeOverrideEnabled(!!resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)))
-    setWidgetThemeOverride(structuredClone(resolveWidgetThemeOverrideFromConfig(app, withDesktopConfigDefaults(config.desktopConfig)) ?? withDesktopConfigDefaults(config.desktopConfig).widgetTheme))
-    setRecycleBinFullOnStart(withDesktopConfigDefaults(config.desktopConfig).recycleBin.fullOnStart)
+    setForm(persistedApp)
+    setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetThemeOverrideEnabled(!!effectiveWidgetThemeOverride)
+    setWidgetThemeOverride(structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+    setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)
     setSaveDefaultArmed(false)
     setSaved(false)
   }
@@ -2299,7 +2475,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     const updates: Partial<typeof config> = { applications: apps }
 
     if (restoredApp.appType === 'widget') {
-      updates.desktopConfig = applyWidgetDefaultSnapshotToDesktopConfig(withDesktopConfigDefaults(config.desktopConfig), restoredApp, snapshot)
+      updates.desktopConfig = applyWidgetDefaultSnapshotToDesktopConfig(persistedDesktopConfig, restoredApp, snapshot)
     }
 
     setSaving(true)
@@ -2329,28 +2505,80 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
   }, [buildDraftPersistence, saveConfig, saveDefaultArmed])
 
-  const defaultWidgetSize = getDefaultWidgetSize(form)
-  const hasWidgetSizeOverride = !!desktopConfig.widgetSizes?.[form.id]
+  const useCurrentWidgetValues = () => {
+    if (form.appType !== 'widget') return
+    setWidgetPosition(liveWidgetPosition)
+    setWidgetSize(liveWidgetSize)
+    setSaved(false)
+  }
+
+  const clearWidgetRuntimeOverride = () => {
+    if (form.appType !== 'widget' || !hasRuntimeOverride || clearingOverride) return
+
+    setClearingOverride(true)
+    setClearOverrideError(null)
+
+    const handleOverrideCleared: (err: string | null) => void = (err) => {
+      setClearingOverride(false)
+      if (err) {
+        setClearOverrideError(err)
+        return
+      }
+      setClearOverrideError(null)
+    }
+
+    socket.emit('runtime:config:override:widget:clear', form.id, handleOverrideCleared)
+  }
+
   const supportsSceneTransitions = form.appType === 'scene'
 
   return (
     <div className="space-y-3">
-      <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-      <div className="ml-auto flex w-fit flex-wrap gap-2">
-        <Btn
-          type="button"
-          variant={saveDefaultArmed ? 'warning' : 'primary'}
-          onClick={() => { void saveCurrentAsDefault() }}
-          className={DASHBOARD_SAVE_BUTTON_CLASS}
-        >
-          {saveDefaultArmed ? 'Click Again to Confirm' : 'Save Current as Default'}
-        </Btn>
-        <Btn type="button" variant="ghost" onClick={() => { void restoreDefaults() }} className={DASHBOARD_SAVE_BUTTON_CLASS}>
-          Restore Defaults
-        </Btn>
-      </div>
+      <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="space-y-0 pt-3">
-        <ConfigSectionPanel label="Identity" first>
+        {form.appType === 'widget' && (
+          <ConfigSectionPanel label="Runtime Override" first>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className={hasRuntimeOverride ? 'text-[11px] font-medium text-red-100' : 'text-[11px] font-medium text-zinc-400'}>
+                  {hasRuntimeOverride ? 'Runtime override active' : 'No runtime override active'}
+                </div>
+                <span className="flex-1" />
+                <span
+                  className={[
+                    'inline-block h-2.5 w-2.5 rounded-full transition-all',
+                    hasRuntimeOverride
+                      ? 'bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.95),0_0_20px_rgba(239,68,68,0.55)]'
+                      : 'bg-zinc-700 shadow-[0_0_0_rgba(0,0,0,0)]',
+                  ].join(' ')}
+                />
+              </div>
+              <div className="space-y-1.5 rounded border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                {runtimeOverrideEntries.map((entry) => (
+                  <div key={entry.key} className="flex items-start justify-between gap-3 text-[10px]">
+                    <div className="uppercase tracking-[0.14em] text-zinc-500">{entry.key}</div>
+                    <div className={entry.active ? 'text-right font-mono text-zinc-200' : 'text-right font-mono text-zinc-500'}>
+                      {entry.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {clearOverrideError && <ConfigNotice tone="danger">{clearOverrideError}</ConfigNotice>}
+              <div className="flex justify-end">
+                <Btn
+                  type="button"
+                  onClick={clearWidgetRuntimeOverride}
+                  disabled={!hasRuntimeOverride || clearingOverride}
+                  className="px-2.5 py-1 text-[10px]"
+                >
+                  {clearingOverride ? 'Clearing Override...' : 'Clear Override'}
+                </Btn>
+              </div>
+            </div>
+          </ConfigSectionPanel>
+        )}
+
+        <ConfigSectionPanel label="Identity" first={form.appType !== 'widget'}>
             <div className="space-y-3">
               <div>
                 <div className="text-[10px] text-zinc-500 mb-1">Label</div>
@@ -2413,6 +2641,7 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
           </ConfigSectionPanel>
         )}
 
+        {form.appType !== 'widget' && (
         <ConfigSectionPanel label="Position">
             <div className="text-[10px] text-zinc-600 mb-2">1920×1080 canvas, pixels from top-left.</div>
             <div className="grid grid-cols-2 gap-2">
@@ -2432,10 +2661,19 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
             <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
             <div className="text-[10px] text-zinc-600 mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
         </ConfigSectionPanel>
+        )}
 
         {form.appType === 'widget' && (
           <ConfigSectionPanel label="Widget Window Defaults">
-              <div className="text-[10px] text-zinc-600 mb-2">Configure default window size for this widget.</div>
+              <div className="flex justify-end mb-3">
+                <Btn
+                  type="button"
+                  onClick={useCurrentWidgetValues}
+                  className="px-2.5 py-1 text-[10px]"
+                >
+                  Use Current
+                </Btn>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-[10px] text-zinc-500 mb-1">Width</div>
@@ -2460,18 +2698,33 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="text-[10px] text-zinc-600">
-                  Default: {defaultWidgetSize.width}x{defaultWidgetSize.height}px
-                  {hasWidgetSizeOverride ? ' (override active)' : ''}
+              <div className="mt-3 pt-3 border-t border-zinc-700/50">
+                <div className="text-[10px] text-zinc-500 mb-2">Position</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-[10px] text-zinc-500 mb-1">X</div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1850}
+                      value={widgetPosition.x}
+                      onChange={(e) => setWidgetPosition((prev) => ({ ...prev, x: Number(e.target.value) }))}
+                      className="w-full font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 mb-1">Y</div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={990}
+                      value={widgetPosition.y}
+                      onChange={(e) => setWidgetPosition((prev) => ({ ...prev, y: Number(e.target.value) }))}
+                      className="w-full font-mono text-xs"
+                    />
+                  </div>
                 </div>
-                <Btn
-                  type="button"
-                  onClick={() => setWidgetSize(defaultWidgetSize)}
-                  className="px-2 py-1 text-[10px]"
-                >
-                  Reset to Default
-                </Btn>
+                <div className="mt-2 text-[10px] text-zinc-600">Saved desktop position for this widget window.</div>
               </div>
               <div className="mt-3 pt-3 border-t border-zinc-700/50">
                 <div className="text-[10px] text-zinc-500 mb-1">
@@ -2489,13 +2742,6 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
                     }}
                     className="w-24 font-mono text-xs"
                   />
-                  <Btn
-                    type="button"
-                    onClick={() => setWidgetDefaultZIndex(getDefaultWidgetZIndex(form.id, widgetComponent))}
-                    className="px-2 py-1 text-[10px]"
-                  >
-                    Reset
-                  </Btn>
                 </div>
                 <div className="text-[10px] text-zinc-600 mt-1">
                   This is the widget's baseline stack order. Saved layouts can temporarily bias focus priority on top of this, and manual clicking or taskbar focus can still move a window to the front at runtime.
@@ -2510,6 +2756,11 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
               <div className="text-[10px] text-zinc-500 leading-relaxed">
                 Keep widgets self-sufficient by giving each one its own skin, theming, motion, and atmosphere profile. Leave this off to inherit the shared desktop widget theme.
               </div>
+              {hasRuntimeWidgetThemeOverride && (
+                <ConfigNotice className="px-3 py-2 text-[10px]" tone="info">
+                  Runtime override active. The values below reflect the live override currently applied to this widget.
+                </ConfigNotice>
+              )}
               <Toggle
                 checked={widgetThemeOverrideEnabled}
                 onChange={(value) => {
@@ -3138,6 +3389,7 @@ function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
 
 function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDeleted: () => void }) {
   const config = useAdminStore((s) => s.config)
+  const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
@@ -3157,26 +3409,66 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
   const [layout, setLayout] = useState<WidgetLayoutDefinition | null>(sourceLayout)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
+  const [factoryResetArmed, setFactoryResetArmed] = useState(false)
+  const [clearingOverride, setClearingOverride] = useState(false)
+  const [clearOverrideError, setClearOverrideError] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const factoryResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setLayout(sourceLayout ? structuredClone(sourceLayout) : null)
+    setClearingOverride(false)
+    setClearOverrideError(null)
+    setFactoryResetArmed(false)
     setSaved(false)
   }, [sourceLayout])
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
+  }, [])
 
   if (!sourceLayout || !layout) {
     return <div className="text-zinc-600 text-xs italic p-4">Layout not found.</div>
   }
 
   const dirty = !isSameDraft(layout, sourceLayout)
+  const layoutWidgetIds = layout.items.map((item) => item.widgetId)
+  const runtimeWidgetPositions = runtimeConfigOverride.desktopConfig?.widgetPositions ?? {}
+  const runtimeWidgetSizes = runtimeConfigOverride.desktopConfig?.widgetSizes ?? {}
+  const runtimeWidgetZIndices = runtimeConfigOverride.desktopConfig?.widgetZIndices ?? {}
+  const hasRuntimeOverride = layoutWidgetIds.some((widgetId) => (
+    widgetId in runtimeWidgetPositions
+    || widgetId in runtimeWidgetSizes
+    || widgetId in runtimeWidgetZIndices
+  ))
+  const activeRuntimeOverrideCount = layoutWidgetIds.filter((widgetId) => (
+    widgetId in runtimeWidgetPositions
+    || widgetId in runtimeWidgetSizes
+    || widgetId in runtimeWidgetZIndices
+  )).length
+  const defaultSnapshot = sourceLayout.defaultConfig ? structuredClone(sourceLayout.defaultConfig) : createWidgetLayoutSnapshot(sourceLayout)
+  const factorySystemLayout = sourceLayout.source === 'system'
+    ? DEFAULT_SYSTEM_WIDGET_LAYOUTS.find((entry) => entry.id === sourceLayout.id)
+    : undefined
 
-  const persistDraft = async () => {
-    if (!dirty) return
+  const applySnapshotToLayout = (target: WidgetLayoutDefinition, snapshot: WidgetLayoutSnapshot): WidgetLayoutDefinition => ({
+    ...target,
+    label: snapshot.label,
+    icon: snapshot.icon,
+    description: snapshot.description,
+    items: structuredClone(snapshot.items),
+  })
+
+  const persistLayout = async (nextLayout: WidgetLayoutDefinition) => {
     setSaving(true)
     await saveConfig({
       desktopConfig: {
         ...desktopConfig,
-        widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? layout : entry),
+        widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? nextLayout : entry),
       },
     })
     setSaving(false)
@@ -3185,8 +3477,13 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
   }
 
+  const persistDraft = async () => {
+    await persistLayout(layout)
+  }
+
   const reset = () => {
     setLayout(structuredClone(sourceLayout))
+    setSaveDefaultArmed(false)
     setSaved(false)
   }
 
@@ -3198,6 +3495,62 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
       return next
     })
     setSaved(false)
+  }
+
+  const restoreDefaults = async () => {
+    await persistLayout({
+      ...applySnapshotToLayout(layout, defaultSnapshot),
+      defaultConfig: structuredClone(sourceLayout.defaultConfig ?? defaultSnapshot),
+    })
+    setSaveDefaultArmed(false)
+  }
+
+  const buildFactoryResetLayout = (): WidgetLayoutDefinition => {
+    if (factorySystemLayout) {
+      const [normalizedFactoryLayout] = normalizeWidgetLayoutsForEditor([factorySystemLayout], widgetApps, desktopConfig)
+      if (normalizedFactoryLayout) {
+        return {
+          ...normalizedFactoryLayout,
+          defaultConfig: structuredClone(sourceLayout.defaultConfig ?? normalizedFactoryLayout.defaultConfig),
+        }
+      }
+    }
+
+    return {
+      ...layout,
+      items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, desktopConfig, false)),
+      defaultConfig: structuredClone(sourceLayout.defaultConfig ?? defaultSnapshot),
+    }
+  }
+
+  const performFactoryReset = async () => {
+    if (!factoryResetArmed) {
+      setFactoryResetArmed(true)
+      if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
+      factoryResetTimer.current = setTimeout(() => setFactoryResetArmed(false), 3500)
+      return
+    }
+
+    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
+    await persistLayout(buildFactoryResetLayout())
+    setFactoryResetArmed(false)
+  }
+
+  const saveCurrentAsDefault = async () => {
+    if (!saveDefaultArmed) {
+      setSaveDefaultArmed(true)
+      if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+      saveDefaultTimer.current = setTimeout(() => setSaveDefaultArmed(false), 3500)
+      return
+    }
+
+    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
+    const currentSnapshot = createWidgetLayoutSnapshot(layout)
+    await persistLayout({
+      ...layout,
+      defaultConfig: currentSnapshot,
+    })
+    setSaveDefaultArmed(false)
   }
 
   const captureCurrentIntoLayout = () => {
@@ -3223,10 +3576,26 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
   }
 
   const applyLayout = async () => {
-    if (dirty) {
-      await persistDraft()
-    }
+    await persistDraft()
     socket.emit('widget:layout:apply', layoutId)
+  }
+
+  const clearLayoutOverride = () => {
+    if (!hasRuntimeOverride || clearingOverride) return
+
+    setClearingOverride(true)
+    setClearOverrideError(null)
+
+    const handleOverrideCleared: (err: string | null) => void = (err) => {
+      setClearingOverride(false)
+      if (err) {
+        setClearOverrideError(err)
+        return
+      }
+      setClearOverrideError(null)
+    }
+
+    socket.emit('runtime:config:override:widget-layout:clear', layoutWidgetIds, handleOverrideCleared)
   }
 
   return (
@@ -3236,15 +3605,14 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
         dirty={dirty}
         saving={saving}
         saved={saved}
-        onApply={persistDraft}
-        onReset={reset}
+        onApply={() => { void persistDraft() }}
+        onReset={() => { void restoreDefaults() }}
+        alwaysShow
       />
 
       <div className="space-y-0 pt-3">
-      <ConfigSectionPanel label="Layout Configuration" first>
+      <ConfigSectionPanel label="Runtime Override" first>
         <div className="space-y-2.5">
-          <div className="text-[10px] text-zinc-600">Built-in taskbar presets or captured user layouts. Edit rows directly.</div>
-
           <div className="flex gap-2 items-start">
             <input
               type="text"
@@ -3279,9 +3647,21 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
             </div>
           </div>
 
-          {layout.source === 'system' && (
-            <div className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, not removable.</div>
-          )}
+          <ConfigCard className="space-y-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="mt-1 text-[11px] text-zinc-200">
+                  {hasRuntimeOverride
+                    ? `Active for ${activeRuntimeOverrideCount} ${activeRuntimeOverrideCount === 1 ? 'widget' : 'widgets'}`
+                    : 'No active override'}
+                </div>
+              </div>
+            </div>
+            <div className="text-[10px] leading-relaxed text-zinc-500">
+              Removes live runtime position, size, and stack-order overrides for every widget included in this layout without changing the saved layout definition.
+            </div>
+          </ConfigCard>
+          {clearOverrideError && <ConfigNotice tone="danger">{clearOverrideError}</ConfigNotice>}
 
           <div className="flex gap-2">
             <Btn
@@ -3294,10 +3674,11 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
             </Btn>
             <Btn
               type="button"
-              onClick={() => captureCurrentIntoLayout()}
+              onClick={clearLayoutOverride}
+              disabled={!hasRuntimeOverride || clearingOverride}
               className="px-2.5 py-1 text-[10px]"
             >
-              Use Current
+              {clearingOverride ? 'Clearing Override...' : 'Clear Override'}
             </Btn>
             <Btn
               type="button"
@@ -3308,6 +3689,34 @@ function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDelete
             >
               {layout.source === 'system' ? 'Protected' : 'Delete'}
             </Btn>
+          </div>
+        </div>
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Layout Configuration">
+        <div className="space-y-2.5">
+          {layout.source === 'system' && (
+            <div className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, not removable.</div>
+          )}
+
+          <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Btn
+                type="button"
+                variant={factoryResetArmed ? 'danger' : 'ghost'}
+                onClick={() => { void performFactoryReset() }}
+                className="px-2.5 py-1 text-[10px]"
+              >
+                {factoryResetArmed ? 'Confirm Factory Reset' : 'Perform Factory Reset'}
+              </Btn>
+              <Btn
+                type="button"
+                onClick={() => captureCurrentIntoLayout()}
+                className="px-2.5 py-1 text-[10px]"
+              >
+                Use Current
+              </Btn>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -3787,15 +4196,23 @@ function EventForm({
                   )}
 
                   {action.kind === 'widget-layout' && (
-                    <div>
-                      <div className="text-[10px] text-zinc-500 mb-1">Layout</div>
-                      <select value={action.layoutId} onChange={(e) => updateAction(index, (draft) => {
-                        if (draft.kind !== 'widget-layout') return
-                        draft.layoutId = e.target.value
-                      })} className="w-full text-xs">
-                        <option value="">Select a layout</option>
-                        {widgetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.label}</option>)}
-                      </select>
+                    <div className="space-y-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                        <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-layout') return
+                          draft.timeoutSeconds = value
+                        })} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Layout</div>
+                        <select value={action.layoutId} onChange={(e) => updateAction(index, (draft) => {
+                          if (draft.kind !== 'widget-layout') return
+                          draft.layoutId = e.target.value
+                        })} className="w-full text-xs">
+                          <option value="">Select a layout</option>
+                          {widgetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.label}</option>)}
+                        </select>
+                      </div>
                     </div>
                   )}
 
@@ -4046,7 +4463,7 @@ function SceneConfig({ sceneId }: { sceneId: string }) {
       <div className="ml-auto flex w-fit flex-wrap gap-2">
         <Btn
           type="button"
-          variant={saveDefaultArmed ? 'warning' : 'primary'}
+          variant={saveDefaultArmed ? 'warning' : 'default'}
           onClick={() => { void saveCurrentAsDefault() }}
           className={DASHBOARD_SAVE_BUTTON_CLASS}
           disabled={saving}
@@ -4142,11 +4559,10 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   } | null>(null)
   const [transitionSearch, setTransitionSearch] = useState('')
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(eventDefs[0]?.id ?? null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
-  const selectedEvent = eventDefs.find((def) => def.id === selectedEventId) ?? null
-  const editingEvent = eventDraft?.event ?? selectedEvent
+  const editingEvent = eventDraft?.event ?? null
   const editingEventCreatesNew = !!eventDraft && !eventDraft.originalId
   const sourcePresets = config.sourcePresets ?? []
   const filteredEventDefs = useMemo(() => {
@@ -4238,23 +4654,16 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (eventDefs.length === 0) {
       if (selectedEventId !== null) setSelectedEventId(null)
+      if (eventDraft !== null) setEventDraft(null)
       return
     }
-    if (!selectedEventId || !eventDefs.some((def) => def.id === selectedEventId)) {
-      setSelectedEventId(eventDefs[0].id)
+    if (selectedEventId && !eventDefs.some((def) => def.id === selectedEventId)) {
+      setSelectedEventId(null)
+      if (eventDraft?.originalId === selectedEventId) {
+        setEventDraft(null)
+      }
     }
-  }, [eventDefs, selectedEventId])
-
-  useEffect(() => {
-    if (!selectedEventId) return
-    const eventDef = eventDefs.find((entry) => entry.id === selectedEventId)
-    if (!eventDef) return
-    if (eventDraft?.originalId === eventDef.id) return
-    setEventDraft({
-      event: structuredClone(eventDef),
-      originalId: eventDef.id,
-    })
-  }, [eventDefs, selectedEventId, eventDraft?.originalId])
+  }, [eventDefs, eventDraft, selectedEventId])
 
   useEffect(() => {
     if (filteredSourcePresets.length === 0) {
@@ -4497,13 +4906,19 @@ function AssetLibraryPanel({ onClose }: { onClose: () => void }) {
     const id = eventDraft.originalId
     const nextEvents = eventDefs.filter((entry) => entry.id !== id)
     if (selectedEventId === id) {
-      setSelectedEventId(nextEvents[0]?.id ?? null)
+      setSelectedEventId(null)
     }
     void saveConfig({ events: nextEvents })
     setEventDraft(null)
   }
 
   const selectEvent = (eventId: string) => {
+    const eventDef = eventDefs.find((entry) => entry.id === eventId)
+    if (!eventDef) return
+    setEventDraft({
+      event: structuredClone(eventDef),
+      originalId: eventDef.id,
+    })
     setSelectedEventId(eventId)
   }
 
