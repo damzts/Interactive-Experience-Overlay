@@ -6,6 +6,8 @@ import type {
   DesktopNotificationEffectConfig,
   EffectType,
   EventAction,
+  EventDesktopTheme,
+  EventWidgetThemePatch,
   FloatiesConfig,
   ImageOverlayConfig,
   NetworkGlitchConfig,
@@ -129,6 +131,20 @@ export function EventForm({
   }
 
   const flatGrid = layout === 'flat-grid'
+
+  type WidgetThemeRuntimeDraft = EventWidgetThemePatch
+  type WidgetThemeEditorView = Omit<WidgetThemeConfig, 'skin'> & { skin: WidgetThemeConfig['skin'] | 'random' }
+
+  const getThemeEditorView = (themePatch?: WidgetThemeRuntimeDraft | null): WidgetThemeEditorView => {
+    const selectedSkin = themePatch?.skin
+    const baseSkin = selectedSkin && selectedSkin !== 'random' ? selectedSkin : 'metalheart'
+    const { skin: _skin, ...themePatchWithoutSkin } = themePatch ?? {}
+    return {
+      ...DEFAULT_WIDGET_THEME_PRESETS[baseSkin],
+      ...themePatchWithoutSkin,
+      skin: selectedSkin ?? baseSkin,
+    } as WidgetThemeEditorView
+  }
 
   const wrapGridItem = (children: ReactNode, className = '') => (
     flatGrid ? <div className={`min-w-0 ${className}`.trim()}>{children}</div> : children
@@ -542,15 +558,34 @@ export function EventForm({
     )
   }
 
-  const renderThemeFields = (theme: WidgetThemeConfig, onChange: (updater: (draft: WidgetThemeConfig) => void) => void) => (
+  const renderThemeFields = (themePatch: WidgetThemeRuntimeDraft | undefined, onChange: (updater: (draft: WidgetThemeRuntimeDraft) => void) => void) => {
+    const theme = getThemeEditorView(themePatch)
+
+    return (
     <div className="grid grid-cols-2 gap-2 pl-1">
       <div>
         <div className="mb-1 text-[10px] text-zinc-500">Skin</div>
         <select
           value={theme.skin}
-          onChange={(event) => onChange((draft) => Object.assign(draft, structuredClone(DEFAULT_WIDGET_THEME_PRESETS[event.target.value as keyof typeof DEFAULT_WIDGET_THEME_PRESETS])))}
+          onChange={(event) => onChange((draft) => {
+            const nextSkin = event.target.value as WidgetThemeConfig['skin'] | 'random'
+            if (nextSkin === 'random') {
+              delete draft.fontFamily
+              delete draft.accentColor
+              delete draft.textColor
+              delete draft.animation
+              delete draft.atmosphere
+              delete draft.motionIntensity
+              delete draft.glowIntensity
+              draft.skin = 'random'
+              return
+            }
+
+            Object.assign(draft, structuredClone(DEFAULT_WIDGET_THEME_PRESETS[nextSkin]))
+          })}
           className="w-full text-xs"
         >
+          <option value="random">Random</option>
           {WIDGET_SKINS.map((skin) => (
             <option key={skin.id} value={skin.id}>{skin.label}</option>
           ))}
@@ -603,7 +638,8 @@ export function EventForm({
       <Slider label="Motion" value={theme.motionIntensity} min={0} max={3} step={0.05} onChange={(value) => onChange((draft) => { draft.motionIntensity = value })} />
       <Slider label="Glow" value={theme.glowIntensity} min={0} max={3} step={0.05} onChange={(value) => onChange((draft) => { draft.glowIntensity = value })} />
     </div>
-  )
+    )
+  }
 
   const identitySection = !def.builtIn ? wrapGridItem(
     <ConfigSectionPanel label="Identity" first>
@@ -737,8 +773,9 @@ export function EventForm({
                           <div className="mb-1 text-[10px] text-zinc-500">Desktop theme</div>
                           <select value={action.patch.theme ?? 'win98'} onChange={(event) => updateAction(index, (draft) => {
                             if (draft.kind !== 'desktop-config') return
-                            draft.patch.theme = event.target.value as DesktopConfig['theme']
+                            draft.patch.theme = event.target.value as EventDesktopTheme
                           })} className="w-full text-xs">
+                            <option value="random">Random</option>
                             {DESKTOP_THEMES.map((theme) => <option key={theme.id} value={theme.id}>{theme.label}</option>)}
                           </select>
                         </div>
@@ -771,9 +808,9 @@ export function EventForm({
                       </div>
                       <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
                         <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Global Widget Theme</div>
-                        {renderThemeFields({ ...DEFAULT_WIDGET_THEME_PRESETS.metalheart, ...(action.patch.widgetTheme ?? {}) }, (updater) => updateAction(index, (draft) => {
+                        {renderThemeFields(action.patch.widgetTheme, (updater) => updateAction(index, (draft) => {
                           if (draft.kind !== 'desktop-config') return
-                          const nextTheme: WidgetThemeConfig = { ...DEFAULT_WIDGET_THEME_PRESETS.metalheart, ...(draft.patch.widgetTheme ?? {}) }
+                          const nextTheme: EventWidgetThemePatch = { ...(draft.patch.widgetTheme ?? {}) }
                           updater(nextTheme)
                           draft.patch.widgetTheme = nextTheme
                         }))}
@@ -814,9 +851,9 @@ export function EventForm({
                       })} label="Reset existing overrides first" />
                       <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
                         <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Override Theme</div>
-                        {renderThemeFields(action.theme as WidgetThemeConfig, (updater) => updateAction(index, (draft) => {
+                        {renderThemeFields(action.theme, (updater) => updateAction(index, (draft) => {
                           if (draft.kind !== 'widget-theme-overrides') return
-                          const nextTheme = structuredClone(draft.theme as WidgetThemeConfig)
+                          const nextTheme: EventWidgetThemePatch = { ...(draft.theme ?? {}) }
                           updater(nextTheme)
                           draft.theme = nextTheme
                         }))}

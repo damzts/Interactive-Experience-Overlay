@@ -5,8 +5,10 @@ import type {
   DesktopAmbianceConfig,
   DesktopConfig,
   DesktopTheme,
+  EventDesktopTheme,
   EventAction,
   EventConfig,
+  EventWidgetThemePatch,
   LobbyConfig,
   OverlayStyle,
   RecycleBinSettings,
@@ -189,13 +191,13 @@ function normalizeEventAction(action: EventAction): EventAction | null {
 
   if (action.kind === 'desktop-config') {
     const patch: NonNullable<Extract<EventAction, { kind: 'desktop-config' }>['patch']> = {}
-    if (action.patch.theme !== undefined) patch.theme = normalizeDesktopTheme(action.patch.theme)
+    if (action.patch.theme !== undefined) patch.theme = normalizeEventDesktopTheme(action.patch.theme)
     if (action.patch.iconAnimation !== undefined) patch.iconAnimation = action.patch.iconAnimation
     if (action.patch.iconMotion !== undefined && Number.isFinite(action.patch.iconMotion)) {
       patch.iconMotion = Math.max(0, Math.min(3, action.patch.iconMotion))
     }
     if (action.patch.widgetTheme) {
-      patch.widgetTheme = normalizeWidgetThemeConfig(action.patch.widgetTheme)
+      patch.widgetTheme = normalizeEventWidgetThemePatch(action.patch.widgetTheme)
     }
     if (action.patch.screenSaver) {
       patch.screenSaver = {
@@ -214,7 +216,7 @@ function normalizeEventAction(action: EventAction): EventAction | null {
       timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
       widgetIds,
       clearExisting: action.clearExisting ?? false,
-      theme: normalizeWidgetThemeConfig(action.theme),
+      theme: normalizeEventWidgetThemePatch(action.theme),
     }
   }
 
@@ -283,9 +285,47 @@ function normalizeWidgetThemeAtmosphere(value?: WidgetThemeAtmosphere): WidgetTh
   return 'sparkle'
 }
 
+function normalizeEventDesktopTheme(theme?: EventDesktopTheme | 'win vista'): EventDesktopTheme {
+  if (theme === 'random') return 'random'
+  return normalizeDesktopTheme(theme)
+}
+
 function normalizeWidgetThemeIntensity(value: number | undefined, fallback: number) {
   if (!Number.isFinite(value)) return fallback
   return Math.min(3, Math.max(0, Math.round((value as number) * 100) / 100))
+}
+
+function normalizeEventWidgetThemePatch(config?: EventWidgetThemePatch | null): EventWidgetThemePatch {
+  if (!config) return {}
+
+  const next: EventWidgetThemePatch = {}
+
+  if (config.skin !== undefined) {
+    next.skin = config.skin === 'random' ? 'random' : normalizeWidgetSkinTheme(config.skin)
+  }
+  if (typeof config.fontFamily === 'string' && config.fontFamily.trim()) {
+    next.fontFamily = config.fontFamily
+  }
+  if (typeof config.accentColor === 'string' && config.accentColor.trim()) {
+    next.accentColor = config.accentColor
+  }
+  if (typeof config.textColor === 'string' && config.textColor.trim()) {
+    next.textColor = config.textColor
+  }
+  if (config.animation !== undefined) {
+    next.animation = normalizeWidgetThemeAnimation(config.animation)
+  }
+  if (config.atmosphere !== undefined) {
+    next.atmosphere = normalizeWidgetThemeAtmosphere(config.atmosphere)
+  }
+  if (config.motionIntensity !== undefined && Number.isFinite(config.motionIntensity)) {
+    next.motionIntensity = normalizeWidgetThemeIntensity(config.motionIntensity, 1)
+  }
+  if (config.glowIntensity !== undefined && Number.isFinite(config.glowIntensity)) {
+    next.glowIntensity = normalizeWidgetThemeIntensity(config.glowIntensity, 1)
+  }
+
+  return next
 }
 
 function normalizeWidgetThemeConfig(config?: Partial<WidgetThemeConfig> | null): WidgetThemeConfig {

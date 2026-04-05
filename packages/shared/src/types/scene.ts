@@ -62,6 +62,8 @@ export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'drif
 export type WidgetSkinTheme = 'metalheart' | 'genx soft club' | 'chromecore' | 'y2k futurism' | 'transparent' | 'aqua pop' | 'mallsoft pearl' | 'messenger glow' | 'limewire plasma' | 'cyber y2k' | 'digital futurism' | 'ssx rush' | 'ps2 drift' | 'xbox blade' | 'cel street' | 'aero nova' | 'aero opaline' | 'dial-up candy' | 'webcore flash' | 'lan party'
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
+export type EventDesktopTheme = DesktopTheme | 'random'
+export type EventWidgetSkinTheme = WidgetSkinTheme | 'random'
 
 export interface WidgetThemeConfig {
   /** Widget chrome preset, similar to classic app skins. */
@@ -80,6 +82,10 @@ export interface WidgetThemeConfig {
   motionIntensity: number
   /** 0-3 scalar controlling bloom, glow, and accent light. */
   glowIntensity: number
+}
+
+export type EventWidgetThemePatch = Partial<Omit<WidgetThemeConfig, 'skin'>> & {
+  skin?: EventWidgetSkinTheme
 }
 
 export interface GlobalThemeDefaultConfig {
@@ -433,10 +439,10 @@ export interface EventDesktopConfigAction {
   kind: 'desktop-config'
   timeoutSeconds?: number
   patch: {
-    theme?: DesktopTheme
+    theme?: EventDesktopTheme
     iconAnimation?: DesktopIconAnimation
     iconMotion?: number
-    widgetTheme?: Partial<WidgetThemeConfig>
+    widgetTheme?: EventWidgetThemePatch
     screenSaver?: Partial<DesktopConfig['screenSaver']>
   }
 }
@@ -446,7 +452,7 @@ export interface EventWidgetThemeOverridesAction {
   timeoutSeconds?: number
   widgetIds: string[]
   clearExisting?: boolean
-  theme: Partial<WidgetThemeConfig>
+  theme: EventWidgetThemePatch
 }
 
 export interface EventWidgetLayoutAction {

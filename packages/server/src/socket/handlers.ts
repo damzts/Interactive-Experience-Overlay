@@ -1,5 +1,6 @@
 import type { Server, Socket } from 'socket.io'
 import {
+  DEFAULT_WIDGET_THEME_PRESETS,
   STATE,
   mergeAppConfig,
   withEventConfigDefaults,
@@ -28,6 +29,10 @@ import {
   type OverlayTriggerPayload,
   type WidgetSimulationIntentPayload,
   type WidgetSimulationCommandPayload,
+  type DesktopTheme,
+  type EventWidgetThemePatch,
+  type WidgetSkinTheme,
+  type WidgetThemeConfig,
 } from '@ieom/shared'
 import type { AppConfig, DesktopConfig, EventConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
@@ -56,6 +61,47 @@ function isNavigableState(value: string): value is STATE {
 
 function normalizeActionId(value: string) {
   return value.toLowerCase().replace(/[_\s]+/g, '-')
+}
+
+const RANDOMIZABLE_DESKTOP_THEMES: DesktopTheme[] = [
+  'win98',
+  'frutiger aero',
+  'y2k candy',
+  'midnight chrome',
+  'sunset boulevard',
+  'coastal glass',
+  'amber terminal',
+]
+
+const RANDOMIZABLE_WIDGET_SKINS = Object.keys(DEFAULT_WIDGET_THEME_PRESETS) as WidgetSkinTheme[]
+
+function pickRandomEntry<T>(entries: T[]): T | null {
+  if (entries.length === 0) return null
+  return entries[Math.floor(Math.random() * entries.length)] ?? entries[0] ?? null
+}
+
+function resolveRuntimeDesktopTheme(theme?: DesktopTheme | 'random'): DesktopTheme | undefined {
+  if (theme === undefined) return undefined
+  if (theme !== 'random') return theme
+  return pickRandomEntry(RANDOMIZABLE_DESKTOP_THEMES) ?? 'win98'
+}
+
+function resolveRuntimeWidgetThemePatch(patch?: EventWidgetThemePatch): Partial<WidgetThemeConfig> | undefined {
+  if (!patch) return undefined
+
+  if (patch.skin === undefined) {
+    return Object.keys(patch).length > 0 ? { ...patch } : undefined
+  }
+
+  const resolvedSkin = patch.skin === 'random'
+    ? pickRandomEntry(RANDOMIZABLE_WIDGET_SKINS) ?? 'metalheart'
+    : patch.skin
+  const baseTheme = structuredClone(DEFAULT_WIDGET_THEME_PRESETS[resolvedSkin])
+  return {
+    ...baseTheme,
+    ...patch,
+    skin: resolvedSkin,
+  }
 }
 
 /** Resolve exit + intro TransitionStep[] for a scene:change.
@@ -619,11 +665,13 @@ export function setupSocketHandlers(
 
     for (const action of eventDef.actions ?? []) {
       if (action.kind === 'desktop-config') {
+        const resolvedDesktopTheme = resolveRuntimeDesktopTheme(action.patch.theme)
+        const resolvedWidgetThemePatch = resolveRuntimeWidgetThemePatch(action.patch.widgetTheme)
         const desktopConfigPatch = {
-          ...(action.patch.theme !== undefined ? { theme: action.patch.theme } : {}),
+          ...(resolvedDesktopTheme !== undefined ? { theme: resolvedDesktopTheme } : {}),
           ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
           ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
-          ...(action.patch.widgetTheme ? { widgetTheme: action.patch.widgetTheme } : {}),
+          ...(resolvedWidgetThemePatch ? { widgetTheme: resolvedWidgetThemePatch } : {}),
           ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
         }
         applyRuntimeConfigOverride({ desktopConfig: desktopConfigPatch })
@@ -639,11 +687,12 @@ export function setupSocketHandlers(
 
       if (action.kind === 'widget-theme-overrides') {
         const currentDesktop = withDesktopConfigDefaults(getConfig().desktopConfig)
+        const resolvedThemePatch = resolveRuntimeWidgetThemePatch(action.theme)
         const nextOverrides: NonNullable<DesktopConfig['widgetThemeOverrides']> = {}
         for (const widgetId of action.widgetIds) {
           nextOverrides[widgetId] = {
             ...((action.clearExisting ? currentDesktop.widgetTheme : currentDesktop.widgetThemeOverrides?.[widgetId] ?? currentDesktop.widgetTheme)),
-            ...action.theme,
+            ...(resolvedThemePatch ?? {}),
           }
         }
 
