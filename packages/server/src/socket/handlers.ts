@@ -81,10 +81,13 @@ function pickRandomEntry<T>(entries: T[]): T | null {
   return entries[Math.floor(Math.random() * entries.length)] ?? entries[0] ?? null
 }
 
-function resolveRuntimeDesktopTheme(theme?: DesktopTheme | 'random'): DesktopTheme | undefined {
+function resolveRuntimeDesktopTheme(theme?: DesktopTheme | 'random', currentTheme?: DesktopTheme): DesktopTheme | undefined {
   if (theme === undefined) return undefined
   if (theme !== 'random') return theme
-  return pickRandomEntry(RANDOMIZABLE_DESKTOP_THEMES) ?? 'win98'
+  const pool = currentTheme
+    ? RANDOMIZABLE_DESKTOP_THEMES.filter((entry) => entry !== currentTheme)
+    : RANDOMIZABLE_DESKTOP_THEMES
+  return pickRandomEntry(pool) ?? currentTheme ?? 'win98'
 }
 
 function resolveRuntimeWidgetThemePatch(patch?: EventWidgetThemePatch): Partial<WidgetThemeConfig> | undefined {
@@ -691,7 +694,10 @@ export function setupSocketHandlers(
 
     for (const action of eventDef.actions ?? []) {
       if (action.kind === 'desktop-config') {
-        const resolvedDesktopTheme = resolveRuntimeDesktopTheme(action.patch.theme)
+        const currentEffectiveDesktopTheme = withDesktopConfigDefaults(
+          mergeAppConfig(getConfig(), runtimeConfigOverride as unknown as Partial<AppConfig>).desktopConfig,
+        ).theme
+        const resolvedDesktopTheme = resolveRuntimeDesktopTheme(action.patch.theme, currentEffectiveDesktopTheme)
         const resolvedWidgetThemePatch = resolveRuntimeWidgetThemePatch(action.patch.widgetTheme)
         const desktopConfigPatch = {
           ...(resolvedDesktopTheme !== undefined ? { theme: resolvedDesktopTheme } : {}),
