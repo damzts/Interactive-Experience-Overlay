@@ -17,6 +17,7 @@ import {
   type DesktopStartMenuSimulationPhasePayload,
   type AmbianceSimulationAcceptedPayload,
   type AmbianceSimulationDonePayload,
+  type CameraPermissionState,
   type OverlayClientDiagnostics,
   type OverlayClientKind,
   type OverlayRuntimeStatusPayload,
@@ -167,6 +168,7 @@ export function setupSocketHandlers(
   let leaderLastHeartbeatAt: number | null = null
   let acceptedSimulatedToggles = 0
   let rejectedSimulatedToggles = 0
+  let cameraOwnerSocketId: string | null = null
   let runtimeConfigOverride: RuntimeConfigOverridePayload = {}
   const RUNTIME_OVERRIDE_RESET_SCOPES = [
     'desktop.theme',
@@ -195,6 +197,29 @@ export function setupSocketHandlers(
     recycleBinFull,
     startMenuState,
   })
+
+  const emitCameraOwner = () => {
+    io.emit('camera:owner', { socketId: cameraOwnerSocketId })
+  }
+
+  const pickGrantedCameraOwner = () => {
+    const grantedClients = [...overlayClientDiagnostics.values()]
+      .filter((client) => client.cameraPermission === 'granted')
+      .sort((left, right) => getOverlayLeaderRank(right) - getOverlayLeaderRank(left))
+    return grantedClients[0]?.socketId ?? null
+  }
+
+  const reconcileCameraOwner = () => {
+    if (cameraOwnerSocketId) {
+      const current = overlayClientDiagnostics.get(cameraOwnerSocketId)
+      if (current?.cameraPermission === 'granted') return
+    }
+
+    const nextOwner = pickGrantedCameraOwner()
+    if (nextOwner === cameraOwnerSocketId) return
+    cameraOwnerSocketId = nextOwner
+    emitCameraOwner()
+  }
 
   const mergeRuntimeConfigOverride = (
     base: RuntimeConfigOverridePayload,
@@ -513,6 +538,7 @@ export function setupSocketHandlers(
       ready: false,
       readyAt: null,
       lastHeartbeatAt: null,
+      cameraPermission: 'unknown',
     }
   }
 
@@ -949,6 +975,7 @@ export function setupSocketHandlers(
       accepted: acceptedSimulatedToggles,
       rejected: rejectedSimulatedToggles,
     })
+    socket.emit('camera:owner', { socketId: cameraOwnerSocketId })
     socket.emit('runtime:config:override', runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
@@ -996,6 +1023,7 @@ export function setupSocketHandlers(
         widgetRegistryReady: payload.widgetRegistryReady,
         ready: payload.ready,
         readyAt: payload.ready ? current.readyAt ?? Date.now() : null,
+        cameraPermission: payload.cameraPermission,
       })
 
       if (socket.id === simulationLeaderSocketId) {
@@ -1008,8 +1036,42 @@ export function setupSocketHandlers(
         }
       }
 
+      if (socket.id === cameraOwnerSocketId && payload.cameraPermission !== 'granted') {
+        reconcileCameraOwner()
+      }
+
       electSimulationLeaderIfNeeded('runtime-status')
       queueRuntimeDiagnosticsEmit()
+    })
+
+    socket.on('camera:owner:select', (nextSocketId, callback) => {
+      if (socketClientTypes.get(socket.id) !== 'admin') {
+        if (callback) callback('Only admin clients can select the camera owner')
+        return
+      }
+
+      const normalizedSocketId = typeof nextSocketId === 'string' ? nextSocketId.trim() : null
+      if (!normalizedSocketId) {
+        cameraOwnerSocketId = null
+        emitCameraOwner()
+        if (callback) callback(null)
+        return
+      }
+
+      const candidate = overlayClientDiagnostics.get(normalizedSocketId)
+      if (!candidate) {
+        if (callback) callback('Overlay client not found')
+        return
+      }
+
+      if (candidate.cameraPermission !== 'granted') {
+        if (callback) callback('Selected overlay client has not granted camera permission')
+        return
+      }
+
+      cameraOwnerSocketId = normalizedSocketId
+      emitCameraOwner()
+      if (callback) callback(null)
     })
 
     socket.on('overlay:force-resync', (payload?: { reason?: string }) => {
@@ -1291,6 +1353,10 @@ export function setupSocketHandlers(
       console.log(`[socket] disconnected: ${socket.id}`)
       socketClientTypes.delete(socket.id)
       overlayClientDiagnostics.delete(socket.id)
+      if (socket.id === cameraOwnerSocketId) {
+        cameraOwnerSocketId = null
+        reconcileCameraOwner()
+      }
       if (socket.id === simulationLeaderSocketId) {
         clearSimulationLeader('leader disconnected', {
           resyncReason: 'leader-disconnected',

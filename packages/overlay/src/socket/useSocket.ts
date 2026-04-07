@@ -42,6 +42,7 @@ export function useSocket() {
   const setObsConnected = useAppStore((s) => s.setObsConnected)
   const enqueueDesktopNotification = useAppStore((s) => s.enqueueDesktopNotification)
   const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
+  const setCameraOwnerSocketId = useAppStore((s) => s.setCameraOwnerSocketId)
   const setReactiveIconId = useAppStore((s) => s.setReactiveIconId)
   const markSocketActivity = useAppStore((s) => s.markSocketActivity)
   const syncDesktopRuntimeState = useAppStore((s) => s.syncDesktopRuntimeState)
@@ -138,6 +139,10 @@ export function useSocket() {
       setRuntimeConfigOverride(updates)
     }
 
+    const onCameraOwner = (payload: { socketId: string | null }) => {
+      setCameraOwnerSocketId(payload.socketId)
+    }
+
     const onObsStatus = (payload: ObsStatusPayload) => {
       setObsConnected(payload.connected)
     }
@@ -231,6 +236,7 @@ export function useSocket() {
     socket.on('config:update', onConfigUpdate)
     socket.on('config:patch', onConfigPatch)
     socket.on('runtime:config:override', onRuntimeConfigOverride)
+    socket.on('camera:owner', onCameraOwner)
     socket.on('obs:status', onObsStatus)
     socket.on('widget:toggle', onWidgetToggle)
     socket.on('desktop:notify', onDesktopNotify)
@@ -250,6 +256,7 @@ export function useSocket() {
       socket.off('config:update', onConfigUpdate)
       socket.off('config:patch', onConfigPatch)
       socket.off('runtime:config:override', onRuntimeConfigOverride)
+      socket.off('camera:owner', onCameraOwner)
       socket.off('obs:status', onObsStatus)
       socket.off('widget:toggle', onWidgetToggle)
       socket.off('desktop:notify', onDesktopNotify)

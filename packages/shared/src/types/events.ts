@@ -109,6 +109,7 @@ export interface AmbianceSimulationDonePayload {
 }
 
 export type OverlayClientKind = 'runtime' | 'embedded-preview' | 'dev' | 'unknown'
+export type CameraPermissionState = 'unknown' | 'prompt' | 'granted' | 'denied' | 'unsupported'
 
 export type AmbianceMirrorPolicy = 'shared-safe' | 'leader-only' | 'unsafe-requires-runtime-event'
 
@@ -117,6 +118,7 @@ export interface OverlayRuntimeStatusPayload {
   cursorReady: boolean
   widgetRegistryReady: boolean
   ready: boolean
+  cameraPermission: CameraPermissionState
 }
 
 export interface OverlayClientDiagnostics {
@@ -130,6 +132,7 @@ export interface OverlayClientDiagnostics {
   ready: boolean
   readyAt: number | null
   lastHeartbeatAt: number | null
+  cameraPermission: CameraPermissionState
 }
 
 export interface AmbianceHistoryEntry {
@@ -296,6 +299,7 @@ export interface ServerToClientEvents {
   'ambiance:leader': (payload: { socketId: string | null }) => void
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void
   'runtime:diagnostics': (payload: RuntimeDiagnosticsPayload) => void
+  'camera:owner': (payload: { socketId: string | null }) => void
   'runtime:config:override': (payload: RuntimeConfigOverridePayload) => void
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
   'overlay:resync': (payload: { reason: string }) => void
@@ -327,6 +331,7 @@ export interface ClientToServerEvents {
   'ambiance:leader:heartbeat': () => void
   'ambiance:history:clear': () => void
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void
+  'camera:owner:select': (socketId: string | null, callback?: (err: string | null) => void) => void
   'overlay:force-resync': (payload?: { reason?: string }) => void
   'ambiance:simulate:accepted': (payload: AmbianceSimulationAcceptedPayload) => void
   'ambiance:simulate:started': (payload: AmbianceSimulationStartedPayload) => void

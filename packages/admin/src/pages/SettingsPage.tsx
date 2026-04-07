@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { useAdminStore } from '../store/useAdminStore'
+import { socket } from '../socket/client'
 import { Btn, Toggle, ConfigSectionPanel } from '../components/ui'
 
 function formatObsRetry(nextRetryAt: number | null) {
@@ -25,6 +26,8 @@ export function SettingsPage({
   const adminUrl = `${protocol}//${host}:3002`
   const previewTarget = useAdminStore((s) => s.previewTarget)
   const setPreviewTarget = useAdminStore((s) => s.setPreviewTarget)
+  const cameraOwnerSocketId = useAdminStore((s) => s.cameraOwnerSocketId)
+  const overlayClients = useAdminStore((s) => s.runtimeDiagnostics.ambiance.overlayClients)
 
   const [url, setUrl] = useState(config.obs.url)
   const [password, setPassword] = useState(config.obs.password)
@@ -32,9 +35,24 @@ export function SettingsPage({
   const [saved, setSaved] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
+  const [cameraOwnerSaving, setCameraOwnerSaving] = useState(false)
+  const [cameraOwnerError, setCameraOwnerError] = useState<string | null>(null)
   const obsConnected = useAdminStore((s) => s.obsConnected)
   const obsStatus = useAdminStore((s) => s.obsStatus)
   const previewUrl = previewTarget === 'runtime' ? overlayRuntimeUrl : overlayDevUrl
+  const overlayClientOptions = useMemo(() => {
+    const permissionRank = { granted: 0, prompt: 1, denied: 2, unknown: 3, unsupported: 4 } as const
+    return [...overlayClients].sort((left, right) => {
+      const permissionDelta = permissionRank[left.cameraPermission] - permissionRank[right.cameraPermission]
+      if (permissionDelta !== 0) return permissionDelta
+      return left.label.localeCompare(right.label)
+    })
+  }, [overlayClients])
+  const cameraOwnerLabel = useMemo(() => {
+    if (!cameraOwnerSocketId) return 'Automatic / no lock'
+    const match = overlayClients.find((client) => client.socketId === cameraOwnerSocketId)
+    return match ? `${match.label} · ${match.socketId.slice(0, 8)}` : `${cameraOwnerSocketId.slice(0, 8)} (offline)`
+  }, [cameraOwnerSocketId, overlayClients])
 
   useEffect(() => {
     setUrl(config.obs.url)
@@ -61,6 +79,20 @@ export function SettingsPage({
     } finally {
       setTesting(false)
     }
+  }
+
+  const handleCameraOwnerChange = async (value: string) => {
+    setCameraOwnerSaving(true)
+    setCameraOwnerError(null)
+
+    await new Promise<void>((resolve) => {
+      socket.emit('camera:owner:select', value || null, (err) => {
+        if (err) setCameraOwnerError(err)
+        resolve()
+      })
+    })
+
+    setCameraOwnerSaving(false)
   }
 
   if (mode === 'about') {
@@ -168,6 +200,56 @@ export function SettingsPage({
           When enabled, the admin preview loads <span className="font-mono text-zinc-200">{overlayRuntimeUrl}</span>.
           When disabled, it loads the direct overlay dev server at <span className="font-mono text-zinc-200">{overlayDevUrl}</span>.
           This setting affects the admin preview only. OBS should still use <span className="font-mono text-cyan-300">{overlayRuntimeUrl}</span>.
+        </div>
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Camera Capture Owner">
+        <div className="space-y-3">
+          <div className="text-xs text-zinc-400 leading-relaxed">
+            Choose which connected overlay client is allowed to capture the camera. Only clients with granted permission can be selected. Other overlays stay passive and show a status message instead of trying to grab the device.
+          </div>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <div>
+              <label className="mb-1 block text-xs text-zinc-400">Allowed overlay client</label>
+              <select
+                value={cameraOwnerSocketId ?? ''}
+                onChange={(e) => void handleCameraOwnerChange(e.target.value)}
+                disabled={cameraOwnerSaving}
+                className="w-full text-xs"
+              >
+                <option value="">Automatic / no lock</option>
+                {overlayClientOptions.map((client) => (
+                  <option
+                    key={client.socketId}
+                    value={client.socketId}
+                    disabled={client.cameraPermission !== 'granted'}
+                  >
+                    {`${client.label} · ${client.socketId.slice(0, 8)} · ${client.cameraPermission}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] text-zinc-300">
+              Current owner: <span className="font-mono text-zinc-100">{cameraOwnerLabel}</span>
+            </div>
+          </div>
+          {cameraOwnerError && (
+            <div className="text-xs text-red-400">{cameraOwnerError}</div>
+          )}
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {overlayClientOptions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-zinc-800/80 bg-zinc-950/35 px-3 py-3 text-xs text-zinc-500">
+                No overlay clients connected.
+              </div>
+            ) : overlayClientOptions.map((client) => (
+              <div key={client.socketId} className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-xs text-zinc-300">
+                <div className="font-medium text-zinc-100">{client.label}</div>
+                <div className="mt-1 font-mono text-[11px] text-zinc-500">{client.socketId}</div>
+                <div className="mt-2 text-zinc-400">Permission: <span className="text-zinc-200">{client.cameraPermission}</span></div>
+                <div className="text-zinc-400">Ready: <span className="text-zinc-200">{client.ready ? 'yes' : 'no'}</span></div>
+              </div>
+            ))}
+          </div>
         </div>
       </ConfigSectionPanel>
 

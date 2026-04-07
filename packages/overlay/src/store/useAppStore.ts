@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { STATE, DEFAULT_CONFIG, DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE, applyRuntimeConfigOverride, mergeAppConfig } from '@ieom/shared'
 import type {
   AppConfig,
+  CameraPermissionState,
   DesktopNotificationPayload,
   DesktopRuntimeStatePayload,
   RuntimeConfigOverridePayload,
@@ -58,6 +59,8 @@ interface AppStore {
   closingWidgets: Set<string>
   desktopNotifications: DesktopNotificationItem[]
   recycleBinFull: boolean
+  cameraPermissionState: CameraPermissionState
+  cameraOwnerSocketId: string | null
   reactiveIconId: string | null
   lastSocketActivityAt: number
 
@@ -81,6 +84,8 @@ interface AppStore {
   enqueueDesktopNotification: (payload: DesktopNotificationPayload, maxVisible?: number) => void
   dismissDesktopNotification: (id: string) => void
   setRecycleBinFull: (full: boolean) => void
+  setCameraPermissionState: (state: CameraPermissionState) => void
+  setCameraOwnerSocketId: (socketId: string | null) => void
   setReactiveIconId: (id: string | null) => void
   markSocketActivity: () => void
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
@@ -102,6 +107,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   closingWidgets: new Set<string>(),
   desktopNotifications: [],
   recycleBinFull: false,
+  cameraPermissionState: 'unknown',
+  cameraOwnerSocketId: null,
   reactiveIconId: null,
   lastSocketActivityAt: 0,
 
@@ -264,6 +271,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     desktopNotifications: state.desktopNotifications.filter((item) => item.id !== id),
   })),
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
+  setCameraPermissionState: (cameraPermissionState) => set({ cameraPermissionState }),
+  setCameraOwnerSocketId: (cameraOwnerSocketId) => set({ cameraOwnerSocketId }),
   setReactiveIconId: (id) => set({ reactiveIconId: id }),
   markSocketActivity: () => set({ lastSocketActivityAt: Date.now() }),
   syncDesktopRuntimeState: (payload) => {

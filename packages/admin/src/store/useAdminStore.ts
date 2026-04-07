@@ -56,6 +56,7 @@ interface AdminStore {
   config: AppConfig
   configLoaded: boolean
   previewTarget: PreviewTarget
+  cameraOwnerSocketId: string | null
   openWidgetIds: string[]
   recycleBinFull: boolean
   simulationLeaderId: string | null
@@ -71,6 +72,7 @@ interface AdminStore {
   patchConfig: (updates: Partial<AppConfig>) => void
   setRuntimeConfigOverride: (updates: RuntimeConfigOverridePayload) => void
   setPreviewTarget: (target: PreviewTarget) => void
+  setCameraOwnerSocketId: (socketId: string | null) => void
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
   setRecycleBinFull: (full: boolean) => void
@@ -100,6 +102,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   config: DEFAULT_CONFIG,
   configLoaded: false,
   previewTarget: getStoredPreviewTarget(),
+  cameraOwnerSocketId: null,
   openWidgetIds: [],
   recycleBinFull: false,
   simulationLeaderId: null,
@@ -171,6 +174,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     storePreviewTarget(target)
     set({ previewTarget: target })
   },
+  setCameraOwnerSocketId: (cameraOwnerSocketId) => set({ cameraOwnerSocketId }),
   syncDesktopRuntimeState: (payload) => set({
     openWidgetIds: payload.openWidgetIds,
     recycleBinFull: payload.recycleBinFull,

@@ -11,6 +11,7 @@ export default function App() {
   const setConfig = useAdminStore((s) => s.setConfig)
   const patchConfig = useAdminStore((s) => s.patchConfig)
   const setRuntimeConfigOverride = useAdminStore((s) => s.setRuntimeConfigOverride)
+  const setCameraOwnerSocketId = useAdminStore((s) => s.setCameraOwnerSocketId)
   const syncDesktopRuntimeState = useAdminStore((s) => s.syncDesktopRuntimeState)
   const toggleWidgetRuntimeState = useAdminStore((s) => s.toggleWidgetRuntimeState)
   const setRecycleBinFull = useAdminStore((s) => s.setRecycleBinFull)
@@ -62,6 +63,10 @@ export default function App() {
       setRuntimeConfigOverride(updates)
     })
 
+    socket.on('camera:owner', ({ socketId }) => {
+      setCameraOwnerSocketId(socketId)
+    })
+
     socket.on('ambiance:leader', ({ socketId }) => {
       setSimulationLeaderId(socketId)
     })
@@ -83,11 +88,12 @@ export default function App() {
       socket.off('config:update')
       socket.off('config:patch')
       socket.off('runtime:config:override')
+      socket.off('camera:owner')
       socket.off('ambiance:leader')
       socket.off('ambiance:metrics')
       socket.off('runtime:diagnostics')
     }
-  }, [fetchConfig, patchConfig, setAmbianceMetrics, setConfig, setCurrentState, setObsStatus, setRecycleBinFull, setRuntimeConfigOverride, setRuntimeDiagnostics, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
+  }, [fetchConfig, patchConfig, setAmbianceMetrics, setCameraOwnerSocketId, setConfig, setCurrentState, setObsStatus, setRecycleBinFull, setRuntimeConfigOverride, setRuntimeDiagnostics, setSimulationLeaderId, syncDesktopRuntimeState, toggleWidgetRuntimeState])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

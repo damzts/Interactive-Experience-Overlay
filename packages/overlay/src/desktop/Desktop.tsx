@@ -385,6 +385,7 @@ export function Desktop({ apps }: DesktopProps) {
     cursorReady: false,
     widgetRegistryReady: false,
     ready: false,
+    cameraPermission: 'unknown',
   })
 
   const openWidgets = useAppStore((s) => s.openWidgets)
@@ -418,9 +419,49 @@ export function Desktop({ apps }: DesktopProps) {
   desktopConfigRef.current = desktopConfig
   const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
   const supportedApps = useMemo(() => apps, [apps])
+  const cameraPermissionState = useAppStore((s) => s.cameraPermissionState)
+  const setCameraPermissionState = useAppStore((s) => s.setCameraPermissionState)
 
   const isSimulationLeader = simulationLeaderId !== null && simulationLeaderId === socket.id;
   const overlayRuntimeReady = overlayRuntimeStatus.ready
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraPermissionState('unsupported')
+      return
+    }
+    if (!navigator.permissions?.query) {
+      return
+    }
+
+    let cancelled = false
+    let permissionStatus: PermissionStatus | null = null
+
+    const syncPermission = () => {
+      if (cancelled || !permissionStatus) return
+      const state = permissionStatus.state
+      if (state === 'granted' || state === 'prompt' || state === 'denied') {
+        setCameraPermissionState(state)
+      }
+    }
+
+    void navigator.permissions.query({ name: 'camera' as PermissionName })
+      .then((status) => {
+        if (cancelled) return
+        permissionStatus = status
+        syncPermission()
+        permissionStatus.addEventListener?.('change', syncPermission)
+      })
+      .catch(() => {
+        if (!cancelled) setCameraPermissionState('unknown')
+      })
+
+    return () => {
+      cancelled = true
+      permissionStatus?.removeEventListener?.('change', syncPermission)
+    }
+  }, [setCameraPermissionState])
 
   useEffect(() => {
     const emitRuntimeStatus = (force = false) => {
@@ -429,6 +470,7 @@ export function Desktop({ apps }: DesktopProps) {
         cursorReady: !!(window as any).__cursorOverlayController,
         widgetRegistryReady: supportedApps.length > 0,
         ready: !!(window as any).__cursorOverlayController && supportedApps.length > 0,
+        cameraPermission: cameraPermissionState,
       }
       const signature = JSON.stringify(nextStatus)
       if (force || overlayRuntimeStatusSignatureRef.current !== signature) {
@@ -455,7 +497,7 @@ export function Desktop({ apps }: DesktopProps) {
       window.clearInterval(timer)
       socket.off('connect', onConnect)
     }
-  }, [overlayRuntimeReady, supportedApps])
+  }, [cameraPermissionState, overlayRuntimeReady, supportedApps])
 
   useEffect(() => {
     if (!isSimulationLeader || !overlayRuntimeReady) return

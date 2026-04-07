@@ -2163,21 +2163,22 @@ function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) 
 
   const enumerateCameras = useCallback(async (requestPermission = false) => {
     setDetectingCameras(true)
+    let probe: MediaStream | null = null
     try {
       if (requestPermission) {
-        const probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        probe.getTracks().forEach((t) => t.stop())
-        setCameraLabelsGranted(true)
+        probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       }
       const all = await navigator.mediaDevices.enumerateDevices()
-      const cams = all
-        .filter((d) => d.kind === 'videoinput')
+      const videoInputs = all.filter((d) => d.kind === 'videoinput')
+      const labelsAvailable = videoInputs.some((d) => d.label.trim().length > 0)
+      const cams = videoInputs
         .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Cámara ${i + 1}` }))
       setDetectedCameras(cams)
-      if (cams.some((c) => !c.label.startsWith('Cámara '))) setCameraLabelsGranted(true)
+      setCameraLabelsGranted(requestPermission || labelsAvailable)
     } catch {
       // permission denied or unavailable — keep whatever we have
     } finally {
+      probe?.getTracks().forEach((t) => t.stop())
       setDetectingCameras(false)
     }
   }, [])
