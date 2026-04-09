@@ -328,6 +328,11 @@ function normalizeEventWidgetThemePatch(config?: EventWidgetThemePatch | null): 
   return next
 }
 
+function normalizeWidgetThemeIntensityField(value: unknown, fallback: number, min = 0, max = 3): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback
+}
+
 function normalizeWidgetThemeConfig(config?: Partial<WidgetThemeConfig> | null): WidgetThemeConfig {
   const widgetSkin = normalizeWidgetSkinTheme(config?.skin)
   const widgetPreset = DEFAULT_WIDGET_THEME_PRESETS[widgetSkin]
@@ -340,6 +345,10 @@ function normalizeWidgetThemeConfig(config?: Partial<WidgetThemeConfig> | null):
     atmosphere: normalizeWidgetThemeAtmosphere(config?.atmosphere ?? widgetPreset.atmosphere),
     motionIntensity: normalizeWidgetThemeIntensity(config?.motionIntensity, widgetPreset.motionIntensity),
     glowIntensity: normalizeWidgetThemeIntensity(config?.glowIntensity, widgetPreset.glowIntensity),
+    shellOpacity: normalizeWidgetThemeIntensityField(config?.shellOpacity, widgetPreset.shellOpacity, 0, 1),
+    shadowIntensity: normalizeWidgetThemeIntensityField(config?.shadowIntensity, widgetPreset.shadowIntensity, 0, 3),
+    borderRadius: normalizeWidgetThemeIntensityField(config?.borderRadius, widgetPreset.borderRadius, 0, 32),
+    titleColor: typeof config?.titleColor === 'string' ? config.titleColor : (widgetPreset.titleColor ?? ''),
   }
 }
 
@@ -366,206 +375,26 @@ export const DEFAULT_STICKY_NOTES_SETTINGS: StickyNotesSettings = {
 }
 
 export const DEFAULT_WIDGET_THEME_PRESETS: Record<WidgetSkinTheme, WidgetThemeConfig> = {
-  metalheart: {
-    skin: 'metalheart',
-    fontFamily: 'Audiowide',
-    accentColor: '#ff5c8a',
-    textColor: '#f8fbff',
-    animation: 'shimmer',
-    atmosphere: 'sparkle',
-    motionIntensity: 0.95,
-    glowIntensity: 1.2,
-  },
-  'genx soft club': {
-    skin: 'genx soft club',
-    fontFamily: 'Electrolize',
-    accentColor: '#ff94d6',
-    textColor: '#2c1430',
-    animation: 'pulse',
-    atmosphere: 'sparkle',
-    motionIntensity: 1.15,
-    glowIntensity: 0.85,
-  },
-  chromecore: {
-    skin: 'chromecore',
-    fontFamily: 'Rajdhani',
-    accentColor: '#7fe0ff',
-    textColor: '#152433',
-    animation: 'shimmer',
-    atmosphere: 'grid',
-    motionIntensity: 0.8,
-    glowIntensity: 0.95,
-  },
-  'y2k futurism': {
-    skin: 'y2k futurism',
-    fontFamily: 'Orbitron',
-    accentColor: '#2cf7ff',
-    textColor: '#ebfbff',
-    animation: 'aurora',
-    atmosphere: 'nebula',
-    motionIntensity: 1.35,
-    glowIntensity: 1.6,
-  },
-  transparent: {
-    skin: 'transparent',
-    fontFamily: 'Share Tech Mono',
-    accentColor: '#b8f4ff',
-    textColor: '#effcff',
-    animation: 'broadcast',
-    atmosphere: 'scanlines',
-    motionIntensity: 1,
-    glowIntensity: 1.05,
-  },
-  'aqua pop': {
-    skin: 'aqua pop',
-    fontFamily: 'Rajdhani',
-    accentColor: '#4ddcff',
-    textColor: '#08374c',
-    animation: 'shimmer',
-    atmosphere: 'sparkle',
-    motionIntensity: 1.05,
-    glowIntensity: 1.25,
-  },
-  'mallsoft pearl': {
-    skin: 'mallsoft pearl',
-    fontFamily: 'Electrolize',
-    accentColor: '#ffb8e8',
-    textColor: '#5a2b58',
-    animation: 'aurora',
-    atmosphere: 'nebula',
-    motionIntensity: 0.9,
-    glowIntensity: 1.15,
-  },
-  'messenger glow': {
-    skin: 'messenger glow',
-    fontFamily: 'Audiowide',
-    accentColor: '#75ffb2',
-    textColor: '#16352a',
-    animation: 'pulse',
-    atmosphere: 'grid',
-    motionIntensity: 1.15,
-    glowIntensity: 1,
-  },
-  'limewire plasma': {
-    skin: 'limewire plasma',
-    fontFamily: 'Share Tech Mono',
-    accentColor: '#7aff54',
-    textColor: '#e8ffe1',
-    animation: 'broadcast',
-    atmosphere: 'scanlines',
-    motionIntensity: 1.35,
-    glowIntensity: 1.45,
-  },
-  'cyber y2k': {
-    skin: 'cyber y2k',
-    fontFamily: 'Orbitron',
-    accentColor: '#ff6dff',
-    textColor: '#f4fbff',
-    animation: 'aurora',
-    atmosphere: 'grid',
-    motionIntensity: 1.45,
-    glowIntensity: 1.7,
-  },
-  'digital futurism': {
-    skin: 'digital futurism',
-    fontFamily: 'Audiowide',
-    accentColor: '#56f0ff',
-    textColor: '#eafcff',
-    animation: 'shimmer',
-    atmosphere: 'nebula',
-    motionIntensity: 1.1,
-    glowIntensity: 1.35,
-  },
-  'ssx rush': {
-    skin: 'ssx rush',
-    fontFamily: 'Rajdhani',
-    accentColor: '#ff8e2b',
-    textColor: '#fff7ee',
-    animation: 'pulse',
-    atmosphere: 'sparkle',
-    motionIntensity: 1.55,
-    glowIntensity: 1.2,
-  },
-  'ps2 drift': {
-    skin: 'ps2 drift',
-    fontFamily: 'Electrolize',
-    accentColor: '#6ba4ff',
-    textColor: '#edf3ff',
-    animation: 'broadcast',
-    atmosphere: 'grid',
-    motionIntensity: 1.1,
-    glowIntensity: 1.1,
-  },
-  'xbox blade': {
-    skin: 'xbox blade',
-    fontFamily: 'Share Tech Mono',
-    accentColor: '#79ff5a',
-    textColor: '#efffe7',
-    animation: 'broadcast',
-    atmosphere: 'scanlines',
-    motionIntensity: 1.25,
-    glowIntensity: 1.3,
-  },
-  'cel street': {
-    skin: 'cel street',
-    fontFamily: 'Audiowide',
-    accentColor: '#ffd447',
-    textColor: '#1a1f2f',
-    animation: 'pulse',
-    atmosphere: 'clean',
-    motionIntensity: 1.2,
-    glowIntensity: 0.9,
-  },
-  'aero nova': {
-    skin: 'aero nova',
-    fontFamily: 'Rajdhani',
-    accentColor: '#59d7ff',
-    textColor: '#103b58',
-    animation: 'aurora',
-    atmosphere: 'sparkle',
-    motionIntensity: 1.05,
-    glowIntensity: 1.45,
-  },
-  'aero opaline': {
-    skin: 'aero opaline',
-    fontFamily: 'Electrolize',
-    accentColor: '#7ceee7',
-    textColor: '#1a4960',
-    animation: 'shimmer',
-    atmosphere: 'nebula',
-    motionIntensity: 0.95,
-    glowIntensity: 1.25,
-  },
-  'dial-up candy': {
-    skin: 'dial-up candy',
-    fontFamily: 'Trebuchet MS',
-    accentColor: '#58c8ff',
-    textColor: '#20344d',
-    animation: 'broadcast',
-    atmosphere: 'sparkle',
-    motionIntensity: 1.25,
-    glowIntensity: 1.05,
-  },
-  'webcore flash': {
-    skin: 'webcore flash',
-    fontFamily: 'Audiowide',
-    accentColor: '#ffdf3c',
-    textColor: '#201834',
-    animation: 'pulse',
-    atmosphere: 'grid',
-    motionIntensity: 1.4,
-    glowIntensity: 1.2,
-  },
-  'lan party': {
-    skin: 'lan party',
-    fontFamily: 'Share Tech Mono',
-    accentColor: '#67ffcc',
-    textColor: '#e7fff7',
-    animation: 'broadcast',
-    atmosphere: 'scanlines',
-    motionIntensity: 1.35,
-    glowIntensity: 1.45,
-  },
+  metalheart:         { skin: 'metalheart',       fontFamily: 'Audiowide',       accentColor: '#ff5c8a', textColor: '#f8fbff', titleColor: '',        animation: 'shimmer',   atmosphere: 'sparkle',   motionIntensity: 0.95, glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.2, borderRadius: 0  },
+  'genx soft club':   { skin: 'genx soft club',   fontFamily: 'Electrolize',     accentColor: '#ff94d6', textColor: '#2c1430', titleColor: '',        animation: 'pulse',     atmosphere: 'sparkle',   motionIntensity: 1.15, glowIntensity: 0.85, shellOpacity: 1,    shadowIntensity: 0.8, borderRadius: 8  },
+  chromecore:         { skin: 'chromecore',        fontFamily: 'Rajdhani',        accentColor: '#7fe0ff', textColor: '#152433', titleColor: '',        animation: 'shimmer',   atmosphere: 'grid',      motionIntensity: 0.8,  glowIntensity: 0.95, shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 2  },
+  'y2k futurism':     { skin: 'y2k futurism',      fontFamily: 'Orbitron',        accentColor: '#2cf7ff', textColor: '#ebfbff', titleColor: '',        animation: 'aurora',    atmosphere: 'nebula',    motionIntensity: 1.35, glowIntensity: 1.6,  shellOpacity: 1,    shadowIntensity: 1.6, borderRadius: 4  },
+  transparent:        { skin: 'transparent',       fontFamily: 'Share Tech Mono', accentColor: '#b8f4ff', textColor: '#effcff', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1,    glowIntensity: 1.05, shellOpacity: 0.55, shadowIntensity: 0.4, borderRadius: 6  },
+  'aqua pop':         { skin: 'aqua pop',          fontFamily: 'Rajdhani',        accentColor: '#4ddcff', textColor: '#08374c', titleColor: '',        animation: 'shimmer',   atmosphere: 'sparkle',   motionIntensity: 1.05, glowIntensity: 1.25, shellOpacity: 0.92, shadowIntensity: 1.1, borderRadius: 10 },
+  'mallsoft pearl':   { skin: 'mallsoft pearl',    fontFamily: 'Electrolize',     accentColor: '#ffb8e8', textColor: '#5a2b58', titleColor: '',        animation: 'aurora',    atmosphere: 'nebula',    motionIntensity: 0.9,  glowIntensity: 1.15, shellOpacity: 0.9,  shadowIntensity: 0.7, borderRadius: 12 },
+  'messenger glow':   { skin: 'messenger glow',   fontFamily: 'Audiowide',       accentColor: '#75ffb2', textColor: '#16352a', titleColor: '',        animation: 'pulse',     atmosphere: 'grid',      motionIntensity: 1.15, glowIntensity: 1,    shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 4  },
+  'limewire plasma':  { skin: 'limewire plasma',  fontFamily: 'Share Tech Mono', accentColor: '#7aff54', textColor: '#e8ffe1', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
+  'cyber y2k':        { skin: 'cyber y2k',         fontFamily: 'Orbitron',        accentColor: '#ff6dff', textColor: '#f4fbff', titleColor: '',        animation: 'aurora',    atmosphere: 'grid',      motionIntensity: 1.45, glowIntensity: 1.7,  shellOpacity: 1,    shadowIntensity: 1.7, borderRadius: 2  },
+  'digital futurism': { skin: 'digital futurism',  fontFamily: 'Audiowide',       accentColor: '#56f0ff', textColor: '#eafcff', titleColor: '',        animation: 'shimmer',   atmosphere: 'nebula',    motionIntensity: 1.1,  glowIntensity: 1.35, shellOpacity: 0.95, shadowIntensity: 1.3, borderRadius: 4  },
+  'ssx rush':         { skin: 'ssx rush',          fontFamily: 'Rajdhani',        accentColor: '#ff8e2b', textColor: '#fff7ee', titleColor: '',        animation: 'pulse',     atmosphere: 'sparkle',   motionIntensity: 1.55, glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.2, borderRadius: 6  },
+  'ps2 drift':        { skin: 'ps2 drift',         fontFamily: 'Electrolize',     accentColor: '#6ba4ff', textColor: '#edf3ff', titleColor: '',        animation: 'broadcast', atmosphere: 'grid',      motionIntensity: 1.1,  glowIntensity: 1.1,  shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 0  },
+  'xbox blade':       { skin: 'xbox blade',        fontFamily: 'Share Tech Mono', accentColor: '#79ff5a', textColor: '#efffe7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.25, glowIntensity: 1.3,  shellOpacity: 1,    shadowIntensity: 1.3, borderRadius: 2  },
+  'cel street':       { skin: 'cel street',        fontFamily: 'Audiowide',       accentColor: '#ffd447', textColor: '#1a1f2f', titleColor: '',        animation: 'pulse',     atmosphere: 'clean',     motionIntensity: 1.2,  glowIntensity: 0.9,  shellOpacity: 1,    shadowIntensity: 0.9, borderRadius: 4  },
+  'aero nova':        { skin: 'aero nova',         fontFamily: 'Rajdhani',        accentColor: '#59d7ff', textColor: '#103b58', titleColor: '',        animation: 'aurora',    atmosphere: 'sparkle',   motionIntensity: 1.05, glowIntensity: 1.45, shellOpacity: 0.88, shadowIntensity: 0.6, borderRadius: 14 },
+  'aero opaline':     { skin: 'aero opaline',      fontFamily: 'Electrolize',     accentColor: '#7ceee7', textColor: '#1a4960', titleColor: '',        animation: 'shimmer',   atmosphere: 'nebula',    motionIntensity: 0.95, glowIntensity: 1.25, shellOpacity: 0.82, shadowIntensity: 0.5, borderRadius: 16 },
+  'dial-up candy':    { skin: 'dial-up candy',     fontFamily: 'Trebuchet MS',    accentColor: '#58c8ff', textColor: '#20344d', titleColor: '',        animation: 'broadcast', atmosphere: 'sparkle',   motionIntensity: 1.25, glowIntensity: 1.05, shellOpacity: 1,    shadowIntensity: 0.9, borderRadius: 8  },
+  'webcore flash':    { skin: 'webcore flash',     fontFamily: 'Audiowide',       accentColor: '#ffdf3c', textColor: '#201834', titleColor: '',        animation: 'pulse',     atmosphere: 'grid',      motionIntensity: 1.4,  glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.1, borderRadius: 6  },
+  'lan party':        { skin: 'lan party',         fontFamily: 'Share Tech Mono', accentColor: '#67ffcc', textColor: '#e7fff7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
 }
 
 export const DEFAULT_RECYCLE_BIN_SETTINGS: RecycleBinSettings = {
@@ -656,7 +485,9 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   defaultIconSize: 'normal',
   autoArrangeIcons: false,
   iconAnimation: 'none',
+  iconArrangement: 'grid',
   iconMotion: 0.45,
+  iconArrangementMotion: 1,
   widgetDefaultZIndices: {
     gallery: 0,
     browser: 0,
@@ -1470,11 +1301,10 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
                 : currentDesktopConfig.globalThemeDefault.appearance,
             }
           : currentDesktopConfig.globalThemeDefault,
-        widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides
-          ? {
-              ...(currentDesktopConfig.widgetThemeOverrides ?? {}),
-              ...updates.desktopConfig.widgetThemeOverrides,
-            }
+        widgetThemeOverrides: 'widgetThemeOverrides' in updates.desktopConfig
+          ? (Object.keys(updates.desktopConfig.widgetThemeOverrides ?? {}).length
+              ? updates.desktopConfig.widgetThemeOverrides
+              : undefined)
           : currentDesktopConfig.widgetThemeOverrides,
         widgetPositions: updates.desktopConfig.widgetPositions
           ? { ...(currentDesktopConfig.widgetPositions ?? {}), ...updates.desktopConfig.widgetPositions }

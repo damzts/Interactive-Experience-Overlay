@@ -14,11 +14,7 @@ import { AudioPanel } from '../../pages/AudioPanel'
 import { AmbiancePanel } from '../../pages/AmbiancePanel'
 import type { SelectedItem } from './types'
 import { AppForm, NewWidgetForm, WidgetLayoutPanel } from './AppForm'
-import { SceneConfig } from './SceneConfig'
-import { LobbyConfigEditor, DesktopConfigEditor } from './EnvEditors'
-import { StyleEditor } from './StyleEditor'
-import { DefaultStylingEditor } from './DefaultStylingEditor'
-import { EnvironmentLiveNotice } from './LivePreview'
+import { ScenePanel, LobbyThemeEditor, DesktopThemeEditor } from './EnvEditors'
 import { SocketLogConsole } from './socketLog'
 import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 
@@ -75,40 +71,54 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
 
   if (selected.kind === 'env') {
-    if (selected.envState === STATE.LOBBY) return (
-      <div className="space-y-5">
-        <EnvironmentLiveNotice targetState={STATE.LOBBY} label="Lobby" />
-        <LobbyConfigEditor />
-        <StyleEditor sceneId={STATE.LOBBY} />
-      </div>
+    const isLobby = selected.envState === STATE.LOBBY
+    return (
+        <ScenePanel sceneId={selected.envState} />
     )
+  }
+
+  if (selected.kind === 'scene') {
+    const app = applications.find((a) => a.targetSceneId === selected.sceneState)
     return (
       <div className="space-y-5">
-        <EnvironmentLiveNotice targetState={STATE.DESKTOP} label="Desktop" />
-        <DesktopConfigEditor />
-        <StyleEditor sceneId={STATE.DESKTOP} />
+        <ScenePanel sceneId={selected.sceneState} />
+        {app && (
+          <AppForm app={app} onDelete={() => {
+            saveConfig({ applications: applications.filter((a) => a.id !== app.id) })
+            onDeleted()
+          }} />
+        )}
       </div>
     )
   }
 
-  if (selected.kind === 'scene') return <SceneConfig sceneId={selected.sceneState as STATE} />
-
   if (selected.kind === 'app') {
     const app = applications.find((a) => a.id === selected.appId)
     if (!app) return <div className="text-zinc-600 text-xs italic p-4">App not found.</div>
-    return (
-      <AppForm app={app} onDelete={() => {
-        if (app.appType === 'widget' && isSystemWidget(app)) return
 
-        saveConfig({
-          applications: applications.filter((a) => a.id !== selected.appId),
-          ...(app.appType === 'widget'
-            ? { desktopConfig: removeWidgetFromDesktopConfig(desktopConfig, app.id) }
-            : {}),
-        })
-        onDeleted()
-      }} />
-    )
+    if (app.appType === 'widget') {
+      return (
+        <AppForm app={app} onDelete={() => {
+          if (isSystemWidget(app)) return
+          saveConfig({
+            applications: applications.filter((a) => a.id !== selected.appId),
+            desktopConfig: removeWidgetFromDesktopConfig(desktopConfig, app.id),
+          })
+          onDeleted()
+        }} />
+      )
+    }
+
+    if (app.appType === 'decoration') {
+      return (
+        <AppForm app={app} onDelete={() => {
+          saveConfig({ applications: applications.filter((a) => a.id !== selected.appId) })
+          onDeleted()
+        }} />
+      )
+    }
+
+    return null
   }
 
   if (selected.kind === 'widget-create') {
@@ -119,15 +129,8 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
     return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
   }
 
-  if (selected.kind === 'default-styling') {
-    return (
-      <div className="space-y-5">
-        <EnvironmentLiveNotice targetState={STATE.DESKTOP} label="Global Theme" />
-        <DefaultStylingEditor />
-      </div>
-    )
-  }
-
+  if (selected.kind === 'lobby-theme')   return <LobbyThemeEditor />
+  if (selected.kind === 'desktop-theme') return <DesktopThemeEditor />
   if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'archive')  return <ArchivePanel />
@@ -183,9 +186,9 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     actionLabel = isLive ? '● Live' : '▶ Go Live'
     actionFn    = () => triggerScene(selected.envState)
   } else if (selected.kind === 'scene') {
-    const parts = selected.sceneState.split(' ')
-    headerIcon  = parts[0]
-    headerLabel = parts.slice(1).join(' ') || selected.sceneState
+    const app   = applications.find((a) => a.targetSceneId === selected.sceneState)
+    headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
+    headerLabel = app?.label ?? selected.sceneState
     headerMeta  = 'Scene'
     isLive      = currentState === selected.sceneState
     actionLabel = isLive ? '● Live' : '▶ Go Live'
@@ -194,10 +197,8 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     const app   = applications.find((a) => a.id === selected.appId)
     headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
     headerLabel = app?.label ?? 'Application'
-    headerMeta  = app ? 'Application Record' : 'Application'
-    isLive      = app ? currentState === app.targetSceneId : false
-    actionLabel = app?.appType === 'widget' ? '▶ Open' : app?.appType === 'scene' ? '▶ Launch' : 'Decoration'
-    actionFn    = (app && app.appType === 'scene') ? () => { socket.emit('scene:change', app.targetSceneId); setLastError(null) } : null
+    headerMeta  = app?.appType === 'widget' ? 'Widget' : 'Decoration'
+    actionLabel = app?.appType === 'widget' ? '▶ Open' : ''
   } else if (selected.kind === 'widget-create') {
     headerIcon  = '+'
     headerLabel = 'New Widget'
@@ -207,9 +208,13 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     headerIcon  = layout?.icon ?? '📐'
     headerLabel = layout?.label ?? 'Widget Layout'
     headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
-  } else if (selected.kind === 'default-styling') {
+  } else if (selected.kind === 'lobby-theme') {
+    headerIcon  = '🖥'
+    headerLabel = 'Lobby Theme'
+    headerMeta  = 'Utility'
+  } else if (selected.kind === 'desktop-theme') {
     headerIcon  = '🎨'
-    headerLabel = 'Global Theme'
+    headerLabel = 'Desktop Theme'
     headerMeta  = 'Utility'
   } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio';    headerMeta = 'Utility' }
   else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }

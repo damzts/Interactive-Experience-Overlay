@@ -60,26 +60,21 @@ import {
   Slider,
   Toggle,
 } from '../ui'
-import { DASHBOARD_SAVE_BUTTON_CLASS, WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN, WIDGET_Z_INDEX_MAX, WIDGET_Z_INDEX_MIN } from './constants'
+import { WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN, WIDGET_Z_INDEX_MAX, WIDGET_Z_INDEX_MIN } from './constants'
 import { ThemeAppearanceFields } from './formAtoms'
 import { postPreviewConfigPatch } from './previewUtils'
 import { RecycleBinConfigSection, StickyNotesConfigSection } from './DefaultStylingEditor'
-import { TransitionList } from './TransitionPicker'
 import type { UserWidgetBaseComponent } from './widgetHelpers'
 import {
-  applyWidgetDefaultSnapshotToDesktopConfig,
   buildUserWidgetId,
   buildWidgetLayoutFallbackPosition,
   buildWidgetLayoutItem,
   clampWidgetDimension,
-  clone,
-  createApplicationSnapshot,
   createWidgetLayoutFromCurrentState,
   createWidgetLayoutSnapshot,
   findFirstSceneSource,
   getDefaultWidgetSize,
   normalizeWidgetLayoutsForEditor,
-  resolveApplicationDefaultSnapshot,
   resolveAppWidgetComponent,
   resolveWidgetDefaultZIndexFromConfig,
   resolveWidgetPositionFromConfig,
@@ -129,6 +124,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const persistedConfig      = useAdminStore((s) => s.persistedConfig)
   const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
   const saveConfig           = useAdminStore((s) => s.saveConfig)
+  const fetchConfig          = useAdminStore((s) => s.fetchConfig)
   const desktopConfig        = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const persistedDesktopConfig = useMemo(() => withDesktopConfigDefaults(persistedConfig.desktopConfig), [persistedConfig.desktopConfig])
   const persistedApp = useMemo(
@@ -150,13 +146,10 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const [saved,           setSaved]           = useState(false)
   const [clearingOverride, setClearingOverride] = useState(false)
   const [clearOverrideError, setClearOverrideError] = useState<string | null>(null)
-  const [saveDefaultArmed, setSaveDefaultArmed] = useState(false)
   const [detectedCameras, setDetectedCameras] = useState<{ deviceId: string; label: string }[]>([])
   const [detectingCameras, setDetectingCameras] = useState(false)
   const [cameraLabelsGranted, setCameraLabelsGranted] = useState(false)
-  const savedTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const defaultSnapshot  = useMemo(() => resolveApplicationDefaultSnapshot(app), [app])
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const enumerateCameras = useCallback(async (requestPermission = false) => {
     setDetectingCameras(true)
@@ -246,8 +239,8 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const widgetSizeDirty         = form.appType === 'widget' && (widgetSize.width !== sourceWidgetSize.width || widgetSize.height !== sourceWidgetSize.height)
   const widgetDefaultZIndexDirty = form.appType === 'widget' && widgetDefaultZIndex !== sourceWidgetDefaultZIndex
   const widgetThemeOverrideDirty = form.appType === 'widget' && (
-    widgetThemeOverrideEnabled !== !!effectiveWidgetThemeOverride
-    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+    widgetThemeOverrideEnabled !== !!sourceWidgetThemeOverride
+    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, sourceWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
   )
   const recycleBinFullOnStartDirty = isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart
   const dirty = appDirty || widgetPositionDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeOverrideDirty || recycleBinFullOnStartDirty
@@ -272,20 +265,17 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
     setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
     setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)
-    setSaveDefaultArmed(false)
     setSaved(false)
   }, [persistedApp, persistedDesktopConfig])
 
   useEffect(() => {
     if (persistedApp.appType !== 'widget') return
-    const resolved = effectiveWidgetThemeOverride
-    setWidgetThemeOverrideEnabled(!!resolved)
-    setWidgetThemeOverride(structuredClone(resolved ?? persistedDesktopConfig.widgetTheme))
-  }, [effectiveWidgetThemeOverride, persistedApp.appType, persistedDesktopConfig.widgetTheme])
+    setWidgetThemeOverrideEnabled(!!sourceWidgetThemeOverride)
+    setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+  }, [sourceWidgetThemeOverride, persistedApp.appType, persistedDesktopConfig.widgetTheme])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
-    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
     postPreviewConfigPatch(null)
   }, [])
 
@@ -313,8 +303,8 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
     })
   }
 
-  const buildDraftPersistence = useCallback((includeDefaultSnapshot: boolean) => {
-    const draftApp: Application = clone(form)
+  const buildDraftPersistence = useCallback(() => {
+    const draftApp: Application = structuredClone(form)
     const scene = persistedConfig.scenes[draftApp.targetSceneId]
     const updates: Partial<typeof config> = { applications: [] }
     let nextDesktopConfig: DesktopConfig | null = null
@@ -352,16 +342,12 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
       nextDesktop.widgetPositions       = Object.keys(nextWidgetPositions).length       ? nextWidgetPositions       : undefined
       nextDesktop.widgetSizes           = Object.keys(nextWidgetSizes).length           ? nextWidgetSizes           : undefined
       nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
-      nextDesktop.widgetThemeOverrides  = Object.keys(nextWidgetThemeOverrides).length  ? nextWidgetThemeOverrides  : undefined
+      nextDesktop.widgetThemeOverrides  = Object.keys(nextWidgetThemeOverrides).length  ? nextWidgetThemeOverrides  : {}
     }
 
     if (isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart) {
       const nextDesktop = ensureNextDesktopConfig()
       nextDesktop.recycleBin = { ...nextDesktop.recycleBin, fullOnStart: recycleBinFullOnStart }
-    }
-
-    if (includeDefaultSnapshot) {
-      draftApp.defaultConfig = createApplicationSnapshot(draftApp, nextDesktopConfig ?? persistedDesktopConfig)
     }
 
     const apps = [...persistedConfig.applications]
@@ -380,13 +366,23 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
 
   const apply = async () => {
     setSaving(true)
-    const updates = buildDraftPersistence(false)
+    const updates = buildDraftPersistence()
     if (themeOnlyDirty && updates.desktopConfig) {
-      updates.applications = undefined
-      updates.scenes = undefined
-      updates.desktopConfig = { widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides } as DesktopConfig
+      // Use /api/config/desktop for widget theme override changes — it does a flat
+      // spread so widgetThemeOverrides: {} correctly replaces (clears) the old value,
+      // whereas /api/config uses mergeAppConfig which merges and can't delete keys.
+      const desktopPatch = { widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides }
+      const res = await fetch('/api/config/desktop', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(desktopPatch),
+      })
+      if (res.ok) {
+        await fetchConfig()
+      }
+    } else {
+      await saveConfig(updates)
     }
-    await saveConfig(updates)
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
@@ -398,47 +394,11 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
     setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
     setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
-    setWidgetThemeOverrideEnabled(!!effectiveWidgetThemeOverride)
-    setWidgetThemeOverride(structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+    setWidgetThemeOverrideEnabled(!!sourceWidgetThemeOverride)
+    setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
     setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)
-    setSaveDefaultArmed(false)
     setSaved(false)
   }
-
-  const restoreDefaults = async () => {
-    const snapshot = clone(defaultSnapshot)
-    const { widgetDefaults: _widgetDefaults, ...appDefaults } = snapshot
-    const restoredApp: Application = { ...app, ...appDefaults, defaultConfig: app.defaultConfig ?? snapshot }
-    const apps = config.applications.map((entry) => (entry.id === app.id ? restoredApp : entry))
-    const updates: Partial<typeof config> = { applications: apps }
-    if (restoredApp.appType === 'widget') {
-      updates.desktopConfig = applyWidgetDefaultSnapshotToDesktopConfig(persistedDesktopConfig, restoredApp, snapshot)
-    }
-    setSaving(true)
-    await saveConfig(updates)
-    setSaving(false)
-    setSaveDefaultArmed(false)
-    setSaved(true)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }
-
-  const saveCurrentAsDefault = useCallback(async () => {
-    if (!saveDefaultArmed) {
-      setSaveDefaultArmed(true)
-      if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
-      saveDefaultTimer.current = setTimeout(() => setSaveDefaultArmed(false), 3500)
-      return
-    }
-    setSaving(true)
-    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
-    await saveConfig(buildDraftPersistence(true))
-    setSaveDefaultArmed(false)
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [buildDraftPersistence, saveConfig, saveDefaultArmed])
 
   const useCurrentWidgetValues = () => {
     if (form.appType !== 'widget') return
@@ -528,21 +488,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
             </div>
           </div>
         </ConfigSectionPanel>
-
-        {supportsSceneTransitions && (
-          <ConfigSectionPanel label="Transitions">
-            <div className="space-y-3">
-              <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Intro</div>
-                <TransitionList value={form.introTransitions ?? []} onChange={(steps) => update((d) => { d.introTransitions = steps.length ? steps : undefined })} />
-              </div>
-              <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Exit</div>
-                <TransitionList value={form.exitTransitions ?? []} onChange={(steps) => update((d) => { d.exitTransitions = steps.length ? steps : undefined })} />
-              </div>
-            </div>
-          </ConfigSectionPanel>
-        )}
 
         {form.appType !== 'widget' && (
           <ConfigSectionPanel label="Position">
@@ -657,34 +602,48 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                   </div>
                   <div className="border-t border-zinc-800 pt-3 space-y-3">
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Motion</div>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Motion</div>
                       <div className="grid grid-cols-2 gap-1.5">
                         {WIDGET_THEME_ANIMATIONS.map((animation) => (
                           <ConfigChoiceButton key={animation.id} type="button" selected={widgetThemeOverride.animation === animation.id}
                             onClick={() => { setWidgetThemeOverride((prev) => ({ ...prev, animation: animation.id })); setSaved(false) }}
-                            className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case" title={animation.description}>
+                            className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
                             <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
                             <span className="text-[10px] leading-relaxed text-zinc-500">{animation.description}</span>
                           </ConfigChoiceButton>
                         ))}
                       </div>
+                      <div className="mt-2 space-y-1.5">
+                        <Slider label="Intensity" value={Math.round(widgetThemeOverride.motionIntensity * 100)} min={0} max={300} step={5} unit="%"
+                          onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, motionIntensity: value / 100 })); setSaved(false) }} />
+                        <Slider label="Glow" value={Math.round(widgetThemeOverride.glowIntensity * 100)} min={0} max={300} step={5} unit="%"
+                          onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, glowIntensity: value / 100 })); setSaved(false) }} />
+                      </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Atmosphere</div>
-                      <div className="grid grid-cols-3 gap-1.5">
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Atmosphere</div>
+                      <div className="grid grid-cols-2 gap-1.5">
                         {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
                           <ConfigChoiceButton key={atmosphere.id} type="button" selected={widgetThemeOverride.atmosphere === atmosphere.id}
                             onClick={() => { setWidgetThemeOverride((prev) => ({ ...prev, atmosphere: atmosphere.id })); setSaved(false) }}
-                            className="py-2 text-[11px]">
-                            {atmosphere.label}
+                            className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
+                            <span className="text-[11px] font-semibold leading-none">{atmosphere.label}</span>
+                            <span className="text-[10px] leading-relaxed text-zinc-500">{atmosphere.description}</span>
                           </ConfigChoiceButton>
                         ))}
                       </div>
                     </div>
-                    <Slider label="Motion" value={Math.round(widgetThemeOverride.motionIntensity * 100)} min={0} max={300} step={5} unit="%"
-                      onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, motionIntensity: value / 100 })); setSaved(false) }} />
-                    <Slider label="Glow" value={Math.round(widgetThemeOverride.glowIntensity * 100)} min={0} max={300} step={5} unit="%"
-                      onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, glowIntensity: value / 100 })); setSaved(false) }} />
+                    <div>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Chrome</div>
+                      <div className="space-y-1.5">
+                        <Slider label="Opacity" value={Math.round(widgetThemeOverride.shellOpacity * 100)} min={10} max={100} step={5} unit="%"
+                          onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, shellOpacity: value / 100 })); setSaved(false) }} />
+                        <Slider label="Shadow" value={Math.round(widgetThemeOverride.shadowIntensity * 100)} min={0} max={300} step={5} unit="%"
+                          onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, shadowIntensity: value / 100 })); setSaved(false) }} />
+                        <Slider label="Radius" value={widgetThemeOverride.borderRadius} min={0} max={32} step={1} unit="px"
+                          onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, borderRadius: value })); setSaved(false) }} />
+                      </div>
+                    </div>
                     <div className="flex justify-end">
                       <Btn type="button" onClick={() => { setWidgetThemeOverride(structuredClone(desktopConfig.widgetTheme)); setSaved(false) }} className="px-2 py-1 text-[10px]">
                         Copy Desktop Theme
@@ -880,11 +839,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                 </>
               )}
             </div>
-            {isProtectedSystemWidget && (
-              <div className="rounded border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-[10px] text-amber-100/90 leading-relaxed">
-                System widgets are part of the persisted baseline model. They remain present in config and cannot be removed from the dashboard.
-              </div>
-            )}
           </div>
         </ConfigSectionPanel>
       </div>

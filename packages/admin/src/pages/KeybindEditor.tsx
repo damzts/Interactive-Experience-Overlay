@@ -231,10 +231,10 @@ export function KeybindEditor() {
         <ConfigToolbar className="mt-4">
           <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('admin')])}>+ Add Admin Binding</Btn>
           <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('obs')])}>+ Add OBS Binding</Btn>
-          <Btn variant="primary" onClick={handleSave} disabled={saving}>
+          <Btn variant="warning" onClick={handleSave} disabled={saving}>
             {saved ? '✔ Saved' : saving ? 'Saving…' : '💾 Save Keybinds'}
           </Btn>
-          <Btn onClick={handleReset}>↺ Revert</Btn>
+          <Btn variant="primary" onClick={handleReset}>↺ Revert</Btn>
         </ConfigToolbar>
       </ConfigSectionPanel>
     </div>

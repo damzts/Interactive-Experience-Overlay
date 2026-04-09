@@ -2,8 +2,6 @@
 
 ## AI Agent Notes
 
-This file is effectively a project skill for AI agents.
-
 Maintain it with these rules:
 
 - Keep it compact enough to load as working context.
@@ -16,7 +14,7 @@ Maintain it with these rules:
 
 Target outcome:
 
-- an AI should be able to read this file, understand the system model, navigate the project mentally, and safely expand functionality without needing excessive extra context.
+- an AI should understand the system model by understanding behavior and patterns, do not force a solution or limit creativity problem solving, safely expand functionality without needing excessive extra context.
 
 ## Overview
 
@@ -127,17 +125,15 @@ Use these terms consistently when reasoning about config behavior:
 
 - factory defaults: built-in code-defined defaults from `@ieom/shared`; these are the baseline values used when seeding missing config and when a UI explicitly performs a factory reset
 - persisted authored config: the main saved `AppConfig` record owned by the server and stored across reloads/restarts; this is the canonical user-authored configuration
-- persisted default snapshots: saved reset targets embedded inside persisted config, such as `Scene.defaultConfig`, `Application.defaultConfig`, and `DesktopConfig.globalThemeDefault`; these are not factory defaults unless they still match the built-in baseline
+- persisted autored snapshots: saved reset target embedded inside persisted config, such as `Scene.defaultConfig`, `Application.defaultConfig`, and `DesktopConfig.globalThemeDefault`;
 - runtime override config: server-owned, discardable live patches layered on top of persisted authored config for temporary automation/runtime behavior; these must not be treated as persisted saves
-- admin draft/preview config: local unsaved editor state in the admin, plus preview-only patches sent to the embedded overlay so changes can be seen before save; this is session-local authoring state, not authoritative runtime state
+- draft config: local unsaved editor state in the admin; this is session-local authoring state, not authoritative runtime state
 
 Interpretation rules:
 
 - factory reset means revert to built-in shared defaults
-- for widgets and widget layouts, factory reset rebuilds from hardcoded shared defaults; it does not rely on persisted factory snapshots
 - restore defaults means revert to the persisted default snapshot for that entity
-- save defaults means write the current authored state into that persisted default snapshot
-- apply/save means write into persisted authored config
+- save/save defaults/apply means write the current authored state into that persisted default snapshot.
 - clear runtime means remove the server runtime override layer without changing persisted authored config
 
 ## Runtime Ownership
@@ -226,11 +222,11 @@ Execution model:
 
 - scheduler eligibility is server-side and respects transition guard, cooldown, and scene-state filters
 - manual `Fire Now` uses the same configured-event execution path as auto-triggered events
-- automation config actions write into a server-owned runtime override layer instead of the persisted config record
-- config-patch runtime actions are time-bounded and revert to the persisted saved config after their configured timeout expires
-- widget-theme-override and widget-layout runtime actions also write into the same runtime override layer and revert by timer/clear action instead of patching persisted config
-- admin and overlay keep persisted config separate from the effective runtime config, and merge the live override snapshot on top at runtime
-- desktop/theme configuration should be understood as three layers: factory defaults, persisted saved global config, and discardable runtime override
+- automation config actions write into a server-owned runtime override layer instead of the persisted config record.
+- config-patch runtime actions can be time-bounded and revert to the persisted saved config after their configured timeout expires.
+- widget-theme-override and widget-layout runtime actions also write into the same runtime override layer and revert by timer/clear action instead of patching persisted config.
+- admin and overlay keep persisted config separate from the runtime override config.
+- desktop/theme or any configuration should be understood as three layers: factory defaults (hardcoded in code), persisted authored config, and discardable runtime override config
 - runtime shell actions like widget toggle execute as live socket-driven runtime actions; widget layout apply uses a saved layout definition but applies it as runtime-only widget window overrides
 
 ### State Machine
@@ -406,7 +402,7 @@ Sync model:
 
 - motion is mirrored live over sockets
 - icon position persistence still uses config PATCH routes
-- widget window drag/resize final state is treated as runtime override state and does not persist unless an authored config flow explicitly saves it
+- widget window drag/resize final state is treated as runtime override state and does not persist unless an authored persist config flow explicitly saves it
 
 ### Transitions And Effects
 

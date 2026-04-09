@@ -89,13 +89,13 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
   const userWidgetLayouts      = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts   = [...systemWidgetLayouts, ...userWidgetLayouts]
 
-  const sceneEntries: Array<{ app: Application; scene: Scene }> = []
+  const userSceneEntries: Array<{ app: Application; scene: Scene }> = []
   const seenSceneIds = new Set<string>()
   sceneApps.forEach((app) => {
     const scene = scenes[app.targetSceneId]
     if (!scene || scene.id === STATE.LOBBY || scene.id === STATE.DESKTOP || seenSceneIds.has(scene.id)) return
     seenSceneIds.add(scene.id)
-    sceneEntries.push({ app, scene })
+    userSceneEntries.push({ app, scene })
   })
 
   const captureCurrentLayout = async () => {
@@ -128,24 +128,19 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
           active={isActive({ kind: 'env', envState: STATE.DESKTOP })}
           onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })}
           onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.DESKTOP })} />
-
-        {sceneEntries.map(({ app, scene }) => (
+        {userSceneEntries.length > 0 && (
+          <div className="px-2.5 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-700">
+            User Scenes
+          </div>
+        )}
+        {userSceneEntries.map(({ app, scene }) => (
           <SidebarBtn key={scene.id} icon={<SidebarAppIcon app={app} />} label={scene.label}
             live={currentState === scene.id}
             active={isActive({ kind: 'scene', sceneState: scene.id })}
             onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}
             onDoubleClick={() => onActivate({ kind: 'scene', sceneState: scene.id })} />
         ))}
-
-        <SectionLabel hint="Desktop icons that launch scene transitions.">Applications</SectionLabel>
-        {sceneApps.map((app) => (
-          <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
-            live={currentState === app.targetSceneId}
-            active={isActive({ kind: 'app', appId: app.id })}
-            onClick={() => onSelect({ kind: 'app', appId: app.id })}
-            onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
-        ))}
-        <AddBtn label="New Application" onClick={() => {
+        <AddBtn label="New Scene" onClick={() => {
           const sceneId = 'SCENE_' + Date.now()
           const a: Application = {
             id: 'app-' + Date.now(),
@@ -184,11 +179,9 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
             onClick={() => onSelect({ kind: 'app', appId: app.id })}
             onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
         ))}
-        {userWidgetApps.length > 0 && (
-          <div className="px-2.5 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-700">
-            User Widgets
-          </div>
-        )}
+        <div className="px-2.5 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-700">
+          User Widgets
+        </div>
         {userWidgetApps.map((app) => (
           <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
             statusLabel={openWidgetIds.includes(app.id) ? 'OPEN' : 'CLOSED'}
@@ -236,7 +229,8 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
         <div className="flex-1" />
 
         <SectionLabel hint="Auxiliary panels that are not runtime applications.">Utilities</SectionLabel>
-        <SidebarBtn icon="🎨" label="Global Theme" active={isActive({ kind: 'default-styling' })} onClick={() => onSelect({ kind: 'default-styling' })} />
+        <SidebarBtn icon="🖥" label="Global Lobby Theme"   active={isActive({ kind: 'lobby-theme' })}   onClick={() => onSelect({ kind: 'lobby-theme' })} />
+        <SidebarBtn icon="🎨" label="Global Desktop Theme" active={isActive({ kind: 'desktop-theme' })} onClick={() => onSelect({ kind: 'desktop-theme' })} />
         <SidebarBtn icon="📁" label="Archive" active={isActive({ kind: 'archive' })} onClick={() => onSelect({ kind: 'archive' })} />
         <SidebarBtn icon="🌌" label="Ambiance" active={isActive({ kind: 'ambiance' })} onClick={() => onSelect({ kind: 'ambiance' })} />
         <SidebarBtn icon="🗂" label="Asset Library" active={libraryOpen} onClick={onLibrary} />

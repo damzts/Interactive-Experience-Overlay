@@ -103,11 +103,8 @@ export function Dashboard() {
     } else if (item.kind === 'app') {
       const app = applications.find((a) => a.id === item.appId)
       if (!app) return
-      if (app.appType === 'widget') {
-        socket.emit('widget:toggle', app.id)
-      } else if (app.appType === 'scene') {
-        socket.emit('scene:change', app.targetSceneId)
-      }
+      if (app.appType === 'widget') socket.emit('widget:toggle', app.id)
+      else if (app.appType === 'scene') socket.emit('scene:change', app.targetSceneId)
     } else if (item.kind === 'widget-layout') {
       socket.emit('widget:layout:apply', item.layoutId)
     }

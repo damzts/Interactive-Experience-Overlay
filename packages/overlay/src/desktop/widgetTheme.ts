@@ -487,6 +487,12 @@ export function buildWidgetThemeVars(widgetTheme: WidgetThemeConfig): CSSPropert
   vars['--widget-title-font'] = buildFontStack(fontFamily, 'Segoe UI, Arial, sans-serif')
   vars['--widget-motion-scale'] = String(widgetTheme.motionIntensity)
   vars['--widget-glow-strength'] = String(widgetTheme.glowIntensity)
+  vars['--widget-shell-opacity'] = String(widgetTheme.shellOpacity)
+  vars['--widget-shadow-scale'] = String(widgetTheme.shadowIntensity)
+  vars['--widget-border-radius'] = `${widgetTheme.borderRadius}px`
+  if (widgetTheme.titleColor) {
+    vars['--widget-title-start'] = opaqueHexColor(widgetTheme.titleColor, vars['--widget-title-start'] ?? '#5c6472')
+  }
 
   return vars as CSSProperties
 }

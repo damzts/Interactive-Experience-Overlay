@@ -9,7 +9,8 @@ export type SelectedItem =
   | { kind: 'app';   appId: string }
   | { kind: 'widget-create' }
   | { kind: 'widget-layout'; layoutId: string }
-  | { kind: 'default-styling' }
+  | { kind: 'lobby-theme' }
+  | { kind: 'desktop-theme' }
   | { kind: 'audio' }
   | { kind: 'keybinds' }
   | { kind: 'archive' }

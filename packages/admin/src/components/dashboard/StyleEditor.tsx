@@ -1,60 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE, withOverlayStyleDefaults } from '@ieom/shared'
+import { STATE } from '@ieom/shared'
 import type { BackgroundType, OverlayStyle, ParticlePreset } from '@ieom/shared'
-import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../AssetLibrary'
-import { ConfigApplyBar, ConfigSectionPanel, isSameDraft, Slider, Toggle } from '../ui'
+import { ConfigSectionPanel, Slider, Toggle } from '../ui'
 import { BG_TYPES, GRADIENT_PRESETS, PARTICLE_PRESETS, PATTERN_CSS } from './constants'
 
-export function StyleEditor({ sceneId }: { sceneId: string }) {
-  const config     = useAdminStore((s) => s.config)
-  const saveConfig = useAdminStore((s) => s.saveConfig)
-  const sourceStyle = structuredClone(withOverlayStyleDefaults((config.scenes[sceneId] as { style?: OverlayStyle } | undefined)?.style, config.overlayStyle))
-  const [style, setStyle] = useState<OverlayStyle>(() => sourceStyle)
-  const [saving, setSaving] = useState(false)
-  const [saved,  setSaved]  = useState(false)
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const dirty = !isSameDraft(style, sourceStyle)
+// ── StyleSections ─────────────────────────────────────────────────────
+// Stateless render — used by ScenePanel to embed style fields in unified draft.
 
-  useEffect(() => {
-    setStyle(sourceStyle)
-    setSaved(false)
-  }, [config.scenes, config.overlayStyle, sceneId])
-
-  const update = useCallback((updater: (d: OverlayStyle) => void) => {
-    setStyle((prev) => {
-      const next = structuredClone(prev)
-      updater(next)
-      return next
-    })
-    setSaved(false)
-  }, [])
-
-  const apply = useCallback(async () => {
-    if (!dirty) return
-    setSaving(true)
-    const scene = config.scenes[sceneId]
-    await saveConfig({ scenes: { [sceneId]: { ...scene, style } } })
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [dirty, saveConfig, config.scenes, sceneId, style])
-
-  const reset = useCallback(() => {
-    setStyle(sourceStyle)
-    setSaved(false)
-  }, [sourceStyle])
-
+export function StyleSections({ sceneId, style, update }: {
+  sceneId: string
+  style: OverlayStyle
+  update: (updater: (d: OverlayStyle) => void) => void
+}) {
   const bg = style.background
   const fx = style.effects
   const pt = style.particles
 
   return (
-    <div className="space-y-3">
-      <ConfigApplyBar label="Scene Style" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} />
-
-      <div className="space-y-0 pt-3">
+    <div className="space-y-0">
         <ConfigSectionPanel label="Background" first>
           <div className="space-y-3">
             <select value={bg.type} onChange={(e) => update((d) => { d.background.type = e.target.value as BackgroundType })} className="w-full text-xs">
@@ -164,6 +127,5 @@ export function StyleEditor({ sceneId }: { sceneId: string }) {
           </div>
         </ConfigSectionPanel>
       </div>
-    </div>
   )
 }

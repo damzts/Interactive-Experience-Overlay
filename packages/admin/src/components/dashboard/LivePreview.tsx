@@ -64,34 +64,3 @@ export function LivePreview() {
     </div>
   )
 }
-
-export function EnvironmentLiveNotice({ targetState, label }: { targetState: STATE; label: string }) {
-  const currentState = useAdminStore((s) => s.currentState)
-  const setLastError = useAdminStore((s) => s.setLastError)
-
-  if (currentState === targetState) return null
-
-  return (
-    <ConfigNotice tone="warning" className="space-y-2 px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold text-amber-200">{label} preview is not live</div>
-          <div className="text-[10px] text-amber-100/80 leading-relaxed">
-            Current state is <span className="font-mono">{currentState}</span>. Switch the runtime to <span className="font-mono">{targetState}</span> to see this editor reflected in the preview.
-          </div>
-        </div>
-        <Btn
-          type="button"
-          variant="warning"
-          onClick={() => {
-            setLastError(null)
-            socket.emit('scene:change', targetState, (err: string | null) => { if (err) setLastError(err) })
-          }}
-          className="shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-[0.18em]"
-        >
-          Show {label}
-        </Btn>
-      </div>
-    </ConfigNotice>
-  )
-}

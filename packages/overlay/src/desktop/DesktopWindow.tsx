@@ -99,6 +99,7 @@ export function DesktopWindow({
   const motionPhase = (windowSeed % 17) / 2
   const hueShift = (windowSeed % 9) - 4
   const frameRef = useRef<HTMLDivElement | null>(null)
+  const [opening, setOpening] = useState(true)
   const dragging = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
   const resizing = useRef(false)
@@ -385,7 +386,8 @@ export function DesktopWindow({
   const frame = (
     <div
       ref={frameRef}
-      className={`window desktop-window desktop-window--${state} ${windowClassName}`.trim()}
+      className={`window desktop-window${opening ? ' desktop-window--opening' : ''} desktop-window--${state} ${windowClassName}`.trim()}
+      onAnimationEnd={() => setOpening(false)}
       style={{
         position: 'absolute',
         left: pos.x,
@@ -437,10 +439,11 @@ export function DesktopWindow({
     </div>
   )
 
-  if (!widgetThemeOverride) return frame
-
   return (
-    <div className={buildWidgetThemeScopeClassNames(widgetThemeOverride)} style={buildWidgetThemeVars(widgetThemeOverride)}>
+    <div
+      className={widgetThemeOverride ? buildWidgetThemeScopeClassNames(widgetThemeOverride) : undefined}
+      style={widgetThemeOverride ? buildWidgetThemeVars(widgetThemeOverride) : undefined}
+    >
       {frame}
     </div>
   )

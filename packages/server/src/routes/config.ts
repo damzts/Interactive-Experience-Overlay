@@ -212,7 +212,10 @@ function buildConfigPatchPayload(config: AppConfig, updates: Partial<AppConfig>)
     if (key === 'desktopConfig' && updates.desktopConfig) {
       const desktopPatch: Record<string, unknown> = {}
       for (const desktopKey of Object.keys(updates.desktopConfig) as Array<keyof NonNullable<AppConfig['desktopConfig']>>) {
-        desktopPatch[desktopKey] = nextDesktopConfig[desktopKey]
+        // Use {} instead of undefined for dict-type fields so JSON.stringify preserves
+        // the key and clients know to clear it (mergeAppConfig uses 'in' check).
+        const value = nextDesktopConfig[desktopKey]
+        desktopPatch[desktopKey] = (desktopKey === 'widgetThemeOverrides' && value === undefined) ? {} : value
       }
       patch.desktopConfig = desktopPatch
       continue

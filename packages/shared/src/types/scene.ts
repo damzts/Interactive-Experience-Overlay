@@ -59,6 +59,7 @@ export type ApplicationType = 'scene' | 'widget' | 'decoration'
 
 export type DesktopTheme = 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome' | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
 export type DesktopIconAnimation = 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
+export type DesktopIconArrangement = 'grid' | 'wave' | 'ripple' | 'spiral' | 'scatter' | 'orbit'
 export type WidgetSkinTheme = 'metalheart' | 'genx soft club' | 'chromecore' | 'y2k futurism' | 'transparent' | 'aqua pop' | 'mallsoft pearl' | 'messenger glow' | 'limewire plasma' | 'cyber y2k' | 'digital futurism' | 'ssx rush' | 'ps2 drift' | 'xbox blade' | 'cel street' | 'aero nova' | 'aero opaline' | 'dial-up candy' | 'webcore flash' | 'lan party'
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
@@ -82,6 +83,14 @@ export interface WidgetThemeConfig {
   motionIntensity: number
   /** 0-3 scalar controlling bloom, glow, and accent light. */
   glowIntensity: number
+  /** 0-1 opacity of the widget shell chrome. 1 = fully opaque. */
+  shellOpacity: number
+  /** 0-3 scalar for the drop shadow behind each widget window. */
+  shadowIntensity: number
+  /** 0-16 border radius in px applied to the window chrome corners. */
+  borderRadius: number
+  /** Override for the title bar gradient start color. Empty string = skin default. */
+  titleColor: string
 }
 
 export type EventWidgetThemePatch = Partial<Omit<WidgetThemeConfig, 'skin'>> & {
@@ -355,8 +364,12 @@ export interface DesktopConfig {
   autoArrangeIcons: boolean
   /** Ambient motion profile used by desktop icons */
   iconAnimation: DesktopIconAnimation
+  /** Dynamic positional arrangement — moves icons across the screen over time */
+  iconArrangement: DesktopIconArrangement
   /** 0-3 scalar controlling how strong icon motion appears (1 = 100%) */
   iconMotion: number
+  /** 0-3 scalar controlling the speed/spread of the dynamic icon arrangement (1 = 100%) */
+  iconArrangementMotion: number
   /** Persisted widget window positions, keyed by widget id (e.g. 'music', 'archive') */
   widgetPositions?: Record<string, { x: number; y: number }>
   /** Optional per-widget window size overrides, keyed by widget id. */

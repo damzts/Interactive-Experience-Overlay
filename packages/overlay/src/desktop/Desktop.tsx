@@ -319,6 +319,69 @@ function clampIconPosition(
   }
 }
 
+function computeArrangementPositions(
+  apps: Application[],
+  arrangement: string,
+  t: number,
+  bounds: { width: number; height: number },
+  motionAmount: number,
+): Map<string, { x: number; y: number }> {
+  const result = new Map<string, { x: number; y: number }>()
+  const count = apps.length
+  if (count === 0) return result
+
+  const W = bounds.width
+  const H = bounds.height - TASKBAR_H
+  const strength = Math.max(0, Math.min(3, motionAmount))
+  const cx = W / 2
+  const cy = H / 2
+
+  apps.forEach((app, i) => {
+    const frac = count > 1 ? i / (count - 1) : 0.5
+    let x = 0
+    let y = 0
+
+    if (arrangement === 'wave') {
+      // Icons travel horizontally across the screen with a sine wave in Y
+      const col = (frac + t * 0.04) % 1
+      x = col * (W - 80)
+      y = cy + Math.sin((frac * Math.PI * 4) + t * 1.2) * (H * 0.34 * strength)
+    } else if (arrangement === 'ripple') {
+      // Icons expand/contract in concentric rings from the center
+      const angle = (i / count) * Math.PI * 2
+      const ringRadius = (0.28 + Math.sin(t * 0.8 + i * 0.4) * 0.18) * Math.min(W, H) * 0.44 * strength
+      x = cx + Math.cos(angle) * ringRadius - 32
+      y = cy + Math.sin(angle) * ringRadius - 32
+    } else if (arrangement === 'spiral') {
+      // Icons orbit in an Archimedean spiral that slowly rotates
+      const angle = frac * Math.PI * 6 + t * 0.5
+      const radius = (0.12 + frac * 0.38) * Math.min(W, H) * 0.72 * strength
+      x = cx + Math.cos(angle) * radius - 32
+      y = cy + Math.sin(angle) * radius - 32
+    } else if (arrangement === 'scatter') {
+      // Each icon traces an independent Lissajous figure
+      const seed = i * 2.399
+      x = cx + Math.cos(seed + t * (0.4 + (i % 5) * 0.07)) * (W * 0.38 * strength) - 32
+      y = cy + Math.sin(seed * 1.3 + t * (0.3 + (i % 7) * 0.06)) * (H * 0.34 * strength) - 32
+    } else if (arrangement === 'orbit') {
+      // Icons orbit in concentric rings at different speeds
+      const ring = Math.floor(i / 6)
+      const slot = i % 6
+      const ringRadius = (0.18 + ring * 0.15) * Math.min(W, H) * 0.55 * strength
+      const angle = (slot / 6) * Math.PI * 2 + t * (0.4 - ring * 0.08)
+      x = cx + Math.cos(angle) * ringRadius - 32
+      y = cy + Math.sin(angle) * ringRadius - 32
+    }
+
+    result.set(app.id, {
+      x: clamp(x, 0, Math.max(0, W - 80)),
+      y: clamp(y, 0, Math.max(0, H - 80)),
+    })
+  })
+
+  return result
+}
+
 /**
  * Assigns a top-to-bottom, left-to-right column grid position to each app
  * in the supplied list. Apps are slotted in order; the first column fills
@@ -982,10 +1045,32 @@ export function Desktop({ apps }: DesktopProps) {
     return suppressed
   }, [])
 
+  const iconArrangement = desktopConfig.iconArrangement ?? 'grid'
+  const [arrangementPositions, setArrangementPositions] = useState<Map<string, { x: number; y: number }>>(new Map)
+
+  useEffect(() => {
+    if (iconArrangement === 'grid') {
+      setArrangementPositions(new Map())
+      return
+    }
+    let rafId: number
+    const tick = () => {
+      const bounds = desktopRef.current?.getBoundingClientRect()
+      if (bounds) {
+        const t = performance.now() / 1000
+        setArrangementPositions(computeArrangementPositions(desktopApps, iconArrangement, t, { width: bounds.width, height: bounds.height }, desktopConfig.iconArrangementMotion ?? 1))
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [iconArrangement, desktopApps, desktopConfig.iconArrangementMotion])
+
   const resolveIconPosition = useCallback((app: Application) => {
+    if (iconArrangement !== 'grid') return arrangementPositions.get(app.id)
     return dragPositions[app.id]
       ?? (autoArrangeIcons ? arrangedGridPositions.get(app.id) : (app.iconPosition ?? gridPositions.get(app.id)))
-  }, [arrangedGridPositions, autoArrangeIcons, dragPositions, gridPositions])
+  }, [arrangementPositions, arrangedGridPositions, autoArrangeIcons, dragPositions, gridPositions, iconArrangement])
 
   useEffect(() => {
     return () => {

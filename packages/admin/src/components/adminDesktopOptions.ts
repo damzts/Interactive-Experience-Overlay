@@ -1,4 +1,4 @@
-import type { DesktopConfig } from '@ieom/shared'
+import type { DesktopConfig, DesktopIconArrangement } from '@ieom/shared'
 
 export const GOOGLE_FONTS = [
   { name: 'System Default', css: 'default' },
@@ -77,23 +77,41 @@ export const WIDGET_THEME_ANIMATIONS: Array<{
 export const WIDGET_THEME_ATMOSPHERES: Array<{
   id: DesktopConfig['widgetTheme']['atmosphere']
   label: string
+  description: string
 }> = [
-  { id: 'clean', label: 'Clean' },
-  { id: 'sparkle', label: 'Sparkle' },
-  { id: 'scanlines', label: 'Scanlines' },
-  { id: 'grid', label: 'Grid' },
-  { id: 'nebula', label: 'Nebula' },
+  { id: 'clean',     label: 'Clean',     description: 'No texture layer. Pure chrome, nothing added.' },
+  { id: 'sparkle',   label: 'Sparkle',   description: 'Floating particles that drift and fade across the shell.' },
+  { id: 'scanlines', label: 'Scanlines', description: 'Horizontal CRT lines overlaid on the window body.' },
+  { id: 'grid',      label: 'Grid',      description: 'Fine dot or line grid pressed into the background.' },
+  { id: 'nebula',    label: 'Nebula',    description: 'Soft color cloud that blooms behind the widget content.' },
 ]
 
-export const ICON_ANIMATIONS: { id: DesktopConfig['iconAnimation']; label: string }[] = [
-  { id: 'none', label: 'Static' },
-  { id: 'pulse', label: 'Pulse' },
-  { id: 'float', label: 'Float' },
-  { id: 'jiggle', label: 'Jiggle' },
-  { id: 'drift', label: 'Drift' },
-  { id: 'orbit', label: 'Orbit' },
-  { id: 'breathe', label: 'Breathe' },
-  { id: 'reactive', label: 'Reactive' },
+export const ICON_ANIMATIONS: Array<{
+  id: DesktopConfig['iconAnimation']
+  label: string
+  description: string
+}> = [
+  { id: 'none',     label: 'Static',   description: 'No ambient motion. Icons sit still at all times.' },
+  { id: 'pulse',    label: 'Pulse',    description: 'Icons breathe with a slow scale and glow cycle.' },
+  { id: 'float',    label: 'Float',    description: 'Gentle vertical drift, like objects suspended in liquid.' },
+  { id: 'jiggle',   label: 'Jiggle',   description: 'Subtle side-to-side wobble with personality.' },
+  { id: 'drift',    label: 'Drift',    description: 'Slow horizontal wander across a small range.' },
+  { id: 'orbit',    label: 'Orbit',    description: 'Circular idle motion around the icon center.' },
+  { id: 'breathe',  label: 'Breathe',  description: 'Opacity cycles in and out on a long slow curve.' },
+  { id: 'reactive', label: 'Reactive', description: 'Motion responds to audio signal or activity level.' },
+]
+
+export const ICON_ARRANGEMENTS: Array<{
+  id: DesktopIconArrangement
+  label: string
+  description: string
+}> = [
+  { id: 'grid',    label: 'Grid',    description: 'Static column layout. Icons stay where placed.' },
+  { id: 'wave',    label: 'Wave',    description: 'Icons ride a sine wave sweeping across the screen.' },
+  { id: 'ripple',  label: 'Ripple',  description: 'Icons expand and contract in a ring from center.' },
+  { id: 'spiral',  label: 'Spiral',  description: 'Icons orbit in a rotating Archimedean spiral.' },
+  { id: 'scatter', label: 'Scatter', description: 'Each icon traces its own independent Lissajous path.' },
+  { id: 'orbit',   label: 'Orbit',   description: 'Icons orbit the screen center in concentric rings.' },
 ]
 
 const DESKTOP_ICON_SIZES: DesktopConfig['defaultIconSize'][] = ['small', 'normal', 'large']

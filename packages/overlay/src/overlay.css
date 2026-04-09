@@ -826,6 +826,9 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   outline: 1px solid var(--widget-shell-outline);
   overflow: hidden;
   backdrop-filter: var(--widget-backdrop-filter);
+  border-radius: var(--widget-border-radius, 0px);
+  opacity: var(--widget-shell-opacity, 1);
+  box-shadow: 4px 5px calc(var(--widget-shadow-scale, 1) * 18px) rgba(0, 0, 0, calc(0.12 + 0.22 * var(--widget-shadow-scale, 1)));
 }
 
 .desktop .desktop-window::before,
@@ -1739,7 +1742,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 .desktop--widget-skin-aero-opaline .desktop-window,
 .desktop-widget-theme-scope.desktop--widget-skin-aero-opaline .desktop-window {
-  border-radius: 26px 26px 14px 14px;
+  border-radius: var(--widget-border-radius, 26px) var(--widget-border-radius, 26px) calc(var(--widget-border-radius, 26px) * 0.54) calc(var(--widget-border-radius, 26px) * 0.54);
 }
 
 .desktop--widget-skin-aero-opaline .desktop-window::before,
@@ -1761,7 +1764,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 .desktop--widget-skin-dial-up-candy .desktop-window,
 .desktop-widget-theme-scope.desktop--widget-skin-dial-up-candy .desktop-window {
-  border-radius: 18px 18px 12px 12px;
+  border-radius: var(--widget-border-radius, 18px) var(--widget-border-radius, 18px) calc(var(--widget-border-radius, 18px) * 0.67) calc(var(--widget-border-radius, 18px) * 0.67);
 }
 
 .desktop--widget-skin-dial-up-candy .desktop-window::before,
@@ -5052,6 +5055,9 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 
 .desktop-window {
   transform-origin: 14% 100%;
+}
+
+.desktop-window--opening {
   animation: desktop-window-open 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
