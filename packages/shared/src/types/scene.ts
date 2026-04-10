@@ -271,6 +271,8 @@ export interface Application {
   stickyNotesSettings?: StickyNotesSettings
   /** Optional icon assets for the Recycle Bin decoration app. */
   recycleBinSettings?: RecycleBinSettings
+  /** Persisted widget chrome override for this specific widget. Overrides globalThemeDefault.widgetTheme when set. */
+  themeOverride?: WidgetThemeConfig
   /** Persisted factory snapshot used to restore this application/widget to defaults. */
   defaultConfig?: ApplicationDefaultSnapshot
 }
@@ -350,13 +352,9 @@ export interface OverlayStyle {
 
 /** Win98-specific desktop OS configuration */
 export interface DesktopConfig {
-  /** Desktop chrome preset: taskbar, title bars, menus, and controls */
-  theme: DesktopTheme
-  /** Widget chrome preset and tint overrides shared by all widget windows. */
-  widgetTheme: WidgetThemeConfig
-  /** User-defined default snapshot for the Global Theme utility. */
+  /** User-defined default snapshot for the Global Theme utility. Active theme and widget theme are read from here. */
   globalThemeDefault: GlobalThemeDefaultConfig
-  /** Optional per-widget chrome overrides, keyed by widget id. */
+  /** Runtime-only per-widget chrome overrides, keyed by widget id. Written by events; never persisted to DB. */
   widgetThemeOverrides?: Record<string, WidgetThemeConfig>
   /** Icon size applied to all icons when no per-app iconSize is set */
   defaultIconSize: 'small' | 'normal' | 'large'

@@ -1,4 +1,4 @@
-import type { DesktopConfig, DesktopIconArrangement } from '@ieom/shared'
+import type { DesktopConfig, DesktopIconArrangement, DesktopTheme, WidgetThemeConfig } from '@ieom/shared'
 
 export const GOOGLE_FONTS = [
   { name: 'System Default', css: 'default' },
@@ -21,7 +21,7 @@ export const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; 
 ]
 
 export const DESKTOP_THEMES: Array<{
-  id: DesktopConfig['theme']
+  id: DesktopTheme
   label: string
   description: string
 }> = [
@@ -36,7 +36,7 @@ export const DESKTOP_THEMES: Array<{
 ]
 
 export const WIDGET_SKINS: Array<{
-  id: DesktopConfig['widgetTheme']['skin']
+  id: WidgetThemeConfig['skin']
   label: string
   description: string
 }> = [
@@ -63,7 +63,7 @@ export const WIDGET_SKINS: Array<{
 ]
 
 export const WIDGET_THEME_ANIMATIONS: Array<{
-  id: DesktopConfig['widgetTheme']['animation']
+  id: WidgetThemeConfig['animation']
   label: string
   description: string
 }> = [
@@ -75,7 +75,7 @@ export const WIDGET_THEME_ANIMATIONS: Array<{
 ]
 
 export const WIDGET_THEME_ATMOSPHERES: Array<{
-  id: DesktopConfig['widgetTheme']['atmosphere']
+  id: WidgetThemeConfig['atmosphere']
   label: string
   description: string
 }> = [

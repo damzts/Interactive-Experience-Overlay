@@ -83,7 +83,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const persistedConfig      = useAdminStore((s) => s.persistedConfig)
   const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
   const saveConfig           = useAdminStore((s) => s.saveConfig)
-  const fetchConfig          = useAdminStore((s) => s.fetchConfig)
   const desktopConfig        = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const persistedDesktopConfig = useMemo(() => withDesktopConfigDefaults(persistedConfig.desktopConfig), [persistedConfig.desktopConfig])
   const persistedApp = useMemo(
@@ -91,7 +90,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
     [app, persistedConfig.applications],
   )
   const runtimeWidgetThemeOverride  = runtimeConfigOverride.desktopConfig?.widgetThemeOverrides?.[app.id]
-  const sourceWidgetThemeOverride   = resolveWidgetThemeOverrideFromConfig(persistedApp, persistedDesktopConfig)
+  const sourceWidgetThemeOverride   = resolveWidgetThemeOverrideFromConfig(persistedApp)
   const effectiveWidgetThemeOverride = runtimeWidgetThemeOverride ?? sourceWidgetThemeOverride
 
   const [form,                      setForm]                      = useState<Application>(app)
@@ -99,7 +98,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const [widgetPosition,            setWidgetPosition]            = useState(() => resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
   const [widgetDefaultZIndex,       setWidgetDefaultZIndex]       = useState<number>(() => resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
   const [widgetThemeOverrideEnabled, setWidgetThemeOverrideEnabled] = useState(() => !!effectiveWidgetThemeOverride)
-  const [widgetThemeOverride,       setWidgetThemeOverride]       = useState<WidgetThemeConfig>(() => structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+  const [widgetThemeOverride,       setWidgetThemeOverride]       = useState<WidgetThemeConfig>(() => structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
   const [recycleBinFullOnStart,     setRecycleBinFullOnStart]     = useState(() => persistedDesktopConfig.recycleBin.fullOnStart)
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
@@ -199,24 +198,18 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const widgetDefaultZIndexDirty = form.appType === 'widget' && widgetDefaultZIndex !== sourceWidgetDefaultZIndex
   const widgetThemeOverrideDirty = form.appType === 'widget' && (
     widgetThemeOverrideEnabled !== !!sourceWidgetThemeOverride
-    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, sourceWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+    || (widgetThemeOverrideEnabled && !isSameDraft(widgetThemeOverride, sourceWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
   )
   const recycleBinFullOnStartDirty = isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart
   const dirty = appDirty || widgetPositionDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeOverrideDirty || recycleBinFullOnStartDirty
-  const themeOnlyDirty = form.appType === 'widget' && widgetThemeOverrideDirty && !appDirty && !widgetPositionDirty && !widgetSizeDirty && !widgetDefaultZIndexDirty && !recycleBinFullOnStartDirty
 
   const widgetThemePreviewPatch = useMemo(() => {
     if (form.appType !== 'widget') return null
-    const nextOverrides = { ...(persistedDesktopConfig.widgetThemeOverrides ?? {}) }
-    if (widgetThemeOverrideEnabled) {
-      nextOverrides[form.id] = structuredClone(widgetThemeOverride)
-    } else {
-      delete nextOverrides[form.id]
-    }
+    const nextApp = { ...persistedApp, themeOverride: widgetThemeOverrideEnabled ? structuredClone(widgetThemeOverride) : undefined }
     return {
-      desktopConfig: { widgetThemeOverrides: Object.keys(nextOverrides).length ? nextOverrides : undefined },
+      applications: persistedConfig.applications.map((a) => a.id === form.id ? nextApp : a),
     } as Partial<AppConfig>
-  }, [form, persistedDesktopConfig.widgetThemeOverrides, widgetThemeOverride, widgetThemeOverrideEnabled])
+  }, [form.appType, form.id, persistedApp, persistedConfig.applications, widgetThemeOverride, widgetThemeOverrideEnabled])
 
   useEffect(() => {
     setForm(persistedApp)
@@ -230,8 +223,8 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   useEffect(() => {
     if (persistedApp.appType !== 'widget') return
     setWidgetThemeOverrideEnabled(!!sourceWidgetThemeOverride)
-    setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
-  }, [sourceWidgetThemeOverride, persistedApp.appType, persistedDesktopConfig.widgetTheme])
+    setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
+  }, [sourceWidgetThemeOverride, persistedApp.appType, persistedDesktopConfig.globalThemeDefault.widgetTheme])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -280,7 +273,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
       const nextWidgetPositions       = { ...(nextDesktop.widgetPositions ?? {}) }
       const nextWidgetSizes           = { ...(nextDesktop.widgetSizes ?? {}) }
       const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
-      const nextWidgetThemeOverrides  = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
 
       nextWidgetPositions[draftApp.id] = { x: Math.max(0, Math.round(widgetPosition.x)), y: Math.max(0, Math.round(widgetPosition.y)) }
 
@@ -292,16 +284,11 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
 
       nextWidgetDefaultZIndices[draftApp.id] = Math.max(0, Math.round(widgetDefaultZIndex))
 
-      if (widgetThemeOverrideEnabled) {
-        nextWidgetThemeOverrides[draftApp.id] = structuredClone(widgetThemeOverride)
-      } else {
-        delete nextWidgetThemeOverrides[draftApp.id]
-      }
+      draftApp.themeOverride = widgetThemeOverrideEnabled ? structuredClone(widgetThemeOverride) : undefined
 
       nextDesktop.widgetPositions       = Object.keys(nextWidgetPositions).length       ? nextWidgetPositions       : undefined
       nextDesktop.widgetSizes           = Object.keys(nextWidgetSizes).length           ? nextWidgetSizes           : undefined
       nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
-      nextDesktop.widgetThemeOverrides  = Object.keys(nextWidgetThemeOverrides).length  ? nextWidgetThemeOverrides  : {}
     }
 
     if (isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart) {
@@ -326,22 +313,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const apply = async () => {
     setSaving(true)
     const updates = buildDraftPersistence()
-    if (themeOnlyDirty && updates.desktopConfig) {
-      // Use /api/config/desktop for widget theme override changes — it does a flat
-      // spread so widgetThemeOverrides: {} correctly replaces (clears) the old value,
-      // whereas /api/config uses mergeAppConfig which merges and can't delete keys.
-      const desktopPatch = { widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides }
-      const res = await fetch('/api/config/desktop', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(desktopPatch),
-      })
-      if (res.ok) {
-        await fetchConfig()
-      }
-    } else {
-      await saveConfig(updates)
-    }
+    await saveConfig(updates)
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
@@ -354,7 +326,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
     setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
     setWidgetThemeOverrideEnabled(!!sourceWidgetThemeOverride)
-    setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.widgetTheme))
+    setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
     setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)
     setSaved(false)
   }
@@ -538,7 +510,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
               <Toggle checked={widgetThemeOverrideEnabled}
                 onChange={(value) => {
                   setWidgetThemeOverrideEnabled(value)
-                  if (value && !sourceWidgetThemeOverride) setWidgetThemeOverride(structuredClone(desktopConfig.widgetTheme))
+                  if (value && !sourceWidgetThemeOverride) setWidgetThemeOverride(structuredClone(desktopConfig.globalThemeDefault.widgetTheme))
                   setSaved(false)
                 }}
                 label="Use widget-specific appearance" />
@@ -604,7 +576,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                       </div>
                     </div>
                     <div className="flex justify-end">
-                      <Btn type="button" onClick={() => { setWidgetThemeOverride(structuredClone(desktopConfig.widgetTheme)); setSaved(false) }} className="px-2 py-1 text-[10px]">
+                      <Btn type="button" onClick={() => { setWidgetThemeOverride(structuredClone(desktopConfig.globalThemeDefault.widgetTheme)); setSaved(false) }} className="px-2 py-1 text-[10px]">
                         Copy Desktop Theme
                       </Btn>
                     </div>

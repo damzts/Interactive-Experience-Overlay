@@ -479,8 +479,6 @@ function normalizeGlobalThemeDefaultConfig(value?: Partial<DesktopConfig['global
 }
 
 export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
-  theme: 'win98',
-  widgetTheme: { ...DEFAULT_WIDGET_THEME_PRESETS.metalheart },
   globalThemeDefault: buildDefaultGlobalThemeDefaultConfig(),
   defaultIconSize: 'normal',
   autoArrangeIcons: false,
@@ -1215,20 +1213,27 @@ function normalizeWidgetLayouts(value?: DesktopConfig['widgetLayouts']) {
 
 export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null): DesktopConfig {
   const source = (config ?? {}) as Partial<DesktopConfig> & {
+    theme?: DesktopTheme | 'win vista'
+    widgetTheme?: Partial<WidgetThemeConfig>
     notifications?: unknown
     stickyNotes?: Partial<StickyNotesSettings> | null
     recycleBin?: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings>
   }
-  const { notifications: _legacyNotifications, stickyNotes: _legacyStickyNotes, ...rest } = source
+  const { notifications: _legacyNotifications, stickyNotes: _legacyStickyNotes, theme: _legacyTheme, widgetTheme: _legacyWidgetTheme, ...rest } = source
   const legacyRecycleBin: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings> = source.recycleBin ?? {}
   const { emptyIcon: _legacyEmptyIcon, fullIcon: _legacyFullIcon, ...recycleBin } = legacyRecycleBin
+
+  // Migrate legacy top-level theme/widgetTheme into globalThemeDefault when upgrading old DB data
+  const globalThemeDefault = normalizeGlobalThemeDefaultConfig({
+    theme: source.globalThemeDefault?.theme ?? normalizeDesktopTheme(_legacyTheme),
+    widgetTheme: source.globalThemeDefault?.widgetTheme ?? (_legacyWidgetTheme as WidgetThemeConfig | undefined),
+    appearance: source.globalThemeDefault?.appearance,
+  })
 
   return {
     ...DEFAULT_DESKTOP_CONFIG,
     ...rest,
-    theme: normalizeDesktopTheme(source.theme as DesktopTheme | 'win vista' | undefined),
-    widgetTheme: normalizeWidgetThemeConfig(source.widgetTheme),
-    globalThemeDefault: normalizeGlobalThemeDefaultConfig(source.globalThemeDefault),
+    globalThemeDefault,
     widgetThemeOverrides: normalizeWidgetThemeOverrides(source.widgetThemeOverrides),
     recycleBin: {
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
@@ -1280,9 +1285,6 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
     ? {
         ...currentDesktopConfig,
         ...updates.desktopConfig,
-        widgetTheme: updates.desktopConfig.widgetTheme
-          ? { ...currentDesktopConfig.widgetTheme, ...updates.desktopConfig.widgetTheme }
-          : currentDesktopConfig.widgetTheme,
         globalThemeDefault: updates.desktopConfig.globalThemeDefault
           ? {
               ...currentDesktopConfig.globalThemeDefault,

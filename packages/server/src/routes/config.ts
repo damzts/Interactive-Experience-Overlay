@@ -28,7 +28,7 @@ function buildApplicationDefaultSnapshot(app: Application, desktopConfig: Deskto
   const source = getSeedAppSource(app)
   const defaultWindowSize = desktopConfig.widgetSizes?.[source.id]
   const defaultZIndex = desktopConfig.widgetDefaultZIndices?.[source.id]
-  const themeOverride = desktopConfig.widgetThemeOverrides?.[source.id]
+  const themeOverride = source.themeOverride
 
   return {
     id: source.id,
@@ -154,6 +154,19 @@ function withConfigDefaults(next: AppConfig): AppConfig {
   }
 
   applications = migrateLegacyDesktopAppSettings(applications, next.desktopConfig)
+
+  // Migrate legacy desktopConfig.widgetThemeOverrides → Application.themeOverride
+  const legacyWidgetThemeOverrides = (next.desktopConfig as AppConfig['desktopConfig'] & { widgetThemeOverrides?: Record<string, unknown> })?.widgetThemeOverrides
+  if (legacyWidgetThemeOverrides && Object.keys(legacyWidgetThemeOverrides).length) {
+    applications = applications.map((app) => {
+      const legacyOverride = legacyWidgetThemeOverrides[app.id]
+      if (legacyOverride && !app.themeOverride) {
+        return { ...app, themeOverride: legacyOverride as Application['themeOverride'] }
+      }
+      return app
+    })
+  }
+
   applications = withApplicationListDefaults(applications)
   const desktopConfig = withDesktopConfigDefaults(next.desktopConfig)
   applications = applications.map((app) => ({
@@ -242,8 +255,7 @@ function buildConfigPatchPayload(config: AppConfig, updates: Partial<AppConfig>)
       for (const desktopKey of Object.keys(updates.desktopConfig) as Array<keyof NonNullable<AppConfig['desktopConfig']>>) {
         // Use {} instead of undefined for dict-type fields so JSON.stringify preserves
         // the key and clients know to clear it (mergeAppConfig uses 'in' check).
-        const value = nextDesktopConfig[desktopKey]
-        desktopPatch[desktopKey] = (desktopKey === 'widgetThemeOverrides' && value === undefined) ? {} : value
+        desktopPatch[desktopKey] = nextDesktopConfig[desktopKey]
       }
       patch.desktopConfig = desktopPatch
       continue

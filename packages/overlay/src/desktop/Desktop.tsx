@@ -826,19 +826,19 @@ export function Desktop({ apps }: DesktopProps) {
   const themeStyle = useMemo(
     () => ({
       ...buildDesktopThemeVars(
-        desktopConfig.theme,
+        desktopConfig.globalThemeDefault.theme,
         desktopScene?.style?.accentColor ?? config.overlayStyle.accentColor,
         desktopScene?.style?.textColor ?? config.overlayStyle.textColor,
         desktopScene?.style?.fontFamily ?? config.overlayStyle.fontFamily,
       ),
-      ...buildWidgetThemeVars(desktopConfig.widgetTheme),
+      ...buildWidgetThemeVars(desktopConfig.globalThemeDefault.widgetTheme),
     }),
     [
       config.overlayStyle.accentColor,
       config.overlayStyle.fontFamily,
       config.overlayStyle.textColor,
-      desktopConfig.theme,
-      desktopConfig.widgetTheme,
+      desktopConfig.globalThemeDefault.theme,
+      desktopConfig.globalThemeDefault.widgetTheme,
       desktopScene?.style?.accentColor,
       desktopScene?.style?.fontFamily,
       desktopScene?.style?.textColor,
@@ -1512,13 +1512,13 @@ export function Desktop({ apps }: DesktopProps) {
   const systemWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]
-  const widgetThemeClassNames = buildWidgetThemeScopeClassNames(desktopConfig.widgetTheme)
+  const widgetThemeClassNames = buildWidgetThemeScopeClassNames(desktopConfig.globalThemeDefault.widgetTheme)
 
   return (
     <CursorOverlayProvider>
       <div
         ref={desktopRef}
-        className={`desktop ${THEME_CLASSNAME[desktopConfig.theme]} ${widgetThemeClassNames}`}
+        className={`desktop ${THEME_CLASSNAME[desktopConfig.globalThemeDefault.theme]} ${widgetThemeClassNames}`}
         style={themeStyle}
         onMouseDown={handleDesktopMouseDown}
         onContextMenu={handleDesktopContextMenu}

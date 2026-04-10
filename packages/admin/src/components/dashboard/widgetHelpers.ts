@@ -66,8 +66,8 @@ export function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'appTyp
     : resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
 }
 
-export function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'id'>, desktopConfig: DesktopConfig) {
-  return desktopConfig.widgetThemeOverrides?.[app.id] ?? null
+export function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'themeOverride'>) {
+  return app.themeOverride ?? null
 }
 
 // ── Snapshot helpers ──────────────────────────────────────────────────
@@ -99,7 +99,7 @@ export function createApplicationSnapshot(source: Application, desktopConfig: De
           windowPosition: desktopConfig.widgetPositions?.[source.id] ? clone(desktopConfig.widgetPositions[source.id]) : undefined,
           windowSize: desktopConfig.widgetSizes?.[source.id] ? clone(desktopConfig.widgetSizes[source.id]) : undefined,
           defaultZIndex: desktopConfig.widgetDefaultZIndices?.[source.id],
-          themeOverride: desktopConfig.widgetThemeOverrides?.[source.id] ? clone(desktopConfig.widgetThemeOverrides[source.id]) : undefined,
+          themeOverride: source.themeOverride ? clone(source.themeOverride) : undefined,
         }
       : undefined,
   }
@@ -149,7 +149,6 @@ export function applyWidgetDefaultSnapshotToDesktopConfig(
   const nextWidgetPositions = { ...(nextDesktop.widgetPositions ?? {}) }
   const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
   const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
-  const nextThemeOverrides = { ...(nextDesktop.widgetThemeOverrides ?? {}) }
 
   const snapshotPosition = snapshot.widgetDefaults?.windowPosition
   if (snapshotPosition) {
@@ -182,16 +181,9 @@ export function applyWidgetDefaultSnapshotToDesktopConfig(
     delete nextWidgetDefaultZIndices[app.id]
   }
 
-  if (snapshot.widgetDefaults?.themeOverride) {
-    nextThemeOverrides[app.id] = clone(snapshot.widgetDefaults.themeOverride)
-  } else {
-    delete nextThemeOverrides[app.id]
-  }
-
   nextDesktop.widgetPositions        = Object.keys(nextWidgetPositions).length        ? nextWidgetPositions        : undefined
   nextDesktop.widgetSizes            = Object.keys(nextWidgetSizes).length            ? nextWidgetSizes            : undefined
   nextDesktop.widgetDefaultZIndices  = Object.keys(nextWidgetDefaultZIndices).length  ? nextWidgetDefaultZIndices  : undefined
-  nextDesktop.widgetThemeOverrides   = Object.keys(nextThemeOverrides).length         ? nextThemeOverrides         : undefined
 
   return nextDesktop
 }
@@ -318,13 +310,11 @@ export function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widg
   const nextSizes            = { ...(next.widgetSizes ?? {}) }
   const nextDefaultZIndices  = { ...(next.widgetDefaultZIndices ?? {}) }
   const nextRuntimeZIndices  = { ...(next.widgetZIndices ?? {}) }
-  const nextThemeOverrides   = { ...(next.widgetThemeOverrides ?? {}) }
 
   delete nextPositions[widgetId]
   delete nextSizes[widgetId]
   delete nextDefaultZIndices[widgetId]
   delete nextRuntimeZIndices[widgetId]
-  delete nextThemeOverrides[widgetId]
 
   return {
     ...next,
@@ -332,7 +322,6 @@ export function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widg
     widgetSizes:           Object.keys(nextSizes).length           ? nextSizes           : undefined,
     widgetDefaultZIndices: Object.keys(nextDefaultZIndices).length ? nextDefaultZIndices : undefined,
     widgetZIndices:        Object.keys(nextRuntimeZIndices).length ? nextRuntimeZIndices : undefined,
-    widgetThemeOverrides:  Object.keys(nextThemeOverrides).length  ? nextThemeOverrides  : undefined,
     widgetLayouts: (next.widgetLayouts ?? []).map((layout) => ({
       ...layout,
       items: layout.items.filter((item) => item.widgetId !== widgetId),

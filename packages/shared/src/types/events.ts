@@ -256,7 +256,7 @@ export interface RuntimeDiagnosticsPayload {
 }
 
 export interface RuntimeConfigOverridePayload {
-  desktopConfig?: Pick<Partial<DesktopConfig>, 'theme' | 'widgetTheme' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'widgetPositions' | 'widgetSizes' | 'widgetZIndices' | 'screenSaver'>
+  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'widgetPositions' | 'widgetSizes' | 'widgetZIndices' | 'screenSaver'>
   desktopAmbiance?: Partial<DesktopAmbianceConfig>
 }
 

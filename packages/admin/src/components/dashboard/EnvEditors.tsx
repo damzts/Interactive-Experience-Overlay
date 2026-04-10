@@ -9,7 +9,7 @@ import {
   withLobbyConfigDefaults,
   withOverlayStyleDefaults,
 } from '@ieom/shared'
-import type { Application, AppConfig, DesktopConfig, LobbyConfig, OverlayStyle, Scene, SourceInstance } from '@ieom/shared'
+import type { Application, AppConfig, DesktopConfig, DesktopTheme, LobbyConfig, OverlayStyle, Scene, SourceInstance, WidgetThemeConfig } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
@@ -308,9 +308,9 @@ export function DesktopThemeEditor() {
     [factorySystemWidgets],
   )
 
-  const [theme, setTheme]             = useState<DesktopConfig['theme']>(() => sourceThemeDefault.theme)
+  const [theme, setTheme]             = useState<DesktopTheme>(() => sourceThemeDefault.theme)
   const [appearance, setAppearance]   = useState<ThemeAppearance>(() => structuredClone(sourceThemeDefault.appearance))
-  const [widgetTheme, setWidgetTheme] = useState<DesktopConfig['widgetTheme']>(() => structuredClone(sourceThemeDefault.widgetTheme))
+  const [widgetTheme, setWidgetTheme] = useState<WidgetThemeConfig>(() => structuredClone(sourceThemeDefault.widgetTheme))
   const [form, setForm]               = useState<DesktopConfig>(() => structuredClone(sourceDesktopConfig))
   const [saving, setSaving]           = useState(false)
   const [saved,  setSaved]            = useState(false)
@@ -334,7 +334,7 @@ export function DesktopThemeEditor() {
     nextStyle.accentColor = appearance.accentColor
     nextStyle.textColor   = appearance.textColor
     return {
-      desktopConfig: { theme, widgetTheme },
+      desktopConfig: { globalThemeDefault: { theme, widgetTheme } },
       scenes: { [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], style: nextStyle } },
     } as unknown as Partial<AppConfig>
   }, [appearance, config.scenes, sourceStyle, theme, widgetTheme])
@@ -377,8 +377,6 @@ export function DesktopThemeEditor() {
     await saveConfig({
       desktopConfig: {
         ...structuredClone(form),
-        theme,
-        widgetTheme: structuredClone(widgetTheme),
         globalThemeDefault: { theme, widgetTheme: structuredClone(widgetTheme), appearance: structuredClone(appearance) },
       },
       scenes: { [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], style: buildNextStyle(appearance) } },
@@ -416,11 +414,8 @@ export function DesktopThemeEditor() {
       applications: nextApplications,
       desktopConfig: {
         ...factoryDesktopConfig,
-        theme: DEFAULT_DESKTOP_CONFIG.theme,
-        widgetTheme: structuredClone(DEFAULT_DESKTOP_CONFIG.widgetTheme),
         widgetPositions: undefined,
         widgetSizes: undefined,
-        widgetThemeOverrides: undefined,
         widgetLayouts: structuredClone(DEFAULT_SYSTEM_WIDGET_LAYOUTS),
       },
       scenes: { [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], style: factoryDesktopStyle } },

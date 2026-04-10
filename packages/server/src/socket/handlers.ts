@@ -174,10 +174,9 @@ export function setupSocketHandlers(
   let cameraOwnerSocketId: string | null = null
   let runtimeConfigOverride: RuntimeConfigOverridePayload = {}
   const RUNTIME_OVERRIDE_RESET_SCOPES = [
-    'desktop.theme',
+    'desktop.globalThemeDefault',
     'desktop.iconAnimation',
     'desktop.iconMotion',
-    'desktop.widgetTheme',
     'desktop.screenSaver',
     'desktop.widgetThemeOverrides',
     'ambiance.widgetSimulation',
@@ -232,12 +231,18 @@ export function setupSocketHandlers(
       ? {
           ...(base.desktopConfig ?? {}),
           ...updates.desktopConfig,
-          widgetTheme: updates.desktopConfig.widgetTheme
+          globalThemeDefault: updates.desktopConfig.globalThemeDefault
             ? {
-                ...(base.desktopConfig?.widgetTheme ?? {}),
-                ...updates.desktopConfig.widgetTheme,
+                ...(base.desktopConfig?.globalThemeDefault ?? {}),
+                ...updates.desktopConfig.globalThemeDefault,
+                widgetTheme: updates.desktopConfig.globalThemeDefault.widgetTheme
+                  ? {
+                      ...(base.desktopConfig?.globalThemeDefault?.widgetTheme ?? {}),
+                      ...updates.desktopConfig.globalThemeDefault.widgetTheme,
+                    }
+                  : base.desktopConfig?.globalThemeDefault?.widgetTheme,
               }
-            : base.desktopConfig?.widgetTheme,
+            : base.desktopConfig?.globalThemeDefault,
           widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides
             ? {
                 ...(base.desktopConfig?.widgetThemeOverrides ?? {}),
@@ -318,10 +323,9 @@ export function setupSocketHandlers(
     const nextDesktopAmbiance = { ...(runtimeConfigOverride.desktopAmbiance ?? {}) }
 
     for (const scope of scopes) {
-      if (scope === 'desktop.theme') delete nextDesktopConfig.theme
+      if (scope === 'desktop.globalThemeDefault') delete nextDesktopConfig.globalThemeDefault
       if (scope === 'desktop.iconAnimation') delete nextDesktopConfig.iconAnimation
       if (scope === 'desktop.iconMotion') delete nextDesktopConfig.iconMotion
-      if (scope === 'desktop.widgetTheme') delete nextDesktopConfig.widgetTheme
       if (scope === 'desktop.screenSaver') delete nextDesktopConfig.screenSaver
       if (scope === 'desktop.widgetThemeOverrides') delete nextDesktopConfig.widgetThemeOverrides
       if (scope === 'ambiance.widgetSimulation') delete nextDesktopAmbiance.widgetSimulation
@@ -694,38 +698,45 @@ export function setupSocketHandlers(
 
     for (const action of eventDef.actions ?? []) {
       if (action.kind === 'desktop-config') {
-        const currentEffectiveDesktopTheme = withDesktopConfigDefaults(
+        const currentEffectiveDesktop = withDesktopConfigDefaults(
           mergeAppConfig(getConfig(), runtimeConfigOverride as unknown as Partial<AppConfig>).desktopConfig,
-        ).theme
-        const resolvedDesktopTheme = resolveRuntimeDesktopTheme(action.patch.theme, currentEffectiveDesktopTheme)
+        )
+        const resolvedDesktopTheme = resolveRuntimeDesktopTheme(action.patch.theme, currentEffectiveDesktop.globalThemeDefault.theme)
         const resolvedWidgetThemePatch = resolveRuntimeWidgetThemePatch(action.patch.widgetTheme)
+        const globalThemeDefaultPatch = resolvedDesktopTheme !== undefined || resolvedWidgetThemePatch
+          ? {
+              ...(resolvedDesktopTheme !== undefined ? { theme: resolvedDesktopTheme } : {}),
+              ...(resolvedWidgetThemePatch ? { widgetTheme: resolvedWidgetThemePatch } : {}),
+            }
+          : undefined
         const desktopConfigPatch = {
-          ...(resolvedDesktopTheme !== undefined ? { theme: resolvedDesktopTheme } : {}),
+          ...(globalThemeDefaultPatch ? { globalThemeDefault: globalThemeDefaultPatch } : {}),
           ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
           ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
-          ...(resolvedWidgetThemePatch ? { widgetTheme: resolvedWidgetThemePatch } : {}),
           ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
         }
         applyRuntimeConfigOverride({ desktopConfig: desktopConfigPatch })
         const resetScopes: RuntimeOverrideResetScope[] = []
-        if (desktopConfigPatch.theme !== undefined) resetScopes.push('desktop.theme')
+        if (globalThemeDefaultPatch !== undefined) resetScopes.push('desktop.globalThemeDefault')
         if (desktopConfigPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
         if (desktopConfigPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
-        if (desktopConfigPatch.widgetTheme !== undefined) resetScopes.push('desktop.widgetTheme')
         if (desktopConfigPatch.screenSaver !== undefined) resetScopes.push('desktop.screenSaver')
         if (resetScopes.length > 0) scheduleRuntimeConfigOverrideReset(resetScopes, action.timeoutSeconds ?? 30)
         continue
       }
 
       if (action.kind === 'widget-theme-overrides') {
-        const currentDesktop = withDesktopConfigDefaults(getConfig().desktopConfig)
+        const currentConfig = getConfig()
+        const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
         const resolvedThemePatch = resolveRuntimeWidgetThemePatch(action.theme)
         const nextOverrides: NonNullable<DesktopConfig['widgetThemeOverrides']> = {}
         for (const widgetId of action.widgetIds) {
-          nextOverrides[widgetId] = {
-            ...((action.clearExisting ? currentDesktop.widgetTheme : currentDesktop.widgetThemeOverrides?.[widgetId] ?? currentDesktop.widgetTheme)),
-            ...(resolvedThemePatch ?? {}),
-          }
+          const globalWidgetTheme = currentDesktop.globalThemeDefault.widgetTheme
+          const persistedAppOverride = currentConfig.applications.find((a) => a.id === widgetId)?.themeOverride
+          const baseTheme = action.clearExisting
+            ? globalWidgetTheme
+            : currentDesktop.widgetThemeOverrides?.[widgetId] ?? persistedAppOverride ?? globalWidgetTheme
+          nextOverrides[widgetId] = { ...baseTheme, ...(resolvedThemePatch ?? {}) }
         }
 
         applyRuntimeConfigOverride({

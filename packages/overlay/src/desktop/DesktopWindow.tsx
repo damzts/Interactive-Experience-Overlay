@@ -94,7 +94,9 @@ export function DesktopWindow({
   const rawDesktopConfig = useAppStore((store) => store.config.desktopConfig)
   const configPos = useAppStore((store) => store.config.desktopConfig?.widgetPositions?.[id])
   const sizeOverride = useAppStore((store) => store.config.desktopConfig?.widgetSizes?.[id])
-  const widgetThemeOverride = withDesktopConfigDefaults(rawDesktopConfig).widgetThemeOverrides?.[id]
+  const persistedAppThemeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.themeOverride)
+  // Runtime event override wins over persisted app override
+  const widgetThemeOverride = withDesktopConfigDefaults(rawDesktopConfig).widgetThemeOverrides?.[id] ?? persistedAppThemeOverride
   const windowSeed = hashString(id)
   const motionPhase = (windowSeed % 17) / 2
   const hueShift = (windowSeed % 9) - 4

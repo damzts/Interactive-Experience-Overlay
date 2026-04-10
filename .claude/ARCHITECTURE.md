@@ -51,15 +51,15 @@ Single table: `config_store` — `key/value TEXT`, JSON config sections stored a
 ```
 scenes          Record<string, Scene>         — authored visual states
 applications    Application[]                 — desktop icons/apps/widgets
+desktopConfig   DesktopConfig?                — runtime layout, widget positions/themes
+desktopAmbiance DesktopAmbianceConfig?        — automated desktop/widget behavior
+overlayStyle    OverlayStyle                  — per-scene BG/effects/particles/typography
+events          EventConfig[]?                — scheduler-driven automations
+sourcePresets   SourcePreset[]?               — reusable source plugin presets
+mediaLibrary    MediaEntry[]?                 — image/video asset library
 keybinds        { obs, admin }                — hotkey maps
 obs             { url, password }             — OBS WebSocket connection
 audio           { masterVolume, sfxVolume, musicVolume }
-overlayStyle    OverlayStyle                  — per-scene BG/effects/particles/typography
-desktopConfig   DesktopConfig?                — runtime layout, widget positions/themes
-desktopAmbiance DesktopAmbianceConfig?        — automated desktop/widget behavior
-events          EventConfig[]?                — scheduler-driven automations
-mediaLibrary    MediaEntry[]?                 — image/video asset library
-sourcePresets   SourcePreset[]?               — reusable source plugin presets
 ```
 
 Flow: `loadPersistedConfig()` → `withConfigDefaults()` → in-memory `config` → `persistConfig(next, machine?, updates?)` writes only changed sections.
@@ -128,14 +128,14 @@ Widget-specific persisted state lives across application records plus desktop co
 
 - widget identity and behavior live on `Application`
 - widget window position/size/z-order defaults live in `DesktopConfig`
-- widget theme overrides live in `DesktopConfig.widgetThemeOverrides`
+- widget per-app theme override lives in `Application.themeOverride` (persisted); runtime event overrides use `DesktopConfig.widgetThemeOverrides` (ephemeral, never written to DB)
 - widget layouts live in `DesktopConfig.widgetLayouts`
 
 Default snapshot model:
 
 - scenes use `Scene.defaultConfig`
 - applications/widgets use `Application.defaultConfig`
-- global theme uses `DesktopConfig.globalThemeDefault`
+- active theme and widget theme live in `DesktopConfig.globalThemeDefault` (theme + widgetTheme + appearance)
 - widget layouts use `WidgetLayoutDefinition.defaultConfig`
 - admin editors support `Save Current as Default` and `Restore Defaults`
 

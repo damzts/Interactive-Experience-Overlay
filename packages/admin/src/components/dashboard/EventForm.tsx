@@ -10,6 +10,7 @@ import type {
   DesktopNotificationEffectConfig,
   EffectType,
   EventAction,
+  EventDesktopTheme,
   WidgetThemeConfig,
 } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -263,7 +264,7 @@ export function EventForm({
                       <div className="grid grid-cols-2 gap-2 pl-1">
                         <div>
                           <div className="text-[10px] text-zinc-500 mb-1">Desktop theme</div>
-                          <select value={action.patch.theme ?? 'win98'} onChange={(e) => updateAction(index, (draft) => { if (draft.kind !== 'desktop-config') return; draft.patch.theme = e.target.value as DesktopConfig['theme'] })} className="w-full text-xs">
+                          <select value={action.patch.theme ?? 'win98'} onChange={(e) => updateAction(index, (draft) => { if (draft.kind !== 'desktop-config') return; draft.patch.theme = e.target.value as EventDesktopTheme })} className="w-full text-xs">
                             {DESKTOP_THEMES.map((theme) => <option key={theme.id} value={theme.id}>{theme.label}</option>)}
                           </select>
                         </div>
