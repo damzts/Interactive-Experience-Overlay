@@ -509,8 +509,8 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
             </div>
             <div className="mt-3 pt-3 border-t border-zinc-700/50">
               <div className="text-[10px] text-zinc-500 mb-1">
-                Default Z-Index
-                <span className="text-zinc-600 ml-1">(base order — higher starts nearer the front before manual focus changes)</span>
+                Default Stack Order
+                <span className="text-zinc-600 ml-1">(higher = nearer the front by default)</span>
               </div>
               <div className="flex gap-2 items-center">
                 <input type="number" min={WIDGET_Z_INDEX_MIN} max={WIDGET_Z_INDEX_MAX} value={widgetDefaultZIndex}
@@ -518,7 +518,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                   className="w-24 font-mono text-xs" />
               </div>
               <div className="text-[10px] text-zinc-600 mt-1">
-                This is the widget's baseline stack order. Saved layouts can temporarily bias focus priority on top of this, and manual clicking or taskbar focus can still move a window to the front at runtime.
+                Baseline stack order for this widget. Layout configurations can override this per-layout, and manual focus or taskbar clicks will still bring a window to the front at runtime.
               </div>
             </div>
           </ConfigSectionPanel>

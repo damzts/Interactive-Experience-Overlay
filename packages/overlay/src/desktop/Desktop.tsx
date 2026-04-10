@@ -908,13 +908,32 @@ export function Desktop({ apps }: DesktopProps) {
       }
 
       const persistedZIndices = desktopConfigRef.current.widgetZIndices ?? {}
-      const runtimeZIndices = { ...persistedZIndices }
+
       newIds.forEach((id) => {
         pendingDefaultSeedWidgetIdsRef.current.add(id)
-        delete runtimeZIndices[id]
       })
 
-      const nextOrderedIds = orderVisibleWidgetIds(ids, runtimeZIndices, defaultZIndices)
+      // Preserve the current window order for existing widgets and insert new widgets
+      // at positions matching their focusPriority (widgetDefaultZIndices). This ensures
+      // that opening a widget from the left panel respects the same z-index ordering as
+      // a widget layout apply rather than re-sorting all windows from stale persisted values.
+      const sortedNewIds = [...newIds].sort((a, b) =>
+        resolveWidgetStackPreference(a, {}, defaultZIndices)
+        - resolveWidgetStackPreference(b, {}, defaultZIndices)
+      )
+      const nextOrderedIds = [...next]
+      for (const newId of sortedNewIds) {
+        const newPref = resolveWidgetStackPreference(newId, {}, defaultZIndices)
+        let insertAt = nextOrderedIds.length
+        for (let i = 0; i < nextOrderedIds.length; i++) {
+          if (resolveWidgetStackPreference(nextOrderedIds[i], {}, defaultZIndices) > newPref) {
+            insertAt = i
+            break
+          }
+        }
+        nextOrderedIds.splice(insertAt, 0, newId)
+      }
+
       const nextOpenWidgetZIndices = Object.fromEntries(nextOrderedIds.map((id, idx) => [id, idx]))
       const nextPersistedZIndices = { ...persistedZIndices, ...nextOpenWidgetZIndices }
 

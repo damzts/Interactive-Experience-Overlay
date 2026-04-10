@@ -851,8 +851,8 @@ export function setupSocketHandlers(
         return (defaultZIndices[a.widgetId] ?? 0) - (defaultZIndices[b.widgetId] ?? 0)
       })
 
-    for (const [index, item] of orderedEnabledItems.entries()) {
-      nextRuntimeZIndices[item.widgetId] = index
+    for (const item of orderedEnabledItems) {
+      nextRuntimeZIndices[item.widgetId] = item.focusPriority
     }
 
     if (options?.persist === false) {
@@ -872,8 +872,8 @@ export function setupSocketHandlers(
         nextRuntimeSizes[item.widgetId] = { width: item.width, height: item.height }
       }
 
-      for (const [index, item] of orderedEnabledItems.entries()) {
-        nextRuntimeZIndices[item.widgetId] = index
+      for (const item of orderedEnabledItems) {
+        nextRuntimeZIndices[item.widgetId] = item.focusPriority
       }
 
       if (Object.keys(nextRuntimePositions).length) nextDesktopConfig.widgetPositions = nextRuntimePositions

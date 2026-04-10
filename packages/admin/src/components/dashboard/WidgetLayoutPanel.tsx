@@ -222,7 +222,7 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
                       </div>
                       <div className="flex-1 min-w-0 text-[11px] text-zinc-200 truncate">{app.label}</div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[9px] uppercase tracking-wider text-zinc-500">Focus</span>
+                        <span className="text-[9px] uppercase tracking-wider text-zinc-500">Stack Order</span>
                         <input type="number" min={-999} max={999} value={item.focusPriority}
                           onChange={(e) => updateLayout((draft) => { const row = draft.items.find((entry) => entry.widgetId === item.widgetId); if (row) row.focusPriority = Math.max(-999, Math.min(999, Math.round(Number(e.target.value) || 0))) })}
                           className="w-14 font-mono text-[11px]" />
