@@ -1,7 +1,6 @@
 import type { SceneMachine } from '../state/machine.js'
 import { STATE } from '@ieom/shared'
 import type { EventConfig, SchedulerDiagnosticsPayload } from '@ieom/shared'
-import { appendLog } from '../db/db.js'
 import { getConfig } from '../routes/config.js'
 
 const TICK_MS = 5_000
@@ -61,8 +60,7 @@ export class EventScheduler {
   }
 
   private fireEvent(eventDef: EventConfig) {
-    appendLog('auto-event', eventDef.id)
-    const triggeredAt = Date.now()
+const triggeredAt = Date.now()
     this.lastTriggeredEventId = eventDef.id
     this.lastTriggeredAt = triggeredAt
     this.lastTriggeredByEvent.set(eventDef.id, triggeredAt)

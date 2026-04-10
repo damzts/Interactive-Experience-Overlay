@@ -2,7 +2,15 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
 import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, mergeAppConfig, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withEventListDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
-import { getConfig as getDbConfig, setConfig as setDbConfig } from '../db/db.js'
+import { getConfigMany, setConfig as setDbConfig } from '../db/db.js'
+
+// Each top-level AppConfig section is stored as a separate row for efficient partial writes.
+const CONFIG_SECTION_KEYS = [
+  'scenes', 'applications', 'keybinds', 'obs', 'audio',
+  'overlayStyle', 'desktopConfig', 'desktopAmbiance', 'events', 'mediaLibrary', 'sourcePresets',
+] as const satisfies ReadonlyArray<keyof AppConfig>
+
+const SECTION_PREFIX = 'config:'
 
 function clone<T>(value: T): T {
   return structuredClone(value)
@@ -196,8 +204,28 @@ function withConfigDefaults(next: AppConfig): AppConfig {
   }
 }
 
+function loadPersistedConfig(): AppConfig | null {
+  const prefixedKeys = CONFIG_SECTION_KEYS.map((k) => `${SECTION_PREFIX}${k}`)
+  const rows = getConfigMany(prefixedKeys)
+  if (CONFIG_SECTION_KEYS.every((k) => rows[`${SECTION_PREFIX}${k}`] === undefined)) return null
+  const get = (k: typeof CONFIG_SECTION_KEYS[number]) => rows[`${SECTION_PREFIX}${k}`] ?? undefined
+  return {
+    scenes: (get('scenes') ?? DEFAULT_CONFIG.scenes) as AppConfig['scenes'],
+    applications: (get('applications') ?? DEFAULT_CONFIG.applications) as Application[],
+    keybinds: (get('keybinds') ?? DEFAULT_CONFIG.keybinds) as AppConfig['keybinds'],
+    obs: (get('obs') ?? DEFAULT_CONFIG.obs) as AppConfig['obs'],
+    audio: (get('audio') ?? DEFAULT_CONFIG.audio) as AppConfig['audio'],
+    overlayStyle: (get('overlayStyle') ?? DEFAULT_CONFIG.overlayStyle) as AppConfig['overlayStyle'],
+    desktopConfig: get('desktopConfig') as AppConfig['desktopConfig'],
+    desktopAmbiance: get('desktopAmbiance') as AppConfig['desktopAmbiance'],
+    events: get('events') as AppConfig['events'],
+    mediaLibrary: get('mediaLibrary') as AppConfig['mediaLibrary'],
+    sourcePresets: get('sourcePresets') as AppConfig['sourcePresets'],
+  }
+}
+
 // Load persisted config on startup, fall back to DEFAULT_CONFIG
-const persisted = getDbConfig('appConfig') as AppConfig | null
+const persisted = loadPersistedConfig()
 let config: AppConfig = withConfigDefaults(persisted ?? structuredClone(DEFAULT_CONFIG))
 
 export function getConfig() {
@@ -236,9 +264,24 @@ function buildConfigPatchPayload(config: AppConfig, updates: Partial<AppConfig>)
   return patch as Partial<AppConfig>
 }
 
+function writeSections(cfg: AppConfig, keys: ReadonlyArray<keyof AppConfig>) {
+  for (const key of keys) {
+    const value = cfg[key]
+    if (value !== undefined) {
+      setDbConfig(`${SECTION_PREFIX}${key}`, value)
+    }
+  }
+}
+
 export function persistConfig(next: AppConfig, machine?: Pick<SceneMachine, 'emit'>, updates?: Partial<AppConfig>) {
   config = withConfigDefaults(next)
-  setDbConfig('appConfig', config)
+
+  if (updates) {
+    writeSections(config, Object.keys(updates) as Array<keyof AppConfig>)
+  } else {
+    writeSections(config, CONFIG_SECTION_KEYS)
+  }
+
   machine?.emit('config:update', config)
   if (updates && Object.keys(updates).length > 0) {
     machine?.emit('config:patch', buildConfigPatchPayload(config, updates), config)

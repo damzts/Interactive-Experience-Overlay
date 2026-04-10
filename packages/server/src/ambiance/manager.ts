@@ -1,5 +1,4 @@
 import type { Server } from 'socket.io'
-import { appendLog } from '../db/db.js'
 import { getConfig } from '../routes/config.js'
 import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type {
@@ -235,8 +234,7 @@ export class AmbianceManager {
       this.pendingPhase = null
       this.inFlightActionId = null
       this.acceptTimeout = null
-      appendLog('ambiance-sim', 'simulation acceptance timeout, releasing lock')
-      this.lastSkipReason = 'simulation acceptance timeout released lock'
+this.lastSkipReason = 'simulation acceptance timeout released lock'
       this.recordHistory('simulate-accept-timeout', 'simulation acceptance timeout released lock', {
         actionId: actionId ?? undefined,
         widgetId: this.lastActionWidgetId ?? undefined,
@@ -272,8 +270,7 @@ export class AmbianceManager {
       this.pendingPhase = null
       this.inFlightActionId = null
       this.startTimeout = null
-      appendLog('ambiance-sim', 'simulation start timeout, releasing lock')
-      this.lastSkipReason = 'simulation start timeout released lock'
+this.lastSkipReason = 'simulation start timeout released lock'
       this.recordHistory('simulate-start-timeout', 'simulation start timeout released lock', {
         actionId: inFlightActionId ?? undefined,
         widgetId: this.lastActionWidgetId ?? undefined,
@@ -309,8 +306,7 @@ export class AmbianceManager {
       this.pendingPhase = null
       this.inFlightActionId = null
       this.simulationTimeout = null
-      appendLog('ambiance-sim', 'simulation completion timeout, releasing lock')
-      this.lastSkipReason = 'simulation completion timeout released lock'
+this.lastSkipReason = 'simulation completion timeout released lock'
       this.recordHistory('simulate-completion-timeout', 'simulation completion timeout released lock', {
         actionId: inFlightActionId ?? undefined,
         widgetId: this.lastActionWidgetId ?? undefined,
@@ -497,7 +493,6 @@ export class AmbianceManager {
     this.lastActionWidgetId = picked.widgetId
     this.lastAction = picked.action
     this.lastSkipReason = null
-    appendLog('ambiance-sim', `${picked.action} requested for widget: ${picked.widgetId} (server-authoritative, actionId=${actionId})`)
-    this.emitDiagnostics()
+this.emitDiagnostics()
   }
 }

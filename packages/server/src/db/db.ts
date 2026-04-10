@@ -18,75 +18,11 @@ db.pragma('foreign_keys = ON')
 
 // ── Schema (auto-migrated on server start) ────────────────────
 db.exec(`
-  CREATE TABLE IF NOT EXISTS stats (
-    key   TEXT PRIMARY KEY,
-    value INTEGER NOT NULL DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS archive_log (
-    id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    date   TEXT NOT NULL,
-    event  TEXT NOT NULL,
-    detail TEXT
-  );
-
   CREATE TABLE IF NOT EXISTS config_store (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
 `)
-
-// ── Stats queries ─────────────────────────────────────────────
-
-/** Get all stats as a plain object { key: value } */
-export function getAllStats(): Record<string, number> {
-  const rows = db.prepare('SELECT key, value FROM stats').all() as { key: string; value: number }[]
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]))
-}
-
-/** Increment a stat by 1. Creates the key if it doesn't exist. */
-export function incrementStat(key: string): number {
-  db.prepare(`
-    INSERT INTO stats (key, value) VALUES (?, 1)
-    ON CONFLICT(key) DO UPDATE SET value = value + 1
-  `).run(key)
-  return (db.prepare('SELECT value FROM stats WHERE key = ?').get(key) as { value: number }).value
-}
-
-/** Reset all stats to 0 */
-export function resetStats() {
-  db.prepare('DELETE FROM stats').run()
-}
-
-// ── Archive log queries ───────────────────────────────────────
-
-export interface LogEntry {
-  id: number
-  date: string
-  event: string
-  detail: string | null
-}
-
-/** Append an event to the archive log */
-export function appendLog(event: string, detail?: string) {
-  db.prepare('INSERT INTO archive_log (date, event, detail) VALUES (?, ?, ?)').run(
-    new Date().toISOString(),
-    event,
-    detail ?? null,
-  )
-  // Keep last 1000 entries
-  db.prepare('DELETE FROM archive_log WHERE id NOT IN (SELECT id FROM archive_log ORDER BY id DESC LIMIT 1000)').run()
-}
-
-/** Get most recent log entries */
-export function getLog(limit = 100): LogEntry[] {
-  return db.prepare('SELECT * FROM archive_log ORDER BY id DESC LIMIT ?').all(limit) as LogEntry[]
-}
-
-/** Clear archive log */
-export function clearLog() {
-  db.prepare('DELETE FROM archive_log').run()
-}
 
 // ── Config store queries ──────────────────────────────────────
 
@@ -94,6 +30,14 @@ export function clearLog() {
 export function getConfig(key: string): unknown | null {
   const row = db.prepare('SELECT value FROM config_store WHERE key = ?').get(key) as { value: string } | undefined
   return row ? JSON.parse(row.value) : null
+}
+
+/** Get multiple JSON config values in a single query. Returns only keys that exist. */
+export function getConfigMany(keys: string[]): Record<string, unknown> {
+  if (keys.length === 0) return {}
+  const placeholders = keys.map(() => '?').join(', ')
+  const rows = db.prepare(`SELECT key, value FROM config_store WHERE key IN (${placeholders})`).all(...keys) as { key: string; value: string }[]
+  return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]))
 }
 
 /** Set a JSON config value */
