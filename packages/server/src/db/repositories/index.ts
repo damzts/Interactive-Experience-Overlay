@@ -1,0 +1,24 @@
+import { db } from '../connection.js'
+import { AmbianceRepository } from './AmbianceRepository.js'
+import { ApplicationRepository } from './ApplicationRepository.js'
+import { AudioConfigRepository } from './AudioConfigRepository.js'
+import { DesktopRepository } from './DesktopRepository.js'
+import { EventRepository } from './EventRepository.js'
+import { KeybindRepository } from './KeybindRepository.js'
+import { MediaRepository } from './MediaRepository.js'
+import { ObsConfigRepository } from './ObsConfigRepository.js'
+import { OverlayStyleRepository } from './OverlayStyleRepository.js'
+import { SceneRepository } from './SceneRepository.js'
+import { SourcePresetRepository } from './SourcePresetRepository.js'
+
+export const sceneRepo = new SceneRepository(db)
+export const applicationRepo = new ApplicationRepository(db)
+export const desktopRepo = new DesktopRepository(db)
+export const eventRepo = new EventRepository(db)
+export const keybindRepo = new KeybindRepository(db)
+export const obsConfigRepo = new ObsConfigRepository(db)
+export const audioConfigRepo = new AudioConfigRepository(db)
+export const overlayStyleRepo = new OverlayStyleRepository(db)
+export const ambianceRepo = new AmbianceRepository(db)
+export const sourcePresetRepo = new SourcePresetRepository(db)
+export const mediaRepo = new MediaRepository(db)
