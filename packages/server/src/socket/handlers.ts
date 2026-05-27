@@ -35,7 +35,7 @@ import {
   type WidgetSkinTheme,
   type WidgetThemeConfig,
 } from '@ieom/shared'
-import type { AppConfig, DesktopConfig, EventConfig } from '@ieom/shared'
+import type { AppConfig, DesktopAmbianceConfig, DesktopConfig, EventConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
 import type { AmbianceManager } from '../ambiance/manager.js'
@@ -94,7 +94,7 @@ function resolveRuntimeWidgetThemePatch(patch?: EventWidgetThemePatch): Partial<
   if (!patch) return undefined
 
   if (patch.skin === undefined) {
-    return Object.keys(patch).length > 0 ? { ...patch } : undefined
+    return Object.keys(patch).length > 0 ? (patch as Partial<WidgetThemeConfig>) : undefined
   }
 
   const resolvedSkin = patch.skin === 'random'
@@ -271,9 +271,9 @@ export function setupSocketHandlers(
             ? {
                 ...(base.desktopConfig?.screenSaver ?? {}),
                 ...updates.desktopConfig.screenSaver,
-              }
+              } as NonNullable<RuntimeConfigOverridePayload['desktopConfig']>['screenSaver']
             : base.desktopConfig?.screenSaver,
-        }
+        } as RuntimeConfigOverridePayload['desktopConfig']
       : base.desktopConfig,
     desktopAmbiance: updates.desktopAmbiance
       ? {
@@ -289,9 +289,9 @@ export function setupSocketHandlers(
                       ...updates.desktopAmbiance.widgetSimulation.behaviors,
                     }
                   : base.desktopAmbiance?.widgetSimulation?.behaviors,
-              }
+              } as Partial<DesktopAmbianceConfig>['widgetSimulation']
             : base.desktopAmbiance?.widgetSimulation,
-        }
+        } as RuntimeConfigOverridePayload['desktopAmbiance']
       : base.desktopAmbiance,
   })
 
@@ -715,7 +715,7 @@ export function setupSocketHandlers(
           ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
           ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
         }
-        applyRuntimeConfigOverride({ desktopConfig: desktopConfigPatch })
+        applyRuntimeConfigOverride({ desktopConfig: desktopConfigPatch as RuntimeConfigOverridePayload['desktopConfig'] })
         const resetScopes: RuntimeOverrideResetScope[] = []
         if (globalThemeDefaultPatch !== undefined) resetScopes.push('desktop.globalThemeDefault')
         if (desktopConfigPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
@@ -771,9 +771,7 @@ export function setupSocketHandlers(
 
       applyRuntimeConfigOverride({
         desktopAmbiance: {
-          widgetSimulation: {
-            ...action.patch,
-          },
+          widgetSimulation: { ...action.patch } as Partial<DesktopAmbianceConfig>['widgetSimulation'],
         },
       })
       scheduleRuntimeConfigOverrideReset(['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
@@ -897,7 +895,9 @@ export function setupSocketHandlers(
       else delete nextDesktopConfig.widgetZIndices
 
       runtimeConfigOverride = {
-        desktopConfig: Object.keys(nextDesktopConfig).length ? nextDesktopConfig : undefined,
+        desktopConfig: Object.keys(nextDesktopConfig).length
+          ? nextDesktopConfig as RuntimeConfigOverridePayload['desktopConfig']
+          : undefined,
         desktopAmbiance: runtimeConfigOverride.desktopAmbiance,
       }
       emitRuntimeConfigOverride()
@@ -907,14 +907,14 @@ export function setupSocketHandlers(
           widgetPositions: nextPositions,
           widgetSizes: nextSizes,
           widgetZIndices: nextRuntimeZIndices,
-        },
+        } as DesktopConfig,
       })
       persistConfig(nextConfig, machine, {
         desktopConfig: {
-          widgetPositions: nextConfig.desktopConfig.widgetPositions,
-          widgetSizes: nextConfig.desktopConfig.widgetSizes,
-          widgetZIndices: nextConfig.desktopConfig.widgetZIndices,
-        },
+          widgetPositions: nextConfig.desktopConfig?.widgetPositions,
+          widgetSizes: nextConfig.desktopConfig?.widgetSizes,
+          widgetZIndices: nextConfig.desktopConfig?.widgetZIndices,
+        } as DesktopConfig,
       })
     }
 

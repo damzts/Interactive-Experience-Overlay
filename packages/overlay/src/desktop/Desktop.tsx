@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
 import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'
-import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload, OverlayStyle } from '@ieom/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
@@ -16,6 +16,7 @@ import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWid
 import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
 import { DesktopWidgetProps, getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration } from './widgetRegistry'
 import React from 'react';
+import { resolveSceneStyle } from '../services/SceneResolver.js'
 
 function resolveWidgetComponent(app: Application) {
   const widgetComponent = getWidgetComponent(app)
@@ -480,7 +481,7 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const desktopConfigRef = useRef(desktopConfig)
   desktopConfigRef.current = desktopConfig
-  const desktopScene = config.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined
+  const desktopStyle = resolveSceneStyle(config, STATE.DESKTOP)
   const supportedApps = useMemo(() => apps, [apps])
   const cameraPermissionState = useAppStore((s) => s.cameraPermissionState)
   const setCameraPermissionState = useAppStore((s) => s.setCameraPermissionState)
@@ -827,21 +828,18 @@ export function Desktop({ apps }: DesktopProps) {
     () => ({
       ...buildDesktopThemeVars(
         desktopConfig.globalThemeDefault.theme,
-        desktopScene?.style?.accentColor ?? config.overlayStyle.accentColor,
-        desktopScene?.style?.textColor ?? config.overlayStyle.textColor,
-        desktopScene?.style?.fontFamily ?? config.overlayStyle.fontFamily,
+        desktopStyle.accentColor,
+        desktopStyle.textColor,
+        desktopStyle.fontFamily,
       ),
       ...buildWidgetThemeVars(desktopConfig.globalThemeDefault.widgetTheme),
     }),
     [
-      config.overlayStyle.accentColor,
-      config.overlayStyle.fontFamily,
-      config.overlayStyle.textColor,
+      desktopStyle.accentColor,
+      desktopStyle.fontFamily,
+      desktopStyle.textColor,
       desktopConfig.globalThemeDefault.theme,
       desktopConfig.globalThemeDefault.widgetTheme,
-      desktopScene?.style?.accentColor,
-      desktopScene?.style?.fontFamily,
-      desktopScene?.style?.textColor,
     ],
   )
 
@@ -1362,7 +1360,7 @@ export function Desktop({ apps }: DesktopProps) {
   const handleToggleAutoArrange = useCallback(() => {
     return persistDesktopLayoutRecovery({
       nextDesktopConfig: {
-        ...config.desktopConfig,
+        ...desktopConfig,
         autoArrangeIcons: !autoArrangeIcons,
       },
       notificationBody: autoArrangeIcons
@@ -1381,7 +1379,7 @@ export function Desktop({ apps }: DesktopProps) {
     return persistDesktopLayoutRecovery({
       nextApplications,
       nextDesktopConfig: {
-        ...config.desktopConfig,
+        ...desktopConfig,
         autoArrangeIcons: true,
       },
       notificationBody: 'Icon layout reset to the automatic desktop grid.',
@@ -1391,7 +1389,7 @@ export function Desktop({ apps }: DesktopProps) {
   const handleResetWidgetWindows = useCallback(() => {
     return persistDesktopLayoutRecovery({
       nextDesktopConfig: {
-        ...config.desktopConfig,
+        ...desktopConfig,
         widgetPositions: undefined,
         widgetSizes: undefined,
         widgetZIndices: undefined,

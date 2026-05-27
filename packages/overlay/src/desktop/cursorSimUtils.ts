@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { CursorOverlayController } from './CursorOverlay';
 import type { DesktopStartMenuSimulationPhasePayload, MenuPathTimingStep, OpenWidgetMenuTimelinePayload } from '@ieom/shared';
 

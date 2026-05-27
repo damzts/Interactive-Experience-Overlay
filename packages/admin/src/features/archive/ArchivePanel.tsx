@@ -1,39 +1,29 @@
 import { useEffect, useState } from 'react'
 import { Btn, ConfigNotice, ConfigPageIntro, ConfigSectionPanel, ConfigTable, ConfigToolbar } from '../../shared/ui'
-
-interface Stats {
-  wins: number
-  losses: number
-  deaths: number
-  revives: number
-  sessions: number
-}
-
-interface LogEntry {
-  id: number
-  date: string
-  event: string
-  detail: string | null
-}
+import {
+  getArchiveStats,
+  getArchiveLog,
+  resetArchiveStats,
+  incrementArchiveStat,
+} from '../../api/archiveApi.js'
+import type { ArchiveStats, ArchiveLogEntry } from '../../api/archiveApi.js'
 
 export function ArchivePanel() {
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [log, setLog] = useState<LogEntry[]>([])
+  const [stats, setStats] = useState<ArchiveStats | null>(null)
+  const [log, setLog] = useState<ArchiveLogEntry[]>([])
   const [error, setError] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
   const [resetDone, setResetDone] = useState(false)
 
   const fetchStats = () => {
-    fetch('/api/archive/stats')
-      .then((r) => r.json())
+    getArchiveStats()
       .then((data) => setStats(data))
       .catch((e) => setError(String(e)))
   }
 
   const fetchLog = () => {
-    fetch('/api/archive/log')
-      .then((r) => r.json())
-      .then((data: LogEntry[]) => setLog(data))
+    getArchiveLog()
+      .then((data) => setLog(data))
       .catch(() => {})
   }
 
@@ -43,7 +33,7 @@ export function ArchivePanel() {
   }, [])
 
   const handleReset = async () => {
-    await fetch('/api/archive/reset', { method: 'POST' })
+    await resetArchiveStats()
     setConfirmReset(false)
     setResetDone(true)
     fetchStats()
@@ -51,12 +41,8 @@ export function ArchivePanel() {
     setTimeout(() => setResetDone(false), 3000)
   }
 
-  const handleIncrement = async (field: keyof Stats) => {
-    await fetch(`/api/archive/increment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field }),
-    })
+  const handleIncrement = async (field: keyof ArchiveStats) => {
+    await incrementArchiveStat(field)
     fetchStats()
   }
 
@@ -74,7 +60,7 @@ export function ArchivePanel() {
           <ConfigTable compact>
             <table>
               <tbody>
-                {(Object.entries(stats) as [keyof Stats, number][]).map(([key, val]) => (
+                {(Object.entries(stats) as [keyof ArchiveStats, number][]).map(([key, val]) => (
                   <tr key={key}>
                     <td className="w-40 capitalize text-sm font-medium text-cyan-300">{key}</td>
                     <td className="font-mono text-base font-bold text-zinc-100">{val}</td>

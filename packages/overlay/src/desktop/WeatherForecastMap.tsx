@@ -14,11 +14,11 @@ interface Props {
 }
 
 const WEATHER_MAP_STYLE = {
-  version: 8,
+  version: 8 as const,
   sources: {
     osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      type: 'raster' as const,
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'] as string[],
       tileSize: 256,
       attribution: '© OpenStreetMap contributors',
     },
@@ -26,11 +26,11 @@ const WEATHER_MAP_STYLE = {
   layers: [
     {
       id: 'osm-base',
-      type: 'raster',
+      type: 'raster' as const,
       source: 'osm',
     },
   ],
-} as const
+}
 
 function buildMarkerElement(city: MapCity) {
   const marker = document.createElement('div')

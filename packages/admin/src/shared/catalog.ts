@@ -1,25 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MediaEntry } from '@ieom/shared'
-
-export type AssetKind = 'image' | 'video' | 'audio'
-export type AssetSource = 'filesystem' | 'games' | 'saved'
-
-export interface AssetRecord {
-  id: string
-  name: string
-  kind: AssetKind
-  url: string
-  source: AssetSource
-  folder: string
-  relativePath: string
-  ext: string
-  game?: string
-  duration?: number
-}
-
-interface AssetCatalogResponse {
-  assets: AssetRecord[]
-}
+import { getAssetCatalog, uploadAsset, deleteAsset } from '../api/mediaApi.js'
+export type { AssetKind, AssetSource, AssetRecord } from '../api/mediaApi.js'
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif']
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'm4v']
@@ -30,7 +12,7 @@ function hasExtension(url: string, extensions: string[]) {
   return extensions.some((ext) => normalized.includes(`.${ext}`))
 }
 
-export function inferAssetKindFromUrl(url: string, fallback: AssetKind = 'image'): AssetKind {
+export function inferAssetKindFromUrl(url: string, fallback: import('../api/mediaApi.js').AssetKind = 'image'): import('../api/mediaApi.js').AssetKind {
   const normalized = url.trim().toLowerCase()
   if (!normalized) return fallback
   if (normalized.startsWith('data:image/')) return 'image'
@@ -53,7 +35,7 @@ export function isLikelyAssetUrl(value: string) {
   return false
 }
 
-export function mediaEntryToAsset(entry: MediaEntry): AssetRecord {
+export function mediaEntryToAsset(entry: MediaEntry): import('../api/mediaApi.js').AssetRecord {
   return {
     id: entry.id,
     name: entry.name,
@@ -67,34 +49,10 @@ export function mediaEntryToAsset(entry: MediaEntry): AssetRecord {
   }
 }
 
-export async function uploadAssetFile(file: File): Promise<{ url: string; kind: AssetKind }> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await fetch('/api/upload/asset', { method: 'POST', body: form })
-  const json = await response.json() as { url?: string; error?: string }
-  if (!response.ok || !json.url) {
-    throw new Error(json.error ?? 'Upload failed')
-  }
-  return {
-    url: json.url,
-    kind: file.type.startsWith('video/') ? 'video' : 'image',
-  }
-}
-
-export async function deleteAssetFile(url: string) {
-  const response = await fetch('/api/assets', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-  })
-  const json = await response.json().catch(() => ({})) as { error?: string }
-  if (!response.ok) {
-    throw new Error(json.error ?? 'Delete failed')
-  }
-}
+export { uploadAsset as uploadAssetFile, deleteAsset as deleteAssetFile }
 
 export function useAssetCatalog() {
-  const [assets, setAssets] = useState<AssetRecord[]>([])
+  const [assets, setAssets] = useState<import('../api/mediaApi.js').AssetRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -102,12 +60,7 @@ export function useAssetCatalog() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/assets/catalog')
-      if (!response.ok) {
-        throw new Error(`Catalog request failed: ${response.status}`)
-      }
-      const json = await response.json() as AssetCatalogResponse
-      setAssets(Array.isArray(json.assets) ? json.assets : [])
+      setAssets(await getAssetCatalog())
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {

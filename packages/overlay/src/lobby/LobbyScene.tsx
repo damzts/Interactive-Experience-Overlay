@@ -14,6 +14,7 @@ import * as THREE from 'three'
 import { DEFAULT_CONFIG, STATE } from '@ieom/shared'
 import type { LobbyConfig } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
+import { resolveSceneStyle } from '../services/SceneResolver.js'
 
 // ── Room dimensions ────────────────────────────────────────────────────────
 const ROOM_W = 12
@@ -85,7 +86,7 @@ function resolveBackdropColors(background: { type: string; color: string; gradie
   if (background.type === 'gradient') {
     const colors = extractGradientColors(background.gradient)
     if (colors.length > 0) {
-      const gradientTopColor = colors[0]
+      const gradientTopColor = colors[0] as string
       const gradientHorizonColor = colors[colors.length - 1] ?? colors[0]
       return {
         topColor: blendColor(topColor, gradientTopColor, background.opacity),
@@ -476,7 +477,8 @@ function AutoCamera({ fov }: { fov: number }) {
 function Scene() {
   const config = useAppStore((s) => s.config)
   const env = config.scenes[STATE.LOBBY]?.lobbyConfig
-  const lobbyBackground = config.scenes[STATE.LOBBY]?.style?.background ?? config.overlayStyle.background
+  const lobbyStyle = resolveSceneStyle(config, STATE.LOBBY)
+  const lobbyBackground = lobbyStyle.background
   const defaultLobbyBackground = DEFAULT_CONFIG.scenes[STATE.LOBBY].style?.background ?? config.overlayStyle.background
 
   const fogColor         = resolveAlphaColor(env?.fogColor, '#080810')

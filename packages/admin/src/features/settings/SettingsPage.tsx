@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { Btn, Toggle, ConfigSectionPanel } from '../../shared/ui'
+import { testObsConnection } from '../../api/obsApi.js'
 
 function formatObsRetry(nextRetryAt: number | null) {
   if (!nextRetryAt) return null
@@ -71,9 +72,8 @@ export function SettingsPage({
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await fetch('/api/obs/test')
-      const data = await res.json()
-      setTestResult(data.connected ? '✔ OBS is connected.' : `✘ Not connected: ${data.message}`)
+      const data = await testObsConnection()
+      setTestResult(data.connected ? '✔ OBS is connected.' : `✘ Not connected: ${data.message ?? ''}`)
     } catch {
       setTestResult('✘ Could not reach server.')
     } finally {

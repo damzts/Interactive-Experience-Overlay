@@ -9,7 +9,7 @@ export function LayerStack({ sources }: LayerStackProps) {
   return (
     <>
       {sources.map((source) => {
-        const plugin = pluginRegistry[source.pluginType]
+        const plugin = pluginRegistry[source.pluginType ?? '']
         if (!plugin) {
           console.warn(`[LayerStack] Unknown plugin type: ${source.pluginType}`)
           return null
@@ -31,7 +31,7 @@ export function LayerStack({ sources }: LayerStackProps) {
               overflow: 'hidden',
             }}
           >
-            <Renderer config={source.config} />
+            <Renderer config={source.config ?? {}} />
           </div>
         )
       })}

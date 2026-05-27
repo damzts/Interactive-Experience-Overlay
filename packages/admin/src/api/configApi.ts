@@ -1,5 +1,6 @@
 import { mergeAppConfig } from '@ieom/shared'
 import type { AppConfig, Application } from '@ieom/shared'
+import { apiFetch } from './client.js'
 
 function findSingleChangedApplication(
   current: AppConfig['applications'],
@@ -19,9 +20,7 @@ function findSingleChangedApplication(
 }
 
 export async function fetchConfig(): Promise<AppConfig> {
-  const res = await fetch('/api/config')
-  if (!res.ok) throw new Error(`fetchConfig failed: ${res.status}`)
-  return res.json() as Promise<AppConfig>
+  return apiFetch<AppConfig>('/api/config')
 }
 
 export async function patchConfig(
@@ -30,31 +29,23 @@ export async function patchConfig(
 ): Promise<AppConfig> {
   const merged = mergeAppConfig(currentConfig, updates)
 
-  let res: Response
-
   if (Object.keys(updates).length === 1 && updates.applications) {
     const changedApp = findSingleChangedApplication(currentConfig.applications, updates.applications)
     if (changedApp) {
-      res = await fetch(`/api/config/applications/${encodeURIComponent(changedApp.id)}`, {
+      await apiFetch(`/api/config/applications/${encodeURIComponent(changedApp.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(changedApp),
       })
-    } else {
-      res = await fetch('/api/config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
+      return merged
     }
-  } else {
-    res = await fetch('/api/config', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    })
   }
 
-  if (!res.ok) throw new Error(`patchConfig failed: ${res.status}`)
+  await apiFetch('/api/config', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
   return merged
 }
+

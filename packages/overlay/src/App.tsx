@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { STATE, resolveSourceInstance } from '@ieom/shared'
+import { STATE } from '@ieom/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
 import { audioEngine } from './engine/AudioEngine'
@@ -12,6 +12,7 @@ import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
 import { LobbyScene } from './lobby/LobbyScene'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
+import { resolveScene } from './services/SceneResolver.js'
 
 const CONFIG_PREVIEW_MESSAGE_TYPE = 'ieom:config-preview'
 
@@ -46,30 +47,11 @@ export default function App() {
     audioEngine.setMusicVolume(config.audio.musicVolume)
   }, [config.audio.masterVolume, config.audio.musicVolume])
 
-  const currentScene = config.scenes[visualState] ?? config.scenes[STATE.DESKTOP]
-  const visibleSources = (currentScene?.sources ?? [])
-    .filter((source) => source.visible)
-    .map((source) => resolveSourceInstance(source, config.sourcePresets))
-    .filter((source): source is NonNullable<typeof source> => source !== null)
-  // Each scene owns its own visual style; fall back to root overlayStyle if absent
-  const overlayStyle = currentScene?.style ?? config.overlayStyle
-  const effectiveEffects = visualState === STATE.DESKTOP && overlayStyle.background.type === 'none'
-    ? {
-        ...overlayStyle.effects,
-        crt: false,
-        noise: false,
-        vignette: false,
-        flicker: false,
-        chromatic: false,
-        scanlineOpacity: 0,
-        noiseOpacity: 0,
-        vignetteStrength: 0,
-      }
-    : overlayStyle.effects
+  const { scene, visibleSources, overlayStyle, effectiveEffects } = resolveScene(config, visualState)
 
   // Play per-scene background music track (null = silence)
   useEffect(() => {
-    audioEngine.playMusic(currentScene?.musicTrack ?? null)
+    audioEngine.playMusic(scene?.musicTrack ?? null)
   }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
