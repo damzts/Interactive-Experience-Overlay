@@ -1,7 +1,6 @@
 import type { SceneMachine } from '../state/machine.js'
 import { STATE } from '@ieom/shared'
-import type { EventConfig, SchedulerDiagnosticsPayload } from '@ieom/shared'
-import { getConfig } from '../routes/config.js'
+import type { AppConfig, EventConfig, SchedulerDiagnosticsPayload } from '@ieom/shared'
 
 const TICK_MS = 5_000
 
@@ -25,7 +24,7 @@ export class EventScheduler {
   private lastTriggeredEventId: string | null = null
   private diagnosticsListener?: (payload: SchedulerDiagnosticsPayload) => void
 
-  constructor(private machine: SceneMachine) {}
+  constructor(private machine: SceneMachine, private getConfig: () => AppConfig) {}
 
   setDiagnosticsListener(listener?: (payload: SchedulerDiagnosticsPayload) => void) {
     this.diagnosticsListener = listener
@@ -87,7 +86,7 @@ const triggeredAt = Date.now()
 
   getDiagnostics(): SchedulerDiagnosticsPayload {
     const now = Date.now()
-    const events = (getConfig().events ?? []).map((eventDef) => {
+    const events = (this.getConfig().events ?? []).map((eventDef) => {
       const nextRunAt = eventDef.auto.enabled && eventDef.auto.mode === 'interval'
         ? (this.intervalNextRunAt.get(eventDef.id) ?? null)
         : null
@@ -135,7 +134,7 @@ const triggeredAt = Date.now()
   private evaluateEvents() {
     const now = Date.now()
     this.lastEvaluatedAt = now
-    const events = getConfig().events ?? []
+    const events = this.getConfig().events ?? []
     const activeIds = new Set(events.filter((eventDef) => eventDef.auto.enabled).map((eventDef) => eventDef.id))
 
     for (const id of [...this.intervalNextRunAt.keys()]) {

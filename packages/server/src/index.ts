@@ -10,9 +10,10 @@ import { pipeline } from 'stream/promises'
 import { fileURLToPath } from 'url'
 import { SceneMachine } from './state/machine.js'
 import { setupSocketHandlers } from './socket/handlers.js'
-import { configRoute, getConfig } from './routes/config.js'
+import { configRoute } from './routes/config.js'
 import { clearMediaCaches, mediaRoute } from './routes/media.js'
 import { archiveRoute } from './routes/archive.js'
+import { configService } from './services/ConfigService.js'
 import { ObsBridge } from './obs/bridge.js'
 import { EventScheduler } from './events/scheduler.js'
 import { AmbianceManager } from './ambiance/manager.js'
@@ -106,12 +107,12 @@ const io = new SocketIO(app.server, {
 })
 
 // Managers for automated behaviors
-const scheduler = new EventScheduler(machine)
-const ambianceManager = new AmbianceManager(io)
+const scheduler = new EventScheduler(machine, () => configService.get())
+const ambianceManager = new AmbianceManager(io, () => configService.get())
 const obsBridge = new ObsBridge(io, machine)
-let activeObsUrl = getConfig().obs.url
-let activeObsPassword = getConfig().obs.password
-let activeAmbianceIntervalSeconds = withDesktopAmbianceDefaults(getConfig().desktopAmbiance).widgetSimulation.intervalSeconds
+let activeObsUrl = configService.get().obs.url
+let activeObsPassword = configService.get().obs.password
+let activeAmbianceIntervalSeconds = withDesktopAmbianceDefaults(configService.get().desktopAmbiance).widgetSimulation.intervalSeconds
 
 // Socket handlers wire up all managers
 setupSocketHandlers(io, machine, scheduler, ambianceManager, {

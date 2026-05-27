@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io'
-import { getConfig } from '../routes/config.js'
 import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieom/shared'
+import type { AppConfig } from '@ieom/shared'
 import type {
   AmbianceDiagnosticsPayload,
   AmbianceHistoryEntry,
@@ -90,7 +90,7 @@ export class AmbianceManager {
   private historySequence = 0
   private diagnosticsListener?: (payload: AmbianceDiagnosticsPayload) => void
 
-  constructor(private io: Server) {}
+  constructor(private io: Server, private getConfig: () => AppConfig) {}
 
   setDiagnosticsListener(listener?: (payload: AmbianceDiagnosticsPayload) => void) {
     this.diagnosticsListener = listener
@@ -111,7 +111,7 @@ export class AmbianceManager {
 
   start() {
     this.stop()
-    const config = withDesktopAmbianceDefaults(getConfig().desktopAmbiance)
+    const config = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance)
     const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
     this.lastStartedAt = Date.now()
     this.lastSkipReason = config.widgetSimulation.enabled ? null : 'simulation disabled'
@@ -319,7 +319,7 @@ this.lastSkipReason = 'simulation completion timeout released lock'
   }
 
   getDiagnostics(): AmbianceDiagnosticsPayload {
-    const config = withDesktopAmbianceDefaults(getConfig().desktopAmbiance)
+    const config = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance)
     const simConfig = config.widgetSimulation
     const openWidgetCount = this.getOpenWidgetIds?.().size ?? 0
     const enabledWidgetCount = this.getEffectiveBehaviors().filter(([, behavior]) => behavior.enabled).length
@@ -361,10 +361,10 @@ this.lastSkipReason = 'simulation completion timeout released lock'
   }
 
   private getEffectiveBehaviors() {
-    const widgetIds = getConfig().applications
+    const widgetIds = this.getConfig().applications
       .filter((app) => app.appType === 'widget')
       .map((app) => app.id)
-    const configuredBehaviors = withDesktopAmbianceDefaults(getConfig().desktopAmbiance).widgetSimulation.behaviors
+    const configuredBehaviors = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance).widgetSimulation.behaviors
     const hasEnabledBehavior = Object.values(configuredBehaviors).some((behavior) => !!behavior?.enabled)
 
     return widgetIds.map((widgetId) => {
@@ -381,7 +381,7 @@ this.lastSkipReason = 'simulation completion timeout released lock'
   }
 
   private tick() {
-    const config = withDesktopAmbianceDefaults(getConfig().desktopAmbiance)
+    const config = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance)
     const simConfig = config.widgetSimulation
     this.lastTickAt = Date.now()
 
