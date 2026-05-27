@@ -1,16 +1,23 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
-import { DEFAULT_CONFIG, DEFAULT_RECYCLE_BIN_SETTINGS, DEFAULT_STICKY_NOTES_SETTINGS, STATE, mergeAppConfig, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withEventListDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE, mergeAppConfig, withApplicationListDefaults, withDesktopAmbianceDefaults, withDesktopConfigDefaults, withEventListDefaults, withLobbyConfigDefaults, withOverlayStyleDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
-import { getConfigMany, setConfig as setDbConfig } from '../db/db.js'
-
-// Each top-level AppConfig section is stored as a separate row for efficient partial writes.
-const CONFIG_SECTION_KEYS = [
-  'scenes', 'applications', 'keybinds', 'obs', 'audio',
-  'overlayStyle', 'desktopConfig', 'desktopAmbiance', 'events', 'mediaLibrary', 'sourcePresets',
-] as const satisfies ReadonlyArray<keyof AppConfig>
-
-const SECTION_PREFIX = 'config:'
+import {
+  db,
+  hasPersistedConfig,
+  loadAllConfig,
+  saveApplications,
+  saveAudioConfig,
+  saveDesktopAmbiance,
+  saveDesktopConfig,
+  saveEvents,
+  saveKeybinds,
+  saveMediaLibrary,
+  saveObsConfig,
+  saveOverlayStyle,
+  saveScenes,
+  saveSourcePresets,
+} from '../db/db.js'
 
 function clone<T>(value: T): T {
   return structuredClone(value)
@@ -81,47 +88,19 @@ const REQUIRED_DESKTOP_APP_IDS = new Set(
     .map((app) => app.id),
 )
 
-type LegacyDesktopConfig = Partial<DesktopConfig> & {
-  stickyNotes?: Partial<NonNullable<Application['stickyNotesSettings']>> | null
-  recycleBin?: Partial<DesktopConfig['recycleBin']> & Partial<NonNullable<Application['recycleBinSettings']>>
-}
-
-function migrateLegacyDesktopAppSettings(applications: Application[], desktopConfig?: AppConfig['desktopConfig']) {
-  const legacyDesktop = desktopConfig as LegacyDesktopConfig | undefined
-  const legacyStickyNotes = legacyDesktop?.stickyNotes ?? undefined
-  const legacyRecycleBin = legacyDesktop?.recycleBin ?? undefined
-
-  if (!legacyStickyNotes && !legacyRecycleBin) return applications
-
-  return applications.map((app) => {
-    if (app.id === 'sticky-notes' && app.appType === 'widget' && legacyStickyNotes) {
-      return {
-        ...app,
-        stickyNotesSettings: {
-          ...DEFAULT_STICKY_NOTES_SETTINGS,
-          ...legacyStickyNotes,
-          ...app.stickyNotesSettings,
-        },
-      }
-    }
-
-    if (app.id === 'recycle-bin' && app.appType === 'decoration' && legacyRecycleBin) {
-      const nextRecycleBinSettings = {
-        ...DEFAULT_RECYCLE_BIN_SETTINGS,
-        ...(legacyRecycleBin.emptyIcon !== undefined ? { emptyIcon: legacyRecycleBin.emptyIcon } : {}),
-        ...(legacyRecycleBin.fullIcon !== undefined ? { fullIcon: legacyRecycleBin.fullIcon } : {}),
-        ...app.recycleBinSettings,
-      }
-
-      return {
-        ...app,
-        recycleBinSettings: nextRecycleBinSettings,
-      }
-    }
-
-    return app
-  })
-}
+const PERSISTED_CONFIG_KEYS = [
+  'scenes',
+  'applications',
+  'keybinds',
+  'obs',
+  'audio',
+  'overlayStyle',
+  'desktopConfig',
+  'desktopAmbiance',
+  'events',
+  'mediaLibrary',
+  'sourcePresets',
+] as const satisfies ReadonlyArray<keyof AppConfig>
 
 function withConfigDefaults(next: AppConfig): AppConfig {
   const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
@@ -131,40 +110,10 @@ function withConfigDefaults(next: AppConfig): AppConfig {
   const defaultLobbyStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style ?? DEFAULT_CONFIG.overlayStyle)
   const defaultDesktopStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.DESKTOP].style ?? DEFAULT_CONFIG.overlayStyle)
 
-  // Legacy migration: old configs used `browser` widget id. Replace with `gallery`.
-  const hasGallery = applications.some((app) => app.id === 'gallery' && app.appType === 'widget')
-  if (!hasGallery) {
-    applications = applications.map((app) => {
-      if (app.id !== 'browser' || app.appType !== 'widget') return app
-      return {
-        ...app,
-        id: 'gallery',
-        label: app.label === 'Browser.exe' ? 'GALLERY.exe' : app.label,
-        icon: app.icon === '🌐' ? '🖼' : app.icon,
-      }
-    })
-  } else {
-    applications = applications.filter((app) => !(app.id === 'browser' && app.appType === 'widget'))
-  }
-
   for (const app of requiredApps) {
     if (!applications.some((existing) => existing.id === app.id)) {
       applications.push(structuredClone(app))
     }
-  }
-
-  applications = migrateLegacyDesktopAppSettings(applications, next.desktopConfig)
-
-  // Migrate legacy desktopConfig.widgetThemeOverrides → Application.themeOverride
-  const legacyWidgetThemeOverrides = (next.desktopConfig as AppConfig['desktopConfig'] & { widgetThemeOverrides?: Record<string, unknown> })?.widgetThemeOverrides
-  if (legacyWidgetThemeOverrides && Object.keys(legacyWidgetThemeOverrides).length) {
-    applications = applications.map((app) => {
-      const legacyOverride = legacyWidgetThemeOverrides[app.id]
-      if (legacyOverride && !app.themeOverride) {
-        return { ...app, themeOverride: legacyOverride as Application['themeOverride'] }
-      }
-      return app
-    })
   }
 
   applications = withApplicationListDefaults(applications)
@@ -173,15 +122,6 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     ...app,
     defaultConfig: app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app, DEFAULT_CONFIG.desktopConfig ? withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig) : desktopConfig),
   }))
-
-  const migratedAmbiance = structuredClone(next.desktopAmbiance ?? {}) as Partial<NonNullable<AppConfig['desktopAmbiance']>>
-  const behaviors = migratedAmbiance.widgetSimulation?.behaviors
-  if (behaviors?.browser && !behaviors.gallery) {
-    behaviors.gallery = behaviors.browser
-  }
-  if (behaviors?.browser) {
-    delete behaviors.browser
-  }
 
   const scenes: AppConfig['scenes'] = {
     ...next.scenes,
@@ -211,30 +151,14 @@ function withConfigDefaults(next: AppConfig): AppConfig {
     scenes,
     overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
     desktopConfig,
-    desktopAmbiance: withDesktopAmbianceDefaults(migratedAmbiance),
+    desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance ?? {}),
     events: withEventListDefaults(next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events)),
     mediaLibrary: next.mediaLibrary ?? [],
   }
 }
 
 function loadPersistedConfig(): AppConfig | null {
-  const prefixedKeys = CONFIG_SECTION_KEYS.map((k) => `${SECTION_PREFIX}${k}`)
-  const rows = getConfigMany(prefixedKeys)
-  if (CONFIG_SECTION_KEYS.every((k) => rows[`${SECTION_PREFIX}${k}`] === undefined)) return null
-  const get = (k: typeof CONFIG_SECTION_KEYS[number]) => rows[`${SECTION_PREFIX}${k}`] ?? undefined
-  return {
-    scenes: (get('scenes') ?? DEFAULT_CONFIG.scenes) as AppConfig['scenes'],
-    applications: (get('applications') ?? DEFAULT_CONFIG.applications) as Application[],
-    keybinds: (get('keybinds') ?? DEFAULT_CONFIG.keybinds) as AppConfig['keybinds'],
-    obs: (get('obs') ?? DEFAULT_CONFIG.obs) as AppConfig['obs'],
-    audio: (get('audio') ?? DEFAULT_CONFIG.audio) as AppConfig['audio'],
-    overlayStyle: (get('overlayStyle') ?? DEFAULT_CONFIG.overlayStyle) as AppConfig['overlayStyle'],
-    desktopConfig: get('desktopConfig') as AppConfig['desktopConfig'],
-    desktopAmbiance: get('desktopAmbiance') as AppConfig['desktopAmbiance'],
-    events: get('events') as AppConfig['events'],
-    mediaLibrary: get('mediaLibrary') as AppConfig['mediaLibrary'],
-    sourcePresets: get('sourcePresets') as AppConfig['sourcePresets'],
-  }
+  return hasPersistedConfig() ? loadAllConfig() : null
 }
 
 // Load persisted config on startup, fall back to DEFAULT_CONFIG
@@ -277,12 +201,45 @@ function buildConfigPatchPayload(config: AppConfig, updates: Partial<AppConfig>)
 }
 
 function writeSections(cfg: AppConfig, keys: ReadonlyArray<keyof AppConfig>) {
-  for (const key of keys) {
-    const value = cfg[key]
-    if (value !== undefined) {
-      setDbConfig(`${SECTION_PREFIX}${key}`, value)
+  db.transaction(() => {
+    for (const key of keys) {
+      switch (key) {
+        case 'scenes':
+          saveScenes(cfg.scenes)
+          break
+        case 'applications':
+          saveApplications(cfg.applications)
+          break
+        case 'keybinds':
+          saveKeybinds(cfg.keybinds)
+          break
+        case 'obs':
+          saveObsConfig(cfg.obs)
+          break
+        case 'audio':
+          saveAudioConfig(cfg.audio)
+          break
+        case 'overlayStyle':
+          saveOverlayStyle(cfg.overlayStyle)
+          break
+        case 'desktopConfig':
+          if (cfg.desktopConfig) saveDesktopConfig(cfg.desktopConfig)
+          break
+        case 'desktopAmbiance':
+          if (cfg.desktopAmbiance) saveDesktopAmbiance(cfg.desktopAmbiance)
+          break
+        case 'events':
+          saveEvents(cfg.events ?? [])
+          break
+        case 'mediaLibrary':
+          saveMediaLibrary(cfg.mediaLibrary ?? [])
+          break
+        case 'sourcePresets':
+          saveSourcePresets(cfg.sourcePresets ?? [])
+          break
+      }
     }
-  }
+  })()
 }
 
 export function persistConfig(next: AppConfig, machine?: Pick<SceneMachine, 'emit'>, updates?: Partial<AppConfig>) {
@@ -291,7 +248,7 @@ export function persistConfig(next: AppConfig, machine?: Pick<SceneMachine, 'emi
   if (updates) {
     writeSections(config, Object.keys(updates) as Array<keyof AppConfig>)
   } else {
-    writeSections(config, CONFIG_SECTION_KEYS)
+    writeSections(config, PERSISTED_CONFIG_KEYS)
   }
 
   machine?.emit('config:update', config)

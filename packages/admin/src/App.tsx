@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { STATE, type DesktopRuntimeStatePayload, type ObsStatusPayload, type RuntimeDiagnosticsPayload } from '@ieom/shared'
 import { socket } from './socket/client'
 import { useAdminStore } from './store/useAdminStore'
-import { Dashboard } from './components/Dashboard'
+import { Dashboard } from './features/dashboard/Dashboard'
 
 export default function App() {
   const setCurrentState = useAdminStore((s) => s.setCurrentState)

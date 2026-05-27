@@ -3,3 +3,6 @@ packages:
   - 'packages/server'
   - 'packages/admin'
   - 'packages/overlay'
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
