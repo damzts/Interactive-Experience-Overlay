@@ -1,0 +1,106 @@
+import type { StateCreator } from 'zustand'
+import { STATE } from '@ieom/shared'
+import type { DesktopRuntimeStatePayload, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
+
+export interface RuntimeSlice {
+  currentState: STATE
+  obsConnected: boolean
+  obsStatus: ObsStatusPayload
+  clientCount: number
+  cameraOwnerSocketId: string | null
+  openWidgetIds: string[]
+  recycleBinFull: boolean
+  simulationLeaderId: string | null
+  ambianceAcceptedCount: number
+  ambianceRejectedCount: number
+  runtimeDiagnostics: RuntimeDiagnosticsPayload
+
+  setCurrentState: (s: STATE) => void
+  setObsStatus: (status: ObsStatusPayload) => void
+  setClientCount: (n: number) => void
+  setCameraOwnerSocketId: (socketId: string | null) => void
+  syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
+  toggleWidgetRuntimeState: (widgetId: string) => void
+  setRecycleBinFull: (full: boolean) => void
+  setSimulationLeaderId: (id: string | null) => void
+  setAmbianceMetrics: (payload: { accepted: number; rejected: number }) => void
+  setRuntimeDiagnostics: (payload: RuntimeDiagnosticsPayload) => void
+}
+
+export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice> = (set) => ({
+  currentState: STATE.DESKTOP,
+  obsConnected: false,
+  obsStatus: {
+    connected: false,
+    url: 'ws://localhost:4455',
+    reconnecting: false,
+    reconnectAttempt: 0,
+    retryDelayMs: null,
+    nextRetryAt: null,
+    lastError: null,
+  },
+  clientCount: 0,
+  cameraOwnerSocketId: null,
+  openWidgetIds: [],
+  recycleBinFull: false,
+  simulationLeaderId: null,
+  ambianceAcceptedCount: 0,
+  ambianceRejectedCount: 0,
+  runtimeDiagnostics: {
+    scheduler: {
+      tickMs: 5000,
+      currentState: STATE.DESKTOP,
+      lastEvaluatedAt: null,
+      lastActivityAt: Date.now(),
+      lastTriggeredEventId: null,
+      lastTriggeredAt: null,
+      activeEventCount: 0,
+      events: [],
+    },
+    ambiance: {
+      enabled: false,
+      intervalSeconds: 30,
+      lastStartedAt: null,
+      lastTickAt: null,
+      lastActionAt: null,
+      lastActionWidgetId: null,
+      lastAction: null,
+      inFlight: false,
+      pendingPhase: null,
+      pendingActionId: null,
+      leaderSocketId: null,
+      leaderClientKind: null,
+      leaderClientPort: null,
+      leaderClientLabel: null,
+      leaderReady: false,
+      leaderLeaseDurationMs: 0,
+      leaderLeaseExpiresAt: null,
+      leaderLastHeartbeatAt: null,
+      overlayClients: [],
+      history: [],
+      openWidgetCount: 0,
+      enabledWidgetCount: 0,
+      maxOpenWidgets: 2,
+      openWhileOneOpenChance: 0.35,
+      lastSkipReason: null,
+    },
+  },
+
+  setCurrentState: (s) => set({ currentState: s }),
+  setObsStatus: (status) => set({ obsConnected: status.connected, obsStatus: status }),
+  setClientCount: (n) => set({ clientCount: n }),
+  setCameraOwnerSocketId: (cameraOwnerSocketId) => set({ cameraOwnerSocketId }),
+  syncDesktopRuntimeState: (payload) =>
+    set({ openWidgetIds: payload.openWidgetIds, recycleBinFull: payload.recycleBinFull }),
+  toggleWidgetRuntimeState: (widgetId) =>
+    set((state) => ({
+      openWidgetIds: state.openWidgetIds.includes(widgetId)
+        ? state.openWidgetIds.filter((id) => id !== widgetId)
+        : [...state.openWidgetIds, widgetId],
+    })),
+  setRecycleBinFull: (full) => set({ recycleBinFull: full }),
+  setSimulationLeaderId: (id) => set({ simulationLeaderId: id }),
+  setAmbianceMetrics: (payload) =>
+    set({ ambianceAcceptedCount: payload.accepted, ambianceRejectedCount: payload.rejected }),
+  setRuntimeDiagnostics: (payload) => set({ runtimeDiagnostics: payload }),
+})
