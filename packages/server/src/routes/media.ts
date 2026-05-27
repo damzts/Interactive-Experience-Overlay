@@ -1,8 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { mediaService } from '../services/MediaService.js'
 
-export { clearMediaCaches } from '../services/MediaService.js'
-
 export async function mediaRoute(app: FastifyInstance) {
   app.get('/api/assets/catalog', async (_req, _reply) => {
     return mediaService.getCatalog()

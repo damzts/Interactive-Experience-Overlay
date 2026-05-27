@@ -4,8 +4,6 @@ import { mergeAppConfig, withDesktopConfigDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
 import { configService } from '../services/ConfigService.js'
 
-export { getConfig, persistConfig } from '../services/ConfigService.js'
-
 export async function configRoute(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { machine: SceneMachine },

@@ -39,7 +39,7 @@ import type { AppConfig, DesktopConfig, EventConfig } from '@ieom/shared'
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
 import type { AmbianceManager } from '../ambiance/manager.js'
-import { getConfig, persistConfig } from '../routes/config.js'
+import { getConfig, persistConfig } from '../services/ConfigService.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
