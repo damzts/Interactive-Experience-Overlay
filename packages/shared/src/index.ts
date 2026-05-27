@@ -1,6 +1,18 @@
-export * from './types/state.js'
-export * from './types/scene.js'
-export * from './types/events.js'
-export * from './types/effects.js'
+// Domain entities
+export * from './domain/overlay.js'
+export * from './domain/scene.js'
+export * from './domain/application.js'
+export * from './domain/desktop.js'
+export * from './domain/ambiance.js'
+export * from './domain/event.js'
+export * from './domain/config.js'
+
+// Contracts (socket, effects, state, diagnostics)
+export * from './contracts/state.js'
+export * from './contracts/effects.js'
+export * from './contracts/socket.js'
+export * from './contracts/diagnostics.js'
+
+// Constants and utilities
 export * from './constants/ambianceSimulation.js'
 export * from './constants/defaults.js'

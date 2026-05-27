@@ -1,4 +1,4 @@
-import type { AmbianceMirrorPolicy, WidgetSimulationIntentPayload, WidgetSimulationIntentSeed } from '../types/events.js'
+import type { AmbianceMirrorPolicy, WidgetSimulationIntentPayload, WidgetSimulationIntentSeed } from '../contracts/socket.js'
 
 const STICKY_COLORS = ['#fff2a8', '#ffd3e0', '#d8f8d0', '#cde8ff'] as const
 const CHAT_MESSAGES = [

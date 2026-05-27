@@ -1,19 +1,9 @@
 import type {
-  AppConfig,
   Application,
-  AutoTrigger,
-  DesktopAmbianceConfig,
-  DesktopConfig,
   DesktopTheme,
   EventDesktopTheme,
-  EventAction,
-  EventConfig,
   EventWidgetThemePatch,
-  LobbyConfig,
-  OverlayStyle,
   RecycleBinSettings,
-  SourceInstance,
-  SourcePreset,
   SourceWidgetSettings,
   StickyNotesSettings,
   WidgetThemeAnimation,
@@ -25,9 +15,15 @@ import type {
   WidgetLayoutItem,
   WidgetLayoutSnapshot,
   WidgetLayoutSource,
-} from '../types/scene.js'
-import type { RuntimeConfigOverridePayload } from '../types/events.js'
-import { STATE, OVERLAY_EVENT } from '../types/state.js'
+} from '../domain/application.js'
+import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
+import type { AppConfig } from '../domain/config.js'
+import type { DesktopConfig } from '../domain/desktop.js'
+import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
+import type { LobbyConfig, SourceInstance, SourcePreset } from '../domain/scene.js'
+import type { OverlayStyle } from '../domain/overlay.js'
+import type { RuntimeConfigOverridePayload } from '../contracts/socket.js'
+import { STATE, OVERLAY_EVENT } from '../contracts/state.js'
 
 export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
   ambientColor: '#f8fbff',
