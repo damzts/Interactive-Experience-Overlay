@@ -3,15 +3,14 @@ import { STATE } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigNotice } from '../../shared/ui'
+import { getOverlayDevOrigin, getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
 
 export function LivePreview() {
   const containerRef = useRef<HTMLDivElement>(null)
   const frameRef     = useRef<HTMLIFrameElement>(null)
   const previewTarget = useAdminStore((s) => s.previewTarget)
-  const previewUrl = typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:${previewTarget === 'runtime' ? 3000 : 3001}`
-    : 'http://localhost:3000'
-  const previewLabel = previewTarget === 'runtime' ? 'Runtime 3000' : 'Direct Dev 3001'
+  const previewUrl = previewTarget === 'runtime' ? getOverlayRuntimeOrigin() : getOverlayDevOrigin()
+  const previewLabel = previewTarget === 'runtime' ? 'Runtime' : 'Direct Dev'
   const previewBackdropStyle: React.CSSProperties = {
     backgroundColor: '#111827',
     backgroundImage: [

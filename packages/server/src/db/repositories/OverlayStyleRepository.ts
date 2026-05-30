@@ -1,6 +1,9 @@
 import type { OverlayStyle } from '@ieom/shared'
-import type { Database as DatabaseType } from 'better-sqlite3'
-import { clone, parseJson } from '../utils.js'
+import type { Pool } from 'pg'
+
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
 
 const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
   background: {
@@ -34,51 +37,58 @@ const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
   textColor: '#ffffff',
 }
 
+interface OverlayStyleRow {
+  user_id: string
+  background_json: unknown | null
+  effects_json: unknown | null
+  particles_json: unknown | null
+  font_family: string | null
+  accent_color: string | null
+  text_color: string | null
+}
+
 export class OverlayStyleRepository {
-  constructor(private db: DatabaseType) {}
+  constructor(private pool: Pool) {}
 
-  find(): OverlayStyle {
-    const row = this.db.prepare('SELECT * FROM overlay_style WHERE id = 1').get() as {
-      background_json: string | null
-      effects_json: string | null
-      particles_json: string | null
-      font_family: string | null
-      accent_color: string | null
-      text_color: string | null
-    } | undefined
+  async find(userId: string): Promise<OverlayStyle> {
+    const { rows } = await this.pool.query<OverlayStyleRow>(
+      'SELECT background_json, effects_json, particles_json, font_family, accent_color, text_color FROM overlay_style WHERE user_id = $1',
+      [userId]
+    )
 
-    if (!row) return clone(DEFAULT_OVERLAY_STYLE)
+    if (rows.length === 0) return clone(DEFAULT_OVERLAY_STYLE)
 
+    const row = rows[0]
     return {
-      background: parseJson<OverlayStyle['background']>(row.background_json) ?? clone(DEFAULT_OVERLAY_STYLE.background),
-      effects: parseJson<OverlayStyle['effects']>(row.effects_json) ?? clone(DEFAULT_OVERLAY_STYLE.effects),
-      particles: parseJson<OverlayStyle['particles']>(row.particles_json) ?? clone(DEFAULT_OVERLAY_STYLE.particles),
+      background: (row.background_json as OverlayStyle['background']) ?? clone(DEFAULT_OVERLAY_STYLE.background),
+      effects: (row.effects_json as OverlayStyle['effects']) ?? clone(DEFAULT_OVERLAY_STYLE.effects),
+      particles: (row.particles_json as OverlayStyle['particles']) ?? clone(DEFAULT_OVERLAY_STYLE.particles),
       fontFamily: row.font_family ?? DEFAULT_OVERLAY_STYLE.fontFamily,
       accentColor: row.accent_color ?? DEFAULT_OVERLAY_STYLE.accentColor,
       textColor: row.text_color ?? DEFAULT_OVERLAY_STYLE.textColor,
     }
   }
 
-  save(style: OverlayStyle): void {
-    this.db.prepare(`
-      INSERT INTO overlay_style (
-        id, background_json, effects_json, particles_json, font_family, accent_color, text_color
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        background_json = excluded.background_json,
-        effects_json = excluded.effects_json,
-        particles_json = excluded.particles_json,
-        font_family = excluded.font_family,
-        accent_color = excluded.accent_color,
-        text_color = excluded.text_color
-    `).run(
-      1,
-      JSON.stringify(style.background),
-      JSON.stringify(style.effects),
-      JSON.stringify(style.particles),
-      style.fontFamily,
-      style.accentColor,
-      style.textColor,
+  async save(userId: string, style: OverlayStyle): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO overlay_style (user_id, background_json, effects_json, particles_json, font_family, accent_color, text_color)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         background_json = EXCLUDED.background_json,
+         effects_json = EXCLUDED.effects_json,
+         particles_json = EXCLUDED.particles_json,
+         font_family = EXCLUDED.font_family,
+         accent_color = EXCLUDED.accent_color,
+         text_color = EXCLUDED.text_color`,
+      [
+        userId,
+        JSON.stringify(style.background),
+        JSON.stringify(style.effects),
+        JSON.stringify(style.particles),
+        style.fontFamily,
+        style.accentColor,
+        style.textColor,
+      ]
     )
   }
 }

@@ -12,6 +12,8 @@ import { ArchivePanel } from '../archive/ArchivePanel'
 import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
+import { CameraDashboard } from '../pov/CameraDashboard'
+import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
@@ -138,6 +140,8 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPage />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
+  if (selected.kind === 'pov')      return <CameraDashboard />
+  if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
 
   return null
 }
@@ -222,6 +226,8 @@ export function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
   else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';  headerMeta = 'Utility' }
   else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
+  else if (selected.kind === 'pov')        { headerIcon = '📷'; headerLabel = 'POV / Cameras'; headerMeta = 'Utility' }
+  else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (
     <div className="flex w-80 shrink-0 flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/95">

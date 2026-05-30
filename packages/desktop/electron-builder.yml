@@ -1,0 +1,107 @@
+appId: com.ieom.desktop
+productName: IEOM
+copyright: Copyright © 2024 IEOM
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+extraMetadata:
+  main: dist/main/index.js
+
+# Use pre-built native binaries (better-sqlite3, etc.)
+buildDependenciesFromSource: false
+
+# Electron download mirror for CI environments
+electronDownload:
+  mirror: https://github.com/electron/electron/releases/download/v
+
+# Include native dependencies in the build
+nodeGypRebuild: false
+npmRebuild: true
+
+# ─── Windows (NSIS) ───────────────────────────────────────────────────────────
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  # Code signing - set CSC_LINK and CSC_KEY_PASSWORD env vars in CI
+  # sign: custom-sign.js  # Uncomment for custom signing script
+  signingHashAlgorithms:
+    - sha256
+  publisherName: IEOM
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: IEOM
+  uninstallDisplayName: IEOM
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+
+# ─── macOS (DMG) ──────────────────────────────────────────────────────────────
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.utilities
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Code signing - set CSC_LINK and CSC_KEY_PASSWORD env vars in CI
+  # identity: "Developer ID Application: IEOM (TEAM_ID)"
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# ─── Linux (AppImage) ─────────────────────────────────────────────────────────
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icons
+  category: Utility
+  mimeTypes:
+    - x-scheme-handler/ieom
+  desktop:
+    Name: IEOM
+    Comment: Interactive Experience Overlay Manager
+    MimeType: x-scheme-handler/ieom
+    Categories: Utility;AudioVideo;
+
+# ─── Protocol Registration ────────────────────────────────────────────────────
+
+protocols:
+  name: IEOM Protocol
+  schemes:
+    - ieom
+
+# ─── Auto-Update Publish Settings ────────────────────────────────────────────
+
+publish:
+  provider: generic
+  url: https://updates.ieom.app
+  channel: latest

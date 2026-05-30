@@ -2,23 +2,28 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
 import { mergeAppConfig, withDesktopConfigDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
-import { configService } from '../services/ConfigService.js'
+import type { ConfigService } from '../services/ConfigService.js'
+
+interface ConfigRouteOptions extends FastifyPluginOptions {
+  machine: SceneMachine
+  configService: ConfigService
+}
 
 export async function configRoute(
   app: FastifyInstance,
-  opts: FastifyPluginOptions & { machine: SceneMachine },
+  opts: ConfigRouteOptions,
 ) {
-  const save = (next: AppConfig, updates?: Partial<AppConfig>) => {
-    configService.persist(next, opts.machine, updates)
-  }
+  const { configService } = opts
 
-  app.get('/api/config', async (_req, _reply) => {
-    return configService.get()
+  app.get('/api/config', async (req, _reply) => {
+    const userId = req.userId
+    return configService.getForUser(userId)
   })
 
   app.put<{ Body: AppConfig }>('/api/config', async (req, reply) => {
     try {
-      save(req.body)
+      const userId = req.userId
+      await configService.persistForUser(userId, req.body)
       return { ok: true }
     } catch (e) {
       return reply.code(400).send({ ok: false, error: String(e) })
@@ -27,8 +32,9 @@ export async function configRoute(
 
   app.patch<{ Body: Partial<AppConfig> }>('/api/config', async (req, reply) => {
     try {
-      const config = configService.get()
-      save(mergeAppConfig(config, req.body), req.body)
+      const userId = req.userId
+      const config = await configService.getForUser(userId)
+      await configService.persistForUser(userId, mergeAppConfig(config, req.body), req.body)
       return { ok: true }
     } catch (e) {
       return reply.code(400).send({ ok: false, error: String(e) })
@@ -38,9 +44,10 @@ export async function configRoute(
   /** PATCH /api/config/audio — update only volume fields without touching the rest of the config */
   app.patch<{ Body: Partial<AppConfig['audio']> }>('/api/config/audio', async (req, reply) => {
     try {
-      const config = configService.get()
+      const userId = req.userId
+      const config = await configService.getForUser(userId)
       const audio = { ...config.audio, ...req.body }
-      save({ ...config, audio }, { audio })
+      await configService.persistForUser(userId, { ...config, audio }, { audio })
       return { ok: true }
     } catch (e) {
       return reply.code(400).send({ ok: false, error: String(e) })
@@ -49,7 +56,8 @@ export async function configRoute(
 
   app.patch<{ Body: Partial<DesktopConfig> }>('/api/config/desktop', async (req, reply) => {
     try {
-      const config = configService.get()
+      const userId = req.userId
+      const config = await configService.getForUser(userId)
       const currentDesktop = withDesktopConfigDefaults(config.desktopConfig)
       const nextDesktop = withDesktopConfigDefaults({
         ...currentDesktop,
@@ -63,7 +71,7 @@ export async function configRoute(
         widgetZIndices: { ...currentDesktop.widgetZIndices, ...req.body.widgetZIndices },
         widgetLayouts: req.body.widgetLayouts !== undefined ? req.body.widgetLayouts : currentDesktop.widgetLayouts,
       })
-      save({ ...config, desktopConfig: nextDesktop }, { desktopConfig: nextDesktop })
+      await configService.persistForUser(userId, { ...config, desktopConfig: nextDesktop }, { desktopConfig: nextDesktop })
       return { ok: true }
     } catch (e) {
       return reply.code(400).send({ ok: false, error: String(e) })
@@ -74,14 +82,15 @@ export async function configRoute(
     '/api/config/applications/:appId',
     async (req, reply) => {
       try {
-        const config = configService.get()
+        const userId = req.userId
+        const config = await configService.getForUser(userId)
         if (!config.applications.some((app) => app.id === req.params.appId)) {
           return reply.code(404).send({ ok: false, error: `Unknown application: ${req.params.appId}` })
         }
         const applications = config.applications.map((app) =>
           app.id === req.params.appId ? { ...app, ...req.body } : app,
         )
-        save({ ...config, applications }, { applications })
+        await configService.persistForUser(userId, { ...config, applications }, { applications })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })
@@ -92,9 +101,10 @@ export async function configRoute(
   /** PATCH /api/config/obs — update only OBS credentials without touching the rest of the config */
   app.patch<{ Body: Partial<AppConfig['obs']> }>('/api/config/obs', async (req, reply) => {
     try {
-      const config = configService.get()
+      const userId = req.userId
+      const config = await configService.getForUser(userId)
       const obs = { ...config.obs, ...req.body }
-      save({ ...config, obs }, { obs })
+      await configService.persistForUser(userId, { ...config, obs }, { obs })
       return { ok: true }
     } catch (e) {
       return reply.code(400).send({ ok: false, error: String(e) })

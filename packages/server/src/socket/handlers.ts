@@ -1,5 +1,6 @@
 import type { Server, Socket } from 'socket.io'
 import {
+  DEFAULT_CONFIG,
   DEFAULT_WIDGET_THEME_PRESETS,
   STATE,
   mergeAppConfig,
@@ -39,7 +40,10 @@ import type { AppConfig, DesktopAmbianceConfig, DesktopConfig, EventConfig } fro
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
 import type { AmbianceManager } from '../ambiance/manager.js'
-import { getConfig, persistConfig } from '../services/ConfigService.js'
+import type { POVOrchestrator } from '../pov/index.js'
+import type { ConfigService } from '../services/ConfigService.js'
+import { setupPovSocketHandlers } from './povHandlers.js'
+import { registerOnlineNamespace } from './onlineHandlers.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -156,6 +160,10 @@ export function setupSocketHandlers(
   ambianceManager: AmbianceManager,
   options?: {
     getObsStatus?: () => import('@ieom/shared').ObsStatusPayload
+    povOrchestrator?: POVOrchestrator | null
+    onlineSessionManager?: import('../online/session-manager.js').OnlineSessionManager | null
+    onlineSignalingServer?: import('../online/signaling.js').SignalingServer | null
+    configService?: ConfigService | null
   },
 ) {
   const LEADER_LEASE_DURATION_MS = 5000
@@ -164,6 +172,49 @@ export function setupSocketHandlers(
   const openWidgetIds = new Set<string>()
   const socketClientTypes = new Map<string, 'overlay' | 'admin' | 'unknown'>()
   const overlayClientDiagnostics = new Map<string, OverlayClientDiagnostics>()
+  const configService = options?.configService ?? null
+
+  /**
+   * Get the userId from a socket. Returns undefined if not authenticated.
+   */
+  const getUserId = (socket: AppSocket): string | undefined => socket.data.userId
+
+  /**
+   * Get config for the authenticated user on this socket.
+   * Falls back to DEFAULT_CONFIG if no configService or no userId.
+   */
+  const getConfigForUser = async (socket: AppSocket): Promise<AppConfig> => {
+    const userId = getUserId(socket)
+    if (configService && userId) {
+      return configService.getForUser(userId)
+    }
+    return DEFAULT_CONFIG as unknown as AppConfig
+  }
+
+  /**
+   * Synchronous config getter using the cached config.
+   * In multi-tenant mode, this uses the last-known config for the active user.
+   * For manager callbacks that need synchronous access, we maintain a local cache.
+   */
+  let cachedUserConfig: AppConfig = DEFAULT_CONFIG as unknown as AppConfig
+
+  const getConfig = (): AppConfig => cachedUserConfig
+
+  /**
+   * Persist config for the authenticated user on this socket.
+   */
+  const persistConfig = async (
+    userId: string,
+    next: AppConfig,
+    _machine: SceneMachine,
+    updates?: Partial<AppConfig>,
+  ): Promise<void> => {
+    if (configService) {
+      const result = await configService.persistForUser(userId, next, updates)
+      cachedUserConfig = result
+    }
+  }
+
   let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
   let startMenuState: { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } = { open: false, activeRoot: null }
   let simulationLeaderSocketId: string | null = null
@@ -825,7 +876,7 @@ export function setupSocketHandlers(
     return { ok: false, error: `Unsupported action: ${action}` }
   }
 
-  const applySavedWidgetLayout = (layoutId: string, options?: { persist?: boolean }): { ok: boolean; error?: string } => {
+  const applySavedWidgetLayout = (layoutId: string, options?: { persist?: boolean; userId?: string }): { ok: boolean; error?: string } => {
     const currentConfig = getConfig()
     const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
     const layout = (currentDesktop.widgetLayouts ?? []).find((entry) => entry.id === layoutId)
@@ -909,13 +960,15 @@ export function setupSocketHandlers(
           widgetZIndices: nextRuntimeZIndices,
         } as DesktopConfig,
       })
-      persistConfig(nextConfig, machine, {
-        desktopConfig: {
-          widgetPositions: nextConfig.desktopConfig?.widgetPositions,
-          widgetSizes: nextConfig.desktopConfig?.widgetSizes,
-          widgetZIndices: nextConfig.desktopConfig?.widgetZIndices,
-        } as DesktopConfig,
-      })
+      if (options?.userId) {
+        void persistConfig(options.userId, nextConfig, machine, {
+          desktopConfig: {
+            widgetPositions: nextConfig.desktopConfig?.widgetPositions,
+            widgetSizes: nextConfig.desktopConfig?.widgetSizes,
+            widgetZIndices: nextConfig.desktopConfig?.widgetZIndices,
+          } as DesktopConfig,
+        })
+      }
     }
 
     for (const item of layoutItems) {
@@ -974,6 +1027,14 @@ export function setupSocketHandlers(
     void executeConfiguredEvent(eventDef)
   })
 
+  // Register POV Socket.IO event handlers
+  setupPovSocketHandlers(io, options?.povOrchestrator ?? null, getSocketClientType)
+
+  // Register Online namespace handlers
+  if (options?.onlineSessionManager && options?.onlineSignalingServer) {
+    registerOnlineNamespace(io, options.onlineSessionManager, options.onlineSignalingServer)
+  }
+
   io.on('connection', (socket: AppSocket) => {
     const clientType = getSocketClientType(socket)
     socketClientTypes.set(socket.id, clientType)
@@ -983,6 +1044,16 @@ export function setupSocketHandlers(
       queueRuntimeDiagnosticsEmit()
     }
     console.log(`[socket] connected: ${socket.id}`)
+
+    // Join authenticated sockets to user-specific room for scoped events
+    const userId = getUserId(socket)
+    if (userId) {
+      void socket.join(`user:${userId}`)
+      // Load user config into local cache for synchronous access
+      void getConfigForUser(socket).then((config) => {
+        cachedUserConfig = config
+      })
+    }
 
     if (clientType === 'overlay') {
       electSimulationLeaderIfNeeded('connect')
@@ -1151,7 +1222,7 @@ export function setupSocketHandlers(
 
     socket.on('widget:layout:apply', (layoutId) => {
       scheduler?.noteActivity()
-      applySavedWidgetLayout(layoutId, { persist: false })
+      applySavedWidgetLayout(layoutId, { persist: false, userId: getUserId(socket) })
     })
 
     socket.on('desktop:icon:drag', (payload) => {

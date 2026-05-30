@@ -11,6 +11,14 @@ import type {
   OverlayClientKind,
   RuntimeDiagnosticsPayload,
 } from './diagnostics.js'
+import type {
+  POVStatusPayload,
+  POVSwitchPayload,
+  POVScoresPayload,
+  POVFeedStatusPayload,
+  POVErrorPayload,
+} from './pov-socket.js'
+import type { POVSwitchingConfig } from '../domain/pov.js'
 
 // ── Transition payload ───────────────────────────────────────────
 
@@ -234,6 +242,11 @@ export interface ServerToClientEvents {
   'desktop:start-menu:state': (payload: DesktopStartMenuStatePayload) => void
   'desktop:start-menu:phase': (payload: DesktopStartMenuSimulationPhasePayload) => void
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
+  'pov:status': (payload: POVStatusPayload) => void
+  'pov:switch': (payload: POVSwitchPayload) => void
+  'pov:scores': (payload: POVScoresPayload) => void
+  'pov:feed:status': (payload: POVFeedStatusPayload) => void
+  'pov:error': (payload: POVErrorPayload) => void
 }
 
 /** Events clients send to the server */
@@ -272,8 +285,13 @@ export interface ClientToServerEvents {
   'desktop:start-menu:phase': (payload: DesktopStartMenuSimulationPhasePayload) => void
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   'transition:preview': (steps: TransitionStep[]) => void
+  'pov:mode:set': (mode: 'automatic' | 'manual', callback?: (err: string | null) => void) => void
+  'pov:select': (feedId: string, callback?: (err: string | null) => void) => void
+  'pov:config:update': (config: Partial<POVSwitchingConfig>, callback?: (err: string | null) => void) => void
   'panic': () => void
 }
 
 export interface InterServerEvents {}
-export interface SocketData {}
+export interface SocketData {
+  userId?: string
+}

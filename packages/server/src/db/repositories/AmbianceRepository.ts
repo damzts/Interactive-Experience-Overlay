@@ -1,21 +1,30 @@
 import type { DesktopAmbianceConfig } from '@ieom/shared'
-import type { Database as DatabaseType } from 'better-sqlite3'
-import { parseJson } from '../utils.js'
+import type { Pool } from 'pg'
+
+interface AmbianceRow {
+  user_id: string
+  simulation_json: unknown | null
+}
 
 export class AmbianceRepository {
-  constructor(private db: DatabaseType) {}
+  constructor(private pool: Pool) {}
 
-  find(): DesktopAmbianceConfig | undefined {
-    const row = this.db.prepare('SELECT simulation_json FROM desktop_ambiance WHERE id = 1').get() as { simulation_json: string | null } | undefined
-    const widgetSimulation = parseJson<DesktopAmbianceConfig['widgetSimulation']>(row?.simulation_json)
+  async find(userId: string): Promise<DesktopAmbianceConfig | undefined> {
+    const { rows } = await this.pool.query<AmbianceRow>(
+      'SELECT simulation_json FROM desktop_ambiance WHERE user_id = $1',
+      [userId]
+    )
+    if (rows.length === 0) return undefined
+    const widgetSimulation = rows[0].simulation_json as DesktopAmbianceConfig['widgetSimulation'] | null
     return widgetSimulation ? { widgetSimulation } : undefined
   }
 
-  save(cfg: DesktopAmbianceConfig): void {
-    this.db.prepare(`
-      INSERT INTO desktop_ambiance (id, simulation_json) VALUES (?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        simulation_json = excluded.simulation_json
-    `).run(1, JSON.stringify(cfg.widgetSimulation))
+  async save(userId: string, cfg: DesktopAmbianceConfig): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO desktop_ambiance (user_id, simulation_json) VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET
+         simulation_json = EXCLUDED.simulation_json`,
+      [userId, JSON.stringify(cfg.widgetSimulation)]
+    )
   }
 }

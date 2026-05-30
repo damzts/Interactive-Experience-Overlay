@@ -4,6 +4,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { Btn, Toggle, ConfigSectionPanel } from '../../shared/ui'
 import { testObsConnection } from '../../api/obsApi.js'
+import { getAdminOrigin, getOverlayDevOrigin, getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
 
 function formatObsRetry(nextRetryAt: number | null) {
   if (!nextRetryAt) return null
@@ -20,11 +21,9 @@ export function SettingsPage({
 }) {
   const config = useAdminStore((s) => s.config)
   const saveConfig = useAdminStore((s) => s.saveConfig)
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
-  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:'
-  const overlayRuntimeUrl = `${protocol}//${host}:3000`
-  const overlayDevUrl = `${protocol}//${host}:3001`
-  const adminUrl = `${protocol}//${host}:3002`
+  const overlayRuntimeUrl = getOverlayRuntimeOrigin()
+  const overlayDevUrl = getOverlayDevOrigin()
+  const adminUrl = getAdminOrigin()
   const previewTarget = useAdminStore((s) => s.previewTarget)
   const setPreviewTarget = useAdminStore((s) => s.setPreviewTarget)
   const cameraOwnerSocketId = useAdminStore((s) => s.cameraOwnerSocketId)

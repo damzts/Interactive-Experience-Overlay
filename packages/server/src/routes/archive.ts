@@ -7,7 +7,10 @@ interface ArchiveRouteOptions extends FastifyPluginOptions {
 
 export async function archiveRoute(app: FastifyInstance, options: ArchiveRouteOptions) {
   // OBS connection test endpoint
-  app.get('/api/obs/test', async (_req, reply) => {
+  app.get('/api/obs/test', async (req, reply) => {
+    // request.userId is available from auth middleware on protected routes
+    const _userId = req.userId
+
     const status = options.getObsStatus?.()
     if (!status) {
       return reply.code(200).send({ connected: false, message: 'OBS bridge status is unavailable.' })

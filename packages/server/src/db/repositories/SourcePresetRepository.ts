@@ -1,54 +1,88 @@
 import type { SourcePreset } from '@ieom/shared'
-import type { Database as DatabaseType } from 'better-sqlite3'
-import { parseJson } from '../utils.js'
+import type { Pool } from 'pg'
+
+interface SourcePresetRow {
+  id: string
+  user_id: string
+  label: string
+  plugin_type: string
+  config_json: unknown
+  default_position_json: unknown | null
+}
+
+function rowToPreset(row: SourcePresetRow): SourcePreset {
+  return {
+    id: row.id,
+    label: row.label,
+    pluginType: row.plugin_type,
+    config: (row.config_json as SourcePreset['config']) ?? {},
+    defaultPosition: (row.default_position_json as SourcePreset['defaultPosition']) ?? undefined,
+  }
+}
 
 export class SourcePresetRepository {
-  constructor(private db: DatabaseType) {}
+  constructor(private pool: Pool) {}
 
-  findAll(): SourcePreset[] {
-    const rows = this.db.prepare('SELECT * FROM source_presets ORDER BY rowid').all() as Array<{
-      id: string
-      label: string
-      plugin_type: string
-      config_json: string
-      default_position_json: string | null
-    }>
-
-    return rows.map((row) => ({
-      id: row.id,
-      label: row.label,
-      pluginType: row.plugin_type,
-      config: parseJson<SourcePreset['config']>(row.config_json) ?? {},
-      defaultPosition: parseJson<SourcePreset['defaultPosition']>(row.default_position_json),
-    }))
+  async findAll(userId: string): Promise<SourcePreset[]> {
+    const { rows } = await this.pool.query<SourcePresetRow>(
+      'SELECT * FROM source_presets WHERE user_id = $1 ORDER BY id',
+      [userId]
+    )
+    return rows.map(rowToPreset)
   }
 
-  save(preset: SourcePreset): void {
-    this.db.prepare(`
-      INSERT INTO source_presets (id, label, plugin_type, config_json, default_position_json)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        label = excluded.label,
-        plugin_type = excluded.plugin_type,
-        config_json = excluded.config_json,
-        default_position_json = excluded.default_position_json
-    `).run(
-      preset.id,
-      preset.label,
-      preset.pluginType,
-      JSON.stringify(preset.config ?? {}),
-      preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
+  async save(userId: string, preset: SourcePreset): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO source_presets (id, user_id, label, plugin_type, config_json, default_position_json)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (user_id, id) DO UPDATE SET
+         label = EXCLUDED.label,
+         plugin_type = EXCLUDED.plugin_type,
+         config_json = EXCLUDED.config_json,
+         default_position_json = EXCLUDED.default_position_json`,
+      [
+        preset.id,
+        userId,
+        preset.label,
+        preset.pluginType,
+        JSON.stringify(preset.config ?? {}),
+        preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
+      ]
     )
   }
 
-  saveAll(presets: SourcePreset[]): void {
-    this.db.transaction(() => {
-      this.db.exec('DELETE FROM source_presets')
-      for (const preset of presets) this.save(preset)
-    })()
+  async saveAll(userId: string, presets: SourcePreset[]): Promise<void> {
+    const client = await this.pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('DELETE FROM source_presets WHERE user_id = $1', [userId])
+      for (const preset of presets) {
+        await client.query(
+          `INSERT INTO source_presets (id, user_id, label, plugin_type, config_json, default_position_json)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            preset.id,
+            userId,
+            preset.label,
+            preset.pluginType,
+            JSON.stringify(preset.config ?? {}),
+            preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
+          ]
+        )
+      }
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
   }
 
-  delete(id: string): void {
-    this.db.prepare('DELETE FROM source_presets WHERE id = ?').run(id)
+  async delete(userId: string, id: string): Promise<void> {
+    await this.pool.query(
+      'DELETE FROM source_presets WHERE user_id = $1 AND id = $2',
+      [userId, id]
+    )
   }
 }

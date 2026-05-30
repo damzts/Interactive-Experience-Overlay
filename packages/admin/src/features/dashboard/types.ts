@@ -16,6 +16,8 @@ export type SelectedItem =
   | { kind: 'archive' }
   | { kind: 'settings' }
   | { kind: 'ambiance' }
+  | { kind: 'pov' }
+  | { kind: 'pov-online' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState
@@ -24,5 +26,7 @@ export function itemKey(item: SelectedItem): string {
   if (item.kind === 'widget-create') return 'widget-create'
   if (item.kind === 'widget-layout') return 'widget-layout-' + item.layoutId
   if (item.kind === 'ambiance') return 'ambiance'
+  if (item.kind === 'pov') return 'pov'
+  if (item.kind === 'pov-online') return 'pov-online'
   return item.kind
 }
