@@ -1,0 +1,9 @@
+refactor: remove packages/cloud, rewire desktop to ieom-api WebSocket
+
+- Delete packages/cloud and packages/cloud-ui (moved to ieom-api repo)
+- Rewrite cloud-signaling.ts from Socket.IO to native WebSocket (ws)
+- Connect to ieom-api at ws://<host>/ws/rooms/<roomId>?token=<jwt>
+- Add exponential backoff reconnection logic
+- Replace socket.io-client dependency with ws
+- Update pnpm-workspace.yaml, root package.json scripts
+- Update ARCHITECTURE.md to reflect ieom-api as external server

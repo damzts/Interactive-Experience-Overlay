@@ -1,9 +1,10 @@
 /**
- * Cloud signaling client — connects to the cloud's /rooms namespace as the hub.
+ * Cloud signaling client — connects to ieom-api's /ws/rooms/:roomId as the hub.
+ * Uses native WebSocket (ws) instead of Socket.IO for minimal overhead.
  * Routes WebRTC signaling between browser participants and the local HubConnection.
  */
 
-import { io, type Socket } from 'socket.io-client'
+import WebSocket from 'ws'
 import type { HubConnection } from './hub-connection.js'
 import type { POVOrchestrator } from '../pov/index.js'
 import type { OverlayRelay } from './overlay-relay.js'
@@ -14,32 +15,42 @@ export interface CloudSignalingConfig {
   roomId: string
 }
 
+interface WsMessage {
+  type: string
+  payload: Record<string, unknown>
+  senderId: string
+  timestamp: string
+  targetUserId?: string
+}
+
 export type RoomStatusCallback = (status: { connected: boolean; participants: string[]; roomId: string | null }) => void
 
+const RECONNECT_BASE_MS = 1000
+const RECONNECT_MAX_MS = 30000
+
 export class CloudSignaling {
-  private socket: Socket | null = null
+  private ws: WebSocket | null = null
   private config: CloudSignalingConfig | null = null
   private statusCallbacks: RoomStatusCallback[] = []
   private participantNames = new Map<string, string>()
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempt = 0
+  private intentionalClose = false
 
   constructor(
     private hub: HubConnection,
     private pov: POVOrchestrator,
     private overlayRelay: OverlayRelay,
   ) {
-    // When POV switches, forward the new participant's tracks to the overlay
     this.pov.onSwitch((_prev, next) => {
       const audioTrack = this.hub.getAudioTrack(next)
       const videoTrack = this.hub.getVideoTrack(next)
       this.overlayRelay.switchTo(audioTrack, videoTrack)
     })
 
-    // When a new track arrives and it's the active participant, forward it
     this.hub.onTrack((userId, _kind) => {
       if (userId === this.pov.activeCameraId) {
-        const audioTrack = this.hub.getAudioTrack(userId)
-        const videoTrack = this.hub.getVideoTrack(userId)
-        this.overlayRelay.switchTo(audioTrack, videoTrack)
+        this.overlayRelay.switchTo(this.hub.getAudioTrack(userId), this.hub.getVideoTrack(userId))
       }
     })
   }
@@ -47,70 +58,135 @@ export class CloudSignaling {
   async connect(config: CloudSignalingConfig): Promise<void> {
     this.disconnect()
     this.config = config
+    this.intentionalClose = false
+    this.reconnectAttempt = 0
+    this.openSocket()
+  }
 
-    this.socket = io(`${config.cloudUrl}/rooms`, {
-      auth: { token: config.token, roomId: config.roomId, role: 'hub' },
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-    })
+  private openSocket(): void {
+    if (!this.config) return
+    const { cloudUrl, token, roomId } = this.config
 
-    this.socket.on('connect', () => {
-      this.socket!.emit('join-as-hub', { roomId: config.roomId })
+    // Build WebSocket URL: ws(s)://host/ws/rooms/:roomId?token=jwt
+    const base = cloudUrl.replace(/^http/, 'ws')
+    const url = `${base}/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
+
+    this.ws = new WebSocket(url)
+
+    this.ws.on('open', () => {
+      this.reconnectAttempt = 0
+      this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
       this.emitStatus()
     })
 
-    this.socket.on('participants-list', (payload: { participants: Array<{ userId: string; displayName: string }> }) => {
-      for (const p of payload.participants) {
-        this.participantNames.set(p.userId, p.displayName)
-        this.pov.addParticipant(p.userId, p.displayName)
-      }
+    this.ws.on('message', (data: WebSocket.Data) => {
+      let msg: WsMessage
+      try { msg = JSON.parse(data.toString()) }
+      catch { return }
+      this.handleMessage(msg)
+    })
+
+    this.ws.on('close', () => {
+      this.ws = null
       this.emitStatus()
+      if (!this.intentionalClose) this.scheduleReconnect()
     })
 
-    this.socket.on('participant-joined', (payload: { userId: string; displayName: string }) => {
-      this.participantNames.set(payload.userId, payload.displayName)
-      this.pov.addParticipant(payload.userId, payload.displayName)
-      this.emitStatus()
-    })
-
-    this.socket.on('participant-left', (payload: { userId: string }) => {
-      this.participantNames.delete(payload.userId)
-      this.hub.removeParticipant(payload.userId)
-      this.emitStatus()
-    })
-
-    this.socket.on('offer', async (payload: { sdp: string; userId: string }) => {
-      const answerSdp = await this.hub.handleOffer(payload.userId, payload.sdp)
-      this.socket!.emit('answer', { sdp: answerSdp, userId: payload.userId })
-    })
-
-    this.socket.on('ice-candidate', (payload: { candidate: string; sdpMid?: string; sdpMLineIndex?: number; userId: string }) => {
-      this.hub.handleIceCandidate(payload.userId, {
-        candidate: payload.candidate,
-        sdpMid: payload.sdpMid,
-        sdpMLineIndex: payload.sdpMLineIndex,
-      })
-    })
-
-    this.socket.on('disconnect', () => {
-      this.emitStatus()
+    this.ws.on('error', () => {
+      // close event will fire after error
     })
   }
 
-  disconnect(): void {
-    if (this.socket) {
-      this.socket.disconnect()
-      this.socket = null
+  private handleMessage(msg: WsMessage): void {
+    switch (msg.type) {
+      case 'participants-list': {
+        const participants = msg.payload['participants'] as string[] | undefined
+        if (participants) {
+          for (const userId of participants) {
+            this.participantNames.set(userId, userId)
+            this.pov.addParticipant(userId, userId)
+          }
+        }
+        this.emitStatus()
+        break
+      }
+
+      case 'participant-joined': {
+        const userId = msg.payload['userId'] as string
+        const displayName = (msg.payload['userEmail'] as string) ?? userId
+        if (userId) {
+          this.participantNames.set(userId, displayName)
+          this.pov.addParticipant(userId, displayName)
+          this.emitStatus()
+        }
+        break
+      }
+
+      case 'participant-left': {
+        const userId = msg.payload['userId'] as string
+        if (userId) {
+          this.participantNames.delete(userId)
+          this.hub.removeParticipant(userId)
+          this.emitStatus()
+        }
+        break
+      }
+
+      case 'offer': {
+        const sdp = msg.payload['sdp'] as string
+        const userId = msg.senderId
+        if (sdp && userId) {
+          this.hub.handleOffer(userId, sdp).then(answerSdp => {
+            this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+          })
+        }
+        break
+      }
+
+      case 'ice-candidate': {
+        const userId = msg.senderId
+        const candidate = msg.payload['candidate'] as string
+        const sdpMid = msg.payload['sdpMid'] as string | undefined
+        const sdpMLineIndex = msg.payload['sdpMLineIndex'] as number | undefined
+        if (userId && candidate) {
+          this.hub.handleIceCandidate(userId, { candidate, sdpMid, sdpMLineIndex })
+        }
+        break
+      }
+
+      case 'hub-disconnected':
+        // Shouldn't happen since we ARE the hub, but handle gracefully
+        break
     }
+  }
+
+  private send(msg: WsMessage): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(msg))
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.reconnectAttempt, RECONNECT_MAX_MS)
+    this.reconnectAttempt++
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.openSocket()
+    }, delay)
+  }
+
+  disconnect(): void {
+    this.intentionalClose = true
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+    if (this.ws) { this.ws.close(); this.ws = null }
     this.participantNames.clear()
     this.config = null
     this.emitStatus()
   }
 
   isConnected(): boolean {
-    return this.socket?.connected ?? false
+    return this.ws?.readyState === WebSocket.OPEN
   }
 
   getStatus(): { connected: boolean; participants: string[]; roomId: string | null } {

@@ -1,8 +1,6 @@
 packages:
   - 'packages/shared'
   - 'packages/server'
-  - 'packages/cloud'
-  - 'packages/cloud-ui'
   - 'packages/admin'
   - 'packages/overlay'
   - 'packages/desktop'

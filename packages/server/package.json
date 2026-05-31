@@ -19,13 +19,14 @@
     "fastify": "^4.28.1",
     "obs-websocket-js": "^5.0.4",
     "socket.io": "^4.7.5",
-    "socket.io-client": "^4.7.5",
+    "ws": "^8.18.0",
     "sql.js": "^1.14.1",
     "werift": "^0.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/sql.js": "^1.4.11",
+    "@types/ws": "^8.5.10",
     "tsx": "^4.15.6",
     "typescript": "^5.5.2"
   }
