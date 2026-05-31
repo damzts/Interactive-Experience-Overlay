@@ -1676,6 +1676,18 @@ export const DEFAULT_CONFIG: AppConfig = {
       iconPosition: { x: 184, y: 96 },
       iconSize: 'normal' as const,
     },
+    {
+      id: 'online-stream',
+      label: 'Online Stream',
+      icon: '📡',
+      appType: 'widget' as const,
+      targetSceneId: STATE.DESKTOP,
+      widgetSource: 'system' as const,
+      widgetComponent: 'online-stream' as const,
+      transitionType: 'instant',
+      iconPosition: { x: 184, y: 176 },
+      iconSize: 'normal' as const,
+    },
   ],
 
   keybinds: {

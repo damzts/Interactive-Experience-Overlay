@@ -33,7 +33,7 @@ pnpm workspaces. Five packages:
 |---|---|---|
 | `@ieom/server` | Self-hosted Fastify + Socket.IO + werift WebRTC hub (SQLite, no auth) | 3000 |
 | `@ieom/admin` | React admin UI (config, scenes, assets, online rooms management) | 3002 |
-| `@ieom/overlay` | React overlay UI (rendered on stream) + CameraWidget + PovCameraWidget | 3001 |
+| `@ieom/overlay` | React overlay UI (rendered on stream) + CameraWidget + OnlineStreamWidget | 3001 |
 | `@ieom/shared` | Shared TS types, constants, contracts | — |
 | `@ieom/desktop` | Electron shell embedding @ieom/server | — |
 
@@ -141,7 +141,7 @@ pnpm dev:desktop      # Build all then run Electron app
                     ▼ (local WebRTC via Socket.IO signaling)
              ┌──────────────┐
              │   Overlay    │
-             │ PovCameraWidget │
+             │OnlineStreamWidget│
              │ <video> element │
              └──────────────┘
 ```
@@ -153,9 +153,9 @@ pnpm dev:desktop      # Build all then run Electron app
 ```
 desktop-entry.ts    — primary entry: factory + dev-mode self-start (auto-starts on port 3000 when run directly)
 room/
-  hub-connection.ts — werift RTCPeerConnection manager (N participants)
-  cloud-signaling.ts — WebSocket (ws) client connecting to ieom-api as hub
-  overlay-relay.ts  — werift sendonly connection to overlay, replaceTrack on switch
+  hub-connection.ts — werift RTCPeerConnection manager (N participants), sends ICE candidates back via callback
+  cloud-signaling.ts — WebSocket (ws) client connecting to ieom-api as hub, buffers ICE candidates until after answer
+  overlay-relay.ts  — werift sendonly connection to overlay, debounced negotiate + replaceTrack on switch
 pov/
   switcher.ts       — POV decision engine (evaluates scores, enforces cooldown)
   audio-score-processor.ts — rolling-average activity scores from RTP audio
@@ -212,8 +212,8 @@ Desktop (hub)           ieom-api (relay)        Browser (participant)
      │                        │◄────── offer ────────────│
      │◄────── offer ─────────│                          │
      │── answer ─────────────►│── answer ──────────────►│
+     │── ice-candidate ──────►│── ice-candidate ────────►│  (buffered until after answer)
      │◄── ice-candidate ──────│◄── ice-candidate ───────│
-     │── ice-candidate ──────►│── ice-candidate ────────►│
      │                        │                          │
      │◄═══════════ WebRTC P2P (direct, no server) ═════►│
 ```
@@ -221,6 +221,22 @@ Desktop (hub)           ieom-api (relay)        Browser (participant)
 Message format: `{ type, payload, senderId, timestamp, targetUserId? }`
 
 Connection URL: `ws(s)://<host>/ws/rooms/<roomId>?token=<jwt>`
+
+**Important**: Hub ICE candidates must be sent AFTER the answer. The participant's browser cannot process `addIceCandidate()` before `setRemoteDescription(answer)`. The hub buffers candidates during offer handling and flushes them after sending the answer.
+
+---
+
+## Overlay WebRTC Relay
+
+The overlay receives the active participant's video via a local werift→browser WebRTC connection:
+
+1. Overlay connects via Socket.IO, emits `pov:subscribe`
+2. Server creates a werift sendonly PC, waits for video track (100ms debounce)
+3. Sends `pov:offer` → overlay answers → ICE connects
+4. On POV switch or participant re-offer: `replaceTrack()` swaps media without renegotiation
+5. Overlay builds a `MediaStream` from `event.track` (werift doesn't implement `a=msid`)
+
+Key constraint: werift doesn't support renegotiation on the same PC reliably with browsers. Use `replaceTrack()` for track changes; only create a new offer on initial connection.
 
 ---
 
@@ -237,7 +253,7 @@ Server (hub):
   OverlayRelay.switchTo(audioTrack, videoTrack) → replaceTrack()
 
 Overlay (OBS browser source localhost:3001):
-  PovCameraWidget receives WebRTC stream from server
+  OnlineStreamWidget receives WebRTC stream from server
   Renders single <video> element — track changes seamlessly on POV switch
 ```
 
@@ -269,6 +285,15 @@ preload/
 | `socket.io` | server | Real-time bridge: server ↔ overlay/admin |
 | `fastify` | server | HTTP framework |
 | `sql.js` | server | SQLite in-memory/file DB |
+
+---
+
+## Known Constraints & Gotchas
+
+- **werift `addTrack` with received tracks**: werift subscribes to `track.onReceiveRtp` and forwards packets via the sender. Works for relaying, but the track must be from a live (non-closed) PeerConnection.
+- **Re-offers from participants**: When a participant sends a second offer (Firefox renegotiation), the hub silently closes the old PC without firing removal callbacks to preserve POV state. The new tracks trigger `replaceTrack()` on the overlay relay.
+- **werift `MediaStream` parameter**: `addTrack(track, ms?)` — the `ms` param is "todo impl". Browser `ontrack` events will have empty `event.streams[]`. Build `MediaStream` manually from `event.track`.
+- **ICE candidate ordering**: Hub ICE candidates must arrive at the participant AFTER the answer SDP. Buffer during `handleOffer`, flush after sending answer.
 
 ---
 

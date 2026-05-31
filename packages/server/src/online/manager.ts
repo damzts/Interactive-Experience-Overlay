@@ -31,6 +31,7 @@ export class OnlineRoomManager {
   private eventCallbacks: RoomEventCallback[] = []
   private cloudUrl: string
   private getToken: () => string | null
+  private hubRoomId: string | null = null
 
   constructor(
     private cloudSignaling: CloudSignaling,
@@ -154,6 +155,7 @@ export class OnlineRoomManager {
     }
 
     // Connect as hub
+    this.hubRoomId = roomCode
     await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
 
     const room: OnlineRoom = {
@@ -181,6 +183,7 @@ export class OnlineRoomManager {
       this.pov.removeParticipant(id)
     }
     this.rooms.delete(roomCode)
+    this.hubRoomId = null
     this.cloudSignaling.disconnect()
     this.emit('pov-online:room:closed', { roomCode })
   }
@@ -201,6 +204,37 @@ export class OnlineRoomManager {
 
   getRooms(): OnlineRoomStatus[] {
     return [...this.rooms.values()].map((r) => this.toStatus(r))
+  }
+
+  async syncFromCloud(): Promise<void> {
+    const token = this.getToken()
+    if (!token) { console.log('[online] syncFromCloud: no token'); return }
+    try {
+      const res = await fetch(`${this.cloudUrl}/api/rooms`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (!res.ok) { console.log('[online] syncFromCloud: cloud returned', res.status); return }
+      const cloudRooms = await res.json() as Array<{ id: string; createdAt: string; participantCount: number; hubConnected: boolean }>
+      console.log('[online] syncFromCloud: found', cloudRooms.length, 'rooms')
+      for (const cr of cloudRooms) {
+        if (!this.rooms.has(cr.id)) {
+          const room: OnlineRoom = {
+            roomCode: cr.id,
+            createdAt: new Date(cr.createdAt).getTime(),
+            mode: 'automatic',
+            participants: new Map(),
+            activePlayerId: null,
+            idleTimer: null,
+          }
+          this.rooms.set(cr.id, room)
+        }
+        // Reconnect as hub if not already connected
+        if (!this.hubRoomId) {
+          this.hubRoomId = cr.id
+          await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: cr.id })
+        }
+      }
+    } catch (e: any) { console.log('[online] syncFromCloud error:', e.message) }
   }
 
   getRoom(roomCode: string): OnlineRoomStatus | undefined {

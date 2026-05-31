@@ -1,7 +1,7 @@
 /**
  * Local WebRTC relay from server to overlay.
  * Creates a sendonly PeerConnection, offers it to the overlay via Socket.IO,
- * and uses replaceTrack() to swap the active participant's media on POV switch.
+ * and uses replaceTrack for subsequent track changes.
  */
 
 import {
@@ -14,15 +14,14 @@ export type SendSignalFn = (event: string, payload: unknown) => void
 
 export class OverlayRelay {
   private pc: RTCPeerConnection | null = null
-  private audioSender: any = null
-  private videoSender: any = null
   private sendSignal: SendSignalFn | null = null
   private connected = false
+  private audioTrack: MediaStreamTrack | null = null
+  private videoTrack: MediaStreamTrack | null = null
+  private offered = false
+  private offeredVideoTrack: MediaStreamTrack | null = null
+  private negotiateTimer: ReturnType<typeof setTimeout> | null = null
 
-  /**
-   * Initialize the relay. Call this when the overlay connects and is ready.
-   * @param sendSignal - function to send signaling messages to the overlay socket
-   */
   async createOffer(sendSignal: SendSignalFn): Promise<void> {
     this.sendSignal = sendSignal
     this.cleanup()
@@ -31,28 +30,52 @@ export class OverlayRelay {
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     })
 
-    // Add sendonly transceivers for audio and video
-    const audioTransceiver = this.pc.addTransceiver('audio', { direction: 'sendonly' })
-    const videoTransceiver = this.pc.addTransceiver('video', { direction: 'sendonly' })
-    this.audioSender = audioTransceiver.sender
-    this.videoSender = videoTransceiver.sender
-
     this.pc.onIceCandidate.subscribe((candidate: any) => {
       if (candidate && this.sendSignal) {
         this.sendSignal('pov:ice-candidate', candidate.toJSON())
       }
     })
 
+    if (this.audioTrack || this.videoTrack) {
+      this.scheduleNegotiate()
+    }
+  }
+
+  /**
+   * Debounce negotiation by 100ms so video track is available in the first offer.
+   */
+  private scheduleNegotiate(): void {
+    if (this.negotiateTimer || this.offered) return
+    this.negotiateTimer = setTimeout(() => {
+      this.negotiateTimer = null
+      void this.doNegotiate()
+    }, 100)
+  }
+
+  private async doNegotiate(): Promise<void> {
+    if (!this.pc || !this.sendSignal || this.offered) return
+    if (!this.videoTrack) return
+    this.offered = true
+    this.offeredVideoTrack = this.videoTrack
+
+    this.pc.addTrack(this.videoTrack)
+
     const offer = await this.pc.createOffer()
     await this.pc.setLocalDescription(offer)
-
-    sendSignal('pov:offer', { sdp: this.pc.localDescription!.sdp })
+    this.sendSignal('pov:offer', { sdp: this.pc.localDescription!.sdp })
   }
 
   async handleAnswer(sdp: string): Promise<void> {
     if (!this.pc) return
     await this.pc.setRemoteDescription({ type: 'answer', sdp })
     this.connected = true
+    console.log('[overlay-relay] connected to overlay')
+
+    // If track changed while negotiating (re-offer created new track objects), replace now
+    if (this.videoTrack && this.videoTrack !== this.offeredVideoTrack) {
+      const sender = this.pc.getSenders().find(s => s.track?.kind === 'video')
+      if (sender) await sender.replaceTrack(this.videoTrack)
+    }
   }
 
   async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
@@ -60,38 +83,36 @@ export class OverlayRelay {
     await this.pc.addIceCandidate(candidate)
   }
 
-  /**
-   * Switch the forwarded tracks to a new participant's media.
-   */
   async switchTo(audioTrack: MediaStreamTrack | null, videoTrack: MediaStreamTrack | null): Promise<void> {
-    if (!this.pc || !this.connected) return
-    if (this.audioSender && audioTrack) {
-      await this.audioSender.replaceTrack(audioTrack)
+    this.audioTrack = audioTrack
+    this.videoTrack = videoTrack
+
+    if (!this.pc || !this.sendSignal) return
+
+    if (this.connected) {
+      if (videoTrack) {
+        const sender = this.pc.getSenders().find(s => s.track?.kind === 'video')
+        if (sender) await sender.replaceTrack(videoTrack)
+      }
+      return
     }
-    if (this.videoSender && videoTrack) {
-      await this.videoSender.replaceTrack(videoTrack)
+
+    if (!this.offered) {
+      this.scheduleNegotiate()
     }
   }
 
-  /**
-   * Stop sending (e.g., no participants connected).
-   */
-  async pause(): Promise<void> {
-    if (this.audioSender) await this.audioSender.replaceTrack(null)
-    if (this.videoSender) await this.videoSender.replaceTrack(null)
-  }
+  async pause(): Promise<void> {}
 
   isConnected(): boolean {
     return this.connected
   }
 
   cleanup(): void {
-    if (this.pc) {
-      this.pc.close()
-      this.pc = null
-    }
-    this.audioSender = null
-    this.videoSender = null
+    if (this.negotiateTimer) { clearTimeout(this.negotiateTimer); this.negotiateTimer = null }
+    if (this.pc) { this.pc.close(); this.pc = null }
     this.connected = false
+    this.offered = false
+    this.offeredVideoTrack = null
   }
 }

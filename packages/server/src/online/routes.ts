@@ -26,6 +26,7 @@ export async function onlineRoute(app: FastifyInstance, opts: OnlineRouteOptions
   })
 
   app.get('/api/online/rooms', async () => {
+    await onlineManager.syncFromCloud()
     return onlineManager.getRooms()
   })
 

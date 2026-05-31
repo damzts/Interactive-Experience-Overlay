@@ -22,6 +22,12 @@ export function OnlineStreamWidget({ appId, onClose, onMinimize, onFocus, window
 
     const handleOffer = async (payload: { sdp: string }) => {
       if (cancelled) return
+      // Close previous connection if renegotiating
+      if (pcRef.current) {
+        pcRef.current.close()
+        pcRef.current = null
+        if (videoRef.current) videoRef.current.srcObject = null
+      }
       try {
         const pc = new RTCPeerConnection({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -29,8 +35,13 @@ export function OnlineStreamWidget({ appId, onClose, onMinimize, onFocus, window
         pcRef.current = pc
 
         pc.ontrack = (event) => {
-          if (videoRef.current && event.streams[0]) {
-            videoRef.current.srcObject = event.streams[0]
+          if (videoRef.current) {
+            const existing = videoRef.current.srcObject as MediaStream | null
+            if (existing) {
+              existing.addTrack(event.track)
+            } else {
+              videoRef.current.srcObject = new MediaStream([event.track])
+            }
             setConnected(true)
           }
         }

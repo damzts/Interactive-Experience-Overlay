@@ -36,6 +36,7 @@ export class CloudSignaling {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempt = 0
   private intentionalClose = false
+  private pendingCandidates = new Map<string, Record<string, unknown>[]>()
 
   constructor(
     private hub: HubConnection,
@@ -43,14 +44,30 @@ export class CloudSignaling {
     private overlayRelay: OverlayRelay,
   ) {
     this.pov.onSwitch((_prev, next) => {
-      const audioTrack = this.hub.getAudioTrack(next)
-      const videoTrack = this.hub.getVideoTrack(next)
-      this.overlayRelay.switchTo(audioTrack, videoTrack)
+      this.overlayRelay.switchTo(this.hub.getAudioTrack(next), this.hub.getVideoTrack(next))
     })
 
-    this.hub.onTrack((userId, _kind) => {
-      if (userId === this.pov.activeCameraId) {
+    this.hub.onTrack((userId, kind) => {
+      // Auto-select first participant if none active
+      if (!this.pov.activeCameraId) {
+        this.pov.switcher.manualSelect(userId)
+      } else if (userId === this.pov.activeCameraId) {
         this.overlayRelay.switchTo(this.hub.getAudioTrack(userId), this.hub.getVideoTrack(userId))
+      }
+    })
+
+    this.hub.onIceCandidate((userId, candidate) => {
+      // Buffer candidates if answer hasn't been sent yet
+      if (this.pendingCandidates.has(userId)) {
+        this.pendingCandidates.get(userId)!.push(candidate as unknown as Record<string, unknown>)
+      } else {
+        this.send({
+          type: 'ice-candidate',
+          payload: candidate as unknown as Record<string, unknown>,
+          senderId: 'self',
+          timestamp: new Date().toISOString(),
+          targetUserId: userId,
+        })
       }
     })
   }
@@ -67,19 +84,23 @@ export class CloudSignaling {
     if (!this.config) return
     const { cloudUrl, token, roomId } = this.config
 
-    // Build WebSocket URL: ws(s)://host/ws/rooms/:roomId?token=jwt
+    // Build WebSocket URL: ws(s)://host/api/ws/rooms/:roomId?token=jwt
     const base = cloudUrl.replace(/^http/, 'ws')
-    const url = `${base}/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
+    const url = `${base}/api/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
 
-    this.ws = new WebSocket(url)
+    const ws = new WebSocket(url)
+    this.ws = ws
 
-    this.ws.on('open', () => {
+    ws.on('open', () => {
+      if (this.ws !== ws) return // stale socket
       this.reconnectAttempt = 0
+      console.log('[cloud-signaling] connected to room:', roomId)
       this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
       this.emitStatus()
     })
 
-    this.ws.on('message', (data: WebSocket.Data) => {
+    ws.on('message', (data: WebSocket.Data) => {
+      if (this.ws !== ws) return
       let msg: WsMessage
       try { msg = JSON.parse(data.toString()) }
       catch { return }
@@ -87,13 +108,14 @@ export class CloudSignaling {
     })
 
     this.ws.on('close', () => {
+      console.log('[cloud-signaling] disconnected')
       this.ws = null
       this.emitStatus()
       if (!this.intentionalClose) this.scheduleReconnect()
     })
 
-    this.ws.on('error', () => {
-      // close event will fire after error
+    this.ws.on('error', (err) => {
+      console.log('[cloud-signaling] error:', (err as any).message ?? err)
     })
   }
 
@@ -136,9 +158,16 @@ export class CloudSignaling {
         const sdp = msg.payload['sdp'] as string
         const userId = msg.senderId
         if (sdp && userId) {
+          this.pendingCandidates.set(userId, [])
           this.hub.handleOffer(userId, sdp).then(answerSdp => {
             this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-          })
+            // Flush buffered ICE candidates after answer
+            const buffered = this.pendingCandidates.get(userId) ?? []
+            this.pendingCandidates.delete(userId)
+            for (const candidate of buffered) {
+              this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+            }
+          }).catch(e => console.error('[cloud-signaling] offer handling failed:', e.message))
         }
         break
       }
@@ -151,6 +180,11 @@ export class CloudSignaling {
         if (userId && candidate) {
           this.hub.handleIceCandidate(userId, { candidate, sdpMid, sdpMLineIndex })
         }
+        break
+      }
+
+      case 'answer': {
+        // Ignored — hub doesn't receive answers in normal flow
         break
       }
 

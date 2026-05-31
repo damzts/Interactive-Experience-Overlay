@@ -216,11 +216,14 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // Wire overlay relay signaling through Socket.IO
   io.on('connection', (socket) => {
     socket.on('pov:subscribe', () => {
+      console.log('[pov-relay] overlay subscribed, creating offer')
       overlayRelay.createOffer((event, payload) => {
+        console.log('[pov-relay] sending to overlay:', event)
         socket.emit(event, payload)
-      })
+      }).catch(e => console.error('[pov-relay] createOffer failed:', e.message))
     })
     socket.on('pov:answer', (payload: { sdp: string }) => {
+      console.log('[pov-relay] received answer from overlay')
       overlayRelay.handleAnswer(payload.sdp)
     })
     socket.on('pov:ice-candidate', (candidate: any) => {

@@ -19,15 +19,20 @@ export interface ParticipantMedia {
 
 export type TrackCallback = (userId: string, kind: 'audio' | 'video', track: MediaStreamTrack) => void
 export type ParticipantRemovedCallback = (userId: string) => void
+export type IceCandidateCallback = (userId: string, candidate: RTCIceCandidateInit) => void
 
 export class HubConnection {
   private participants = new Map<string, ParticipantMedia>()
   private trackCallbacks: TrackCallback[] = []
   private removedCallbacks: ParticipantRemovedCallback[] = []
+  private iceCandidateCallbacks: IceCandidateCallback[] = []
 
   async handleOffer(userId: string, sdp: string): Promise<string> {
-    if (this.participants.has(userId)) {
-      await this.removeParticipant(userId)
+    // On re-offer, close old PC silently (don't fire removal callbacks)
+    const existing = this.participants.get(userId)
+    if (existing) {
+      await existing.pc.close()
+      this.participants.delete(userId)
     }
 
     const pc = new RTCPeerConnection({
@@ -46,6 +51,12 @@ export class HubConnection {
       }
       for (const cb of this.trackCallbacks) cb(userId, track.kind as 'audio' | 'video', track)
     }
+
+    pc.onIceCandidate.subscribe((candidate) => {
+      if (candidate) {
+        for (const cb of this.iceCandidateCallbacks) cb(userId, candidate.toJSON())
+      }
+    })
 
     await pc.setRemoteDescription({ type: 'offer', sdp })
     const answer = await pc.createAnswer()
@@ -86,6 +97,10 @@ export class HubConnection {
 
   onTrack(cb: TrackCallback): void {
     this.trackCallbacks.push(cb)
+  }
+
+  onIceCandidate(cb: IceCandidateCallback): void {
+    this.iceCandidateCallbacks.push(cb)
   }
 
   onParticipantRemoved(cb: ParticipantRemovedCallback): void {
