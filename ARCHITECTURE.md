@@ -32,8 +32,8 @@ pnpm workspaces. Five packages:
 | Package | Role | Port |
 |---|---|---|
 | `@ieom/server` | Self-hosted Fastify + Socket.IO + werift WebRTC hub (SQLite, no auth) | 3000 |
-| `@ieom/admin` | React admin UI (config, scenes, assets) | 3002 |
-| `@ieom/overlay` | React overlay UI (rendered on stream) + PovCameraWidget | 3001 |
+| `@ieom/admin` | React admin UI (config, scenes, assets, online rooms management) | 3002 |
+| `@ieom/overlay` | React overlay UI (rendered on stream) + CameraWidget + PovCameraWidget | 3001 |
 | `@ieom/shared` | Shared TS types, constants, contracts | — |
 | `@ieom/desktop` | Electron shell embedding @ieom/server | — |
 
@@ -47,6 +47,58 @@ pnpm workspaces. Five packages:
 | Payments | Stripe subscriptions, license tiers |
 | Signaling | `@fastify/websocket` at `/ws/rooms/:roomId` |
 | Frontend | ieom-front (separate repo, partner maintains) |
+| API prefix | Routes are `/auth/*`, `/rooms/*`, etc. in code; reverse proxy exposes them under `/api/*` externally |
+
+---
+
+## Auth Flow
+
+Authentication is handled entirely by the cloud API (`ieom.danhub.dev`). The self-hosted client has no auth server — it delegates to the cloud.
+
+### Web (admin on localhost:3002)
+
+```
+Admin (localhost:3002)          Cloud API (ieom.danhub.dev)         Google
+       │                                │                            │
+       │── GET /api/auth/google ───────►│                            │
+       │   ?redirect=http://localhost:3002/admin                      │
+       │                                │── redirect to Google ─────►│
+       │                                │◄── callback with code ─────│
+       │                                │                            │
+       │◄── 302 to redirect?token=jwt ──│                            │
+       │   http://localhost:3002/admin?token=jwt                      │
+       │                                                             │
+       │── GET /api/auth/me ───────────►│  (via Vite proxy, Bearer token)
+       │◄── { user } ──────────────────│
+```
+
+- Login initiates with `?redirect=<origin>/admin` so the cloud knows where to send the user back.
+- The `redirect` value is passed through Google's `state` param.
+- Cloud validates redirect origin against `ALLOWED_REDIRECT_ORIGINS` env var.
+- Token is captured from URL params and stored in sessionStorage.
+- In dev mode, `getApiOrigin()` returns `window.location.origin` so all API calls go through the Vite proxy (avoids CORS).
+
+### Desktop (Electron)
+
+```
+Desktop App                    System Browser              Cloud API
+     │── open browser ────────►│                            │
+     │   /api/auth/google      │── Google OAuth ───────────►│
+     │   ?redirect=desktop     │◄── callback ──────────────│
+     │◄── ieom://auth?token=jwt│                            │
+     │                                                      │
+     │── Bearer token for all API/WS calls ────────────────►│
+```
+
+### Key Config
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `VITE_API_ORIGIN` | `ieom/.env` | Frontend: cloud API base URL (used in production builds only; dev uses proxy) |
+| `GOOGLE_REDIRECT_URI` | `ieom-api/.env` | Must match Google Console authorized redirect |
+| `FRONTEND_CALLBACK_URL` | `ieom-api/.env` | Fallback redirect after auth (when `isAllowedRedirect` fails) |
+| `ALLOWED_REDIRECT_ORIGINS` | `ieom-api/.env` | Comma-separated origins allowed for redirect (e.g. `https://ieom.danhub.dev,http://localhost:3002`) |
+| `IEOM_BACKEND_URL` | Desktop runtime | Cloud API URL for desktop OAuth + API calls |
 
 ---
 
@@ -109,6 +161,10 @@ pov/
   audio-score-processor.ts — rolling-average activity scores from RTP audio
   participant-registry.ts — feed adapter for POV switcher
   index.ts          — POVOrchestrator: wires hub + switcher + audio processor
+online/
+  manager.ts        — OnlineRoomManager: room lifecycle, config, bridges POV events to admin
+  namespace.ts      — /online Socket.IO namespace (admin creates/manages rooms here)
+  routes.ts         — GET/PATCH /api/config/online, GET /api/online/rooms
 routes/
   room.ts           — POST /api/room/join, POST /api/room/leave, GET /api/room/status
   config.ts         — GET/PUT/PATCH /api/config
@@ -123,6 +179,27 @@ obs/bridge.ts       — OBS WebSocket integration
 ambiance/manager.ts — automated desktop behavior
 events/scheduler.ts — event-driven automations
 ```
+
+### Online Rooms Flow
+
+The admin panel manages rooms via the `/online` Socket.IO namespace on the local server. The local server coordinates with the cloud API for signaling.
+
+```
+Admin UI (/online namespace)     Local Server              Cloud API
+     │                                │                        │
+     │── pov-online:room:create ─────►│                        │
+     │◄── ack { roomCode } ──────────│                        │
+     │                                │── POST /rooms ────────►│ (creates cloud room)
+     │                                │── WS join-as-hub ─────►│
+     │                                │                        │
+     │◄── pov-online:participant:joined│◄── participant-joined─│
+     │◄── pov-online:scores ─────────│  (local audio analysis)│
+     │◄── pov-online:switch ─────────│  (local POV decision)  │
+```
+
+### Camera Capture
+
+Local camera capture is handled by the **overlay's CameraWidget** (`packages/overlay/src/desktop/CameraWidget.tsx`). It uses `getUserMedia` directly in the OBS browser source — no server-side camera management. The admin panel does not manage local cameras; it only manages online room participants.
 
 ### Cloud Signaling Protocol (WebSocket)
 

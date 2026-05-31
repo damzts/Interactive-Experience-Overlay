@@ -10,7 +10,17 @@ function buildOrigin(port: string): string {
 }
 
 export function getApiOrigin(): string {
-  return import.meta.env.VITE_API_ORIGIN || buildOrigin(import.meta.env.VITE_API_PORT || '3100')
+  // In dev mode, use same-origin so requests go through the vite proxy (avoids CORS issues)
+  if (import.meta.env.DEV) {
+    const location = getWindowLocation()
+    return location?.origin ?? 'http://localhost:3002'
+  }
+  if (import.meta.env.VITE_API_ORIGIN) return import.meta.env.VITE_API_ORIGIN
+  const location = getWindowLocation()
+  if (location && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return location.origin
+  }
+  return buildOrigin(import.meta.env.VITE_API_PORT || '3100')
 }
 
 export function getOverlayRuntimeOrigin(): string {

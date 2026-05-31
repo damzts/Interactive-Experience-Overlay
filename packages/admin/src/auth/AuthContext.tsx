@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { apiFetch, logout as apiLogout } from '../api/client'
 import { reconnectSocket } from '../socket/client'
 import { isDesktopMode } from '../desktop/isDesktopMode'
-import { captureAuthTokenFromLocation, clearStoredAuthToken, resolveBackendUrl } from './sessionToken'
+import { captureAuthTokenFromLocation, clearStoredAuthToken } from './sessionToken'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,7 +64,7 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
   }, [checkAuth])
 
   const login = useCallback(() => {
-    window.location.href = resolveBackendUrl('/api/auth/google') + `?redirect=${encodeURIComponent(window.location.origin + '/admin')}`
+    window.location.href = `/api/auth/google?redirect=${encodeURIComponent(window.location.origin + '/admin')}`
   }, [])
 
   const logout = useCallback(async () => {

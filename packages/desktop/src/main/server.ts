@@ -10,6 +10,7 @@ import path from 'path';
 import { createDesktopServer } from '@ieom/server/desktop-entry';
 import type { DesktopServer } from '@ieom/server/desktop-entry';
 import { getDesktopServerPort } from './runtime-config.js';
+import { loadToken } from './token-storage.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -109,6 +110,7 @@ export async function startServer(): Promise<void> {
         assetsDir,
         overlayDir,
         adminDir,
+        getToken: loadToken,
       });
       await server.start();
     })();

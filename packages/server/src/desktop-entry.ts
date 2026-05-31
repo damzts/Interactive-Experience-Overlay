@@ -38,6 +38,9 @@ import { HubConnection } from './room/hub-connection.js'
 import { POVOrchestrator } from './pov/index.js'
 import { OverlayRelay } from './room/overlay-relay.js'
 import { CloudSignaling } from './room/cloud-signaling.js'
+import { OnlineRoomManager } from './online/manager.js'
+import { onlineRoute } from './online/routes.js'
+import { registerOnlineNamespace } from './online/namespace.js'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -52,6 +55,10 @@ export interface DesktopServerOptions {
   overlayDir: string
   /** Path to the admin dist directory */
   adminDir: string
+  /** Cloud API URL for room creation (default: https://ieom.danhub.dev) */
+  cloudUrl?: string
+  /** Token provider for cloud API authentication */
+  getToken?: () => string | null
 }
 
 export interface DesktopServer {
@@ -93,6 +100,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     assetsDir,
     overlayDir,
     adminDir,
+    cloudUrl,
+    getToken,
   } = options
 
   let boundPort = port
@@ -225,6 +234,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   })
 
   await app.register(roomRoute, { cloudSignaling })
+
+  // ── Online rooms (admin panel integration) ───────────────────
+  const onlineManager = new OnlineRoomManager(cloudSignaling, povOrchestrator, { cloudUrl, getToken })
+  registerOnlineNamespace(io, onlineManager)
+  await app.register(onlineRoute, { onlineManager })
 
   // ── OBS WebSocket bridge ─────────────────────────────────────
   const defaultObsUrl = process.env.OBS_URL ?? 'ws://localhost:4455'

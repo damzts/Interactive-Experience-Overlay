@@ -12,7 +12,7 @@ import type {
   OnlineServerToAdminEvents,
   OnlineClientToServerEvents,
 } from '@ieom/shared'
-import { getOnlineConfig, updateOnlineConfig, getOnlineRooms } from '../../api/onlineApi'
+import { getOnlineConfig, updateOnlineConfig, getOnlineRooms, provideAuthToken } from '../../api/onlineApi'
 import {
   Btn,
   ConfigCard,
@@ -303,6 +303,7 @@ export function OnlineRoomsPanel() {
   const [configDraft, setConfigDraft] = useState<OnlineModeConfig>(DEFAULT_ONLINE_MODE_CONFIG)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [socketConnected, setSocketConnected] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
   const [configSaved, setConfigSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -315,7 +316,8 @@ export function OnlineRoomsPanel() {
   useEffect(() => {
     mountedRef.current = true
 
-    const onlineSocket: OnlineSocket = io('/online', {
+    const onlineSocket: OnlineSocket = io(`${window.location.origin}/online`, {
+      forceNew: true,
       autoConnect: true,
       auth: { clientType: 'admin' },
       reconnectionDelay: 1000,
@@ -323,6 +325,10 @@ export function OnlineRoomsPanel() {
     })
 
     socketRef.current = onlineSocket
+
+    // ── Connection state ─────────────────────────────────────────
+    onlineSocket.on('connect', () => { if (mountedRef.current) setSocketConnected(true) })
+    onlineSocket.on('disconnect', () => { if (mountedRef.current) setSocketConnected(false) })
 
     // ── Event listeners ──────────────────────────────────────────
 
@@ -426,6 +432,7 @@ export function OnlineRoomsPanel() {
     let cancelled = false
     async function load() {
       try {
+        await provideAuthToken()
         const [roomsData, configData] = await Promise.all([getOnlineRooms(), getOnlineConfig()])
         if (!cancelled) {
           setRooms(roomsData)
@@ -448,11 +455,13 @@ export function OnlineRoomsPanel() {
 
   const handleCreateRoom = useCallback(() => {
     const sock = socketRef.current
-    if (!sock || creating) return
+    if (!sock?.connected || creating) return
     setCreating(true)
     setError(null)
 
+    const timeout = setTimeout(() => { setCreating(false); setError('Room creation timed out') }, 15000)
     sock.emit('pov-online:room:create', (response) => {
+      clearTimeout(timeout)
       setCreating(false)
       if (!response.ok) {
         setError(response.error || 'Failed to create room')
@@ -561,7 +570,7 @@ export function OnlineRoomsPanel() {
           <span className="text-xs text-zinc-400">
             {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
           </span>
-          <Btn variant="primary" onClick={handleCreateRoom} disabled={creating}>
+          <Btn variant="primary" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
             {creating ? 'Creating…' : '+ Create Room'}
           </Btn>
         </div>

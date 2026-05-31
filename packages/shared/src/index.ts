@@ -14,7 +14,6 @@ export * from './contracts/state.js'
 export * from './contracts/effects.js'
 export * from './contracts/socket.js'
 export * from './contracts/diagnostics.js'
-export * from './contracts/pov-socket.js'
 export * from './contracts/online-socket.js'
 
 // Constants and utilities

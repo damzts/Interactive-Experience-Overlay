@@ -13,7 +13,7 @@ export type WidgetComponentType =
   | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
   | 'playlist-deck' | 'net-meter' | 'media-deck' | 'cd-ripper' | 'signal-lab'
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
-  | 'city-navigator' | 'lcd-dolphins' | 'pov-camera' | 'generic'
+  | 'city-navigator' | 'lcd-dolphins' | 'online-stream' | 'generic'
 
 // ── Desktop & widget theme types ─────────────────────────────────
 
@@ -123,6 +123,11 @@ export interface WidgetLayoutDefinition {
 
 // ── Widget-specific settings ─────────────────────────────────────
 
+export interface OnlineStreamSettings {
+  /** Cloud room code to connect to (empty = use active room from server) */
+  roomCode?: string
+}
+
 export interface SourceWidgetSettings {
   sceneId?: string
   sourceId?: string
@@ -231,6 +236,8 @@ export interface Application {
   }
   /** Optional source binding for source-backed widget windows. */
   sourceWidgetSettings?: SourceWidgetSettings
+  /** Optional settings for the online stream widget. */
+  onlineStreamSettings?: OnlineStreamSettings
   /** Optional persisted content for the Sticky Notes system widget. */
   stickyNotesSettings?: StickyNotesSettings
   /** Optional icon assets for the Recycle Bin decoration app. */

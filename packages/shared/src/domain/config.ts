@@ -3,7 +3,6 @@ import type { DesktopAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventConfig } from './event.js'
 import type { MediaEntry, OverlayStyle } from './overlay.js'
-import type { POVSwitchingConfig } from './pov.js'
 import type { Scene, SourcePreset } from './scene.js'
 
 /** Root application config — stored in server memory */
@@ -32,6 +31,4 @@ export interface AppConfig {
   mediaLibrary?: MediaEntry[]
   /** Reusable source presets referenced by scenes and source widgets. */
   sourcePresets?: SourcePreset[]
-  /** POV switching configuration for multi-camera system. */
-  povConfig?: POVSwitchingConfig
 }

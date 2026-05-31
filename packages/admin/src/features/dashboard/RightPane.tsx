@@ -12,7 +12,6 @@ import { ArchivePanel } from '../archive/ArchivePanel'
 import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
-import { CameraDashboard } from '../pov/CameraDashboard'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
@@ -141,7 +140,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPage />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
-  if (selected.kind === 'pov')      return <CameraDashboard />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
 
   return null
@@ -227,7 +225,6 @@ export function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
   else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';  headerMeta = 'Utility' }
   else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
-  else if (selected.kind === 'pov')        { headerIcon = '📷'; headerLabel = 'POV / Cameras'; headerMeta = 'Utility' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (

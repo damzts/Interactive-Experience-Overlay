@@ -21,5 +21,5 @@ export function getAuthBackendUrl(): string {
     return explicitUrl.trim()
   }
 
-  return `http://localhost:${parsePort(process.env.IEOM_BACKEND_PORT, '3100')}`
+  return 'https://ieom.danhub.dev'
 }

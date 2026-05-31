@@ -1,5 +1,16 @@
 import type { OnlineModeConfig, OnlineRoomStatus } from '@ieom/shared'
 import { apiFetch } from './client.js'
+import { getStoredAuthToken } from '../auth/sessionToken.js'
+
+export async function provideAuthToken(): Promise<void> {
+  const token = getStoredAuthToken()
+  if (!token) return
+  await apiFetch('/api/online/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  }).catch(() => {})
+}
 
 export async function getOnlineConfig(): Promise<OnlineModeConfig> {
   return apiFetch<OnlineModeConfig>('/api/config/online')

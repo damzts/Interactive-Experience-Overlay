@@ -46,7 +46,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      const res = await fetch(resolveBackendUrl('/auth/refresh'), {
+      const res = await fetch(resolveBackendUrl('/api/auth/refresh'), {
         method: 'POST',
         credentials: 'include',
       })
@@ -250,7 +250,7 @@ export async function logout(): Promise<void> {
       headers['X-CSRF-Token'] = csrf
     }
 
-    await fetch(resolveBackendUrl('/auth/logout'), {
+    await fetch(resolveBackendUrl('/api/auth/logout'), {
       method: 'POST',
       headers,
       credentials: 'include',
