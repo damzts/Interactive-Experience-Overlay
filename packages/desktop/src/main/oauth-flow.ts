@@ -1,13 +1,13 @@
-/**
+﻿/**
  * OAuth flow for desktop login.
  *
  * Opens an in-app BrowserWindow to the backend's /auth/google endpoint.
  * The backend handles OAuth with Google and eventually redirects with token.
  *
  * Flow:
- * 1. Open BrowserWindow → GET /auth/google (backend)
+ * 1. Open BrowserWindow â†’ GET /auth/google (backend)
  * 2. Backend redirects to Google OAuth consent
- * 3. User consents → Google calls /auth/google/callback (backend)
+ * 3. User consents â†’ Google calls /auth/google/callback (backend)
  * 4. Backend redirects to frontend/callback with token
  * 5. Electron captures the URL, extracts the token
  * 6. Store token, broadcast auth status, validate license
@@ -77,7 +77,7 @@ export async function startOAuthFlow(): Promise<void> {
     authWindow = null;
   });
 
-  await authWindow.loadURL(`${getAuthBackendUrl()}/api/auth/google?redirect=desktop`);
+  await authWindow.loadURL(`${getAuthBackendUrl()}/auth/google?redirect=desktop`);
 }
 
 function closeAuthWindow(): void {
@@ -114,7 +114,7 @@ async function processToken(token: string): Promise<void> {
   // Store the token securely
   saveToken(token);
 
-  // Decode JWT payload for user info (no verification — backend already verified)
+  // Decode JWT payload for user info (no verification â€” backend already verified)
   let user: object = { id: 'unknown', email: '', name: 'User' };
   try {
     const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString());
@@ -135,4 +135,5 @@ async function processToken(token: string): Promise<void> {
 
   console.log('[oauth] Login successful');
 }
+
 
