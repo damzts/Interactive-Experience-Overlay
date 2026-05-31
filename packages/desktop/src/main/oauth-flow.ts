@@ -77,7 +77,7 @@ export async function startOAuthFlow(): Promise<void> {
     authWindow = null;
   });
 
-  await authWindow.loadURL(`${getAuthBackendUrl()}/auth/google`);
+  await authWindow.loadURL(`${getAuthBackendUrl()}/api/auth/google?redirect=desktop`);
 }
 
 function closeAuthWindow(): void {

@@ -48,7 +48,7 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
     try {
       captureAuthTokenFromLocation()
 
-      const data = await apiFetch<AuthUser>('/auth/me')
+      const data = await apiFetch<AuthUser>('/api/auth/me')
       setUser(data)
       reconnectSocket()
     } catch {
@@ -64,7 +64,7 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
   }, [checkAuth])
 
   const login = useCallback(() => {
-    window.location.href = resolveBackendUrl('/auth/google')
+    window.location.href = resolveBackendUrl('/api/auth/google') + `?redirect=${encodeURIComponent(window.location.origin + '/admin')}`
   }, [])
 
   const logout = useCallback(async () => {
