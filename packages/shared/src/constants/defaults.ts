@@ -563,6 +563,7 @@ const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType,
   'newswire-desk': 'newswire-desk',
   'city-nav': 'city-navigator',
   'lcd-dolphins': 'lcd-dolphins',
+  'pov-camera': 'pov-camera',
 }
 
 const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
@@ -587,6 +588,7 @@ const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
   'newswire-desk',
   'city-navigator',
   'lcd-dolphins',
+  'pov-camera',
   'generic',
 ])
 
@@ -612,6 +614,7 @@ const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width
   'newswire-desk': DEFAULT_WIDGET_WINDOW_SIZES['newswire-desk'],
   'city-navigator': DEFAULT_WIDGET_WINDOW_SIZES['city-nav'],
   'lcd-dolphins': DEFAULT_WIDGET_WINDOW_SIZES['lcd-dolphins'],
+  'pov-camera': { width: 480, height: 360 },
   generic: { width: 260, height: 240 },
 }
 
@@ -638,6 +641,7 @@ const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> = 
   'newswire-desk': 48,
   'city-navigator': 47,
   'lcd-dolphins': 46,
+  'pov-camera': 51,
 }
 
 function isWidgetComponentType(value: unknown): value is WidgetComponentType {

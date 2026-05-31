@@ -105,6 +105,27 @@ const api = {
       return ipcRenderer.invoke('startup:set-launch-at-startup', enabled);
     },
   },
+
+  room: {
+    /** Join a cloud room as the hub. */
+    join(roomId: string, cloudUrl: string): Promise<{ status: string; roomId: string | null }> {
+      return ipcRenderer.invoke('room:join', roomId, cloudUrl);
+    },
+    /** Leave the current room. */
+    leave(): Promise<{ status: string; roomId: string | null }> {
+      return ipcRenderer.invoke('room:leave');
+    },
+    /** Get current room status. */
+    getStatus(): Promise<{ status: string; roomId: string | null; participants: string[] }> {
+      return ipcRenderer.invoke('room:status');
+    },
+    /** Subscribe to room status changes. Returns an unsubscribe function. */
+    onStatus(callback: (data: { status: string; roomId: string | null; participants: string[] }) => void): () => void {
+      const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+      ipcRenderer.on('room:status', listener);
+      return () => { ipcRenderer.removeListener('room:status', listener); };
+    },
+  },
 } as const;
 
 contextBridge.exposeInMainWorld('ieom', api);

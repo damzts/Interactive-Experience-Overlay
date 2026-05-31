@@ -13,7 +13,7 @@ export type WidgetComponentType =
   | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
   | 'playlist-deck' | 'net-meter' | 'media-deck' | 'cd-ripper' | 'signal-lab'
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
-  | 'city-navigator' | 'lcd-dolphins' | 'generic'
+  | 'city-navigator' | 'lcd-dolphins' | 'pov-camera' | 'generic'
 
 // ── Desktop & widget theme types ─────────────────────────────────
 

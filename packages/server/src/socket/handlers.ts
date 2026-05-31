@@ -40,10 +40,6 @@ import type { AppConfig, DesktopAmbianceConfig, DesktopConfig, EventConfig } fro
 import type { SceneMachine, TransitionStartPayload } from '../state/machine.js'
 import type { EventScheduler } from '../events/scheduler.js'
 import type { AmbianceManager } from '../ambiance/manager.js'
-import type { POVOrchestrator } from '../pov/index.js'
-import type { ConfigService } from '../services/ConfigService.js'
-import { setupPovSocketHandlers } from './povHandlers.js'
-import { registerOnlineNamespace } from './onlineHandlers.js'
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -160,10 +156,10 @@ export function setupSocketHandlers(
   ambianceManager: AmbianceManager,
   options?: {
     getObsStatus?: () => import('@ieom/shared').ObsStatusPayload
-    povOrchestrator?: POVOrchestrator | null
-    onlineSessionManager?: import('../online/session-manager.js').OnlineSessionManager | null
-    onlineSignalingServer?: import('../online/signaling.js').SignalingServer | null
-    configService?: ConfigService | null
+    povOrchestrator?: any
+    onlineSessionManager?: any
+    onlineSignalingServer?: any
+    configService?: any
   },
 ) {
   const LEADER_LEASE_DURATION_MS = 5000
@@ -1026,14 +1022,6 @@ export function setupSocketHandlers(
   machine.on('event:trigger', (eventDef: EventConfig) => {
     void executeConfiguredEvent(eventDef)
   })
-
-  // Register POV Socket.IO event handlers
-  setupPovSocketHandlers(io, options?.povOrchestrator ?? null, getSocketClientType)
-
-  // Register Online namespace handlers
-  if (options?.onlineSessionManager && options?.onlineSignalingServer) {
-    registerOnlineNamespace(io, options.onlineSessionManager, options.onlineSignalingServer)
-  }
 
   io.on('connection', (socket: AppSocket) => {
     const clientType = getSocketClientType(socket)

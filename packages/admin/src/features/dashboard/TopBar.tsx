@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
+import { AuthBadge } from '../../auth/AuthBadge'
 
 export function TopBar() {
   const obsConnected = useAdminStore((s) => s.obsConnected)
@@ -39,6 +40,7 @@ export function TopBar() {
         <span className="max-w-[220px] truncate rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-mono text-red-300" title={lastError}>{lastError}</span>
       )}
       <div className="flex-1" />
+      <AuthBadge />
     </div>
   )
 }

@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n server,overlay,app -c cyan,green,yellow \"pnpm --filter @ieom/server dev\" \"pnpm --filter @ieom/overlay dev\" \"pnpm --filter @ieom/admin dev\"",
+    "dev:cloud": "concurrently -n cloud,cloud-ui -c blue,magenta \"pnpm --filter @ieom/cloud dev\" \"pnpm --filter @ieom/cloud-ui dev\"",
     "dev:desktop": "pnpm build:desktop && pnpm --filter @ieom/desktop dev",
     "build": "pnpm --filter @ieom/shared build && pnpm --filter @ieom/overlay build && pnpm --filter @ieom/admin build",
+    "build:cloud": "pnpm --filter @ieom/shared build && pnpm --filter @ieom/cloud-ui build && pnpm --filter @ieom/cloud build",
     "build:desktop": "pnpm --filter @ieom/shared build && pnpm --filter @ieom/server build && pnpm --filter @ieom/overlay build && pnpm --filter @ieom/admin build && pnpm --filter @ieom/desktop build",
     "start": "pnpm build && pnpm --filter @ieom/server start",
+    "start:cloud": "pnpm build:cloud && pnpm --filter @ieom/cloud start",
     "server": "pnpm --filter @ieom/server dev",
     "desktop": "pnpm --filter @ieom/desktop dev"
   },

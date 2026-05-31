@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { Btn, Toggle, ConfigSectionPanel } from '../../shared/ui'
+import { AccountSection } from '../../auth/AccountSection'
 import { testObsConnection } from '../../api/obsApi.js'
 import { getAdminOrigin, getOverlayDevOrigin, getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
 
@@ -137,7 +138,11 @@ export function SettingsPage({
 
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
-      <ConfigSectionPanel label="OBS WebSocket Settings" first>
+      <ConfigSectionPanel label="Account" first>
+        <AccountSection />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="OBS WebSocket Settings">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xs text-zinc-400">Status:</span>
           <span className={`text-sm font-medium ${obsConnected ? 'text-emerald-400' : 'text-red-500'}`}>

@@ -2,11 +2,15 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../state/machine.js'
 import { mergeAppConfig, withDesktopConfigDefaults } from '@ieom/shared'
 import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
-import type { ConfigService } from '../services/ConfigService.js'
+
+interface ConfigServiceLike {
+  getForUser(userId: string): Promise<AppConfig>
+  persistForUser(userId: string, config: AppConfig, machine?: any, updates?: Partial<AppConfig>): Promise<void>
+}
 
 interface ConfigRouteOptions extends FastifyPluginOptions {
   machine: SceneMachine
-  configService: ConfigService
+  configService: ConfigServiceLike
 }
 
 export async function configRoute(

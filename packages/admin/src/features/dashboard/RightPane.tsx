@@ -14,6 +14,7 @@ import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { CameraDashboard } from '../pov/CameraDashboard'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
+import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
@@ -141,7 +142,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'settings') return <SettingsPage />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'pov')      return <CameraDashboard />
-  if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
+  if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
 
   return null
 }

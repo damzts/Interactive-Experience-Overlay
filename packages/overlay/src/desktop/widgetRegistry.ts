@@ -4,6 +4,7 @@ import { ArchiveWidget } from './ArchiveWidget'
 import { BroadcastSchedulerWidget } from './BroadcastSchedulerWidget'
 import { CDRipperWidget } from './CDRipperWidget'
 import { CameraWidget } from './CameraWidget'
+import { PovCameraWidget } from './PovCameraWidget'
 import { ChatWidget } from './ChatWidget'
 import { CityNavigatorWidget } from './CityNavigatorWidget'
 import { ClockTowerWidget } from './ClockTowerWidget'
@@ -63,6 +64,7 @@ registerDesktopWidget('archive', ArchiveWidget)
 registerDesktopWidget('broadcast-scheduler', BroadcastSchedulerWidget)
 registerDesktopWidget('cd-ripper', CDRipperWidget)
 registerDesktopWidget('camera', CameraWidget)
+registerDesktopWidget('pov-camera', PovCameraWidget)
 registerDesktopWidget('chat', ChatWidget)
 registerDesktopWidget('city-navigator', CityNavigatorWidget)
 registerDesktopWidget('clock-tower', ClockTowerWidget)

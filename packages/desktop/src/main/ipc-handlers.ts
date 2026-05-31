@@ -13,6 +13,7 @@ import { clearToken } from './token-storage.js';
 import { getLaunchAtStartup, setLaunchAtStartup } from './startup.js';
 import { installUpdate } from './auto-updater.js';
 import { startOAuthFlow } from './oauth-flow.js';
+import { joinRoom, leaveRoom, getRoomStatus } from './room-service.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -167,5 +168,28 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('startup:set-launch-at-startup', (_event, enabled: boolean) => {
     setLaunchAtStartup(enabled);
     return { enabled: getLaunchAtStartup() };
+  });
+
+  // -------------------------------------------------------------------------
+  // Room: join a cloud room
+  // -------------------------------------------------------------------------
+  ipcMain.handle('room:join', async (_event, roomId: string, cloudUrl: string) => {
+    await joinRoom(roomId, cloudUrl);
+    return getRoomStatus();
+  });
+
+  // -------------------------------------------------------------------------
+  // Room: leave current room
+  // -------------------------------------------------------------------------
+  ipcMain.handle('room:leave', async () => {
+    await leaveRoom();
+    return getRoomStatus();
+  });
+
+  // -------------------------------------------------------------------------
+  // Room: get status
+  // -------------------------------------------------------------------------
+  ipcMain.handle('room:status', () => {
+    return getRoomStatus();
   });
 }

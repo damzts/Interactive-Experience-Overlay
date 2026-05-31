@@ -31,8 +31,13 @@ import { clearMediaCaches } from './services/MediaService.js'
 import { configRoute } from './routes/config.js'
 import { mediaRoute } from './routes/media.js'
 import { archiveRoute } from './routes/archive.js'
+import { roomRoute } from './routes/room.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './db/desktop-config-service.js'
+import { HubConnection } from './room/hub-connection.js'
+import { POVOrchestrator } from './pov/index.js'
+import { OverlayRelay } from './room/overlay-relay.js'
+import { CloudSignaling } from './room/cloud-signaling.js'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -193,6 +198,34 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus() })
 
+  // ── Room system (hub-and-spoke WebRTC) ───────────────────────
+  const hubConnection = new HubConnection()
+  const povOrchestrator = new POVOrchestrator(hubConnection)
+  const overlayRelay = new OverlayRelay()
+  const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator, overlayRelay)
+
+  // Wire overlay relay signaling through Socket.IO
+  io.on('connection', (socket) => {
+    socket.on('pov:subscribe', () => {
+      overlayRelay.createOffer((event, payload) => {
+        socket.emit(event, payload)
+      })
+    })
+    socket.on('pov:answer', (payload: { sdp: string }) => {
+      overlayRelay.handleAnswer(payload.sdp)
+    })
+    socket.on('pov:ice-candidate', (candidate: any) => {
+      overlayRelay.handleIceCandidate(candidate)
+    })
+  })
+
+  // Emit room status changes to all connected clients
+  cloudSignaling.onStatus((status) => {
+    io.emit('room:status' as any, status)
+  })
+
+  await app.register(roomRoute, { cloudSignaling })
+
   // ── OBS WebSocket bridge ─────────────────────────────────────
   const defaultObsUrl = process.env.OBS_URL ?? 'ws://localhost:4455'
   const defaultObsPassword = process.env.OBS_PASSWORD ?? ''
@@ -245,6 +278,10 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   }
 
   async function stop(): Promise<void> {
+    cloudSignaling.disconnect()
+    povOrchestrator.stop()
+    overlayRelay.cleanup()
+    await hubConnection.closeAll()
     scheduler.stop()
     ambianceManager.stop()
     io.close()
@@ -257,4 +294,26 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   }
 
   return { app, io, start, stop, getPort }
+}
+
+// ── Dev-mode self-start ──────────────────────────────────────────
+
+const isDev = process.argv[1]?.endsWith('desktop-entry.ts') || process.argv[1]?.endsWith('desktop-entry.js')
+if (isDev && !process.env.IEOM_NO_AUTOSTART) {
+  const monorepo = join(import.meta.dirname, '..', '..', '..')
+  const dataDir = join(monorepo, 'data')
+  mkdirSync(dataDir, { recursive: true })
+  createDesktopServer({
+    dbPath: join(dataDir, 'ieom-dev.db'),
+    port: 3000,
+    assetsDir: join(monorepo, 'assets'),
+    overlayDir: join(monorepo, 'packages', 'overlay', 'dist'),
+    adminDir: join(monorepo, 'packages', 'admin', 'dist'),
+  }).then(async (server) => {
+    await server.start()
+    console.log(`[server] listening on http://localhost:${server.getPort()}`)
+  }).catch((err) => {
+    console.error('[server] failed to start:', err)
+    process.exit(1)
+  })
 }

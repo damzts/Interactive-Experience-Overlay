@@ -1,4 +1,3 @@
-
 # Project Architecture
 
 ## AI Agent Notes
@@ -15,217 +14,249 @@ Target outcome:
 
 - an AI should understand the system model by understanding behavior and patterns, do not force a solution or limit creativity problem solving.
 
+---
+
+## System Overview
+
+Hub-and-spoke P2P architecture with two independent systems:
+
+1. **Cloud** — deployed server for user registration, room management, and WebRTC signaling relay (no media processing).
+2. **Self-Hosted Client** — offline-capable desktop app for stream overlay visual control. When connected to a cloud room, acts as the WebRTC hub receiving all participant streams, running POV switching locally, and rendering the active stream in the overlay.
+
+---
 
 ## Monorepo Structure
-pnpm workspaces. Four packages:
 
-| Package | Role |
-|---|---|
-| `@ieom/server` | Fastify HTTP + Socket.IO backend |
-| `@ieom/admin` | React admin UI (config, scenes, assets) |
-| `@ieom/overlay` | React overlay UI (rendered on stream) |
-| `@ieom/shared` | Shared TS types, constants, defaults |
+pnpm workspaces. Seven packages:
 
----
-
-## Shared (`packages/shared/src/`)
-
-Types are organized in two layers:
-
-- **`domain/`** — persistent data models (`AppConfig`, `Scene`, `Application`, `DesktopConfig`, `DesktopAmbianceConfig`, `EventConfig`, `OverlayStyle`, `SourcePreset`, `MediaEntry`, etc.)
-- **`contracts/`** — Socket.IO payloads (`socket.ts`), diagnostic types (`diagnostics.ts`), effect types (`effects.ts`), machine state enums (`state.ts`)
-- **`constants/`** — `DEFAULT_CONFIG`, ambiance simulation helpers
-- `index.ts` re-exports everything; all consumers use `@ieom/shared` as the entry point — no sub-path imports.
-
-Pattern: add a new domain entity → create `domain/myDomain.ts`, add it to `domain/config.ts` (`AppConfig`), re-export from `index.ts`.
+| Package | Role | Port |
+|---|---|---|
+| `@ieom/cloud` | Fastify backend: PG, auth, rooms, signaling relay | 3100 |
+| `@ieom/cloud-ui` | React SPA: landing, login, room dashboard, player join page | 3200 (dev) |
+| `@ieom/server` | Self-hosted Fastify + Socket.IO + werift WebRTC hub (SQLite, no auth) | 3000 |
+| `@ieom/admin` | React admin UI (config, scenes, assets) | 3002 |
+| `@ieom/overlay` | React overlay UI (rendered on stream) + PovCameraWidget | 3001 |
+| `@ieom/shared` | Shared TS types, constants, contracts | — |
+| `@ieom/desktop` | Electron shell embedding @ieom/server | — |
 
 ---
 
-## Server (`packages/server/src/`)
+## Key Scripts
+
+```bash
+# ─── Self-Hosted Client (offline, no cloud needed) ────────────────
+pnpm dev              # Run server + overlay + admin in dev mode
+pnpm dev:desktop      # Build all then run Electron app
+
+# ─── Cloud (deployed server) ──────────────────────────────────────
+pnpm dev:cloud        # Run cloud backend + cloud-ui in dev mode
+pnpm build:cloud      # Production build: shared → cloud-ui → cloud
+pnpm start:cloud      # Start production cloud server (serves UI + API)
+```
+
+---
+
+## Architecture Diagram
 
 ```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CLOUD (signaling relay only)                      │
+│                                                                     │
+│  Google OAuth → PostgreSQL (users, rooms)                           │
+│  Socket.IO /rooms namespace                                         │
+│    - Routes offers/answers/ICE between hub ↔ participants           │
+│    - Tracks hub + participant presence                               │
+│    - No media touches the server                                    │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │ Socket.IO (signaling only)
+                    ┌──────────────┼──────────────────┐
+                    │              │                  │
+             ┌──────▼──────┐ ┌────▼────┐      ┌─────▼─────┐
+             │  Server     │ │Browser 1│      │Browser 2  │
+             │  (Hub)      │ │(friend) │      │(friend)   │
+             │  werift     │ │         │      │           │
+             │  WebRTC ←───┤ │WebRTC──►│      │WebRTC───►│
+             │  N streams  │ │cam/mic  │      │cam/mic   │
+             └──────┬──────┘ └─────────┘      └──────────┘
+                    │
+         POV Switcher + Audio Analysis (local)
+         replaceTrack() on switch
+                    │
+                    ▼ (local WebRTC via Socket.IO signaling)
+             ┌──────────────┐
+             │   Overlay    │
+             │ PovCameraWidget │
+             │ <video> element │
+             └──────────────┘
+```
+
+---
+
+## Cloud (`packages/cloud/src/`)
+
+Pure signaling relay — no media processing.
+
+```
+auth/               — Google OAuth, JWT, cookies, CSRF, middleware
 db/
-  connection.ts       — opens SQLite (WAL mode), exports db instance
-  migrations.ts       — schema DDL, seed from DEFAULT_CONFIG, PRAGMA user_version
-  utils.ts            — parseJson, boolToInt, clone helpers
-  repositories/       — one class per domain (SceneRepository, ApplicationRepository, …)
-  db.ts               — thin backward-compat layer (bulk save/loadAllConfig) over repos
-services/
-  ConfigService.ts    — owns in-memory config; load, persist, patch, withDefaults
-  MediaService.ts     — asset/game scanning, catalog cache, CRUD
+  pool.ts           — PostgreSQL connection pool
+  migrationRunner.ts — sequential versioned migrations
+  pgMigrations/     — DDL migration files
+  repositories/     — UserRepository
+online/
+  session-manager.ts — RoomManager: room/participant/hub tracking
+socket/
+  onlineHandlers.ts — /rooms namespace: join-as-hub, join-as-participant, offer/answer/ICE relay
+index.ts            — server entry: wires PG, auth, rooms, REST routes, starts Fastify
+```
+
+### Cloud Signaling Protocol
+
+```
+Desktop (hub)           Cloud (relay)           Browser (participant)
+     │                        │                          │
+     │── join-as-hub ────────►│                          │
+     │                        │◄── join-as-participant ──│
+     │◄── participant-joined ─│── hub-info ────────────►│
+     │                        │◄────── offer ────────────│
+     │◄────── offer ─────────│                          │
+     │── answer ─────────────►│── answer ──────────────►│
+     │◄── ice-candidate ──────│◄── ice-candidate ───────│
+     │── ice-candidate ──────►│── ice-candidate ────────►│
+     │                        │                          │
+     │◄═══════════ WebRTC P2P (direct, no server) ═════►│
+```
+
+---
+
+## Self-Hosted Server (`packages/server/src/`)
+
+```
+desktop-entry.ts    — primary entry: factory + dev-mode self-start (auto-starts on port 3000 when run directly)
+room/
+  hub-connection.ts — werift RTCPeerConnection manager (N participants)
+  cloud-signaling.ts — Socket.IO client connecting to cloud as hub
+  overlay-relay.ts  — werift sendonly connection to overlay, replaceTrack on switch
+pov/
+  switcher.ts       — POV decision engine (evaluates scores, enforces cooldown)
+  audio-score-processor.ts — rolling-average activity scores from RTP audio
+  participant-registry.ts — feed adapter for POV switcher
+  index.ts          — POVOrchestrator: wires hub + switcher + audio processor
 routes/
-  config.ts           — thin HTTP handlers → ConfigService
-  media.ts            — thin HTTP handlers → MediaService
-  archive.ts          — event log routes
-state/
-  machine.ts          — SceneMachine: event emitter for scene state transitions
-socket/
-  handlers.ts         — real-time bridge; calls configService/persistConfig
-obs/                  — OBS WebSocket integration (ObsBridge class)
-ambiance/             — AmbianceManager class (receives getConfig callback)
-events/               — EventScheduler class (receives getConfig callback)
-index.ts              — wires everything with DI, starts Fastify
+  room.ts           — POST /api/room/join, POST /api/room/leave, GET /api/room/status
+  config.ts         — GET/PUT/PATCH /api/config
+  media.ts          — asset catalog routes
+  archive.ts        — event log routes
+db/
+  desktop-db.ts     — SQLite (sql.js) initialization
+  desktop-config-service.ts — single-tenant config CRUD
+state/machine.ts    — SceneMachine: scene state transitions
+socket/handlers.ts  — admin ↔ overlay real-time bridge
+obs/bridge.ts       — OBS WebSocket integration
+ambiance/manager.ts — automated desktop behavior
+events/scheduler.ts — event-driven automations
 ```
 
-### Layering rule
-Routes → Services → Repositories → DB. Routes never touch `db.*` directly. Services never import routes.
+### Room Data Flow
 
-### ConfigService
-Singleton `configService` owns the live in-memory `AppConfig`. `configService.get()` returns current config. `configService.persist(next, machine?, updates?)` writes changed domains to DB and emits `config:update`/`config:patch` via `SceneMachine`. `withConfigDefaults()` is applied at load time and after every patch.
+```
+Browser → getUserMedia → RTCPeerConnection
+  → creates offer → cloud relay → server (hub)
 
-### Repository pattern
-Each repo class takes `db: DatabaseType` in constructor; all SQL is inside the class. Bulk saves use DELETE-then-INSERT inside a transaction. Single-row tables use `INSERT OR REPLACE` with `id=1`.
+Server (hub):
+  werift RTCPeerConnection receives tracks
+  AudioScoreProcessor analyzes RTP audio energy → rolling scores
+  POVSwitcher evaluates scores → selects active participant
+  OverlayRelay.switchTo(audioTrack, videoTrack) → replaceTrack()
+
+Overlay (OBS browser source localhost:3001):
+  PovCameraWidget receives WebRTC stream from server
+  Renders single <video> element — track changes seamlessly on POV switch
+```
 
 ---
 
-## Database (`ieom.db`, better-sqlite3)
-
-Normalized relational schema. Migration version tracked via `PRAGMA user_version`. Migration v1 runs on first boot.
-
-| Table | Shape |
-|---|---|
-| `scenes` | `id PK, label, background_opaque, sources_json, style_json, lobby_config_json, transitions_json` |
-| `applications` | `id PK` + flat scalar columns + `settings_json` |
-| `desktop_config` | single-row (`id=1`) — icon settings, widget dicts as JSON columns |
-| `widget_layouts` | `id PK, label, icon, source, items_json, default_config_json` |
-| `events` | `id PK, label, icon, color, desc, effects_json, actions_json, auto_json` |
-| `keybinds` | `(scope, key) PK, action` |
-| `obs_config` | single-row — `url, password` |
-| `audio_config` | single-row — `master_volume, sfx_volume, music_volume` |
-| `overlay_style` | single-row — JSON columns per sub-section + flat typography fields |
-| `desktop_ambiance` | single-row — `simulation_json` |
-| `source_presets` | `id PK, label, plugin_type, config_json, default_position_json` |
-| `media_library` | `id PK, name, type, url, duration` |
-
-`widget_layouts` is loaded and attached to `DesktopConfig.widgetLayouts` at read time; split back on write.
-
----
-
-## Config (`AppConfig` in `@ieom/shared`)
+## Overlay (`packages/overlay/src/`)
 
 ```
-scenes          Record<string, Scene>
-applications    Application[]
-desktopConfig   DesktopConfig?
-desktopAmbiance DesktopAmbianceConfig?
-overlayStyle    OverlayStyle
-events          EventConfig[]?
-sourcePresets   SourcePreset[]?
-mediaLibrary    MediaEntry[]?
-keybinds        { obs, admin }
-obs             { url, password }
-audio           { masterVolume, sfxVolume, musicVolume }
-```
-
-Flow: `loadAllConfig()` → `withConfigDefaults()` → in-memory `configService` → `persist(next, machine?, updates?)` dispatches table-specific saves for only changed domains.
-
-`withConfigDefaults()` ensures required apps are present and computes `defaultConfig` snapshots — never stored in DB, re-derived at load time. `DesktopConfig.widgetThemeOverrides` is runtime-only — never persisted.
-
----
-
-## REST Endpoints
-
-- `GET /api/config` — fetch full normalized config
-- `PUT /api/config` — replace full config
-- `PATCH /api/config` — merge partial updates
-- `PATCH /api/config/audio` — patch audio only
-- `PATCH /api/config/desktop` — patch desktop only
-- `PATCH /api/config/applications/:appId` — patch one application
-- `PATCH /api/config/obs` — patch OBS settings
-- `GET /api/assets/catalog` — fetch asset catalog
-- `POST /api/assets/refresh` — rebuild asset catalog
-
----
-
-## Socket Model
-
-Typed Socket.IO events (defined in `@ieom/shared/contracts/socket.ts`).
-
-| Group | Events |
-|---|---|
-| Scene control | `scene:change`, `state:update`, `transition:play`, `transition:preview` |
-| Config sync | `config:update` (full), `config:patch` (diff) |
-| Overlay effects | `overlay:trigger`, `overlay:show` |
-| Desktop runtime | `widget:toggle`, `desktop:state:request`, `desktop:notify`, `desktop:recycle-bin` |
-| Live shell motion | `desktop:icon:drag`, `desktop:widget:drag`, `desktop:widget:resize` |
-| Start menu | `desktop:start-menu:state`, `desktop:start-menu:phase` |
-| Ambiance sync | `ambiance:leader`, `ambiance:simulate`, `ambiance:simulate:accepted/started/done` |
-| Recovery | `overlay:runtime:status`, `overlay:resync`, `overlay:force-resync` |
-| Cursor mirror | `cursor:mirror`, `cursor:mirror:menu-timeline` |
-| Widget intent | `widget:simulate:intent`, `widget:layout:apply` |
-| Utilities | `desktop:screen-saver:test`, `panic`, `obs:status`, `keybind:execute` |
-
-Rules:
-- Sockets carry runtime state and lightweight sync; HTTP persists config.
-- `config:update` = full heavy sync; `config:patch` = normal incremental path.
-
----
-
-## Admin UI (`packages/admin/src/`)
-
-```
-api/
-  configApi.ts        — typed fetchConfig() / patchConfig(); all HTTP paths live here
-store/
-  slices/
-    configSlice.ts    — AppConfig state + fetchConfig/saveConfig actions (calls configApi)
-    runtimeSlice.ts   — OBS status, diagnostics, scene machine state, socket runtime data
-    uiSlice.ts        — selected scene/app, open panels, last error
-  useAdminStore.ts    — composes all 3 slices (Zustand); single store for all consumers
-socket/
-  client.ts           — Socket.IO client instance
-  useSocketEvents.ts  — all socket.on handlers; writes into store slices
-App.tsx               — mounts useSocketEvents, renders Dashboard
-```
-
-Pattern: every component reads from `useAdminStore`; all HTTP is via `configApi`; socket events are centralized in `useSocketEvents`.
-
----
-
-## Overlay UI (`packages/overlay/src/`)
-
-```
-socket/
-  useConfigSync.ts    — handles config:update / config:patch
-  useSceneEvents.ts   — handles scene:change, transition:*, state:update, overlay:resync
-  useDesktopEvents.ts — handles widget:*, desktop:*, ambiance:*, obs:status, cursor events
-  useCursorMirror.ts  — cursor mirror + menu-timeline simulation
-  useSocket.ts        — thin composition: calls all 4 sub-hooks
+desktop/
+  PovCameraWidget.tsx — receives WebRTC stream from server, renders in DesktopWindow
+  CameraWidget.tsx    — local camera capture (host's own camera)
+  widgetRegistry.ts   — widget type → component mapping
+  DesktopWindow.tsx   — draggable/resizable window chrome
+socket/               — config sync, scene events, desktop events
 engine/               — render engine
 layers/               — scene layer composition
-desktop/ lobby/       — scene-specific rendering
-transitions/          — intro/exit transition system
-plugins/              — extensible overlay plugins
 ```
 
-### Layer Order
-1. `BackgroundLayer`
-2. `ParticlesLayer`
-3. `LayerStack`
-4. `LobbyScene` or `DesktopScene`
-5. `CSSEffectsLayer`
-6. `TransitionLayer`
+Widget types: `'pov-camera'` (remote POV stream), `'camera'` (local camera), plus 20+ other widget types.
 
 ---
 
-## Core Data Model
+## Admin (`packages/admin/src/`)
 
-- `AppConfig` — root persisted object
-- `Scene` — authored visual state
-- `SourceInstance` — placed plugin instance inside a scene
-- `Application` — desktop icon/app/widget record
-- `DesktopConfig` — runtime layout (includes `widgetLayouts` assembled from DB at read time)
-- `DesktopAmbianceConfig` — automated desktop/widget behavior rules
-- `EventConfig` — scheduler-driven automations with overlay effects
-- `OverlayStyle` — per-scene background/effects/particles/typography
+Auth is **optional** — the app loads directly into the Dashboard without login. Authentication unlocks paid features (stream rooms) via `FeatureGate`.
 
-Application roles: `scene` (changes machine state via `targetSceneId`), `widget` (opens floating window), `decoration` (non-launchable icon).
+```
+auth/
+  AuthContext.tsx   — unified provider (auto-detects desktop IPC vs web cookie auth)
+  AuthBadge.tsx     — compact sign-in/user widget (placed in TopBar)
+  AccountSection.tsx — account info panel (placed in Settings)
+desktop/
+  FeatureGate.tsx   — tier-based feature gating (wraps gated UI, shows UpgradePrompt)
+  DesktopAuthContext.tsx — IPC-based auth for Electron mode
+features/
+  dashboard/        — main layout: TopBar, LeftSidebar, RightPane, LivePreview
+  pov/              — OnlineRoomsPanel (gated behind 'stream-rooms' feature)
+  settings/         — SettingsPage (includes AccountSection)
+```
 
-Widget state layers:
-- identity + behavior → `Application`
-- window position/size/z-order defaults → `DesktopConfig`
-- per-app theme override → `Application.themeOverride` (persisted)
-- runtime event overrides → `DesktopConfig.widgetThemeOverrides` (ephemeral, never written)
-- widget layouts → `widget_layouts` table, surfaced via `DesktopConfig.widgetLayouts`
+**Auth pattern:** `useAuth()` hook works in both web and desktop modes. Components that need auth-gating wrap content in `<FeatureGate feature="...">`. Login is triggered from TopBar badge or Settings panel — loosely coupled, easy to relocate.
 
-`Scene.defaultConfig` and `Application.defaultConfig` are computed by `withConfigDefaults()` from `DEFAULT_CONFIG` — never stored in DB.
+---
+
+## Desktop (`packages/desktop/src/`)
+
+Electron shell. Delegates room management to the local server.
+
+```
+main/
+  room-service.ts   — calls server HTTP API to join/leave rooms
+  ipc-handlers.ts   — room:join, room:leave, room:status IPC channels
+  server.ts         — starts/stops embedded @ieom/server
+  oauth-flow.ts     — Google OAuth in system browser
+  token-storage.ts  — persists JWT for cloud auth
+preload/
+  index.ts          — window.ieom API (license, auth, room, settings, etc.)
+```
+
+---
+
+## Key Libraries
+
+| Library | Package | Purpose |
+|---|---|---|
+| `werift` | server | Pure TypeScript WebRTC (no native deps, no compilation) |
+| `socket.io-client` | server | Connects to cloud as hub |
+| `socket.io` | server, cloud | Real-time signaling |
+| `fastify` | server, cloud | HTTP framework |
+| `sql.js` | server | SQLite in-memory/file DB |
+| `pg` | cloud | PostgreSQL client |
+
+---
+
+## Environment Variables
+
+### Cloud (.env)
+
+```
+PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
+GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+JWT_SECRET
+PORT=3100
+```
+
+### Self-Hosted
+
+No env required. Runs on localhost:3000 by default.
+Optional: `IEOM_SIGNALING_URL` (cloud URL for room connections).
