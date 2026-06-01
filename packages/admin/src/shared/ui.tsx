@@ -66,10 +66,10 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
   alwaysShow?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-zinc-800/70 bg-zinc-950/92 px-3 pt-3 pb-2 backdrop-blur-sm">
-      <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/70 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+    <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-3 pt-3 pb-2 backdrop-blur-xl">
+      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-zinc-500">{label}</span>
+          <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/70">{label}</span>
           <div className="flex-1" />
           <SaveBar
             dirty={dirty}
@@ -300,7 +300,7 @@ export function ConfigPageIntro({
   className?: string
 }) {
   return (
-    <div className={`mb-4 rounded-xl border border-cyan-500/18 bg-zinc-950/65 px-4 py-3 shadow-lg shadow-black/20 ${className}`.trim()}>
+    <div className={`mb-4 rounded-2xl border border-cyan-500/18 bg-[linear-gradient(180deg,rgba(10,10,12,0.88),rgba(16,16,20,0.72))] px-4 py-3 shadow-[0_18px_54px_rgba(0,0,0,0.28)] backdrop-blur ${className}`.trim()}>
       <div className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/80">{eyebrow}</div>
       <div className="admin-text-display mt-1 font-semibold text-zinc-100">{title}</div>
       <div className="admin-text-body mt-1 max-w-prose text-zinc-400">{children}</div>
@@ -318,7 +318,7 @@ export function ConfigNotice({
   className?: string
 }) {
   return (
-    <div className={`admin-text-body rounded-lg border px-3 py-2 ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
+    <div className={`admin-text-body rounded-xl border px-3 py-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
       {children}
     </div>
   )
@@ -326,7 +326,7 @@ export function ConfigNotice({
 
 export function ConfigToolbar({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-wrap items-center gap-2.5 rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 ${className}`.trim()}>
+    <div className={`flex flex-wrap items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur ${className}`.trim()}>
       {children}
     </div>
   )
@@ -334,7 +334,7 @@ export function ConfigToolbar({ children, className = '' }: { children: ReactNod
 
 export function ConfigCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-lg border border-zinc-800/80 bg-zinc-950/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${className}`.trim()}>
+    <div className={`rounded-xl border border-white/8 bg-white/[0.03] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-sm ${className}`.trim()}>
       {children}
     </div>
   )
@@ -421,12 +421,12 @@ export function ConfigSwatchButton({
 type BtnVariant = 'default' | 'primary' | 'danger' | 'ghost' | 'active' | 'warning'
 
 const BTN_VARIANTS: Record<BtnVariant, string> = {
-  default: 'border border-zinc-700/80 bg-zinc-950/70 text-zinc-100 hover:border-zinc-600/90 hover:bg-zinc-800/80',
-  primary: 'border border-cyan-400/35 bg-cyan-500/12 text-cyan-50 font-semibold hover:border-cyan-300/45 hover:bg-cyan-500/20',
-  danger:  'border border-red-500/30 bg-red-500/10 text-red-50 font-semibold hover:border-red-400/40 hover:bg-red-500/18',
-  ghost:   'border border-transparent text-zinc-400 hover:border-zinc-700/60 hover:bg-zinc-900/75 hover:text-zinc-100',
-  active:  'border border-cyan-400/40 bg-cyan-500/18 text-cyan-200',
-  warning: 'border border-amber-400/35 bg-amber-500/14 text-amber-100 font-semibold hover:border-amber-300/45 hover:bg-amber-500/22',
+  default: 'border border-white/10 bg-white/[0.04] text-zinc-100 hover:border-cyan-400/20 hover:bg-white/[0.07]',
+  primary: 'border border-cyan-400/30 bg-cyan-500/12 text-cyan-50 font-semibold hover:border-cyan-300/45 hover:bg-cyan-500/18',
+  danger:  'border border-red-500/25 bg-red-500/10 text-red-50 font-semibold hover:border-red-400/40 hover:bg-red-500/16',
+  ghost:   'border border-transparent text-zinc-400 hover:border-white/8 hover:bg-white/[0.04] hover:text-zinc-100',
+  active:  'border border-cyan-400/35 bg-cyan-500/16 text-cyan-100 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]',
+  warning: 'border border-amber-400/30 bg-amber-500/12 text-amber-100 font-semibold hover:border-amber-300/45 hover:bg-amber-500/18',
 }
 
 export function Btn({
@@ -436,7 +436,7 @@ export function Btn({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
   return (
     <button
-      className={`admin-text-body inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${BTN_VARIANTS[variant]} ${className}`}
+      className={`admin-text-body inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${BTN_VARIANTS[variant]} ${className}`}
       {...props}
     />
   )
@@ -444,7 +444,7 @@ export function Btn({
 
 export function Label({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`admin-text-meta text-zinc-400 mb-1 ${className}`}>{children}</div>
+    <div className={`admin-text-meta mb-1 text-zinc-400/90 ${className}`}>{children}</div>
   )
 }
 
@@ -470,10 +470,10 @@ export function Toggle({
     <label className="flex items-center gap-2 cursor-pointer select-none">
       <div
         onClick={() => onChange(!checked)}
-        className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-cyan-600' : 'bg-zinc-600'}`}
+        className={`relative h-5 w-9 rounded-full border transition-colors ${checked ? 'border-cyan-300/30 bg-cyan-500/70' : 'border-white/10 bg-white/10'}`}
       >
         <div
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`}
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`}
         />
       </div>
       {label && <span className="admin-text-body text-zinc-300">{label}</span>}
@@ -510,7 +510,7 @@ export function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1"
+        className="flex-1 accent-cyan-400"
       />
       <span className="admin-text-body text-zinc-300 w-10 text-right shrink-0">
         {renderedDisplay}
@@ -548,7 +548,7 @@ export function SaveBar({
 }) {
   if (!alwaysShow && !dirty && !saved) return null
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${showDivider ? 'mt-4 border-t border-zinc-800/80 pt-3' : ''} ${className}`.trim()}>
+    <div className={`flex flex-wrap items-center gap-3 ${showDivider ? 'mt-4 border-t border-white/8 pt-3' : ''} ${className}`.trim()}>
       {saved && <span className="admin-text-body text-emerald-300">✔ Saved</span>}
       {(dirty || alwaysShow) && (
         <>
