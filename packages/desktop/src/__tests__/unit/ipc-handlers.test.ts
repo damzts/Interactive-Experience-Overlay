@@ -172,7 +172,7 @@ describe('ipc-handlers', () => {
 
       await handler();
       expect(mockOpenExternal).toHaveBeenCalledWith(
-        'https://app.ieom.gg/auth/google?redirect=ieom://auth',
+        'https://app.ieom.gg/api/auth/google?redirect=ieom://auth',
       );
     });
 

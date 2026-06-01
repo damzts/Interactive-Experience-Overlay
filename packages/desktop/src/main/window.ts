@@ -32,6 +32,9 @@ const DEFAULT_HEIGHT = 800;
 const DESKTOP_SERVER_PORT = getDesktopServerPort();
 const ADMIN_URL = getDesktopAdminUrl();
 const PERSIST_DEBOUNCE_MS = 500;
+const BRAND_GRADIENT = 'linear-gradient(135deg, rgba(103,232,249,0.18), rgba(56,189,248,0.12) 45%, rgba(129,140,248,0.12))';
+const FADE_STEPS = 8;
+const FADE_STEP_MS = 20;
 
 // ---------------------------------------------------------------------------
 // State
@@ -39,6 +42,7 @@ const PERSIST_DEBOUNCE_MS = 500;
 
 let adminWindow: BrowserWindow | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let splashWindow: BrowserWindow | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,6 +61,196 @@ function getDbPath(): string {
  */
 function getPreloadPath(): string {
   return path.join(__dirname, '..', 'preload', 'index.js');
+}
+
+/**
+ * Get the path to the desktop app icon used by the BrowserWindow.
+ */
+function getWindowIconPath(): string {
+  return path.join(__dirname, '..', '..', 'build', 'icon.ico');
+}
+
+/**
+ * Create a small branded splash window shown while the desktop app initializes.
+ */
+export function createSplashWindow(): BrowserWindow {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.focus();
+    return splashWindow;
+  }
+
+  splashWindow = new BrowserWindow({
+    width: 480,
+    height: 320,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    show: false,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    backgroundColor: '#070b14',
+    icon: getWindowIconPath(),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  const splashHtml = `
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+          html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+          body {
+            display: grid;
+            place-items: center;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+            color: #e2e8f0;
+          }
+          .shell {
+            width: 100%; height: 100%;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 24px;
+            background: rgba(8, 12, 20, 0.92);
+            box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+            backdrop-filter: blur(24px);
+            position: relative;
+            overflow: hidden;
+          }
+          .shell::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: ${BRAND_GRADIENT};
+          }
+          .shell::after {
+            content: '';
+            position: absolute; inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+            background-size: 24px 24px;
+            opacity: 0.08;
+            mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
+          }
+          .content {
+            position: relative;
+            z-index: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            text-align: center;
+            padding: 28px;
+          }
+          .logo {
+            width: 68px;
+            height: 68px;
+            border-radius: 22px;
+            border: 1px solid rgba(103,232,249,0.25);
+            background: rgba(8, 145, 178, 0.12);
+            display: grid;
+            place-items: center;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 18px 36px rgba(8,145,178,0.08);
+          }
+          .title { font-size: 18px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+          .subtitle { font-size: 12px; color: #94a3b8; line-height: 1.5; max-width: 280px; }
+          .spinner {
+            width: 28px; height: 28px;
+            border-radius: 999px;
+            border: 2px solid rgba(148,163,184,0.22);
+            border-top-color: rgba(103,232,249,0.95);
+            animation: spin 0.9s linear infinite;
+          }
+          .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <div class="shell">
+          <div class="content">
+            <div class="logo" aria-hidden="true">
+              <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 9.5A2.5 2.5 0 0 1 12.5 7h7A4.5 4.5 0 0 1 24 11.5v1.2A4.5 4.5 0 0 1 21.4 16.78 4.5 4.5 0 0 1 24 20.86v.64A4.5 4.5 0 0 1 19.5 26h-7A2.5 2.5 0 0 1 10 23.5v-14Z" stroke="#A5F3FC" stroke-width="2.2" stroke-linejoin="round"/>
+                <path d="M13.5 10.5v11" stroke="#E0F2FE" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M17.1 10.5h2.8M17.1 16h4.2M17.1 21.5h2.8" stroke="#E0F2FE" stroke-width="2.2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="title">IEOM</div>
+              <div class="subtitle">Starting the desktop workspace and restoring your last session.</div>
+            </div>
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="status"><span>Loading</span><span>•</span><span>Desktop ready</span></div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`);
+
+  splashWindow.once('ready-to-show', () => {
+    splashWindow?.show();
+  });
+
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+
+  return splashWindow;
+}
+
+/**
+ * Close the splash window if it is visible.
+ */
+export function closeSplashWindow(): void {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    const currentSplash = splashWindow;
+    splashWindow = null;
+
+    try {
+      const startOpacity = typeof currentSplash.getOpacity === 'function' ? currentSplash.getOpacity() : 1;
+      let step = 0;
+
+      const timer = setInterval(() => {
+        if (currentSplash.isDestroyed()) {
+          clearInterval(timer);
+          return;
+        }
+
+        step += 1;
+  const nextOpacity = Math.max(0, startOpacity * (1 - step / FADE_STEPS));
+
+        try {
+          currentSplash.setOpacity(nextOpacity);
+        } catch {
+          clearInterval(timer);
+          currentSplash.close();
+          return;
+        }
+
+        if (step >= FADE_STEPS || nextOpacity <= 0) {
+          clearInterval(timer);
+          currentSplash.close();
+        }
+      }, FADE_STEP_MS);
+    } catch {
+      currentSplash.close();
+    }
+  }
 }
 
 /**
@@ -197,6 +391,8 @@ export async function createAdminWindow(): Promise<void> {
     minHeight: MIN_HEIGHT,
     autoHideMenuBar: true,
     show: false, // Show after ready-to-show to avoid flash
+    icon: getWindowIconPath(),
+    backgroundColor: '#070b14',
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -213,6 +409,34 @@ export async function createAdminWindow(): Promise<void> {
     }
 
     adminWindow.show();
+
+    try {
+      adminWindow.setOpacity(0);
+      let step = 0;
+
+      const timer = setInterval(() => {
+        if (!adminWindow || adminWindow.isDestroyed()) {
+          clearInterval(timer);
+          return;
+        }
+
+        step += 1;
+  const nextOpacity = Math.min(1, step / FADE_STEPS);
+
+        try {
+          adminWindow.setOpacity(nextOpacity);
+        } catch {
+          clearInterval(timer);
+          return;
+        }
+
+        if (step >= FADE_STEPS || nextOpacity >= 1) {
+          clearInterval(timer);
+        }
+      }, FADE_STEP_MS);
+    } catch {
+      // If opacity is unsupported on this platform, just show the window normally.
+    }
   });
 
   // ---------------------------------------------------------------------------

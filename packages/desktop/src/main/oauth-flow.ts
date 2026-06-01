@@ -1,13 +1,13 @@
 ﻿/**
  * OAuth flow for desktop login.
  *
- * Opens an in-app BrowserWindow to the backend's /auth/google endpoint.
+ * Opens an in-app BrowserWindow to the backend's /api/auth/google endpoint.
  * The backend handles OAuth with Google and eventually redirects with token.
  *
  * Flow:
- * 1. Open BrowserWindow â†’ GET /auth/google (backend)
+ * 1. Open BrowserWindow â†’ GET /api/auth/google (backend)
  * 2. Backend redirects to Google OAuth consent
- * 3. User consents â†’ Google calls /auth/google/callback (backend)
+ * 3. User consents â†’ Google calls /api/auth/google/callback (backend)
  * 4. Backend redirects to frontend/callback with token
  * 5. Electron captures the URL, extracts the token
  * 6. Store token, broadcast auth status, validate license
@@ -27,7 +27,7 @@ let authWindow: BrowserWindow | null = null;
 
 /**
  * Start the OAuth login flow.
- * Opens an in-app window pointing to /auth/google.
+ * Opens an in-app window pointing to /api/auth/google.
  */
 export async function startOAuthFlow(): Promise<void> {
   if (authWindow && !authWindow.isDestroyed()) {
@@ -77,7 +77,9 @@ export async function startOAuthFlow(): Promise<void> {
     authWindow = null;
   });
 
-  await authWindow.loadURL(`${getAuthBackendUrl()}/auth/google?redirect=desktop`);
+    const oauthUrl = `${getAuthBackendUrl()}/api/auth/google?redirect=desktop`;
+    console.log('[oauth-flow] Loading OAuth URL:', oauthUrl);
+    await authWindow.loadURL(oauthUrl);
 }
 
 function closeAuthWindow(): void {

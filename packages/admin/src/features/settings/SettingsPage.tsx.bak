@@ -87,7 +87,7 @@ export function SettingsPage({
 
     await new Promise<void>((resolve) => {
       socket.emit('camera:owner:select', value || null, (err: unknown) => {
-        if (err) setCameraOwnerError(typeof err === "string" ? err : String(err))
+        if (err) setCameraOwnerError(err)
         resolve()
       })
     })
@@ -265,5 +265,4 @@ export function SettingsPage({
     </div>
   )
 }
-
 
