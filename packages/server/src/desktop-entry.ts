@@ -196,7 +196,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const obsBridge = new ObsBridge(io, machine)
 
   // ── Socket handlers (NO auth middleware on io.use) ───────────
-  setupSocketHandlers(io, machine, scheduler, ambianceManager, {
+  const { isOverlaySlotTaken } = setupSocketHandlers(io, machine, scheduler, ambianceManager, {
     getObsStatus: () => obsBridge.getStatus(),
     configService: configService as any,
   })
@@ -209,6 +209,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // ── REST routes (NO auth middleware registered) ──────────────
   app.get('/api/health', async () => ({ ok: true }))
+  app.get('/api/overlay/status', async () => ({ slotTaken: isOverlaySlotTaken() }))
   await app.register(authRoutes, { userRepository })
   await app.register(configRoute, { machine, configService: configService as any })
   await app.register(mediaRoute)

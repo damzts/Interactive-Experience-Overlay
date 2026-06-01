@@ -4,7 +4,7 @@ import { getAuthOrigin, getStoredAuthToken } from '../auth/sessionToken'
 /** Singleton socket for admin panel — cookies are sent automatically via withCredentials */
 export const socket: Socket = io(getAuthOrigin(), {
   withCredentials: true,
-  auth: getStoredAuthToken() ? { token: getStoredAuthToken() as string } : {},
+  auth: { clientType: 'admin', ...(getStoredAuthToken() ? { token: getStoredAuthToken() as string } : {}) },
   autoConnect: false,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
@@ -19,6 +19,6 @@ export function reconnectSocket(): void {
     socket.disconnect()
   }
   const token = getStoredAuthToken()
-  socket.auth = token ? { token } : {}
+  socket.auth = { clientType: 'admin', ...(token ? { token } : {}) }
   socket.connect()
 }

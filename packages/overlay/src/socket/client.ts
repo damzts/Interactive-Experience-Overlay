@@ -17,7 +17,7 @@ const overlayLabel = overlayKind === 'runtime'
 
 /** Singleton Socket.IO client — created once when this module is first imported */
 export const socket = io('/', {
-  autoConnect: true,
+  autoConnect: false,
   auth: {
     clientType: 'overlay',
     overlayKind,

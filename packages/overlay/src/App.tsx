@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { STATE } from '@ieom/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
@@ -13,22 +13,13 @@ import { Desktop } from './desktop/Desktop'
 import { LobbyScene } from './lobby/LobbyScene'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
-import { socket } from './socket/client'
 
 export default function App() {
   const visualState   = useAppStore((s) => s.visualState)
   const config        = useAppStore((s) => s.config)
-  const [rejected, setRejected] = useState(false)
 
   // Wire socket events to the store
   useSocket()
-
-  // Listen for server rejection (single overlay gate)
-  useEffect(() => {
-    const onRejected = () => setRejected(true)
-    socket.on('overlay:rejected' as any, onRejected)
-    return () => { socket.off('overlay:rejected' as any, onRejected) }
-  }, [])
 
   useEffect(() => { audioEngine.init() }, [])
 
@@ -36,23 +27,6 @@ export default function App() {
     audioEngine.setMasterVolume(config.audio.masterVolume)
     audioEngine.setMusicVolume(config.audio.musicVolume)
   }, [config.audio.masterVolume, config.audio.musicVolume])
-
-  if (rejected) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0a0a0a', color: '#e4e4e7', fontFamily: 'system-ui, sans-serif', padding: 32 }}>
-        <div style={{ textAlign: 'center', maxWidth: 420 }}>
-          <p style={{ fontSize: 18, marginBottom: 12 }}>Overlay is already open in another window.</p>
-          <p style={{ fontSize: 14, color: '#a1a1aa' }}>Close that window before opening a new one.</p>
-          <button
-            onClick={() => { setRejected(false); socket.connect() }}
-            style={{ marginTop: 24, padding: '8px 20px', borderRadius: 6, border: '1px solid #3f3f46', background: '#18181b', color: '#e4e4e7', cursor: 'pointer', fontSize: 13 }}
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   const { scene, visibleSources, overlayStyle, effectiveEffects } = resolveScene(config, visualState)
 

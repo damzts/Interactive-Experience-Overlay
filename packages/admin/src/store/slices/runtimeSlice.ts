@@ -7,7 +7,7 @@ export interface RuntimeSlice {
   obsConnected: boolean
   obsStatus: ObsStatusPayload
   clientCount: number
-  cameraOwnerSocketId: string | null
+  overlayOwnerSocketId: string | null
   openWidgetIds: string[]
   recycleBinFull: boolean
   simulationLeaderId: string | null
@@ -18,7 +18,7 @@ export interface RuntimeSlice {
   setCurrentState: (s: STATE) => void
   setObsStatus: (status: ObsStatusPayload) => void
   setClientCount: (n: number) => void
-  setCameraOwnerSocketId: (socketId: string | null) => void
+  setOverlayOwnerSocketId: (socketId: string | null) => void
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
   setRecycleBinFull: (full: boolean) => void
@@ -40,7 +40,7 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
     lastError: null,
   },
   clientCount: 0,
-  cameraOwnerSocketId: null,
+  overlayOwnerSocketId: null,
   openWidgetIds: [],
   recycleBinFull: false,
   simulationLeaderId: null,
@@ -89,7 +89,7 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
   setCurrentState: (s) => set({ currentState: s }),
   setObsStatus: (status) => set({ obsConnected: status.connected, obsStatus: status }),
   setClientCount: (n) => set({ clientCount: n }),
-  setCameraOwnerSocketId: (cameraOwnerSocketId) => set({ cameraOwnerSocketId }),
+  setOverlayOwnerSocketId: (overlayOwnerSocketId) => set({ overlayOwnerSocketId }),
   syncDesktopRuntimeState: (payload) =>
     set({ openWidgetIds: payload.openWidgetIds, recycleBinFull: payload.recycleBinFull }),
   toggleWidgetRuntimeState: (widgetId) =>

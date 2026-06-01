@@ -10,7 +10,7 @@ import type { WidgetSimulationIntentPayload } from '@ieom/shared'
 export function useDesktopEvents() {
   const enqueueDesktopNotification = useAppStore((s) => s.enqueueDesktopNotification)
   const setRecycleBinFull = useAppStore((s) => s.setRecycleBinFull)
-  const setCameraOwnerSocketId = useAppStore((s) => s.setCameraOwnerSocketId)
+  const setOverlayOwnerSocketId = useAppStore((s) => s.setOverlayOwnerSocketId)
   const setObsConnected = useAppStore((s) => s.setObsConnected)
 
   useEffect(() => {
@@ -29,8 +29,8 @@ export function useDesktopEvents() {
       setRecycleBinFull(payload.full)
     }
 
-    const onCameraOwner = (payload: { socketId: string | null }) => {
-      setCameraOwnerSocketId(payload.socketId)
+    const onOverlayOwner = (payload: { socketId: string | null }) => {
+      setOverlayOwnerSocketId(payload.socketId)
     }
 
     const onObsStatus = (payload: ObsStatusPayload) => {
@@ -44,7 +44,7 @@ export function useDesktopEvents() {
     socket.on('widget:toggle', onWidgetToggle)
     socket.on('desktop:notify', onDesktopNotify)
     socket.on('desktop:recycle-bin', onDesktopRecycleBin)
-    socket.on('camera:owner', onCameraOwner)
+    socket.on('overlay:owner', onOverlayOwner)
     socket.on('obs:status', onObsStatus)
     socket.on('widget:simulate:intent', onWidgetSimulationIntent)
 
@@ -52,7 +52,7 @@ export function useDesktopEvents() {
       socket.off('widget:toggle', onWidgetToggle)
       socket.off('desktop:notify', onDesktopNotify)
       socket.off('desktop:recycle-bin', onDesktopRecycleBin)
-      socket.off('camera:owner', onCameraOwner)
+      socket.off('overlay:owner', onOverlayOwner)
       socket.off('obs:status', onObsStatus)
       socket.off('widget:simulate:intent', onWidgetSimulationIntent)
     }

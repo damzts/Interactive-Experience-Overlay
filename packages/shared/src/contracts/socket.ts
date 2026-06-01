@@ -216,7 +216,7 @@ export interface ServerToClientEvents {
   'ambiance:leader': (payload: { socketId: string | null }) => void
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void
   'runtime:diagnostics': (payload: RuntimeDiagnosticsPayload) => void
-  'camera:owner': (payload: { socketId: string | null }) => void
+  'overlay:owner': (payload: { socketId: string | null }) => void
   'runtime:config:override': (payload: RuntimeConfigOverridePayload) => void
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
   'overlay:resync': (payload: { reason: string }) => void

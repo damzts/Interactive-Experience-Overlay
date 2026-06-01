@@ -11,7 +11,7 @@ export function useSocketEvents() {
   const setConfig = useAdminStore((s) => s.setConfig)
   const patchConfig = useAdminStore((s) => s.patchConfig)
   const setRuntimeConfigOverride = useAdminStore((s) => s.setRuntimeConfigOverride)
-  const setCameraOwnerSocketId = useAdminStore((s) => s.setCameraOwnerSocketId)
+  const setOverlayOwnerSocketId = useAdminStore((s) => s.setOverlayOwnerSocketId)
   const syncDesktopRuntimeState = useAdminStore((s) => s.syncDesktopRuntimeState)
   const toggleWidgetRuntimeState = useAdminStore((s) => s.toggleWidgetRuntimeState)
   const setRecycleBinFull = useAdminStore((s) => s.setRecycleBinFull)
@@ -54,8 +54,8 @@ export function useSocketEvents() {
     socket.on('runtime:config:override', (updates) => {
       setRuntimeConfigOverride(updates)
     })
-    socket.on('camera:owner', ({ socketId }: { socketId: string }) => {
-      setCameraOwnerSocketId(socketId)
+    socket.on('overlay:owner', ({ socketId }: { socketId: string }) => {
+      setOverlayOwnerSocketId(socketId)
     })
     socket.on('ambiance:leader', ({ socketId }: { socketId: string }) => {
       setSimulationLeaderId(socketId)
@@ -76,7 +76,7 @@ export function useSocketEvents() {
       socket.off('config:update')
       socket.off('config:patch')
       socket.off('runtime:config:override')
-      socket.off('camera:owner')
+      socket.off('overlay:owner')
       socket.off('ambiance:leader')
       socket.off('ambiance:metrics')
       socket.off('runtime:diagnostics')
@@ -85,7 +85,7 @@ export function useSocketEvents() {
     fetchConfig,
     patchConfig,
     setAmbianceMetrics,
-    setCameraOwnerSocketId,
+    setOverlayOwnerSocketId,
     setConfig,
     setCurrentState,
     setObsStatus,

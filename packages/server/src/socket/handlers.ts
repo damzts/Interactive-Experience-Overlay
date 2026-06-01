@@ -159,7 +159,7 @@ export function setupSocketHandlers(
     onlineSignalingServer?: any
     configService?: any
   },
-) {
+): { isOverlaySlotTaken: () => boolean } {
   const RUNTIME_DIAGNOSTICS_MIN_INTERVAL_MS = 1000
   const openWidgetIds = new Set<string>()
   const socketClientTypes = new Map<string, 'overlay' | 'admin' | 'unknown'>()
@@ -880,7 +880,7 @@ export function setupSocketHandlers(
       overlaySocketId = socket.id
       overlayClientInfo = buildOverlayClientInfo(socket)
       assignOverlayLeader(socket.id)
-      io.emit('camera:owner', { socketId: socket.id })
+      io.emit('overlay:owner', { socketId: socket.id })
       queueRuntimeDiagnosticsEmit()
     }
 
@@ -899,7 +899,7 @@ export function setupSocketHandlers(
       accepted: acceptedSimulatedToggles,
       rejected: rejectedSimulatedToggles,
     })
-    socket.emit('camera:owner', { socketId: overlaySocketId })
+    socket.emit('overlay:owner', { socketId: overlaySocketId })
     socket.emit('runtime:config:override', runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
@@ -1214,9 +1214,11 @@ export function setupSocketHandlers(
         overlaySocketId = null
         overlayClientInfo = null
         clearOverlayLeader()
-        io.emit('camera:owner', { socketId: null })
+        io.emit('overlay:owner', { socketId: null })
         queueRuntimeDiagnosticsEmit()
       }
     })
   })
+
+  return { isOverlaySlotTaken: () => overlaySocketId !== null && io.sockets.sockets.has(overlaySocketId) }
 }

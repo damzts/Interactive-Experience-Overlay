@@ -102,6 +102,27 @@ pnpm workspaces. Five packages:
 | `@ieom/shared` | Shared TS types, constants, contracts | — |
 | `@ieom/desktop` | Electron shell embedding @ieom/server | — |
 
+### Client Communication Model
+
+The server is the single source of truth. Two clients connect to it:
+
+**Overlay** (required) — the rendering client. Single-instance: only one overlay can own the slot at a time. Communicates via:
+- Socket.IO — receives commands (scene changes, widget toggles, transitions, ambiance actions)
+- `GET /api/config` — initial config load
+- `GET /api/overlay/status` — pre-connection gate (checks if slot is free before mounting)
+
+**Admin** (optional) — the control surface. The system runs without it. Communicates via:
+- HTTP — reads/writes config (`GET/PUT/PATCH /api/config`), polls overlay status (`GET /api/overlay/status`)
+- Socket.IO — sends commands (scene changes, keybinds, widget toggles) and receives real-time state updates
+
+### Single Overlay Architecture
+
+Only one overlay client can be active at a time. The server enforces this:
+- `GET /api/overlay/status` returns `{ slotTaken: boolean }` — used by both overlay (pre-mount gate) and admin (status indicator)
+- The overlay's `main.tsx` checks this endpoint before mounting React or connecting the socket
+- If the slot is taken, a static HTML gate is shown with a 30-second auto-retry
+- The server emits `overlay:owner` (with the socket ID or null) to notify connected clients of ownership changes
+
 ### External: ieom-api (separate repo)
 
 | Feature | Details |

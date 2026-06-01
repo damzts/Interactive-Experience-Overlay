@@ -60,7 +60,7 @@ interface AppStore {
   desktopNotifications: DesktopNotificationItem[]
   recycleBinFull: boolean
   cameraPermissionState: CameraPermissionState
-  cameraOwnerSocketId: string | null
+  overlayOwnerSocketId: string | null
   reactiveIconId: string | null
   lastSocketActivityAt: number
 
@@ -85,7 +85,7 @@ interface AppStore {
   dismissDesktopNotification: (id: string) => void
   setRecycleBinFull: (full: boolean) => void
   setCameraPermissionState: (state: CameraPermissionState) => void
-  setCameraOwnerSocketId: (socketId: string | null) => void
+  setOverlayOwnerSocketId: (socketId: string | null) => void
   setReactiveIconId: (id: string | null) => void
   markSocketActivity: () => void
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
@@ -108,7 +108,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   desktopNotifications: [],
   recycleBinFull: false,
   cameraPermissionState: 'unknown',
-  cameraOwnerSocketId: null,
+  overlayOwnerSocketId: null,
   reactiveIconId: null,
   lastSocketActivityAt: 0,
 
@@ -272,7 +272,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   })),
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
   setCameraPermissionState: (cameraPermissionState) => set({ cameraPermissionState }),
-  setCameraOwnerSocketId: (cameraOwnerSocketId) => set({ cameraOwnerSocketId }),
+  setOverlayOwnerSocketId: (overlayOwnerSocketId) => set({ overlayOwnerSocketId }),
   setReactiveIconId: (id) => set({ reactiveIconId: id }),
   markSocketActivity: () => set({ lastSocketActivityAt: Date.now() }),
   syncDesktopRuntimeState: (payload) => {
