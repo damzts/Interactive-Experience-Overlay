@@ -8,7 +8,7 @@ import { LeftSidebar } from './LeftSidebar'
 import { RightPane, SettingsModal } from './RightPane'
 import type { SelectedItem } from './types'
 import { itemKey } from './types'
-import { getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
+
 
 export function Dashboard() {
   const [selected,       setSelected]       = useState<SelectedItem | null>(null)
@@ -123,16 +123,6 @@ export function Dashboard() {
           settingsOpen={settingsOpen}
           onSettings={handleSettingsToggle}
         />
-        <div className="relative flex-1 flex items-center justify-center overflow-hidden min-w-0 bg-zinc-950">
-          <button
-            type="button"
-            onClick={() => window.open(getOverlayRuntimeOrigin(), 'ieom-overlay', 'width=1920,height=1080')}
-            className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-5 py-3 text-sm font-medium text-zinc-200 transition hover:border-cyan-500/50 hover:bg-zinc-800"
-          >
-            <span>🖥️</span>
-            <span>Open Overlay</span>
-          </button>
-        </div>
         <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
       </div>
       {libraryMounted && <ExtractedAssetLibraryPanel isOpen={libraryOpen} onHide={handleLibraryHide} onClose={handleLibraryClose} />}

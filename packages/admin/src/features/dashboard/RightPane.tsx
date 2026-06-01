@@ -164,7 +164,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
   if (!selected) {
     return (
-      <div className="w-80 shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-950/95">
+      <div className="flex-1 min-w-0 overflow-y-auto border-l border-zinc-800 bg-zinc-950/95">
           <ConfigCard className="text-left">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
             <div className="text-[10px] text-zinc-400 leading-relaxed">
@@ -228,7 +228,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (
-    <div className="flex w-80 shrink-0 flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/95">
+    <div className="flex flex-1 min-w-0 flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/95">
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/70 px-3 py-2.5 backdrop-blur-sm">
         <span className="text-sm shrink-0">{headerIcon}</span>
         <span className="flex-1 min-w-0">

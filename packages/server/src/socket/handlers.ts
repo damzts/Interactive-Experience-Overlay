@@ -874,7 +874,7 @@ export function setupSocketHandlers(
       if (overlaySocketId && io.sockets.sockets.has(overlaySocketId)) {
         console.log(`[socket] rejected overlay ${socket.id} — slot taken by ${overlaySocketId}`)
         socket.emit('overlay:rejected', { reason: 'View is already opened, close that before opening new one' })
-        socket.disconnect(true)
+        setTimeout(() => socket.disconnect(true), 1000)
         return
       }
       overlaySocketId = socket.id
