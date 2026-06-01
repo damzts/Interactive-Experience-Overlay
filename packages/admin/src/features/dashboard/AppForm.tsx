@@ -41,7 +41,7 @@ import {
 } from '../../shared/ui'
 import { WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN, WIDGET_Z_INDEX_MAX, WIDGET_Z_INDEX_MIN } from './constants'
 import { ThemeAppearanceFields } from './formAtoms'
-import { postPreviewConfigPatch } from './previewUtils'
+const postPreviewConfigPatch = (_patch: unknown) => {} // no-op: embedded preview removed
 import { RecycleBinConfigSection, StickyNotesConfigSection } from './DefaultStylingEditor'
 import {
   clampWidgetDimension,

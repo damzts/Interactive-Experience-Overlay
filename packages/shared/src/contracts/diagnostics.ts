@@ -4,7 +4,7 @@ import type { STATE } from './state.js'
 // These live in diagnostics because they primarily appear in diagnostic payloads
 // and are referenced by socket.ts (one-way dependency).
 
-export type OverlayClientKind = 'runtime' | 'embedded-preview' | 'dev' | 'unknown'
+export type OverlayClientKind = 'runtime' | 'dev' | 'unknown'
 export type CameraPermissionState = 'unknown' | 'prompt' | 'granted' | 'denied' | 'unsupported'
 
 export interface OverlayClientDiagnostics {

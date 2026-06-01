@@ -8,7 +8,6 @@ import {
   withDesktopAmbianceDefaults,
   withDesktopConfigDefaults,
   type AmbianceSimulationStartedPayload,
-  type AmbianceHistoryEntry,
   type TransitionStep,
   type TransitionPlayPayload,
   type DesktopNotificationPayload,
@@ -18,7 +17,6 @@ import {
   type DesktopStartMenuSimulationPhasePayload,
   type AmbianceSimulationAcceptedPayload,
   type AmbianceSimulationDonePayload,
-  type CameraPermissionState,
   type OverlayClientDiagnostics,
   type OverlayClientKind,
   type OverlayRuntimeStatusPayload,
@@ -162,13 +160,14 @@ export function setupSocketHandlers(
     configService?: any
   },
 ) {
-  const LEADER_LEASE_DURATION_MS = 5000
-  const LEADER_LEASE_SWEEP_MS = 1000
   const RUNTIME_DIAGNOSTICS_MIN_INTERVAL_MS = 1000
   const openWidgetIds = new Set<string>()
   const socketClientTypes = new Map<string, 'overlay' | 'admin' | 'unknown'>()
-  const overlayClientDiagnostics = new Map<string, OverlayClientDiagnostics>()
   const configService = options?.configService ?? null
+
+  // ── Single overlay client gate ─────────────────────────────────
+  let overlaySocketId: string | null = null
+  let overlayClientInfo: OverlayClientDiagnostics | null = null
 
   /**
    * Get the userId from a socket. Returns undefined if not authenticated.
@@ -214,11 +213,8 @@ export function setupSocketHandlers(
   let recycleBinFull = withDesktopConfigDefaults(getConfig().desktopConfig).recycleBin.fullOnStart
   let startMenuState: { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } = { open: false, activeRoot: null }
   let simulationLeaderSocketId: string | null = null
-  let leaderLeaseExpiresAt: number | null = null
-  let leaderLastHeartbeatAt: number | null = null
   let acceptedSimulatedToggles = 0
   let rejectedSimulatedToggles = 0
-  let cameraOwnerSocketId: string | null = null
   let runtimeConfigOverride: RuntimeConfigOverridePayload = {}
   const RUNTIME_OVERRIDE_RESET_SCOPES = [
     'desktop.globalThemeDefault',
@@ -239,36 +235,12 @@ export function setupSocketHandlers(
   // Give managers access to live widget state
   ambianceManager.setOpenWidgetIdsGetter(() => openWidgetIds)
   ambianceManager.setSimulationLeaderGetter(() => simulationLeaderSocketId)
-  ambianceManager.setOverlayClientDiagnosticsGetter(() => [...overlayClientDiagnostics.values()])
 
   const getDesktopRuntimeState = (): DesktopRuntimeStatePayload => ({
     openWidgetIds: [...openWidgetIds],
     recycleBinFull,
     startMenuState,
   })
-
-  const emitCameraOwner = () => {
-    io.emit('camera:owner', { socketId: cameraOwnerSocketId })
-  }
-
-  const pickGrantedCameraOwner = () => {
-    const grantedClients = [...overlayClientDiagnostics.values()]
-      .filter((client) => client.cameraPermission === 'granted')
-      .sort((left, right) => getOverlayLeaderRank(right) - getOverlayLeaderRank(left))
-    return grantedClients[0]?.socketId ?? null
-  }
-
-  const reconcileCameraOwner = () => {
-    if (cameraOwnerSocketId) {
-      const current = overlayClientDiagnostics.get(cameraOwnerSocketId)
-      if (current?.cameraPermission === 'granted') return
-    }
-
-    const nextOwner = pickGrantedCameraOwner()
-    if (nextOwner === cameraOwnerSocketId) return
-    cameraOwnerSocketId = nextOwner
-    emitCameraOwner()
-  }
 
   const mergeRuntimeConfigOverride = (
     base: RuntimeConfigOverridePayload,
@@ -494,12 +466,11 @@ export function setupSocketHandlers(
   }
 
   const updateLeaderLeaseDiagnostics = () => {
-    const leaderInfo = simulationLeaderSocketId ? overlayClientDiagnostics.get(simulationLeaderSocketId) : null
     ambianceManager.setLeaderLeaseState({
-      ready: leaderInfo?.ready ?? false,
-      leaseDurationMs: LEADER_LEASE_DURATION_MS,
-      expiresAt: leaderLeaseExpiresAt,
-      lastHeartbeatAt: leaderLastHeartbeatAt,
+      ready: !!overlayClientInfo?.ready,
+      leaseDurationMs: 0,
+      expiresAt: null,
+      lastHeartbeatAt: null,
     })
   }
 
@@ -554,32 +525,24 @@ export function setupSocketHandlers(
       : 'unknown'
   }
 
-  const getOverlayClientDiagnosticsFromSocket = (socket: AppSocket): OverlayClientDiagnostics | null => {
+  const buildOverlayClientInfo = (socket: AppSocket): OverlayClientDiagnostics => {
     const auth = socket.handshake.auth as {
       overlayKind?: string
       overlayPort?: string
       overlayLabel?: string
     } | undefined
 
-    const kind: OverlayClientKind = auth?.overlayKind === 'runtime'
-      || auth?.overlayKind === 'embedded-preview'
-      || auth?.overlayKind === 'dev'
+    const kind: OverlayClientKind = auth?.overlayKind === 'runtime' || auth?.overlayKind === 'dev'
       ? auth.overlayKind
       : 'unknown'
 
-    if (socketClientTypes.get(socket.id) !== 'overlay') {
-      return null
-    }
-
-    const port = auth?.overlayPort?.trim() ? auth.overlayPort.trim() : null
+    const port = auth?.overlayPort?.trim() || null
     const label = auth?.overlayLabel?.trim()
       || (kind === 'runtime'
         ? 'OBS Browser Source (3000)'
-        : kind === 'embedded-preview'
-          ? `Admin Preview${port ? ` (${port})` : ''}`
-          : kind === 'dev'
-            ? `Direct Overlay Browser${port ? ` (${port})` : ''}`
-            : `Overlay${port ? ` (${port})` : ''}`)
+        : kind === 'dev'
+          ? `Direct Overlay Browser${port ? ` (${port})` : ''}`
+          : `Overlay${port ? ` (${port})` : ''}`)
 
     return {
       socketId: socket.id,
@@ -596,147 +559,27 @@ export function setupSocketHandlers(
     }
   }
 
-  const getOverlayLeaderRank = (client: OverlayClientDiagnostics | undefined) => {
-    if (!client) return -1
-    if (client.kind === 'runtime') return 3
-    if (client.kind === 'embedded-preview') return 2
-    if (client.kind === 'dev') return 1
-    return 0
-  }
-
-  const isOverlayLeadershipReady = (client: OverlayClientDiagnostics | undefined | null) => !!client?.ready
-
-  const emitOverlayResync = (reason: string) => {
-    for (const candidate of io.sockets.sockets.values()) {
-      if (socketClientTypes.get(candidate.id) !== 'overlay') continue
-      candidate.emit('overlay:resync', { reason })
-    }
-    ambianceManager.recordHistory('resync-requested', `overlay resync requested: ${reason}`, {
-      leaderSocketId: simulationLeaderSocketId,
-    })
-  }
-
-  const refreshLeaderLease = (socketId: string) => {
-    if (!simulationLeaderSocketId || socketId !== simulationLeaderSocketId) return
-    const now = Date.now()
-    leaderLastHeartbeatAt = now
-    leaderLeaseExpiresAt = now + LEADER_LEASE_DURATION_MS
-    const leaderInfo = overlayClientDiagnostics.get(socketId)
-    if (leaderInfo) {
-      overlayClientDiagnostics.set(socketId, {
-        ...leaderInfo,
-        lastHeartbeatAt: now,
-      })
-    }
-    updateLeaderLeaseDiagnostics()
-    queueRuntimeDiagnosticsEmit()
-  }
-
-  const promoteSimulationLeader = (socketId: string, reason: string) => {
+  /** Assign the single overlay as simulation leader */
+  const assignOverlayLeader = (socketId: string) => {
     simulationLeaderSocketId = socketId
-    refreshLeaderLease(socketId)
     emitSimulationLeader()
-    ambianceManager.recordHistory('leader-elected', reason, { leaderSocketId: socketId })
+    updateLeaderLeaseDiagnostics()
+    ambianceManager.recordHistory('leader-elected', 'overlay connected', { leaderSocketId: socketId })
     queueRuntimeDiagnosticsEmit()
   }
 
-  const isAmbianceLeaderEnabled = () => withDesktopAmbianceDefaults(getConfig().desktopAmbiance).widgetSimulation.enabled
-
-  const clearSimulationLeader = (
-    reason: string,
-    options?: {
-      expired?: boolean
-      resyncReason?: string
-    },
-  ) => {
-    if (!simulationLeaderSocketId) {
-      leaderLeaseExpiresAt = null
-      leaderLastHeartbeatAt = null
-      updateLeaderLeaseDiagnostics()
-      return
-    }
-    const previousLeaderSocketId = simulationLeaderSocketId
-    const shouldResync = !!options?.resyncReason || ambianceManager.isSimulationInFlight()
+  /** Clear simulation leader on overlay disconnect */
+  const clearOverlayLeader = () => {
+    if (!simulationLeaderSocketId) return
     ambianceManager.markSimulationCompleted(undefined, undefined, { recordHistory: false })
     simulationLeaderSocketId = null
-    leaderLeaseExpiresAt = null
-    leaderLastHeartbeatAt = null
     emitSimulationLeader()
     updateLeaderLeaseDiagnostics()
-    ambianceManager.recordHistory(options?.expired ? 'leader-expired' : 'leader-cleared', reason, {
-      leaderSocketId: previousLeaderSocketId,
-    })
-    if (shouldResync) {
-      emitOverlayResync(options?.resyncReason ?? 'leader-cleared')
-    }
+    ambianceManager.recordHistory('leader-cleared', 'overlay disconnected', {})
     queueRuntimeDiagnosticsEmit()
-  }
-
-  const syncSimulationLeaderState = () => {
-    if (!isAmbianceLeaderEnabled()) {
-      clearSimulationLeader('ambiance disabled cleared simulation leader')
-      return
-    }
-    electSimulationLeaderIfNeeded('sync')
-  }
-
-  const electSimulationLeaderIfNeeded = (reason: string) => {
-    if (!isAmbianceLeaderEnabled()) {
-      clearSimulationLeader('ambiance disabled cleared simulation leader')
-      return
-    }
-    const currentLeader = simulationLeaderSocketId ? overlayClientDiagnostics.get(simulationLeaderSocketId) : null
-    const readyCandidates = [...overlayClientDiagnostics.values()]
-      .filter((candidate) => isOverlayLeadershipReady(candidate))
-      .sort((left, right) => getOverlayLeaderRank(right) - getOverlayLeaderRank(left))[0]
-
-    if (
-      simulationLeaderSocketId
-      && io.sockets.sockets.has(simulationLeaderSocketId)
-      && socketClientTypes.get(simulationLeaderSocketId) === 'overlay'
-      && isOverlayLeadershipReady(currentLeader)
-      && leaderLeaseExpiresAt !== null
-      && leaderLeaseExpiresAt > Date.now()
-    ) {
-      if (
-        readyCandidates
-        && readyCandidates.socketId !== simulationLeaderSocketId
-        && getOverlayLeaderRank(readyCandidates) > getOverlayLeaderRank(currentLeader ?? undefined)
-        && !ambianceManager.isSimulationInFlight()
-      ) {
-        promoteSimulationLeader(readyCandidates.socketId, `higher-ranked overlay promoted leader (${reason})`)
-      }
-      return
-    }
-
-    if (!readyCandidates) {
-      clearSimulationLeader('no ready overlay leader is available')
-      return
-    }
-
-    if (readyCandidates.socketId !== simulationLeaderSocketId) {
-      promoteSimulationLeader(readyCandidates.socketId, `ready overlay elected leader (${reason})`)
-      return
-    }
-
-    refreshLeaderLease(readyCandidates.socketId)
   }
 
   updateLeaderLeaseDiagnostics()
-
-  setInterval(() => {
-    if (!simulationLeaderSocketId || leaderLeaseExpiresAt === null) {
-      return
-    }
-    if (leaderLeaseExpiresAt > Date.now()) {
-      return
-    }
-    clearSimulationLeader('leader lease expired before disconnect', {
-      expired: true,
-      resyncReason: 'leader-lease-expired',
-    })
-    electSimulationLeaderIfNeeded('lease-expired')
-  }, LEADER_LEASE_SWEEP_MS)
 
   const executeConfiguredEvent = (eventDef: EventConfig): { ok: boolean; error?: string } => {
     if (eventDef.effects.length > 0) {
@@ -1001,8 +844,6 @@ export function setupSocketHandlers(
       recycleBinFull = nextRecycleBinFull
       io.emit('desktop:recycle-bin', { full: recycleBinFull })
     }
-
-    syncSimulationLeaderState()
   })
 
   machine.on('transition:start', (payload: TransitionStartPayload) => {
@@ -1026,12 +867,22 @@ export function setupSocketHandlers(
   io.on('connection', (socket: AppSocket) => {
     const clientType = getSocketClientType(socket)
     socketClientTypes.set(socket.id, clientType)
-    const overlayInfo = clientType === 'overlay' ? getOverlayClientDiagnosticsFromSocket(socket) : null
-    if (overlayInfo) {
-      overlayClientDiagnostics.set(socket.id, overlayInfo)
+    console.log(`[socket] connected: ${socket.id} (${clientType})`)
+
+    // ── Single overlay gate: reject if slot is taken ───────────
+    if (clientType === 'overlay') {
+      if (overlaySocketId && io.sockets.sockets.has(overlaySocketId)) {
+        console.log(`[socket] rejected overlay ${socket.id} — slot taken by ${overlaySocketId}`)
+        socket.emit('overlay:rejected', { reason: 'View is already opened, close that before opening new one' })
+        socket.disconnect(true)
+        return
+      }
+      overlaySocketId = socket.id
+      overlayClientInfo = buildOverlayClientInfo(socket)
+      assignOverlayLeader(socket.id)
+      io.emit('camera:owner', { socketId: socket.id })
       queueRuntimeDiagnosticsEmit()
     }
-    console.log(`[socket] connected: ${socket.id}`)
 
     // Join authenticated sockets to user-specific room for scoped events
     const userId = getUserId(socket)
@@ -1043,15 +894,12 @@ export function setupSocketHandlers(
       })
     }
 
-    if (clientType === 'overlay') {
-      electSimulationLeaderIfNeeded('connect')
-    }
     socket.emit('ambiance:leader', { socketId: simulationLeaderSocketId })
     socket.emit('ambiance:metrics', {
       accepted: acceptedSimulatedToggles,
       rejected: rejectedSimulatedToggles,
     })
-    socket.emit('camera:owner', { socketId: cameraOwnerSocketId })
+    socket.emit('camera:owner', { socketId: overlaySocketId })
     socket.emit('runtime:config:override', runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
@@ -1069,13 +917,6 @@ export function setupSocketHandlers(
       callback({ socketId: simulationLeaderSocketId })
     })
 
-    socket.on('ambiance:leader:heartbeat', () => {
-      if (socket.id !== simulationLeaderSocketId) {
-        return
-      }
-      refreshLeaderLease(socket.id)
-    })
-
     socket.on('ambiance:history:clear', () => {
       if (socketClientTypes.get(socket.id) !== 'admin') {
         return
@@ -1085,76 +926,17 @@ export function setupSocketHandlers(
     })
 
     socket.on('overlay:runtime:status', (payload: OverlayRuntimeStatusPayload) => {
-      if (socketClientTypes.get(socket.id) !== 'overlay') {
-        return
-      }
-      const current = overlayClientDiagnostics.get(socket.id)
-      if (!current) {
-        return
-      }
-      overlayClientDiagnostics.set(socket.id, {
-        ...current,
+      if (socket.id !== overlaySocketId || !overlayClientInfo) return
+      overlayClientInfo = {
+        ...overlayClientInfo,
         mounted: payload.mounted,
         cursorReady: payload.cursorReady,
         widgetRegistryReady: payload.widgetRegistryReady,
         ready: payload.ready,
-        readyAt: payload.ready ? current.readyAt ?? Date.now() : null,
+        readyAt: payload.ready ? overlayClientInfo.readyAt ?? Date.now() : null,
         cameraPermission: payload.cameraPermission,
-      })
-
-      if (socket.id === simulationLeaderSocketId) {
-        if (payload.ready) {
-          refreshLeaderLease(socket.id)
-        } else {
-          clearSimulationLeader('leader reported not ready', {
-            resyncReason: 'leader-not-ready',
-          })
-        }
       }
-
-      if (socket.id === cameraOwnerSocketId && payload.cameraPermission !== 'granted') {
-        reconcileCameraOwner()
-      }
-
-      electSimulationLeaderIfNeeded('runtime-status')
-      queueRuntimeDiagnosticsEmit()
-    })
-
-    socket.on('camera:owner:select', (nextSocketId, callback) => {
-      if (socketClientTypes.get(socket.id) !== 'admin') {
-        if (callback) callback('Only admin clients can select the camera owner')
-        return
-      }
-
-      const normalizedSocketId = typeof nextSocketId === 'string' ? nextSocketId.trim() : null
-      if (!normalizedSocketId) {
-        cameraOwnerSocketId = null
-        emitCameraOwner()
-        if (callback) callback(null)
-        return
-      }
-
-      const candidate = overlayClientDiagnostics.get(normalizedSocketId)
-      if (!candidate) {
-        if (callback) callback('Overlay client not found')
-        return
-      }
-
-      if (candidate.cameraPermission !== 'granted') {
-        if (callback) callback('Selected overlay client has not granted camera permission')
-        return
-      }
-
-      cameraOwnerSocketId = normalizedSocketId
-      emitCameraOwner()
-      if (callback) callback(null)
-    })
-
-    socket.on('overlay:force-resync', (payload?: { reason?: string }) => {
-      if (socketClientTypes.get(socket.id) !== 'admin') {
-        return
-      }
-      emitOverlayResync(payload?.reason?.trim() || 'admin-force-resync')
+      updateLeaderLeaseDiagnostics()
       queueRuntimeDiagnosticsEmit()
     })
 
@@ -1428,18 +1210,11 @@ export function setupSocketHandlers(
     socket.on('disconnect', () => {
       console.log(`[socket] disconnected: ${socket.id}`)
       socketClientTypes.delete(socket.id)
-      overlayClientDiagnostics.delete(socket.id)
-      if (socket.id === cameraOwnerSocketId) {
-        cameraOwnerSocketId = null
-        reconcileCameraOwner()
-      }
-      if (socket.id === simulationLeaderSocketId) {
-        clearSimulationLeader('leader disconnected', {
-          resyncReason: 'leader-disconnected',
-        })
-        syncSimulationLeaderState()
-      } else {
-        electSimulationLeaderIfNeeded('disconnect')
+      if (socket.id === overlaySocketId) {
+        overlaySocketId = null
+        overlayClientInfo = null
+        clearOverlayLeader()
+        io.emit('camera:owner', { socketId: null })
         queueRuntimeDiagnosticsEmit()
       }
     })

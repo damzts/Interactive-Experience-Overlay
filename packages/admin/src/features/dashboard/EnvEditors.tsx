@@ -34,7 +34,7 @@ import {
   sliderValueToIconSize,
 } from '../../shared/adminDesktopOptions'
 import { LabeledHexColorRow, ThemeAppearanceFields } from './formAtoms'
-import { postPreviewConfigPatch } from './previewUtils'
+const postPreviewConfigPatch = (_patch: unknown) => {} // no-op: embedded preview removed
 import { TransitionList, compactTransitionSteps } from './TransitionPicker'
 import { StyleSections } from './StyleEditor'
 import { SourcesEditor } from './SceneConfig'

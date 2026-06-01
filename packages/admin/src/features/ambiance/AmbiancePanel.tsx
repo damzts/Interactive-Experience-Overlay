@@ -366,14 +366,6 @@ export function AmbiancePanel() {
               <span className={ambiance.leaderReady ? 'text-emerald-300' : 'text-amber-300'}>{ambiance.leaderReady ? 'Ready' : 'Not ready'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Lease expiry</span>
-              <span className="text-zinc-100">{formatFutureTime(ambiance.leaderLeaseExpiresAt)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Last heartbeat</span>
-              <span className="text-zinc-100">{formatRelativeTime(ambiance.leaderLastHeartbeatAt)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-zinc-400">Widgets in pool</span>
               <span className="text-zinc-100">{ambiance.enabledWidgetCount}</span>
             </div>

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { socket } from '../socket/client'
 import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
 
@@ -15,19 +14,6 @@ interface DesktopWidgetProps {
 }
 
 type VideoDevice = { deviceId: string; label: string }
-
-function isLikelyObsBrowserSource() {
-  if (typeof window === 'undefined') return false
-  const check = (name: string) => {
-    const v = new URLSearchParams(window.location.search).get(name)
-    if (v != null) return ['1', 'true', 'on', 'yes'].includes(v.trim().toLowerCase())
-    return false
-  }
-  if (check('obs') || check('browserSource') || check('camera') || check('cam')) return true
-  const obsWindow = window as Window & { obsstudio?: unknown }
-  if (typeof obsWindow.obsstudio !== 'undefined') return true
-  return /\bOBS\/|obs[-\s]?studio|obsbrowser|obsproject/i.test(navigator.userAgent ?? '')
-}
 
 function getCameraRoleLabel(appId?: string) {
   if (!appId || appId === 'camera') return 'Host'
@@ -66,13 +52,8 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
   const [loading, setLoading] = useState(true)
   const [restartToken, setRestartToken] = useState(0)
 
-  const cameraOwnerSocketId = useAppStore((s) => s.cameraOwnerSocketId)
   const setCameraPermissionState = useAppStore((s) => s.setCameraPermissionState)
   const roleLabel = getCameraRoleLabel(appId)
-  const isObs     = isLikelyObsBrowserSource()
-  const isExplicitCameraOwner = cameraOwnerSocketId === socket.id
-  const isCameraAssignedElsewhere = !!cameraOwnerSocketId && !isExplicitCameraOwner
-  const canCaptureInThisClient = isObs || isExplicitCameraOwner
 
   const clearRetryTimer = () => {
     if (retryTimerRef.current) {
@@ -101,25 +82,11 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
     stopCurrentStream()
   }, [])
 
-  // Start camera (OBS only)
+  // Start camera
   useEffect(() => {
     clearRetryTimer()
     clearHealthTimer()
     stopCurrentStream()
-
-    if (isCameraAssignedElsewhere) {
-      restartAttemptsRef.current = 0
-      setError(`La cámara está asignada a otro overlay (${cameraOwnerSocketId?.slice(0, 8)}).`)
-      setLoading(false)
-      return
-    }
-
-    if (!canCaptureInThisClient) {
-      restartAttemptsRef.current = 0
-      setError('Selecciona este overlay client en Settings o abre OBS con la URL del overlay para permitir la captura de cámara aquí.')
-      setLoading(false)
-      return
-    }
 
     let cancelled = false
     setLoading(true)
@@ -194,9 +161,7 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
         if (/NotAllowedError|permission|denied/i.test(msg)) {
           setCameraPermissionState('denied')
           restartAttemptsRef.current = 0
-        }
-        if (/NotAllowedError|permission|denied/i.test(msg)) {
-          setError('Permiso de cámara denegado. Concede acceso en este overlay client o selecciona otro client con permiso concedido.')
+          setError('Permiso de cámara denegado.')
           return
         }
         queueRestart(msg)
@@ -212,7 +177,7 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
       clearHealthTimer()
       stopCurrentStream()
     }
-  }, [cameraOwnerSocketId, canCaptureInThisClient, defaultCameraLabel, isCameraAssignedElsewhere, restartToken])
+  }, [defaultCameraLabel, restartToken])
 
   return (
     <DesktopWindow

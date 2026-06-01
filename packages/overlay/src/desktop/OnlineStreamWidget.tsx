@@ -19,17 +19,19 @@ export function OnlineStreamWidget({ appId, onClose, onMinimize, onFocus, window
 
   useEffect(() => {
     let cancelled = false
+    let pc: RTCPeerConnection | null = null
+
+    const cleanup = () => {
+      if (pc) { pc.close(); pc = null }
+      if (videoRef.current) videoRef.current.srcObject = null
+      setConnected(false)
+    }
 
     const handleOffer = async (payload: { sdp: string }) => {
       if (cancelled) return
-      // Close previous connection if renegotiating
-      if (pcRef.current) {
-        pcRef.current.close()
-        pcRef.current = null
-        if (videoRef.current) videoRef.current.srcObject = null
-      }
+      cleanup()
       try {
-        const pc = new RTCPeerConnection({
+        pc = new RTCPeerConnection({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         })
         pcRef.current = pc
@@ -65,15 +67,25 @@ export function OnlineStreamWidget({ appId, onClose, onMinimize, onFocus, window
       pcRef.current?.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
     }
 
+    const subscribe = () => {
+      cleanup()
+      setError(null)
+      socket.emit('pov:subscribe' as any)
+    }
+
     socket.on('pov:offer' as any, handleOffer)
     socket.on('pov:ice-candidate' as any, handleIceCandidate)
-    socket.emit('pov:subscribe' as any)
+    socket.on('connect', subscribe)
+
+    // Subscribe immediately if already connected
+    if (socket.connected) subscribe()
 
     return () => {
       cancelled = true
       socket.off('pov:offer' as any, handleOffer)
       socket.off('pov:ice-candidate' as any, handleIceCandidate)
-      pcRef.current?.close()
+      socket.off('connect', subscribe)
+      cleanup()
       pcRef.current = null
     }
   }, [])

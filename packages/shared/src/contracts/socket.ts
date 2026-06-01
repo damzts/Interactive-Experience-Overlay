@@ -8,7 +8,6 @@ import type { TransitionStep } from '../domain/scene.js'
 import type {
   CameraPermissionState,
   ObsStatusPayload,
-  OverlayClientKind,
   RuntimeDiagnosticsPayload,
 } from './diagnostics.js'
 
@@ -221,6 +220,7 @@ export interface ServerToClientEvents {
   'runtime:config:override': (payload: RuntimeConfigOverridePayload) => void
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
   'overlay:resync': (payload: { reason: string }) => void
+  'overlay:rejected': (payload: { reason: string }) => void
   'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   'cursor:mirror': (payload: CursorMirrorPayload) => void
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
@@ -246,11 +246,8 @@ export interface ClientToServerEvents {
   'runtime:config:override:widget-layout:clear': (widgetIds: string[], callback?: (err: string | null) => void) => void
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   'ambiance:leader:request': (callback: (payload: { socketId: string | null }) => void) => void
-  'ambiance:leader:heartbeat': () => void
   'ambiance:history:clear': () => void
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void
-  'camera:owner:select': (socketId: string | null, callback?: (err: string | null) => void) => void
-  'overlay:force-resync': (payload?: { reason?: string }) => void
   'ambiance:simulate:accepted': (payload: AmbianceSimulationAcceptedPayload) => void
   'ambiance:simulate:started': (payload: AmbianceSimulationStartedPayload) => void
   'ambiance:simulate:done': (payload: AmbianceSimulationDonePayload) => void

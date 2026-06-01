@@ -7,7 +7,6 @@ import type {
   AmbianceSimulationDonePayload,
   AmbianceSimulationPayload,
   AmbianceWidgetBehavior,
-  OverlayClientDiagnostics,
 } from '@ieom/shared'
 
 const SIMULATION_ACCEPT_TIMEOUT_MS = 4000
@@ -69,7 +68,6 @@ export class AmbianceManager {
   private simulationTimeout: ReturnType<typeof setTimeout> | null = null
   private getOpenWidgetIds?: () => Set<string>
   private getSimulationLeaderSocketId?: () => string | null
-  private getOverlayClientDiagnostics?: () => OverlayClientDiagnostics[]
   private lastActionAtByWidget = new Map<string, number>()
   private lastWidgetId: string | null = null
   private simulationInFlight = false
@@ -103,10 +101,6 @@ export class AmbianceManager {
 
   setSimulationLeaderGetter(getter: () => string | null) {
     this.getSimulationLeaderSocketId = getter
-  }
-
-  setOverlayClientDiagnosticsGetter(getter: () => OverlayClientDiagnostics[]) {
-    this.getOverlayClientDiagnostics = getter
   }
 
   start() {
@@ -323,9 +317,7 @@ this.lastSkipReason = 'simulation completion timeout released lock'
     const simConfig = config.widgetSimulation
     const openWidgetCount = this.getOpenWidgetIds?.().size ?? 0
     const enabledWidgetCount = this.getEffectiveBehaviors().filter(([, behavior]) => behavior.enabled).length
-    const overlayClients = this.getOverlayClientDiagnostics?.() ?? []
     const leaderSocketId = this.getSimulationLeaderSocketId?.() ?? null
-    const leaderClient = overlayClients.find((client) => client.socketId === leaderSocketId) ?? null
 
     return {
       enabled: simConfig.enabled,
@@ -339,14 +331,14 @@ this.lastSkipReason = 'simulation completion timeout released lock'
       pendingPhase: this.pendingPhase,
       pendingActionId: this.inFlightActionId,
       leaderSocketId,
-      leaderClientKind: leaderClient?.kind ?? null,
-      leaderClientPort: leaderClient?.port ?? null,
-      leaderClientLabel: leaderClient?.label ?? null,
+      leaderClientKind: null,
+      leaderClientPort: null,
+      leaderClientLabel: null,
       leaderReady: this.leaderReady,
       leaderLeaseDurationMs: this.leaderLeaseDurationMs,
       leaderLeaseExpiresAt: this.leaderLeaseExpiresAt,
       leaderLastHeartbeatAt: this.leaderLastHeartbeatAt,
-      overlayClients,
+      overlayClients: [],
       history: this.history,
       openWidgetCount,
       enabledWidgetCount,
