@@ -15,17 +15,9 @@ export type WidgetComponentType =
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
   | 'city-navigator' | 'lcd-dolphins' | 'online-stream' | 'generic'
 
-// ── Desktop & widget theme types ─────────────────────────────────
-
-export type DesktopTheme =
-  | 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome'
-  | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
-
-export type DesktopIconAnimation =
-  | 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
-
-export type DesktopIconArrangement =
-  | 'grid' | 'wave' | 'ripple' | 'spiral' | 'scatter' | 'orbit'
+// ── Widget theme types ────────────────────────────────────────────
+// Note: DesktopTheme, DesktopIconAnimation, DesktopIconArrangement live in domain/desktop.ts
+// (presentation layer). Only widget chrome types belong here — widgets are engine primitives.
 
 export type WidgetSkinTheme =
   | 'metalheart' | 'genx soft club' | 'chromecore' | 'y2k futurism' | 'transparent'
@@ -36,7 +28,6 @@ export type WidgetSkinTheme =
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
 
-export type EventDesktopTheme = DesktopTheme | 'random'
 export type EventWidgetSkinTheme = WidgetSkinTheme | 'random'
 
 export interface WidgetThemeConfig {
@@ -68,16 +59,6 @@ export interface WidgetThemeConfig {
 
 export type EventWidgetThemePatch = Partial<Omit<WidgetThemeConfig, 'skin'>> & {
   skin?: EventWidgetSkinTheme
-}
-
-export interface GlobalThemeDefaultConfig {
-  theme: DesktopTheme
-  widgetTheme: WidgetThemeConfig
-  appearance: {
-    fontFamily: string
-    accentColor: string
-    textColor: string
-  }
 }
 
 // ── Widget window geometry ────────────────────────────────────────

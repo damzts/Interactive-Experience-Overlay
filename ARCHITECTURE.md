@@ -16,6 +16,71 @@ Target outcome:
 
 ---
 
+## Engine / Presentation Boundary
+
+**The engine is the product. The Desktop OS is a demo built on top of it.**
+
+The engine is presentation-agnostic. It manages state, schedules events, runs ambiance, fires effects, handles transitions, and bridges real-time state over Socket.IO. It knows nothing about windows, taskbars, icons, or visual metaphors.
+
+The Desktop OS is one interpretation of the engine — a creative presentation that proves the engine works. A different overlay client (broadcast deck, minimal HUD, etc.) could consume the same engine without any server changes.
+
+### Engine (packages/server + packages/shared)
+
+| Concept | Implementation | What it does |
+|---|---|---|
+| State Machine | `SceneMachine` | Manages visual states, transitions between them |
+| Effect Pipeline | `effectRegistry` + `dispatchEffect()` | Fires visual effects (glitch, death, static, etc.) |
+| Transition System | 27 transitions + `TransitionEngine` | Animated state changes |
+| Scheduler | `EventScheduler` | Time-based and idle-based event triggers |
+| Ambiance | `AmbianceManager` | Autonomous behavior — makes the stream feel alive |
+| Source Renderer | `pluginRegistry` + `LayerStack` | Renders visual sources (images, video, camera, etc.) |
+| Widget System | `widgetRegistry` + open/close/toggle | Composable UI units with state |
+| Audio Engine | `AudioEngine` | SFX, music, volume control |
+| Config Persistence | `DesktopConfigService` + SQLite | Stores and retrieves all state |
+| Real-time Bridge | Socket.IO handlers | Syncs state between server and clients |
+| Online Rooms | WebRTC hub + cloud signaling | Multi-participant streaming |
+
+The engine exposes: **events, commands, state, config**.
+The engine knows nothing about: windows, taskbars, icons, chrome, visual metaphors.
+
+### Presentation (packages/overlay)
+
+Currently: **Desktop OS** — a Win98-inspired desktop metaphor with draggable windows, taskbar, start menu, screen saver, and icon arrangement.
+
+The overlay connects via Socket.IO and interprets engine primitives through its chosen metaphor:
+
+| Engine Primitive | Desktop OS Interpretation |
+|---|---|
+| Widget | Draggable window with title bar, close button, resize handles |
+| Widget toggle | Window open/close animation |
+| State (scene) | A "desktop" with icons, or a "lobby" 3D room |
+| Ambiance action | Simulated user clicking around the OS |
+| Theme tokens | Win98 chrome, Frutiger Aero glass, Y2K candy colors |
+
+### Contract Between Engine and Any Overlay Client
+
+Any overlay client that implements these three things works with the server unchanged:
+
+1. **Socket.IO event contract** — `@ieom/shared` contracts (`socket.ts`, `effects.ts`, `state.ts`)
+2. **Config API** — reads from `GET /api/config`
+3. **WebRTC handshake** — `pov:subscribe` for online stream relay
+
+The server serves whatever static build is in `overlayDir`. It does not know or care what presentation is running.
+
+### Adding a Second Presentation
+
+No server changes needed. Create a new package (e.g. `packages/overlay-broadcast`), implement the three contracts above, point `overlayDir` at its `dist/`, and the engine drives it identically.
+
+### Type Boundaries
+
+- `packages/shared/src/domain/application.ts` — **engine-level** types: `Application`, `WidgetComponentType`, widget settings, transitions
+- `packages/shared/src/domain/desktop.ts` — **presentation layer** types: `DesktopConfig`, `DesktopTheme`, icon arrangement, screen saver, system sounds
+- `packages/overlay/src/desktop/` — **Desktop OS presentation**: all Desktop OS UI components, widget windows, taskbar, icons
+
+New engine work (scheduler, ambiance, events, online rooms) must use neutral vocabulary and must not import from `domain/desktop.ts`.
+
+---
+
 ## System Overview
 
 Hub-and-spoke P2P architecture with two independent systems:

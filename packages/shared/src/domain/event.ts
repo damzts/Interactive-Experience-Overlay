@@ -1,12 +1,8 @@
 import type { EffectConfig } from '../contracts/effects.js'
 import type { STATE } from '../contracts/state.js'
-import type {
-  DesktopIconAnimation,
-  EventDesktopTheme,
-  EventWidgetThemePatch,
-} from './application.js'
+import type { EventWidgetThemePatch } from './application.js'
+import type { DesktopIconAnimation, EventDesktopTheme, DesktopConfig } from './desktop.js'
 import type { AmbianceWidgetSimulationConfig } from './ambiance.js'
-import type { DesktopConfig } from './desktop.js'
 
 // ── Auto-trigger configuration ───────────────────────────────────
 

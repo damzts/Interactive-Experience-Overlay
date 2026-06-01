@@ -1,11 +1,43 @@
+/**
+ * PRESENTATION LAYER — Desktop OS
+ *
+ * Types in this file are specific to the Desktop OS presentation.
+ * They are NOT engine primitives. A different overlay client (broadcast deck,
+ * minimal HUD, etc.) would not use these types.
+ *
+ * Engine-level types live in domain/application.ts, domain/scene.ts, etc.
+ * New engine work must not import from this file.
+ */
+
 import type {
-  DesktopIconAnimation,
-  DesktopIconArrangement,
-  GlobalThemeDefaultConfig,
   WidgetThemeConfig,
   WidgetWindowSize,
   WidgetLayoutDefinition,
 } from './application.js'
+
+// ── Desktop OS theme & motion types ──────────────────────────────
+
+export type DesktopTheme =
+  | 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome'
+  | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
+
+export type DesktopIconAnimation =
+  | 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
+
+export type DesktopIconArrangement =
+  | 'grid' | 'wave' | 'ripple' | 'spiral' | 'scatter' | 'orbit'
+
+export type EventDesktopTheme = DesktopTheme | 'random'
+
+export interface GlobalThemeDefaultConfig {
+  theme: DesktopTheme
+  widgetTheme: WidgetThemeConfig
+  appearance: {
+    fontFamily: string
+    accentColor: string
+    textColor: string
+  }
+}
 
 // ── Desktop OS configuration ──────────────────────────────────────
 

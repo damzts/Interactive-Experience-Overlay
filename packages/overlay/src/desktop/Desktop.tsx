@@ -1,3 +1,15 @@
+/**
+ * PRESENTATION LAYER — Desktop OS
+ * packages/overlay/src/desktop/
+ *
+ * Everything in this directory is specific to the Desktop OS presentation.
+ * The engine (server + shared) is presentation-agnostic. This directory
+ * interprets engine primitives (widget toggles, scene states, ambiance actions)
+ * through the Desktop OS metaphor: draggable windows, taskbar, icons, screen saver.
+ *
+ * A different overlay client would replace this directory entirely while
+ * consuming the same engine via the Socket.IO + config API contract.
+ */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
 import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'

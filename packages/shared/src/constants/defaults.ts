@@ -1,7 +1,5 @@
 import type {
   Application,
-  DesktopTheme,
-  EventDesktopTheme,
   EventWidgetThemePatch,
   RecycleBinSettings,
   SourceWidgetSettings,
@@ -18,7 +16,7 @@ import type {
 } from '../domain/application.js'
 import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { AppConfig } from '../domain/config.js'
-import type { DesktopConfig } from '../domain/desktop.js'
+import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
 import type { LobbyConfig, SourceInstance, SourcePreset } from '../domain/scene.js'
 import type { OverlayStyle } from '../domain/overlay.js'
