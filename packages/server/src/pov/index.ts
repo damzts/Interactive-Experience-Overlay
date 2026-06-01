@@ -88,11 +88,9 @@ export class POVOrchestrator {
   private startAudioLevelMonitoring(userId: string, track: any): void {
     this.stopAudioLevelMonitoring(userId)
 
-    // werift MediaStreamTrack.onReceiveRtp.subscribe returns { unsubscribe }
     const sub = track.onReceiveRtp.subscribe((packet: any) => {
       const payload = packet.payload as Buffer
       if (!payload || payload.length === 0) return
-      // Estimate energy from encoded audio payload bytes
       let sum = 0
       const len = Math.min(payload.length, 160)
       for (let i = 0; i < len; i++) {
@@ -104,7 +102,7 @@ export class POVOrchestrator {
       this.scoreProcessor.reportLevel(userId, level, Date.now())
     })
 
-    this.audioUnsubscribes.set(userId, () => sub.unsubscribe())
+    this.audioUnsubscribes.set(userId, () => sub.unSubscribe())
   }
 
   private stopAudioLevelMonitoring(userId: string): void {
