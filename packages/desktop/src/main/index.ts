@@ -1,7 +1,7 @@
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import path from 'path';
 import { startServer, stopServer } from './server.js';
-import { createAdminWindow, showAdminWindow } from './window.js';
+import { createAdminWindow, showAdminWindow, createSplashWindow, closeSplashWindow } from './window.js';
 import { createTray } from './tray.js';
 import { registerProtocolHandler, handleDeepLink } from './deeplink.js';
 import { validateLicense, startLicenseRevalidation } from './license.js';
@@ -45,6 +45,8 @@ if (!gotLock) {
     // Register IPC handlers before creating windows
     registerIpcHandlers();
 
+    const splashWindow = createSplashWindow();
+
     // Startup sequence: server → tray → (conditional) admin window → license
     await startServer();
 
@@ -62,6 +64,10 @@ if (!gotLock) {
     // When started via user action (double-click/shortcut): show Admin Window.
     if (!isAutoLaunched()) {
       await createAdminWindow();
+    }
+
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      closeSplashWindow();
     }
 
     await validateLicense();

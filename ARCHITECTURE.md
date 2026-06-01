@@ -94,11 +94,11 @@ Desktop App                    System Browser              Cloud API
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `VITE_API_ORIGIN` | `ieom/.env` | Frontend: cloud API base URL (used in production builds only; dev uses proxy) |
-| `GOOGLE_REDIRECT_URI` | `ieom-api/.env` | Must match Google Console authorized redirect |
-| `FRONTEND_CALLBACK_URL` | `ieom-api/.env` | Fallback redirect after auth (when `isAllowedRedirect` fails) |
-| `ALLOWED_REDIRECT_ORIGINS` | `ieom-api/.env` | Comma-separated origins allowed for redirect (e.g. `https://ieom.danhub.dev,http://localhost:3002`) |
-| `IEOM_BACKEND_URL` | Desktop runtime | Cloud API URL for desktop OAuth + API calls |
+| `VITE_API_ORIGIN` | `packages/admin/.env` | Frontend API base URL. Use `http://localhost:3100` in local dev or the production backend origin in deployed builds. |
+| `GOOGLE_REDIRECT_URI` | `ieom/.env` | Must match the exact Google Console authorized redirect URI. For local dev: `http://localhost:3100/api/auth/google/callback`. |
+| `FRONTEND_CALLBACK_URL` | `ieom-api/.env` | Fallback redirect after auth (when `isAllowedRedirect` fails). |
+| `ALLOWED_REDIRECT_ORIGINS` | `ieom-api/.env` | Comma-separated origins allowed for redirect (e.g. `http://localhost:3002,https://ieom.danhub.dev`). |
+| `IEOM_BACKEND_URL` | Desktop runtime | Backend origin for desktop OAuth + API calls. Use `http://localhost:3100` locally or the production backend origin when deployed. |
 
 ---
 

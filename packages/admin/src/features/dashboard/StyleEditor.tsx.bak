@@ -1,11 +1,11 @@
-﻿import { STATE } from '@ieom/shared'
+import { STATE } from '@ieom/shared'
 import type { BackgroundType, OverlayStyle, ParticlePreset } from '@ieom/shared'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
 import { ConfigSectionPanel, Slider, Toggle } from '../../shared/ui'
 import { BG_TYPES, GRADIENT_PRESETS, PARTICLE_PRESETS, PATTERN_CSS } from './constants'
 
-// â”€â”€ StyleSections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Stateless render â€” used by ScenePanel to embed style fields in unified draft.
+// ── StyleSections ─────────────────────────────────────────────────────
+// Stateless render — used by ScenePanel to embed style fields in unified draft.
 
 export function StyleSections({ sceneId, style, update }: {
   sceneId: string
@@ -52,7 +52,7 @@ export function StyleSections({ sceneId, style, update }: {
                 </div>
                 <input type="text" value={bg.gradient}
                   onChange={(e) => update((d) => { d.background.gradient = e.target.value })}
-                  placeholder="linear-gradient(â€¦)" className="w-full text-xs" />
+                  placeholder="linear-gradient(…)" className="w-full text-xs" />
               </div>
             )}
 
@@ -74,7 +74,7 @@ export function StyleSections({ sceneId, style, update }: {
                   <button key={pat} type="button"
                     onClick={() => update((d) => { d.background.pattern = pat as any })}
                     className={'h-14 capitalize rounded border transition-colors ' + (bg.pattern === pat ? 'border-cyan-400/60' : 'border-zinc-700/40 hover:border-zinc-500/60')}
-                    style={pat === 'none' ? { backgroundColor: '#111' } : PATTERN_CSS[pat as keyof typeof PATTERN_CSS]}>
+                    style={pat === 'none' ? { backgroundColor: '#111' } : PATTERN_CSS[pat as any]}>
                     <div className="flex h-full items-end justify-center p-2">
                       <span className="rounded bg-black/40 px-1.5 py-0.5 text-[10px] text-white drop-shadow">{pat}</span>
                     </div>
@@ -129,4 +129,3 @@ export function StyleSections({ sceneId, style, update }: {
       </div>
   )
 }
-

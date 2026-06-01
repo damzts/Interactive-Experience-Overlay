@@ -146,7 +146,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       res = await fetch(requestUrl, { ...init, headers: retryHeaders, credentials: 'include' })
     } else {
       clearStoredAuthToken()
-      window.location.href = '/admin/login'
       throw new ApiError('token_expired', 401)
     }
   }
@@ -216,7 +215,6 @@ export async function apiSend(
       })
     } else {
       clearStoredAuthToken()
-      window.location.href = '/admin/login'
       throw new ApiError('token_expired', 401)
     }
   }
@@ -238,8 +236,8 @@ export async function apiSend(
 // ---------------------------------------------------------------------------
 
 /**
- * Calls the server logout endpoint with credentials and CSRF token,
- * then redirects to the login page regardless of success or failure.
+ * Calls the server logout endpoint with credentials and CSRF token.
+ * Always stays on the current admin shell and only clears auth state.
  */
 export async function logout(): Promise<void> {
   try {
@@ -256,8 +254,8 @@ export async function logout(): Promise<void> {
       credentials: 'include',
     })
   } catch {
-    // Best-effort: even if the server call fails, redirect to login
+    // Best-effort: even if the server call fails, stay on the admin shell
   } finally {
-    window.location.href = '/admin/login'
+    // No navigation: the UI should remain usable without login.
   }
 }

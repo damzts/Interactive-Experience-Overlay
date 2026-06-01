@@ -11,6 +11,7 @@
 import Fastify from 'fastify'
 import type { FastifyInstance } from 'fastify'
 import fastifyCors from '@fastify/cors'
+import fastifyCookie from '@fastify/cookie'
 import fastifyStatic from '@fastify/static'
 import fastifyMultipart from '@fastify/multipart'
 import { Server as SocketIOServer } from 'socket.io'
@@ -34,6 +35,8 @@ import { archiveRoute } from './routes/archive.js'
 import { roomRoute } from './routes/room.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './db/desktop-config-service.js'
+import { UserRepository } from './db/repositories/UserRepository.js'
+import { authRoutes } from './auth/authRoutes.js'
 import { HubConnection } from './room/hub-connection.js'
 import { POVOrchestrator } from './pov/index.js'
 import { OverlayRelay } from './room/overlay-relay.js'
@@ -113,6 +116,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const app = Fastify({ logger: { level: 'warn' } })
 
   await app.register(fastifyCors, { origin: '*' })
+  await app.register(fastifyCookie)
 
   // ── Assign a fixed userId to every request (no auth) ─────────
   app.addHook('onRequest', async (request) => {
@@ -180,6 +184,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // ── Desktop ConfigService (SQLite-backed, single-tenant) ──────
   const configService = new DesktopConfigService(db, io)
+  const userRepository = new UserRepository(db)
 
   // ── Scene state machine ──────────────────────────────────────
   const machine = new SceneMachine()
@@ -203,6 +208,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   registerOverlayNamespace(io)
 
   // ── REST routes (NO auth middleware registered) ──────────────
+  app.get('/api/health', async () => ({ ok: true }))
+  await app.register(authRoutes, { userRepository })
   await app.register(configRoute, { machine, configService: configService as any })
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus() })

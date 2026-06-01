@@ -64,6 +64,23 @@
 }
 
 @layer components {
+  .login-shell {
+    animation: admin-login-shell-in 420ms ease-out both;
+  }
+
+  .login-panel {
+    animation: admin-login-panel-in 560ms ease-out both;
+  }
+
+  .login-card {
+    animation: admin-login-card-in 620ms ease-out both;
+    animation-delay: 80ms;
+  }
+
+  .login-chip {
+    animation: admin-login-chip-pulse 8s ease-in-out infinite;
+  }
+
   .admin-shell [class*="text-[8px]"],
   .admin-shell [class*="text-[9px]"] {
     font-size: var(--admin-font-kicker) !important;
@@ -178,3 +195,45 @@
 /* Glow helpers */
 .glow-cyan  { box-shadow: 0 0 12px rgba(6,182,212,.4); }
 .glow-red   { box-shadow: 0 0 12px rgba(239,68,68,.5); }
+
+@keyframes admin-login-shell-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes admin-login-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes admin-login-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes admin-login-chip-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.08);
+  }
+}

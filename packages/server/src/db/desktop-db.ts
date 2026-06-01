@@ -40,6 +40,35 @@ export class DesktopDatabase {
     return new PreparedStatement(this, this.db, sql)
   }
 
+  /**
+   * Query helper compatible with pg Pool.
+   * Supports SELECT/INSERT/UPDATE ... RETURNING * patterns used by the auth repository.
+   */
+  async query(sql: string, params: unknown[] = []): Promise<{ rows: Array<Record<string, unknown>> }> {
+    const stmt = this.db.prepare(sql)
+    stmt.bind(params as any[])
+
+    const rows: Array<Record<string, unknown>> = []
+    while (stmt.step()) {
+      const cols = stmt.getColumnNames()
+      const values = stmt.get()
+      const row: Record<string, unknown> = {}
+      cols.forEach((col, i) => {
+        row[col] = values[i]
+      })
+      rows.push(row)
+    }
+
+    stmt.free()
+
+    if (!/^\s*SELECT/i.test(sql)) {
+      this.markDirty()
+      this.persist()
+    }
+
+    return { rows }
+  }
+
   /** Execute a pragma and return the result. */
   pragma(pragmaStr: string): unknown {
     const results = this.db.exec(`PRAGMA ${pragmaStr}`)
@@ -301,6 +330,28 @@ const migrations: DesktopMigration[] = [
           launch_at_startup INTEGER NOT NULL DEFAULT 0,
           auto_update_enabled INTEGER NOT NULL DEFAULT 1
         );
+      `)
+    },
+  },
+  {
+    version: 2,
+    name: 'create_users_table',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          google_id TEXT NOT NULL UNIQUE,
+          email TEXT NOT NULL UNIQUE,
+          display_name TEXT NOT NULL,
+          avatar_url TEXT,
+          slug TEXT NOT NULL UNIQUE,
+          refresh_token_hash TEXT,
+          created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+          updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+        CREATE INDEX IF NOT EXISTS idx_users_slug ON users(slug);
       `)
     },
   },
