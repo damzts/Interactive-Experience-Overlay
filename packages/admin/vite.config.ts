@@ -22,11 +22,11 @@ export default defineConfig({
   server: {
     port: 3002,
     proxy: {
-      '/api/auth': { target: 'http://localhost:3100', changeOrigin: true },
-      '/api': 'http://localhost:3100',
-      '/socket.io': { target: 'http://localhost:3100', ws: true },
-      '/assets': 'http://localhost:3100',
-      '/media': 'http://localhost:3100',
+      '/api/auth': { target: 'https://ieom.danhub.dev', changeOrigin: true },
+      '/api': 'http://localhost:3000',
+      '/socket.io': { target: 'http://localhost:3000', ws: true },
+      '/assets': 'http://localhost:3000',
+      '/media': 'http://localhost:3000',
     },
   },
   build: {

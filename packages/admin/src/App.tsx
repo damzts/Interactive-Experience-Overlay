@@ -10,6 +10,10 @@ function AppContent() {
   const config = useAdminStore((s) => s.config)
 
   useEffect(() => {
+    if (!socket.connected) socket.connect()
+  }, [])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as Element)?.tagName)) return
       const key = e.key === ' ' ? 'Space' : e.key

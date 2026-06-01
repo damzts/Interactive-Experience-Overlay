@@ -139,30 +139,32 @@ Only one overlay client can be active at a time. The server enforces this:
 
 ## Auth Flow
 
-Authentication is handled entirely by the cloud API (`ieom.danhub.dev`). The self-hosted client has no auth server — it delegates to the cloud.
+Authentication is handled entirely by the cloud API (`ieom.danhub.dev`). The self-hosted client has no auth server — it delegates to the cloud. Auth is optional; the admin panel and overlay work fully without login. Sign-in unlocks cloud features (rooms, online).
 
 ### Web (admin on localhost:3002)
+
+Same-window redirect flow. No popups.
 
 ```
 Admin (localhost:3002)          Cloud API (ieom.danhub.dev)         Google
        │                                │                            │
-       │── GET /api/auth/google ───────►│                            │
-       │   ?redirect=http://localhost:3002/admin                      │
-       │                                │── redirect to Google ─────►│
+       │── window.location.href ───────►│                            │
+       │   /api/auth/google?redirect=http://localhost:3002/admin      │
+       │                                │── 302 to Google ──────────►│
        │                                │◄── callback with code ─────│
        │                                │                            │
-       │◄── 302 to redirect?token=jwt ──│                            │
-       │   http://localhost:3002/admin?token=jwt                      │
+       │◄── 302 to redirect?auth=success│                            │
+       │   http://localhost:3002/admin?auth=success                   │
        │                                                             │
-       │── GET /api/auth/me ───────────►│  (via Vite proxy, Bearer token)
+       │── GET /api/auth/me ───────────►│  (via Vite proxy, cookies) │
        │◄── { user } ──────────────────│
 ```
 
-- Login initiates with `?redirect=<origin>/admin` so the cloud knows where to send the user back.
-- The `redirect` value is passed through Google's `state` param.
-- Cloud validates redirect origin against `ALLOWED_REDIRECT_ORIGINS` env var.
-- Token is captured from URL params and stored in sessionStorage.
-- In dev mode, `getApiOrigin()` returns `window.location.origin` so all API calls go through the Vite proxy (avoids CORS).
+- Login navigates the current window to the cloud OAuth endpoint (same-window, not popup).
+- `redirect` param = `window.location.origin + '/admin'` — cloud passes it through Google's `state` param.
+- Cloud validates redirect origin against `ALLOWED_REDIRECT_ORIGINS`.
+- On return, `checkAuth()` calls `/api/auth/me` to confirm session (cookies set by cloud callback).
+- In dev mode, Vite proxy forwards `/api/auth` to `https://ieom.danhub.dev` and other `/api` routes to `localhost:3000`.
 
 ### Desktop (Electron)
 
@@ -176,15 +178,28 @@ Desktop App                    System Browser              Cloud API
      │── Bearer token for all API/WS calls ────────────────►│
 ```
 
+### Socket Connection
+
+The admin socket connects on app mount regardless of auth status (server has no socket auth middleware). When the user later authenticates, the socket reconnects with credentials. This ensures all admin controls (scene changes, widget toggles, keybinds) work without login.
+
 ### Key Config
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `VITE_API_ORIGIN` | `packages/admin/.env` | Frontend API base URL. Use `http://localhost:3100` in local dev or the production backend origin in deployed builds. |
-| `GOOGLE_REDIRECT_URI` | `ieom/.env` | Must match the exact Google Console authorized redirect URI. For local dev: `http://localhost:3100/api/auth/google/callback`. |
-| `FRONTEND_CALLBACK_URL` | `ieom-api/.env` | Fallback redirect after auth (when `isAllowedRedirect` fails). |
+| `VITE_API_ORIGIN` | `packages/admin/.env` | Frontend API base URL for production builds. In dev, Vite proxy handles routing. |
+| `GOOGLE_REDIRECT_URI` | `ieom-api/.env` | Must match Google Console authorized redirect URI. |
 | `ALLOWED_REDIRECT_ORIGINS` | `ieom-api/.env` | Comma-separated origins allowed for redirect (e.g. `http://localhost:3002,https://ieom.danhub.dev`). |
-| `IEOM_BACKEND_URL` | Desktop runtime | Backend origin for desktop OAuth + API calls. Use `http://localhost:3100` locally or the production backend origin when deployed. |
+| `IEOM_BACKEND_URL` | Desktop runtime | Backend origin for desktop OAuth + API calls. |
+
+### Vite Dev Proxy
+
+```
+/api/auth  → https://ieom.danhub.dev  (cloud handles OAuth)
+/api       → http://localhost:3000     (local server)
+/socket.io → http://localhost:3000     (local server, WebSocket)
+/assets    → http://localhost:3000
+/media     → http://localhost:3000
+```
 
 ---
 

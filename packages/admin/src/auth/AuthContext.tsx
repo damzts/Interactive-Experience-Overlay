@@ -66,73 +66,13 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
-    if (searchParams.get('auth') !== 'success' || !window.opener) {
-      return
-    }
-
-    const closePopup = () => {
-      try {
-        window.opener.postMessage({ type: 'ieom-auth-success' }, window.location.origin)
-        window.opener.focus()
-      } catch {
-        // Ignore cross-window issues and still attempt to close.
-      }
-
-      window.close()
-    }
-
-    const timer = window.setTimeout(closePopup, 0)
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleAuthSuccessMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-      if (event.data?.type !== 'ieom-auth-success') return
+    if (searchParams.get('auth') === 'success') {
       void checkAuth()
-    }
-
-    window.addEventListener('message', handleAuthSuccessMessage)
-    return () => {
-      window.removeEventListener('message', handleAuthSuccessMessage)
     }
   }, [checkAuth])
 
   const login = useCallback(() => {
-    const returnUrl = new URL(window.location.href)
-    returnUrl.searchParams.delete('auth')
-    returnUrl.searchParams.delete('error')
-    returnUrl.searchParams.delete('token')
-    returnUrl.searchParams.delete('access_token')
-
-    const authUrl = resolveBackendUrl(`/api/auth/google?redirect=${encodeURIComponent(returnUrl.toString())}`)
-    const popupWidth = 520
-    const popupHeight = 720
-    const popupLeft = Math.max(0, Math.round(window.screenX + (window.outerWidth - popupWidth) / 2))
-    const popupTop = Math.max(0, Math.round(window.screenY + (window.outerHeight - popupHeight) / 2))
-    const popupFeatures = [
-      `width=${popupWidth}`,
-      `height=${popupHeight}`,
-      `left=${popupLeft}`,
-      `top=${popupTop}`,
-      'popup=yes',
-      'toolbar=no',
-      'menubar=no',
-      'location=no',
-      'status=no',
-      'resizable=yes',
-      'scrollbars=yes',
-    ].join(',')
-
-    const popup = window.open(authUrl, 'ieom-google-login', popupFeatures)
-    if (popup) {
-      popup.focus()
-      return
-    }
-
-    window.open(authUrl, '_blank', 'noopener,noreferrer')
+    window.location.href = resolveBackendUrl('/api/auth/google') + `?redirect=${encodeURIComponent(window.location.origin + '/admin')}`
   }, [])
 
   const logout = useCallback(async () => {
