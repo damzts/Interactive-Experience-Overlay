@@ -106,14 +106,19 @@ export class AmbianceManager {
   start() {
     this.stop()
     const config = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance)
-    const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
     this.lastStartedAt = Date.now()
-    this.lastSkipReason = config.widgetSimulation.enabled ? null : 'simulation disabled'
-    
-    if (intervalMs > 0) {
-      this.tickTimer = setInterval(() => this.tick(), intervalMs)
-      console.log(`[ambiance] AI simulation manager started. Ticking every ${intervalMs / 1000}s.`)
+
+    if (!config.widgetSimulation.enabled) {
+      this.lastSkipReason = 'simulation disabled'
+      console.log('[ambiance] AI simulation manager stopped (disabled in config).')
+      this.emitDiagnostics()
+      return
     }
+
+    const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
+    this.lastSkipReason = null
+    this.tickTimer = setInterval(() => this.tick(), intervalMs)
+    console.log(`[ambiance] AI simulation manager started. Ticking every ${intervalMs / 1000}s.`)
     this.emitDiagnostics()
   }
 

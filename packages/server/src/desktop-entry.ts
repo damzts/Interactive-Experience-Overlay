@@ -282,10 +282,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   let activeObsUrl = defaultObsUrl
   let activeObsPassword = defaultObsPassword
   let activeAmbianceIntervalSeconds = withDesktopAmbianceDefaults(DEFAULT_CONFIG.desktopAmbiance).widgetSimulation.intervalSeconds
+  let activeAmbianceEnabled = withDesktopAmbianceDefaults(DEFAULT_CONFIG.desktopAmbiance).widgetSimulation.enabled
 
   obsBridge.connect(activeObsUrl, activeObsPassword)
 
-  machine.on('config:update', (config) => {
+  configService.onConfigUpdate((config) => {
     cachedConfig = config
 
     if (config.obs.url !== activeObsUrl || config.obs.password !== activeObsPassword) {
@@ -294,9 +295,10 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
       obsBridge.updateConnection(activeObsUrl, activeObsPassword)
     }
 
-    const nextAmbianceIntervalSeconds = withDesktopAmbianceDefaults(config.desktopAmbiance).widgetSimulation.intervalSeconds
-    if (nextAmbianceIntervalSeconds !== activeAmbianceIntervalSeconds) {
-      activeAmbianceIntervalSeconds = nextAmbianceIntervalSeconds
+    const nextAmbiance = withDesktopAmbianceDefaults(config.desktopAmbiance).widgetSimulation
+    if (nextAmbiance.intervalSeconds !== activeAmbianceIntervalSeconds || nextAmbiance.enabled !== activeAmbianceEnabled) {
+      activeAmbianceIntervalSeconds = nextAmbiance.intervalSeconds
+      activeAmbianceEnabled = nextAmbiance.enabled
       ambianceManager.start()
     }
   })

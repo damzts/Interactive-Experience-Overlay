@@ -134,11 +134,16 @@ function buildSceneDefaultSnapshot(
  */
 export class DesktopConfigService {
   private cachedConfig: AppConfig | null = null
+  private onConfigUpdateListener: ((config: AppConfig) => void) | null = null
 
   constructor(
     private db: DesktopDatabase,
     private io: SocketIOServer | null = null,
   ) {}
+
+  onConfigUpdate(listener: (config: AppConfig) => void) {
+    this.onConfigUpdateListener = listener
+  }
 
   async getForUser(_userId: string): Promise<AppConfig> {
     if (this.cachedConfig) return this.cachedConfig
@@ -168,6 +173,8 @@ export class DesktopConfigService {
         this.io.emit('config:patch', updates)
       }
     }
+
+    this.onConfigUpdateListener?.(config)
 
     return config
   }
