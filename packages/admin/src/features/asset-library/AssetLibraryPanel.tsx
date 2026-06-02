@@ -7,7 +7,6 @@ import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
 import { AssetSelectionInput } from './AssetLibrary'
-import { AssetLibraryModal } from './AssetLibraryModal'
 import { SOURCE_CATALOG, findSourceCatalogEntry, getSafeSceneSources } from '../../shared/sourceCatalog'
 import { TRANSITION_ICONS, TRANSITION_OPTIONS, encodeMediaTransitionValue, getMediaTransitionLabel, strToStep } from '../../shared/transitionLibrary'
 import { withDesktopConfigDefaults } from '@ieom/shared'
@@ -409,12 +408,26 @@ export function AssetLibraryPanel() {
   ] as const
 
   return (
-    <AssetLibraryModal
-      tabs={assetLibraryTabs}
-      activeTab={tab}
-      onTabChange={(nextTab) => setTab(nextTab as typeof tab)}
-      sidebarChildren={(
-        <>
+    <div className="flex flex-1 min-h-0 overflow-hidden p-5 sm:p-6">
+      <div className="grid w-full h-full min-h-0 gap-5 grid-cols-[320px_minmax(0,1fr)]">
+        <ConfigCard className="min-h-0 overflow-hidden p-4 sm:p-5">
+          <div className="flex h-full min-h-0 flex-col gap-4">
+            <div className="grid gap-1.5">
+              {assetLibraryTabs.map((entry) => (
+                <button key={entry.id} type="button" onClick={() => setTab(entry.id as typeof tab)}
+                  className={'rounded-xl border px-3 py-3 text-left transition-colors ' + (tab === entry.id
+                    ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                    : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base leading-none">{entry.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">{entry.label}</div>
+                      <div className="text-[10px] text-zinc-500">{entry.meta}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           {tab === 'catalog' && (
             <>
               <div className="space-y-2">
@@ -575,10 +588,9 @@ export function AssetLibraryPanel() {
               </div>
             </>
           )}
-        </>
-      )}
-      contentChildren={(
-        <>
+          </div>
+        </ConfigCard>
+        <div className="min-w-0 min-h-0 overflow-y-auto pr-1">
           {tab === 'catalog' && (
             <div className="space-y-4">
               {selectedCatalogAsset ? (
@@ -783,8 +795,8 @@ export function AssetLibraryPanel() {
               </ConfigSectionPanel>
             </div>
           )}
-        </>
-      )}
-    />
+        </div>
+      </div>
+    </div>
   )
 }
