@@ -3,7 +3,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigNotice, ConfigPageIntro, ConfigSectionPanel, ConfigTable, ConfigToolbar } from '../../shared/ui'
 import { socket } from '../../socket/client'
 
-type BindingScope = 'obs' | 'admin'
+type BindingScope = 'admin'
 
 interface BindingRow {
   id: string
@@ -27,26 +27,19 @@ function createBindingRow(scope: BindingScope, action = 'scene:desktop'): Bindin
   }
 }
 
-function rowsFromKeybinds(obs: Record<string, string>, admin: Record<string, string>): BindingRow[] {
-  return [
-    ...Object.entries(obs).map(([key, action], index) => ({ id: `obs-${index}-${key}`, scope: 'obs' as const, key, action })),
-    ...Object.entries(admin).map(([key, action], index) => ({ id: `admin-${index}-${key}`, scope: 'admin' as const, key, action })),
-  ]
+function rowsFromKeybinds(admin: Record<string, string>): BindingRow[] {
+  return Object.entries(admin).map(([key, action], index) => ({ id: `admin-${index}-${key}`, scope: 'admin' as const, key, action }))
 }
 
 function keybindMapsFromRows(rows: BindingRow[]) {
-  const obs: Record<string, string> = {}
   const admin: Record<string, string> = {}
-
   rows.forEach((row) => {
     const key = row.key.trim()
     const action = row.action.trim()
     if (!key || !action) return
-    if (row.scope === 'obs') obs[key] = action
-    else admin[key] = action
+    admin[key] = action
   })
-
-  return { obs, admin }
+  return { admin }
 }
 
 export function KeybindEditor() {
@@ -80,14 +73,14 @@ export function KeybindEditor() {
     ]
   }, [config.applications, config.events, config.scenes])
 
-  const [rows, setRows] = useState<BindingRow[]>(() => rowsFromKeybinds(config.keybinds.obs, config.keybinds.admin))
+  const [rows, setRows] = useState<BindingRow[]>(() => rowsFromKeybinds(config.keybinds.admin))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [capturingRowId, setCapturingRowId] = useState<string | null>(null)
 
   useEffect(() => {
-    setRows(rowsFromKeybinds(config.keybinds.obs, config.keybinds.admin))
-  }, [config.keybinds.admin, config.keybinds.obs])
+    setRows(rowsFromKeybinds(config.keybinds.admin))
+  }, [config.keybinds.admin])
 
   useEffect(() => {
     if (!capturingRowId) return
@@ -105,7 +98,8 @@ export function KeybindEditor() {
 
   const handleSave = async () => {
     setSaving(true)
-    await saveConfig({ keybinds: keybindMapsFromRows(rows) })
+    const { admin } = keybindMapsFromRows(rows)
+    await saveConfig({ keybinds: { obs: config.keybinds.obs, admin } })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -133,7 +127,7 @@ export function KeybindEditor() {
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
       <ConfigPageIntro title="Keybind Configuration">
-        Capture admin and OBS shortcuts, map them to scenes, widgets, or events, and validate each row before you persist the change.
+        Capture admin shortcuts, map them to scenes, widgets, or events, and validate each row before you persist the change.
       </ConfigPageIntro>
 
       <ConfigSectionPanel label="Keybind Editor" first>
@@ -145,7 +139,6 @@ export function KeybindEditor() {
             <table>
               <thead>
                 <tr>
-                  <th className="w-24">Scope</th>
                   <th className="w-36">Key</th>
                   <th>Action</th>
                   <th className="w-44 text-right">Actions</th>
@@ -158,16 +151,6 @@ export function KeybindEditor() {
 
                   return (
                     <tr key={row.id} className="align-top">
-                      <td>
-                        <select
-                          value={row.scope}
-                          onChange={(e) => updateRow(row.id, (current) => ({ ...current, scope: e.target.value as BindingScope }))}
-                          className="text-xs"
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="obs">OBS</option>
-                        </select>
-                      </td>
                       <td>
                         <Btn
                           type="button"
@@ -225,12 +208,11 @@ export function KeybindEditor() {
         </div>
         {rows.length === 0 && (
           <ConfigNotice tone="info" className="mt-4">
-            No bindings configured yet. Add an Admin or OBS binding to begin.
+            No bindings configured yet. Add a binding to begin.
           </ConfigNotice>
         )}
         <ConfigToolbar className="mt-4">
-          <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('admin')])}>+ Add Admin Binding</Btn>
-          <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('obs')])}>+ Add OBS Binding</Btn>
+          <Btn onClick={() => setRows((prev) => [...prev, createBindingRow('admin')])}>+ Add Binding</Btn>
           <Btn variant="warning" onClick={handleSave} disabled={saving}>
             {saved ? '✔ Saved' : saving ? 'Saving…' : '💾 Save Keybinds'}
           </Btn>
