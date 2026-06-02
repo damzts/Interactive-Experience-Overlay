@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DEFAULT_CONFIG,
   DEFAULT_DESKTOP_CONFIG,
-  DEFAULT_SYSTEM_WIDGET_LAYOUTS,
   DEFAULT_WIDGET_THEME_PRESETS,
   STATE,
   withDesktopConfigDefaults,
   withLobbyConfigDefaults,
   withOverlayStyleDefaults,
 } from '@ieom/shared'
-import type { Application, AppConfig, DesktopConfig, DesktopTheme, LobbyConfig, OverlayStyle, Scene, SourceInstance, WidgetThemeConfig } from '@ieom/shared'
+import type { AppConfig, DesktopConfig, DesktopTheme, LobbyConfig, OverlayStyle, Scene, SourceInstance, WidgetThemeConfig } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
@@ -292,21 +291,6 @@ export function DesktopThemeEditor() {
   )
   const sourceThemeDefault     = sourceDesktopConfig.globalThemeDefault
   const randomDesktopThemes    = useMemo(() => DESKTOP_THEMES.filter((e) => e.id !== 'custom'), [])
-  const factoryDesktopConfig   = useMemo(() => structuredClone(withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig)), [])
-  const factoryDesktopStyle    = useMemo(
-    () => structuredClone(withOverlayStyleDefaults((DEFAULT_CONFIG.scenes[STATE.DESKTOP] as { style?: OverlayStyle } | undefined)?.style, DEFAULT_CONFIG.overlayStyle)),
-    [],
-  )
-  const factorySystemWidgets   = useMemo(
-    () => DEFAULT_CONFIG.applications
-      .filter((e): e is Application => e.appType === 'widget' && e.widgetSource === 'system')
-      .map((e) => structuredClone(e)),
-    [],
-  )
-  const factorySystemWidgetById = useMemo(
-    () => new Map(factorySystemWidgets.map((e) => [e.id, e] as const)),
-    [factorySystemWidgets],
-  )
 
   const [theme, setTheme]             = useState<DesktopTheme>(() => sourceThemeDefault.theme)
   const [appearance, setAppearance]   = useState<ThemeAppearance>(() => structuredClone(sourceThemeDefault.appearance))
@@ -314,9 +298,7 @@ export function DesktopThemeEditor() {
   const [form, setForm]               = useState<DesktopConfig>(() => structuredClone(sourceDesktopConfig))
   const [saving, setSaving]           = useState(false)
   const [saved,  setSaved]            = useState(false)
-  const [factoryResetArmed, setFactoryResetArmed] = useState(false)
   const savedTimer        = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const factoryResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const update = useCallback((updater: (d: DesktopConfig) => void) => {
     setForm((prev) => { const next = structuredClone(prev); updater(next); return next })
@@ -344,13 +326,11 @@ export function DesktopThemeEditor() {
     setAppearance(structuredClone(sourceThemeDefault.appearance))
     setWidgetTheme(structuredClone(sourceThemeDefault.widgetTheme))
     setForm(structuredClone(sourceDesktopConfig))
-    setFactoryResetArmed(false)
     setSaved(false)
   }, [config.desktopConfig, config.overlayStyle, desktopScene])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
-    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
     postPreviewConfigPatch(null)
   }, [])
 
@@ -395,37 +375,6 @@ export function DesktopThemeEditor() {
     setSaved(false)
   }, [sourceDesktopConfig, sourceThemeDefault])
 
-  const performFactoryReset = useCallback(async () => {
-    if (!factoryResetArmed) {
-      setFactoryResetArmed(true)
-      if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
-      factoryResetTimer.current = setTimeout(() => setFactoryResetArmed(false), 3500)
-      return
-    }
-    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
-    setFactoryResetArmed(false)
-    setSaving(true)
-    const currentIds = new Set(config.applications.filter((e) => factorySystemWidgetById.has(e.id)).map((e) => e.id))
-    const nextApplications = [
-      ...config.applications.map((e) => { const fw = factorySystemWidgetById.get(e.id); return fw ? structuredClone(fw) : e }),
-      ...factorySystemWidgets.filter((e) => !currentIds.has(e.id)).map((e) => structuredClone(e)),
-    ]
-    await saveConfig({
-      applications: nextApplications,
-      desktopConfig: {
-        ...factoryDesktopConfig,
-        widgetPositions: undefined,
-        widgetSizes: undefined,
-        widgetLayouts: structuredClone(DEFAULT_SYSTEM_WIDGET_LAYOUTS),
-      },
-      scenes: { [STATE.DESKTOP]: { ...config.scenes[STATE.DESKTOP], style: factoryDesktopStyle } },
-    } as unknown as Partial<AppConfig>)
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [config.applications, config.scenes, factoryDesktopConfig, factoryDesktopStyle, factorySystemWidgetById, factorySystemWidgets, saveConfig, factoryResetArmed])
-
   const clearAllRuntime = useCallback(() => {
     postPreviewConfigPatch(null)
     setRuntimeConfigOverride({})
@@ -438,10 +387,6 @@ export function DesktopThemeEditor() {
     <div className="space-y-3">
       <ConfigApplyBar label="Desktop Theme" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="grid gap-4 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4 lg:grid-cols-2">
-        <Btn type="button" variant="warning" onClick={() => { void performFactoryReset() }}
-          className="justify-center px-3 py-2 text-[11px] uppercase tracking-[0.16em]">
-          {factoryResetArmed ? 'Confirm Factory Reset' : 'Perform Factory Reset'}
-        </Btn>
         <Btn type="button" variant="ghost" onClick={clearAllRuntime}
           className="justify-center px-3 py-2 text-[11px] uppercase tracking-[0.16em]">
           Clear All Runtime

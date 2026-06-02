@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_SYSTEM_WIDGET_LAYOUTS, withDesktopConfigDefaults } from '@ieom/shared'
+import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { WidgetLayoutDefinition, WidgetLayoutItem, WidgetLayoutSnapshot } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigApplyBar, ConfigCard, ConfigNotice, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
 import {
-  buildWidgetLayoutItem,
   createWidgetLayoutFromCurrentState,
   createWidgetLayoutSnapshot,
   normalizeWidgetLayoutsForEditor,
@@ -227,22 +226,19 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const [saving,            setSaving]            = useState(false)
   const [saved,             setSaved]             = useState(false)
   const [saveDefaultArmed,  setSaveDefaultArmed]  = useState(false)
-  const [factoryResetArmed, setFactoryResetArmed] = useState(false)
   const [clearingOverride,  setClearingOverride]  = useState(false)
   const [clearOverrideError, setClearOverrideError] = useState<string | null>(null)
   const savedTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const factoryResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setLayout(sourceLayout ? structuredClone(sourceLayout) : null)
-    setClearingOverride(false); setClearOverrideError(null); setFactoryResetArmed(false); setSaved(false)
+    setClearingOverride(false); setClearOverrideError(null); setSaved(false)
   }, [sourceLayout])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
     if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
-    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
   }, [])
 
   if (!sourceLayout || !layout) return <div className="text-zinc-600 text-xs italic p-4">Layout not found.</div>
@@ -255,9 +251,6 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const hasRuntimeOverride = layoutWidgetIds.some((id) => id in runtimeWidgetPositions || id in runtimeWidgetSizes || id in runtimeWidgetZIndices)
   const activeRuntimeOverrideCount = layoutWidgetIds.filter((id) => id in runtimeWidgetPositions || id in runtimeWidgetSizes || id in runtimeWidgetZIndices).length
   const defaultSnapshot = sourceLayout.defaultConfig ? structuredClone(sourceLayout.defaultConfig) : createWidgetLayoutSnapshot(sourceLayout)
-  const factorySystemLayout = sourceLayout.source === 'system'
-    ? DEFAULT_SYSTEM_WIDGET_LAYOUTS.find((entry) => entry.id === sourceLayout.id)
-    : undefined
 
   const applySnapshotToLayout = (target: WidgetLayoutDefinition, snapshot: WidgetLayoutSnapshot): WidgetLayoutDefinition => ({
     ...target, label: snapshot.label, icon: snapshot.icon, description: snapshot.description, items: structuredClone(snapshot.items),
@@ -282,28 +275,6 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const restoreDefaults = async () => {
     await persistLayout({ ...applySnapshotToLayout(layout, defaultSnapshot), defaultConfig: structuredClone(sourceLayout.defaultConfig ?? defaultSnapshot) })
     setSaveDefaultArmed(false)
-  }
-
-  const buildFactoryResetLayout = (): WidgetLayoutDefinition => {
-    if (factorySystemLayout) {
-      const [normalizedFactoryLayout] = normalizeWidgetLayoutsForEditor([factorySystemLayout], widgetApps, desktopConfig)
-      if (normalizedFactoryLayout) {
-        return { ...normalizedFactoryLayout, defaultConfig: structuredClone(sourceLayout.defaultConfig ?? normalizedFactoryLayout.defaultConfig) }
-      }
-    }
-    return { ...layout, items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, desktopConfig, false)), defaultConfig: structuredClone(sourceLayout.defaultConfig ?? defaultSnapshot) }
-  }
-
-  const performFactoryReset = async () => {
-    if (!factoryResetArmed) {
-      setFactoryResetArmed(true)
-      if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
-      factoryResetTimer.current = setTimeout(() => setFactoryResetArmed(false), 3500)
-      return
-    }
-    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
-    await persistLayout(buildFactoryResetLayout())
-    setFactoryResetArmed(false)
   }
 
   const saveCurrentAsDefault = async () => {
@@ -402,12 +373,7 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
           <div className="space-y-3">
             {layout.source === 'system' && <div className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, not removable.</div>}
             <div className="flex justify-end">
-              <div className="flex flex-wrap justify-end gap-2">
-                <Btn type="button" variant={factoryResetArmed ? 'danger' : 'ghost'} onClick={() => { void performFactoryReset() }} className="px-2.5 py-1 text-[10px]">
-                  {factoryResetArmed ? 'Confirm Factory Reset' : 'Perform Factory Reset'}
-                </Btn>
-                <Btn type="button" onClick={() => captureCurrentIntoLayout()} className="px-2.5 py-1 text-[10px]">Use Current</Btn>
-              </div>
+              <Btn type="button" onClick={() => captureCurrentIntoLayout()} className="px-2.5 py-1 text-[10px]">Use Current</Btn>
             </div>
             <WidgetCanvas
               items={layout.items}

@@ -2,11 +2,7 @@ node_modules/
 assets/images/
 dist/
 .env
-ieom.db
-ioem.db-ljournal
-ioem.db-wal
-ioem.db-shm
-ioem.log
+*.db
 *.db-journal
 *.db-wal
 *.db-shm
