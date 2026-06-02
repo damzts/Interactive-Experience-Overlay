@@ -8,10 +8,11 @@
  * Requirements: 3.1, 3.5
  */
 
-import type { DesktopDatabase } from './desktop-db.js'
+import type Database from 'better-sqlite3'
 import type { Server as SocketIOServer } from 'socket.io'
 import {
   DEFAULT_CONFIG,
+  DEFAULT_SYSTEM_WIDGET_LAYOUTS,
   STATE,
   withApplicationListDefaults,
   withDesktopAmbianceDefaults,
@@ -20,8 +21,10 @@ import {
   withLobbyConfigDefaults,
   withOverlayStyleDefaults,
 } from '@ieom/shared'
-import type { AppConfig, Application, DesktopConfig, Scene, OverlayStyle } from '@ieom/shared'
+import type { AppConfig, Application, DesktopConfig, Scene, OverlayStyle, WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
 import type { EventConfig, AutoTrigger } from '@ieom/shared'
+
+type DesktopDatabase = Database.Database
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -139,7 +142,26 @@ export class DesktopConfigService {
   constructor(
     private db: DesktopDatabase,
     private io: SocketIOServer | null = null,
-  ) {}
+  ) {
+    this.seedSystemLayouts()
+  }
+
+  private seedSystemLayouts(): void {
+    const upsertLayout = this.db.prepare(
+      'INSERT OR IGNORE INTO widget_layouts (id, label, icon, source, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    const upsertItem = this.db.prepare(
+      'INSERT OR IGNORE INTO widget_layout_items (layout_id, widget_id, enabled, x, y, width, height, focus_priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    this.db.transaction(() => {
+      DEFAULT_SYSTEM_WIDGET_LAYOUTS.forEach((layout, i) => {
+        upsertLayout.run(layout.id, layout.label, layout.icon, 'system', layout.description ?? null, i)
+        for (const item of layout.items) {
+          upsertItem.run(layout.id, item.widgetId, item.enabled ? 1 : 0, item.x, item.y, item.width, item.height, item.focusPriority)
+        }
+      })
+    })()
+  }
 
   onConfigUpdate(listener: (config: AppConfig) => void) {
     this.onConfigUpdateListener = listener
@@ -189,6 +211,7 @@ export class DesktopConfigService {
     const audio = this.loadAudioConfig()
     const overlayStyle = this.loadOverlayStyle()
     const desktopConfig = this.loadDesktopConfig()
+    const widgetLayouts = this.loadWidgetLayouts()
     const desktopAmbiance = this.loadDesktopAmbiance()
     const events = this.loadEvents()
     const mediaLibrary = this.loadMediaLibrary()
@@ -201,7 +224,7 @@ export class DesktopConfigService {
       obs,
       audio,
       overlayStyle,
-      desktopConfig,
+      desktopConfig: desktopConfig ? { ...desktopConfig, widgetLayouts } : withDesktopConfigDefaults({ widgetLayouts }),
       desktopAmbiance,
       events,
       mediaLibrary,
@@ -352,6 +375,30 @@ export class DesktopConfigService {
     return parseJson(row.simulation_json, undefined)
   }
 
+  private loadWidgetLayouts(): WidgetLayoutDefinition[] {
+    type LayoutRow = { id: string; label: string; icon: string; source: string; description: string | null; sort_order: number }
+    type ItemRow = { layout_id: string; widget_id: string; enabled: number; x: number; y: number; width: number; height: number; focus_priority: number }
+
+    const layouts = this.db.prepare('SELECT * FROM widget_layouts ORDER BY sort_order ASC').all() as LayoutRow[]
+    const allItems = this.db.prepare('SELECT * FROM widget_layout_items').all() as ItemRow[]
+
+    const itemsByLayout = new Map<string, WidgetLayoutItem[]>()
+    for (const item of allItems) {
+      const list = itemsByLayout.get(item.layout_id) ?? []
+      list.push({ widgetId: item.widget_id, enabled: item.enabled === 1, x: item.x, y: item.y, width: item.width, height: item.height, focusPriority: item.focus_priority })
+      itemsByLayout.set(item.layout_id, list)
+    }
+
+    return layouts.map((row) => ({
+      id: row.id,
+      label: row.label,
+      icon: row.icon,
+      source: row.source as 'system' | 'user',
+      description: row.description ?? undefined,
+      items: itemsByLayout.get(row.id) ?? [],
+    }))
+  }
+
   private loadEvents(): EventConfig[] {
     const rows = this.db.prepare('SELECT * FROM events').all() as Array<{
       id: string; label: string; icon: string; color: string;
@@ -424,7 +471,10 @@ export class DesktopConfigService {
             this.saveOverlayStyle(cfg.overlayStyle)
             break
           case 'desktopConfig':
-            if (cfg.desktopConfig) this.saveDesktopConfig(cfg.desktopConfig)
+            if (cfg.desktopConfig) {
+              this.saveDesktopConfig(cfg.desktopConfig)
+              this.saveWidgetLayouts(cfg.desktopConfig.widgetLayouts ?? [])
+            }
             break
           case 'desktopAmbiance':
             if (cfg.desktopAmbiance) this.saveDesktopAmbiance(cfg.desktopAmbiance)
@@ -569,6 +619,39 @@ export class DesktopConfigService {
     this.db.prepare(`
       INSERT OR REPLACE INTO desktop_ambiance (id, simulation_json) VALUES (1, ?)
     `).run(JSON.stringify(ambiance))
+  }
+
+  private saveWidgetLayouts(layouts: WidgetLayoutDefinition[]): void {
+    // Only manage user layouts — system layouts are seeded once and never overwritten by saves
+    const userLayouts = layouts.filter((l) => l.source !== 'system')
+
+    const deleteItems = this.db.prepare('DELETE FROM widget_layout_items WHERE layout_id = ?')
+    const deleteLayout = this.db.prepare('DELETE FROM widget_layouts WHERE id = ? AND source = ?')
+    const upsertLayout = this.db.prepare(
+      'INSERT OR REPLACE INTO widget_layouts (id, label, icon, source, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    const insertItem = this.db.prepare(
+      'INSERT INTO widget_layout_items (layout_id, widget_id, enabled, x, y, width, height, focus_priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+
+    // Remove user layouts no longer in the list
+    const existingUserIds = (this.db.prepare("SELECT id FROM widget_layouts WHERE source = 'user'").all() as { id: string }[]).map((r) => r.id)
+    const incomingIds = new Set(userLayouts.map((l) => l.id))
+    for (const id of existingUserIds) {
+      if (!incomingIds.has(id)) {
+        deleteItems.run(id)
+        deleteLayout.run(id, 'user')
+      }
+    }
+
+    for (let i = 0; i < userLayouts.length; i++) {
+      const layout = userLayouts[i]
+      deleteItems.run(layout.id)
+      upsertLayout.run(layout.id, layout.label, layout.icon, 'user', layout.description ?? null, i)
+      for (const item of layout.items) {
+        insertItem.run(layout.id, item.widgetId, item.enabled ? 1 : 0, item.x, item.y, item.width, item.height, item.focusPriority)
+      }
+    }
   }
 
   private saveEvents(events: NonNullable<AppConfig['events']>): void {

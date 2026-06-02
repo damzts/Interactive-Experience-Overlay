@@ -114,7 +114,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   let boundPort = port
 
   // ── Initialize SQLite database (WAL mode, migrations, seeding) ──
-  const db = await initDesktopDatabase(dbPath)
+  const db = initDesktopDatabase(dbPath)
 
   // ── Create Fastify instance ──────────────────────────────────
   const app = Fastify({ logger: { level: 'warn' } })
@@ -188,7 +188,17 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // ── Desktop ConfigService (SQLite-backed, single-tenant) ──────
   const configService = new DesktopConfigService(db, io)
-  const userRepository = new UserRepository(db)
+  // UserRepository expects an async query() interface — wrap better-sqlite3
+  const dbQueryAdapter = {
+    query: async (sql: string, params: unknown[] = []) => {
+      const positional = sql.replace(/\$\d+/g, '?')
+      const stmt = db.prepare(positional)
+      const isSelect = /^\s*SELECT/i.test(sql)
+      const rows = isSelect ? stmt.all(...params) as Record<string, unknown>[] : (stmt.run(...params), [])
+      return { rows }
+    },
+  }
+  const userRepository = new UserRepository(dbQueryAdapter)
 
   // ── Scene state machine ──────────────────────────────────────
   const machine = new SceneMachine()

@@ -69,7 +69,7 @@ export class EventScheduler {
   private buildQueue() {
     if (this.queueTimer) { clearTimeout(this.queueTimer); this.queueTimer = null }
     const now = Date.now()
-    this.queue = this.getConfig().events
+    this.queue = (this.getConfig().events ?? [])
       .filter((e) => e.auto.enabled && e.auto.mode === 'interval' && this.eventHasWork(e))
       .map((e) => ({ eventId: e.id, fireAt: now + jitterMs(e.auto.intervalMin) }))
     this.queue.sort((a, b) => a.fireAt - b.fireAt)
@@ -91,7 +91,7 @@ export class EventScheduler {
     }
     const now = Date.now()
     this.lastProcessedAt = now
-    const events = this.getConfig().events
+    const events = this.getConfig().events ?? []
     const eventMap = new Map(events.map((e) => [e.id, e]))
 
     while (this.queue.length > 0 && this.queue[0].fireAt <= now) {
@@ -119,7 +119,7 @@ export class EventScheduler {
     this.idleTimers.clear()
     if (this.machine.currentState === STATE.TRANSITIONING) return
 
-    const events = this.getConfig().events
+    const events = this.getConfig().events ?? []
     for (const eventDef of events) {
       if (!eventDef.auto.enabled || eventDef.auto.mode !== 'idle' || !this.eventHasWork(eventDef)) continue
       if (this.idleTriggered.has(eventDef.id)) continue
@@ -132,7 +132,7 @@ export class EventScheduler {
   private fireIdleEvent(eventId: string) {
     this.idleTimers.delete(eventId)
     if (this.machine.currentState === STATE.TRANSITIONING) return
-    const eventDef = this.getConfig().events.find((e) => e.id === eventId)
+    const eventDef = (this.getConfig().events ?? []).find((e) => e.id === eventId)
     if (!eventDef || !eventDef.auto.enabled || !this.eventHasWork(eventDef)) return
     if (!this.allowsCurrentState(eventDef) || this.isInCooldown(eventDef, Date.now())) return
     this.idleTriggered.add(eventId)
