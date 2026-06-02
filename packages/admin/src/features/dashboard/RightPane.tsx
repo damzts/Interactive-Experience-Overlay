@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react'
+import { Component, useState, type ReactNode } from 'react'
 import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
@@ -142,7 +142,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'archive')  return <ArchivePanel />
-  if (selected.kind === 'settings') return <SettingsPage />
+  if (selected.kind === 'settings') return <SettingsPanel />
   if (selected.kind === 'asset-library') return <AssetLibraryPanel />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'scheduler') return <SchedulerPanel />
@@ -270,6 +270,30 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 // ── SettingsModal ──────────────────────────────────────────────────
 
 export type SettingsTab = 'general' | 'audio' | 'keybinds' | 'about'
+
+function SettingsPanel() {
+  const [tab, setTab] = useState<SettingsTab>('general')
+  return (
+    <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
+      <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
+        {(['general', 'audio', 'keybinds', 'about'] as const).map((id) => (
+          <button key={id} type="button" onClick={() => setTab(id)}
+            className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' + (
+              tab === id
+                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                : 'border-transparent text-zinc-500 hover:border-zinc-700/70 hover:bg-zinc-900/75 hover:text-zinc-200'
+            )}>{id}</button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {tab === 'about'    && <SettingsPage mode="about" />}
+        {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
+        {tab === 'audio'    && <AudioPanel />}
+        {tab === 'keybinds' && <KeybindEditor />}
+      </div>
+    </div>
+  )
+}
 
 export function SettingsModal({ tab, onTabChange, onClose }: {
   tab: SettingsTab
