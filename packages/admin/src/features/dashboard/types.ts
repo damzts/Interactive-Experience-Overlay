@@ -16,6 +16,9 @@ export type SelectedItem =
   | { kind: 'archive' }
   | { kind: 'settings' }
   | { kind: 'ambiance' }
+  | { kind: 'scheduler' }
+  | { kind: 'scene-machine' }
+  | { kind: 'obs' }
   | { kind: 'pov-online' }
 
 export function itemKey(item: SelectedItem): string {

@@ -239,6 +239,9 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
         <SidebarBtn icon="🎨" label="Global Desktop Theme" active={isActive({ kind: 'desktop-theme' })} onClick={() => onSelect({ kind: 'desktop-theme' })} />
         <SidebarBtn icon="📁" label="Archive" active={isActive({ kind: 'archive' })} onClick={() => onSelect({ kind: 'archive' })} />
         <SidebarBtn icon="🌌" label="Ambiance" active={isActive({ kind: 'ambiance' })} onClick={() => onSelect({ kind: 'ambiance' })} />
+        <SidebarBtn icon="⏱" label="Scheduler" active={isActive({ kind: 'scheduler' })} onClick={() => onSelect({ kind: 'scheduler' })} />
+        <SidebarBtn icon="🔄" label="Scene Machine" active={isActive({ kind: 'scene-machine' })} onClick={() => onSelect({ kind: 'scene-machine' })} />
+        <SidebarBtn icon="🎬" label="OBS" active={isActive({ kind: 'obs' })} onClick={() => onSelect({ kind: 'obs' })} />
         <SidebarBtn icon="🌐" label="Online Rooms" active={isActive({ kind: 'pov-online' })} onClick={() => onSelect({ kind: 'pov-online' })} />
         <SidebarBtn icon="🗂" label="Asset Library" active={libraryOpen} onClick={onLibrary} />
         <SidebarBtn icon="⚙" label="Settings" active={settingsOpen} onClick={onSettings} />

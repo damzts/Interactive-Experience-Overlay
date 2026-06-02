@@ -60,6 +60,7 @@ React control panel. Optional — system runs without it. Intentionally a separa
 - Sends commands via Socket.IO (scene changes, keybinds, widget toggles)
 - Manages online rooms via `/online` namespace
 - Auth delegates to cloud (optional, unlocks online features)
+- **Engine pages**: one dedicated sidebar page per server subsystem (Scheduler, Scene Machine, OBS, Ambiance, Online). Each page shows live diagnostics from existing socket events and exposes that subsystem's config section — no new server code required.
 
 ### `@ieom/shared`
 

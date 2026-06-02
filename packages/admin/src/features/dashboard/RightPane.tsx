@@ -13,6 +13,9 @@ import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
+import { SchedulerPanel } from '../scheduler/SchedulerPanel'
+import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
+import { ObsPanel } from '../obs/ObsPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
@@ -140,6 +143,9 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPage />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
+  if (selected.kind === 'scheduler') return <SchedulerPanel />
+  if (selected.kind === 'scene-machine') return <SceneMachinePanel />
+  if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
 
   return null
@@ -225,6 +231,10 @@ export function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
   else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';  headerMeta = 'Utility' }
   else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
+  else if (selected.kind === 'ambiance')      { headerIcon = '🌌'; headerLabel = 'Ambiance';      headerMeta = 'Engine' }
+  else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
+  else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
+  else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (
