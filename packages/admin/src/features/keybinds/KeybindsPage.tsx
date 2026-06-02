@@ -50,7 +50,6 @@ export function KeybindsPage() {
       id: `event:${e.id}`, label: e.label, icon: (e as { icon?: string }).icon ?? '⚡', action: `event:${e.id}`,
     }))
     return [
-      { id: 'panic', label: 'Panic to Desktop', icon: '🚨', action: 'panic' },
       ...scenes,
       ...widgets,
       ...events,

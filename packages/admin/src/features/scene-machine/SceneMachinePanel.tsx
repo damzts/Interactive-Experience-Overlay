@@ -83,22 +83,6 @@ export function SceneMachinePanel() {
         </div>
       </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Panic">
-        <ConfigCard>
-          <div className="text-[11px] text-zinc-400 mb-3">
-            Force the machine to Desktop immediately, bypassing all transition animations. Use if the overlay is stuck.
-          </div>
-          <Btn
-            type="button"
-            variant="warning"
-            onClick={() => socket.emit('panic')}
-            className="px-4 py-2 text-xs w-full"
-          >
-            ⚠ Force reset to Desktop
-          </Btn>
-        </ConfigCard>
-      </ConfigSectionPanel>
-
       {history.length > 0 && (
         <ConfigSectionPanel label="Transition history">
           <div className="space-y-1">

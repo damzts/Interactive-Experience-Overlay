@@ -66,7 +66,6 @@ export function KeybindEditor() {
     }))
 
     return [
-      { value: 'panic', label: 'Panic to Desktop', detail: 'System' },
       ...sceneOptions,
       ...widgetOptions,
       ...eventOptions,
