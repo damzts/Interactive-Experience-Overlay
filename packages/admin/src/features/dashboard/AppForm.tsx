@@ -54,28 +54,6 @@ import {
   resolveWidgetThemeOverrideFromConfig,
 } from './widgetHelpers'
 
-// ── Shared utility for model display ─────────────────────────────────
-
-function summarizeTransitionModel(steps?: any[]) {
-  if (!steps?.length) return 'none'
-  const ids = steps.map((step: any) => step.id).join(' -> ')
-  return `${steps.length} step${steps.length === 1 ? '' : 's'}: ${ids}`
-}
-
-function formatIconPositionModel(position?: { x: number; y: number }) {
-  if (!position) return 'unset'
-  return `x: ${Math.round(position.x)}, y: ${Math.round(position.y)}`
-}
-
-function ModelField({ field, value, mono = false }: { field: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{field}</div>
-      <div className={`text-[11px] text-zinc-100 break-all ${mono ? 'font-mono' : ''}`}>{value}</div>
-    </div>
-  )
-}
-
 // ── AppForm ───────────────────────────────────────────────────────────
 
 export function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) {
@@ -751,27 +729,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
           </ConfigSectionPanel>
         )}
 
-        <ConfigSectionPanel label="Application Model">
-          <div className="space-y-3">
-            <div className="grid gap-2 md:grid-cols-2">
-              <ModelField field="id" value={form.id} mono />
-              <ModelField field="appType" value={form.appType} mono />
-              <ModelField field="label" value={form.label || 'untitled'} />
-              <ModelField field="icon" value={form.icon || 'unset'} mono />
-              <ModelField field="iconSize" value={form.iconSize ?? 'normal'} mono />
-              {form.appType === 'scene' && <ModelField field="targetSceneId" value={form.targetSceneId || 'none'} mono />}
-              {form.appType === 'widget' && widgetSource && <ModelField field="widgetSource" value={widgetSource} mono />}
-              {form.appType === 'widget' && widgetComponent && <ModelField field="widgetComponent" value={widgetComponent} mono />}
-              <ModelField field="iconPosition" value={formatIconPositionModel(form.iconPosition)} mono />
-              {supportsSceneTransitions && (
-                <>
-                  <ModelField field="introTransitions" value={summarizeTransitionModel(form.introTransitions)} />
-                  <ModelField field="exitTransitions"  value={summarizeTransitionModel(form.exitTransitions)} />
-                </>
-              )}
-            </div>
-          </div>
-        </ConfigSectionPanel>
       </div>
 
       <button onClick={onDelete} disabled={isProtectedSystemWidget}
