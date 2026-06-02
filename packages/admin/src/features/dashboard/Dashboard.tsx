@@ -1,77 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
-import { AssetLibraryPanel as ExtractedAssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import { TopBar } from './TopBar'
 import { LeftSidebar } from './LeftSidebar'
-import { RightPane, SettingsModal } from './RightPane'
+import { RightPane } from './RightPane'
 import type { SelectedItem } from './types'
 import { itemKey } from './types'
+// AssetLibraryPanel (modal) and SettingsModal are preserved in their respective files for future use
 
 
 export function Dashboard() {
   const [selected,       setSelected]       = useState<SelectedItem | null>(null)
-  const [libraryOpen,    setLibraryOpen]    = useState(false)
-  const [libraryMounted, setLibraryMounted] = useState(false)
-  const [settingsOpen,   setSettingsOpen]   = useState(false)
-  const [settingsTab,    setSettingsTab]    = useState<'general' | 'audio' | 'keybinds' | 'about'>('general')
-  const libraryRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const applications  = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
-
-  const clearLibraryRestoreTimeout = () => {
-    if (libraryRestoreTimeoutRef.current) {
-      clearTimeout(libraryRestoreTimeoutRef.current)
-      libraryRestoreTimeoutRef.current = null
-    }
-  }
-
-  const handleSettingsToggle = () => {
-    if (settingsOpen) {
-      setSettingsOpen(false)
-      setSettingsTab('general')
-      return
-    }
-    setSettingsTab('general')
-    setSettingsOpen(true)
-  }
-
-  const handleSettingsClose = () => {
-    setSettingsOpen(false)
-    setSettingsTab('general')
-  }
-
-  const handleLibraryToggle = () => {
-    clearLibraryRestoreTimeout()
-    if (libraryOpen) {
-      setLibraryOpen(false)
-      setLibraryMounted(false)
-      return
-    }
-    setLibraryMounted(true)
-    setLibraryOpen(true)
-  }
-
-  const handleLibraryHide = () => {
-    clearLibraryRestoreTimeout()
-    setLibraryOpen(false)
-    libraryRestoreTimeoutRef.current = setTimeout(() => {
-      setLibraryMounted(true)
-      setLibraryOpen(true)
-      libraryRestoreTimeoutRef.current = null
-    }, 3000)
-  }
-
-  const handleLibraryClose = () => {
-    clearLibraryRestoreTimeout()
-    setLibraryOpen(false)
-    setLibraryMounted(false)
-  }
-
-  useEffect(() => () => {
-    clearLibraryRestoreTimeout()
-  }, [])
 
   // Clear selection when selected app is removed
   useEffect(() => {
@@ -118,21 +60,9 @@ export function Dashboard() {
           selected={selected}
           onSelect={handleSelect}
           onActivate={handleActivate}
-          libraryOpen={libraryOpen}
-          onLibrary={handleLibraryToggle}
-          settingsOpen={settingsOpen}
-          onSettings={handleSettingsToggle}
         />
         <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
       </div>
-      {libraryMounted && <ExtractedAssetLibraryPanel isOpen={libraryOpen} onHide={handleLibraryHide} onClose={handleLibraryClose} />}
-      {settingsOpen && (
-        <SettingsModal
-          tab={settingsTab}
-          onTabChange={setSettingsTab}
-          onClose={handleSettingsClose}
-        />
-      )}
     </div>
   )
 }

@@ -62,14 +62,10 @@ function SidebarAppIcon({ app }: { app: Application }) {
 
 // ── LeftSidebar ────────────────────────────────────────────────────
 
-export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLibrary, settingsOpen, onSettings }: {
+export function LeftSidebar({ selected, onSelect, onActivate }: {
   selected: SelectedItem | null
   onSelect: (item: SelectedItem) => void
   onActivate: (item: SelectedItem) => void
-  libraryOpen: boolean
-  onLibrary: () => void
-  settingsOpen: boolean
-  onSettings: () => void
 }) {
   const currentState   = useAdminStore((s) => s.currentState)
   const saveConfig     = useAdminStore((s) => s.saveConfig)
@@ -243,8 +239,8 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
         <SidebarBtn icon="🔄" label="Scene Machine" active={isActive({ kind: 'scene-machine' })} onClick={() => onSelect({ kind: 'scene-machine' })} />
         <SidebarBtn icon="🎬" label="OBS" active={isActive({ kind: 'obs' })} onClick={() => onSelect({ kind: 'obs' })} />
         <SidebarBtn icon="🌐" label="Online Rooms" active={isActive({ kind: 'pov-online' })} onClick={() => onSelect({ kind: 'pov-online' })} />
-        <SidebarBtn icon="🗂" label="Asset Library" active={libraryOpen} onClick={onLibrary} />
-        <SidebarBtn icon="⚙" label="Settings" active={settingsOpen} onClick={onSettings} />
+        <SidebarBtn icon="🗂" label="Asset Library" active={isActive({ kind: 'asset-library' })} onClick={() => onSelect({ kind: 'asset-library' })} />
+        <SidebarBtn icon="⚙" label="Settings" active={isActive({ kind: 'settings' })} onClick={() => onSelect({ kind: 'settings' })} />
 
       </div>
     </div>

@@ -20,6 +20,7 @@ export type SelectedItem =
   | { kind: 'scene-machine' }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
+  | { kind: 'asset-library' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState

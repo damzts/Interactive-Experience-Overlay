@@ -16,6 +16,7 @@ import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
 import { SchedulerPanel } from '../scheduler/SchedulerPanel'
 import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
 import { ObsPanel } from '../obs/ObsPanel'
+import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
@@ -142,6 +143,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPage />
+  if (selected.kind === 'asset-library') return <AssetLibraryPanel inline isOpen onHide={() => {}} onClose={() => {}} />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'scheduler') return <SchedulerPanel />
   if (selected.kind === 'scene-machine') return <SceneMachinePanel />
@@ -229,8 +231,9 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     headerMeta  = 'Utility'
   } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio';    headerMeta = 'Utility' }
   else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
-  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';  headerMeta = 'Utility' }
-  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
+  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';       headerMeta = 'Utility' }
+  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings';      headerMeta = 'Utility' }
+  else if (selected.kind === 'asset-library') { headerIcon = '🗂'; headerLabel = 'Asset Library'; headerMeta = 'Utility' }
   else if (selected.kind === 'ambiance')      { headerIcon = '🌌'; headerLabel = 'Ambiance';      headerMeta = 'Engine' }
   else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
   else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
