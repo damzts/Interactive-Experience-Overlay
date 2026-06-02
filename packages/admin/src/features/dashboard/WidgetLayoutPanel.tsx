@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
-import type { WidgetLayoutDefinition, WidgetLayoutItem, WidgetLayoutSnapshot } from '@ieom/shared'
-import { socket } from '../../socket/client'
+import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { Btn, ConfigApplyBar, ConfigCard, ConfigNotice, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
-import {
-  createWidgetLayoutFromCurrentState,
-  createWidgetLayoutSnapshot,
-  normalizeWidgetLayoutsForEditor,
-} from './widgetHelpers'
+import { Btn, ConfigApplyBar, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
+import { normalizeWidgetLayoutsForEditor } from './widgetHelpers'
 
 // ── WidgetCanvas ──────────────────────────────────────────────────────
 
@@ -214,48 +209,29 @@ function WidgetCanvas({
 
 export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDeleted: () => void }) {
   const config               = useAdminStore((s) => s.config)
-  const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
   const saveConfig           = useAdminStore((s) => s.saveConfig)
-  const openWidgetIds        = useAdminStore((s) => s.openWidgetIds)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const widgetApps    = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
   const sourceLayouts = useMemo(() => normalizeWidgetLayoutsForEditor(desktopConfig.widgetLayouts, widgetApps, desktopConfig), [desktopConfig, widgetApps])
   const sourceLayout  = useMemo(() => sourceLayouts.find((layout) => layout.id === layoutId) ?? null, [layoutId, sourceLayouts])
 
-  const [layout,            setLayout]            = useState<WidgetLayoutDefinition | null>(sourceLayout)
-  const [saving,            setSaving]            = useState(false)
-  const [saved,             setSaved]             = useState(false)
-  const [saveDefaultArmed,  setSaveDefaultArmed]  = useState(false)
-  const [clearingOverride,  setClearingOverride]  = useState(false)
-  const [clearOverrideError, setClearOverrideError] = useState<string | null>(null)
-  const savedTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveDefaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [layout,  setLayout]  = useState<WidgetLayoutDefinition | null>(sourceLayout)
+  const [saving,  setSaving]  = useState(false)
+  const [saved,   setSaved]   = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setLayout(sourceLayout ? structuredClone(sourceLayout) : null)
-    setClearingOverride(false); setClearOverrideError(null); setSaved(false)
+    setSaved(false)
   }, [sourceLayout])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
-    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
   }, [])
 
   if (!sourceLayout || !layout) return <div className="text-zinc-600 text-xs italic p-4">Layout not found.</div>
 
   const dirty = !isSameDraft(layout, sourceLayout)
-  const layoutWidgetIds = layout.items.map((item) => item.widgetId)
-  const runtimeWidgetPositions = runtimeConfigOverride.desktopConfig?.widgetPositions ?? {}
-  const runtimeWidgetSizes     = runtimeConfigOverride.desktopConfig?.widgetSizes ?? {}
-  const runtimeWidgetZIndices  = runtimeConfigOverride.desktopConfig?.widgetZIndices ?? {}
-  const hasRuntimeOverride = layoutWidgetIds.some((id) => id in runtimeWidgetPositions || id in runtimeWidgetSizes || id in runtimeWidgetZIndices)
-  const activeRuntimeOverrideCount = layoutWidgetIds.filter((id) => id in runtimeWidgetPositions || id in runtimeWidgetSizes || id in runtimeWidgetZIndices).length
-  const defaultSnapshot = sourceLayout.defaultConfig ? structuredClone(sourceLayout.defaultConfig) : createWidgetLayoutSnapshot(sourceLayout)
-
-  const applySnapshotToLayout = (target: WidgetLayoutDefinition, snapshot: WidgetLayoutSnapshot): WidgetLayoutDefinition => ({
-    ...target, label: snapshot.label, icon: snapshot.icon, description: snapshot.description, items: structuredClone(snapshot.items),
-  })
-
   const persistLayout = async (nextLayout: WidgetLayoutDefinition) => {
     setSaving(true)
     await saveConfig({ desktopConfig: { ...desktopConfig, widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? nextLayout : entry) } })
@@ -265,33 +241,9 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
   }
 
-  const reset = () => { setLayout(structuredClone(sourceLayout)); setSaveDefaultArmed(false); setSaved(false) }
-
   const updateLayout = (updater: (draft: WidgetLayoutDefinition) => void) => {
     setLayout((prev) => { if (!prev) return prev; const next = structuredClone(prev); updater(next); return next })
     setSaved(false)
-  }
-
-  const restoreDefaults = async () => {
-    await persistLayout({ ...applySnapshotToLayout(layout, defaultSnapshot), defaultConfig: structuredClone(sourceLayout.defaultConfig ?? defaultSnapshot) })
-    setSaveDefaultArmed(false)
-  }
-
-  const saveCurrentAsDefault = async () => {
-    if (!saveDefaultArmed) {
-      setSaveDefaultArmed(true)
-      if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
-      saveDefaultTimer.current = setTimeout(() => setSaveDefaultArmed(false), 3500)
-      return
-    }
-    if (saveDefaultTimer.current) clearTimeout(saveDefaultTimer.current)
-    await persistLayout({ ...layout, defaultConfig: createWidgetLayoutSnapshot(layout) })
-    setSaveDefaultArmed(false)
-  }
-
-  const captureCurrentIntoLayout = () => {
-    const nextLayout = createWidgetLayoutFromCurrentState('current', widgetApps, desktopConfig, openWidgetIds)
-    updateLayout((draft) => { draft.items = nextLayout.items.map((item) => ({ ...item })) })
   }
 
   const deleteLayout = async () => {
@@ -302,29 +254,13 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
     onDeleted()
   }
 
-  const applyLayout = () => {
-    socket.emit('widget:layout:apply:items', layout.items)
-    void persistLayout(layout)
-  }
-
-  const clearLayoutOverride = () => {
-    if (!hasRuntimeOverride || clearingOverride) return
-    setClearingOverride(true)
-    setClearOverrideError(null)
-    socket.emit('runtime:config:override:widget-layout:clear', layoutWidgetIds, (err: string | null) => {
-      setClearingOverride(false)
-      if (err) { setClearOverrideError(err); return }
-      setClearOverrideError(null)
-    })
-  }
-
   return (
     <div className="space-y-3">
       <ConfigApplyBar label={layout.label} dirty={dirty} saving={saving} saved={saved}
-        onApply={() => { void applyLayout() }} onReset={() => { void restoreDefaults() }} alwaysShow />
+        onApply={() => void persistLayout(layout)} onReset={() => setLayout(structuredClone(sourceLayout))} alwaysShow />
       <div className="space-y-0 pt-3">
-        <ConfigSectionPanel label="Runtime Override" first>
-          <div className="space-y-2.5">
+        <ConfigSectionPanel label="Layout Configuration" first>
+          <div className="space-y-3">
             <div className="flex gap-2 items-start">
               <input type="text" value={layout.icon}
                 onChange={(e) => updateLayout((draft) => { draft.icon = e.target.value || '📐' })}
@@ -343,38 +279,9 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
                   className="w-full text-[11px]" placeholder="Optional description" />
               </div>
             </div>
-            <ConfigCard className="space-y-2">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="mt-1 text-[11px] text-zinc-200">
-                    {hasRuntimeOverride ? `Active for ${activeRuntimeOverrideCount} ${activeRuntimeOverrideCount === 1 ? 'widget' : 'widgets'}` : 'No active override'}
-                  </div>
-                </div>
-              </div>
-              <div className="text-[10px] leading-relaxed text-zinc-500">
-                Removes live runtime position, size, and stack-order overrides for every widget included in this layout without changing the saved layout definition.
-              </div>
-            </ConfigCard>
-            {clearOverrideError && <ConfigNotice tone="danger">{clearOverrideError}</ConfigNotice>}
-            <div className="flex gap-2">
-              <Btn type="button" variant="primary" onClick={() => { void applyLayout() }} className="flex-1 px-2.5 py-1 text-[10px]">Apply</Btn>
-              <Btn type="button" onClick={clearLayoutOverride} disabled={!hasRuntimeOverride || clearingOverride} className="px-2.5 py-1 text-[10px]">
-                {clearingOverride ? 'Clearing Override...' : 'Clear Override'}
-              </Btn>
-              <Btn type="button" variant={layout.source === 'system' ? 'ghost' : 'danger'}
-                onClick={() => { void deleteLayout() }} disabled={layout.source === 'system'} className="px-2.5 py-1 text-[10px]">
-                {layout.source === 'system' ? 'Protected' : 'Delete'}
-              </Btn>
-            </div>
-          </div>
-        </ConfigSectionPanel>
 
-        <ConfigSectionPanel label="Layout Configuration">
-          <div className="space-y-3">
-            {layout.source === 'system' && <div className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, not removable.</div>}
-            <div className="flex justify-end">
-              <Btn type="button" onClick={() => captureCurrentIntoLayout()} className="px-2.5 py-1 text-[10px]">Use Current</Btn>
-            </div>
+            {layout.source === 'system' && <div className="text-[10px] text-zinc-500">Built-in layout — read-only.</div>}
+
             <WidgetCanvas
               items={layout.items}
               widgetApps={widgetApps}
@@ -384,7 +291,12 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
                 if (row) Object.assign(row, patch)
               })}
             />
-            <div className="text-[10px] text-zinc-600">Click a widget to toggle on/off · Drag to reposition</div>
+
+            {layout.source !== 'system' && (
+              <Btn type="button" variant="danger" onClick={() => { void deleteLayout() }} className="w-full px-2.5 py-1 text-[10px]">
+                Delete Layout
+              </Btn>
+            )}
           </div>
         </ConfigSectionPanel>
       </div>

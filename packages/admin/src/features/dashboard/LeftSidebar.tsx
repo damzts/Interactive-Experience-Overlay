@@ -98,13 +98,14 @@ export function LeftSidebar({ selected, onSelect, onActivate }: {
     if (widgetApps.length === 0) return
     const nextUserLayoutNumber = userWidgetLayouts.length + 1
     const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${nextUserLayoutNumber}`, widgetApps, desktopConfig, openWidgetIds)
+    const emptyLayout: typeof nextLayout = { ...nextLayout, items: nextLayout.items.map((item) => ({ ...item, enabled: false })) }
     await saveConfig({
       desktopConfig: {
         ...desktopConfig,
-        widgetLayouts: [...persistedWidgetLayouts, nextLayout],
+        widgetLayouts: [...persistedWidgetLayouts, emptyLayout],
       },
     })
-    onSelect({ kind: 'widget-layout', layoutId: nextLayout.id })
+    onSelect({ kind: 'widget-layout', layoutId: emptyLayout.id })
   }
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
@@ -226,7 +227,7 @@ export function LeftSidebar({ selected, onSelect, onActivate }: {
             onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })}
           />
         ))}
-        <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
+        <AddBtn label="New Layout" onClick={() => { void captureCurrentLayout() }} />
 
         <div className="flex-1" />
 

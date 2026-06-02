@@ -69,8 +69,6 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
     <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-3 pt-3 pb-2 backdrop-blur-xl">
       <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/70">{label}</span>
-          <div className="flex-1" />
           <SaveBar
             dirty={dirty}
             saving={saving}
@@ -79,6 +77,7 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
             onRevert={onReset}
             alwaysShow={alwaysShow}
             showDivider={false}
+            className="w-full"
           />
         </div>
       </div>
@@ -548,17 +547,30 @@ export function SaveBar({
 }) {
   if (!alwaysShow && !dirty && !saved) return null
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${showDivider ? 'mt-4 border-t border-white/8 pt-3' : ''} ${className}`.trim()}>
-      {saved && <span className="admin-text-body text-emerald-300">✔ Saved</span>}
+    <div className={`space-y-2 ${showDivider ? 'mt-4 border-t border-white/8 pt-3' : ''} ${className}`.trim()}>
       {(dirty || alwaysShow) && (
-        <>
-          <Btn variant={dirty || alwaysShow ? 'warning' : 'default'} onClick={onSave} disabled={saving} className="px-4 py-2 text-sm">
-            {saving ? 'Saving…' : 'Save Current as Default'}
-          </Btn>
-          {onRevert && (dirty || alwaysShow) && (
-            <Btn variant="primary" onClick={onRevert} disabled={!dirty}>Restore Defaults</Btn>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onSave} disabled={saving || !dirty}
+            className="flex flex-col items-center gap-1 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-200 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 disabled:opacity-40">
+            <span className="text-lg">💾</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">{saving ? 'Saving…' : 'Save'}</span>
+            <span className="text-[9px] text-amber-300/60">Apply &amp; write to database</span>
+          </button>
+          {onRevert && (
+            <button type="button" onClick={onRevert} disabled={!dirty}
+              className="flex flex-col items-center gap-1 rounded-xl border border-zinc-600/40 bg-zinc-800/40 px-4 py-3 text-zinc-300 transition-colors hover:border-zinc-500/60 hover:bg-zinc-700/40 disabled:opacity-40">
+              <span className="text-lg">↩︎</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">Restore</span>
+              <span className="text-[9px] text-zinc-500">Revert unsaved changes</span>
+            </button>
           )}
-        </>
+        </div>
+      )}
+      {saved && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+          <span className="text-base">✅</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Saved successfully</span>
+        </div>
       )}
     </div>
   )
