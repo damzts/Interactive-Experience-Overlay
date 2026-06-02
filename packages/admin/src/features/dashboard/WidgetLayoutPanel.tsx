@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
+import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigApplyBar, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
 import { normalizeWidgetLayoutsForEditor } from './widgetHelpers'
@@ -291,6 +292,10 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
                 if (row) Object.assign(row, patch)
               })}
             />
+
+            <Btn type="button" variant="primary" onClick={() => socket.emit('widget:layout:apply', layout.id)} className="w-full px-2.5 py-1 text-[10px]">
+              Test Layout
+            </Btn>
 
             {layout.source !== 'system' && (
               <Btn type="button" variant="danger" onClick={() => { void deleteLayout() }} className="w-full px-2.5 py-1 text-[10px]">

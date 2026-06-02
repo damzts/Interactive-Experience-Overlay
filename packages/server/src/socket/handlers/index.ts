@@ -58,6 +58,18 @@ export function setupSocketHandlers(
     rejectedSimulatedToggles: 0,
   }
 
+  // Keep cachedUserConfig always in sync with the service's in-memory cache.
+  // This ensures socket handlers (applySavedWidgetLayout, executeConfiguredEvent, etc.)
+  // always see the latest persisted state without needing explicit refresh calls.
+  if (options?.configService) {
+    let _cachedUserConfig: AppConfig = DEFAULT_CONFIG as unknown as AppConfig
+    Object.defineProperty(ctx, 'cachedUserConfig', {
+      get: () => options.configService!.cachedConfig ?? _cachedUserConfig,
+      set: (v: AppConfig) => { _cachedUserConfig = v },
+      enumerable: true, configurable: true,
+    })
+  }
+
   // Give ambiance manager live access to runtime state
   ambianceManager.setOpenWidgetIdsGetter(() => ctx.openWidgetIds)
   ambianceManager.setSimulationLeaderGetter(() => ctx.simulationLeaderSocketId)
