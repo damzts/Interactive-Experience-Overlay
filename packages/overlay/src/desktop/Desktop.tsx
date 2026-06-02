@@ -576,20 +576,8 @@ export function Desktop({ apps }: DesktopProps) {
   }, [cameraPermissionState, overlayRuntimeReady, supportedApps])
 
   useEffect(() => {
-    if (!isSimulationLeader || !overlayRuntimeReady) return
-
-    const emitHeartbeat = () => {
-      socket.emit('ambiance:leader:heartbeat')
-    }
-
-    emitHeartbeat()
-    const timer = window.setInterval(emitHeartbeat, 2000)
-    socket.on('connect', emitHeartbeat)
-
-    return () => {
-      window.clearInterval(timer)
-      socket.off('connect', emitHeartbeat)
-    }
+    // With a single overlay slot, leadership is assigned on connect and held until disconnect.
+    // No heartbeat needed — the server clears the leader on socket disconnect.
   }, [isSimulationLeader, overlayRuntimeReady])
 
   useEffect(() => {
