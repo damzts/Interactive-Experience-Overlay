@@ -143,7 +143,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPage />
-  if (selected.kind === 'asset-library') return <AssetLibraryPanel inline isOpen onHide={() => {}} onClose={() => {}} />
+  if (selected.kind === 'asset-library') return <AssetLibraryPanel />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'scheduler') return <SchedulerPanel />
   if (selected.kind === 'scene-machine') return <SceneMachinePanel />

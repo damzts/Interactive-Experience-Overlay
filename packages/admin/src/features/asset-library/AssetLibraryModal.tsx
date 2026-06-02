@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-
-import { ConfigCard, FloatingWindowHeader, FloatingWindowShell } from '../../shared/ui'
+import { ConfigCard } from '../../shared/ui'
 
 type AssetLibraryTab = {
   id: string
@@ -10,27 +9,21 @@ type AssetLibraryTab = {
 }
 
 export function AssetLibraryModal({
-  isOpen,
-  onClose,
   tabs,
   activeTab,
   onTabChange,
   sidebarChildren,
   contentChildren,
-  inline = false,
 }: {
-  isOpen: boolean
-  onClose: () => void
   tabs: readonly AssetLibraryTab[]
   activeTab: string
   onTabChange: (tabId: string) => void
   sidebarChildren: ReactNode
   contentChildren: ReactNode
-  inline?: boolean
 }) {
-  const content = (
-    <div className="flex-1 min-h-0 overflow-hidden p-5 sm:p-6">
-      <div className="grid h-full min-h-0 gap-5 grid-cols-[320px_minmax(0,1fr)]">
+  return (
+    <div className="flex flex-1 min-h-0 overflow-hidden p-5 sm:p-6">
+      <div className="grid w-full h-full min-h-0 gap-5 grid-cols-[320px_minmax(0,1fr)]">
         <ConfigCard className="min-h-0 overflow-hidden p-4 sm:p-5">
           <div className="flex h-full min-h-0 flex-col gap-4">
             <div className="grid gap-1.5">
@@ -66,17 +59,5 @@ export function AssetLibraryModal({
         </div>
       </div>
     </div>
-  )
-
-  if (inline) return content
-
-  return (
-    <FloatingWindowShell
-      frameClassName="h-[98vh] max-h-[1040px] max-w-none w-[min(1760px,calc(100vw-8px))]"
-      layerClassName={`z-[60]${isOpen ? '' : ' hidden'}`}
-    >
-      <FloatingWindowHeader icon="🗂" title="Asset Library" onClose={onClose} />
-      {content}
-    </FloatingWindowShell>
   )
 }

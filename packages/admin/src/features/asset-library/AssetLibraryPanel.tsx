@@ -13,7 +13,7 @@ import { TRANSITION_ICONS, TRANSITION_OPTIONS, encodeMediaTransitionValue, getMe
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { MediaEntry, SourcePreset } from '@ieom/shared'
 
-export function AssetLibraryPanel({ isOpen, onHide, onClose, inline = false }: { isOpen: boolean; onHide: () => void; onClose: () => void; inline?: boolean }) {
+export function AssetLibraryPanel() {
   const config = useAdminStore((state) => state.config)
   const mediaLibrary = useAdminStore((state) => state.config.mediaLibrary ?? [])
   const eventDefs = useAdminStore((state) => (state.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
@@ -399,7 +399,6 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose, inline = false }: {
 
   const handleTriggerEvent = (def: EventDef) => {
     socket.emit('event:preview', def)
-    onHide()
   }
 
   const assetLibraryTabs = [
@@ -411,9 +410,6 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose, inline = false }: {
 
   return (
     <AssetLibraryModal
-      isOpen={isOpen}
-      onClose={onClose}
-      inline={inline}
       tabs={assetLibraryTabs}
       activeTab={tab}
       onTabChange={(nextTab) => setTab(nextTab as typeof tab)}
