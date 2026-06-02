@@ -85,7 +85,7 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
     </div>
   );
 }
-import { useEffect, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
@@ -560,6 +560,70 @@ export function SaveBar({
           )}
         </>
       )}
+    </div>
+  )
+}
+
+// ── OverlayPreview ────────────────────────────────────────────────────
+// Generic 16:9 stage (1920×1080 coordinate space). Renders children
+// as positioned items. Use OverlayPreviewItem to place content.
+
+export interface OverlayPreviewItemProps {
+  /** Position + size in 1920×1080 space */
+  x: number
+  y: number
+  width: number
+  height: number
+  children?: ReactNode
+  className?: string
+  style?: CSSProperties
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerCancel?: (e: React.PointerEvent<HTMLDivElement>) => void
+}
+
+export function OverlayPreviewItem({
+  x, y, width, height, children, className = '', style, ...handlers
+}: OverlayPreviewItemProps) {
+  return (
+    <div
+      className={`absolute overflow-hidden ${className}`}
+      style={{
+        left: `${(x / 1920) * 100}%`,
+        top: `${(y / 1080) * 100}%`,
+        width: `${(width / 1920) * 100}%`,
+        height: `${(height / 1080) * 100}%`,
+        ...style,
+      }}
+      {...handlers}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function OverlayPreview({
+  children,
+  className = '',
+  stageRef: externalRef,
+}: {
+  children?: ReactNode
+  className?: string
+  stageRef?: React.RefObject<HTMLDivElement>
+}) {
+  const internalRef = useRef<HTMLDivElement>(null)
+  const ref = externalRef ?? internalRef
+  return (
+    <div
+      ref={ref}
+      className={`relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${className}`}
+    >
+      {/* backdrop */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
+      {children}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import type { SourcePreset } from '@ieom/shared'
 import { AssetSelectionInput } from './AssetLibrary'
 import { findSourceCatalogEntry, SOURCE_CATALOG, type CatalogEntry, type FieldDef } from '../../shared/sourceCatalog'
-import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput } from '../../shared/ui'
+import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
   return (
@@ -113,12 +113,6 @@ export function SourcePresetPreview({
     width: Math.max(80, Math.min(1920, Number(preset.defaultPosition?.width ?? 1920))),
     height: Math.max(48, Math.min(1080, Number(preset.defaultPosition?.height ?? 1080))),
   }
-  const previewFrameStyle = {
-    left: `${(sourcePosition.x / 1920) * 100}%`,
-    top: `${(sourcePosition.y / 1080) * 100}%`,
-    width: `${(sourcePosition.width / 1920) * 100}%`,
-    height: `${(sourcePosition.height / 1080) * 100}%`,
-  } as const
 
   let previewNode: ReactNode
 
@@ -277,10 +271,7 @@ export function SourcePresetPreview({
 
   return (
     <div className="space-y-3">
-      <div ref={stageRef} className="relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
+      <OverlayPreview stageRef={stageRef}>
         <div className="absolute left-3 top-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] text-zinc-300">
           {meta?.icon ?? '▣'} {meta?.label ?? preset.pluginType}
         </div>
@@ -290,9 +281,9 @@ export function SourcePresetPreview({
         <div className="absolute bottom-3 left-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 font-mono text-[10px] text-zinc-300">
           {Math.round(sourcePosition.x)}, {Math.round(sourcePosition.y)}
         </div>
-        <div
-          className={'absolute overflow-hidden rounded-xl border border-cyan-400/35 bg-zinc-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.1),0_12px_32px_rgba(2,6,23,0.4)] ' + (onPositionChange ? (dragState ? 'cursor-grabbing' : 'cursor-grab') : '')}
-          style={previewFrameStyle}
+        <OverlayPreviewItem
+          x={sourcePosition.x} y={sourcePosition.y} width={sourcePosition.width} height={sourcePosition.height}
+          className={'rounded-xl border border-cyan-400/35 bg-zinc-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.1),0_12px_32px_rgba(2,6,23,0.4)] ' + (onPositionChange ? (dragState ? 'cursor-grabbing' : 'cursor-grab') : '')}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -300,8 +291,8 @@ export function SourcePresetPreview({
         >
           <div className="absolute inset-0">{previewNode}</div>
           <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
-        </div>
-      </div>
+        </OverlayPreviewItem>
+      </OverlayPreview>
       <div className="grid gap-2 text-[10px] text-zinc-500 sm:grid-cols-3">
         <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
         <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>

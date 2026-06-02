@@ -140,6 +140,51 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     applySavedWidgetLayout(ctx, layoutId, { persist: false, userId: socket.data.userId })
   })
 
+  socket.on('widget:layout:apply:items', (items) => {
+    ctx.scheduler?.noteActivity()
+    const currentConfig = ctx.cachedUserConfig
+    const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
+    const validWidgetIds = new Set(currentConfig.applications.filter((a) => a.appType === 'widget').map((a) => a.id))
+    const validItems = items.filter((i) => validWidgetIds.has(i.widgetId))
+    if (!validItems.length) return
+
+    const nextDesktop = { ...(ctx.runtimeConfigOverride.desktopConfig ?? {}) }
+    const nextPositions = { ...(nextDesktop.widgetPositions ?? {}) }
+    const nextSizes = { ...(nextDesktop.widgetSizes ?? {}) }
+    const nextZIndices = { ...(nextDesktop.widgetZIndices ?? {}) }
+    const defaultZIndices = currentDesktop.widgetDefaultZIndices ?? {}
+
+    for (const item of validItems) {
+      delete nextPositions[item.widgetId]
+      delete nextSizes[item.widgetId]
+      delete nextZIndices[item.widgetId]
+    }
+    const enabledItems = [...validItems.filter((i) => i.enabled)].sort((a, b) =>
+      a.focusPriority !== b.focusPriority ? a.focusPriority - b.focusPriority : (defaultZIndices[a.widgetId] ?? 0) - (defaultZIndices[b.widgetId] ?? 0)
+    )
+    for (const item of enabledItems) {
+      nextPositions[item.widgetId] = { x: item.x, y: item.y }
+      nextSizes[item.widgetId] = { width: item.width, height: item.height }
+      nextZIndices[item.widgetId] = item.focusPriority
+    }
+
+    if (Object.keys(nextPositions).length) nextDesktop.widgetPositions = nextPositions; else delete nextDesktop.widgetPositions
+    if (Object.keys(nextSizes).length) nextDesktop.widgetSizes = nextSizes; else delete nextDesktop.widgetSizes
+    if (Object.keys(nextZIndices).length) nextDesktop.widgetZIndices = nextZIndices; else delete nextDesktop.widgetZIndices
+
+    ctx.runtimeConfigOverride = {
+      desktopConfig: Object.keys(nextDesktop).length ? nextDesktop as typeof ctx.runtimeConfigOverride['desktopConfig'] : undefined,
+      desktopAmbiance: ctx.runtimeConfigOverride.desktopAmbiance,
+    }
+    ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+
+    for (const item of validItems) {
+      const isOpen = ctx.openWidgetIds.has(item.widgetId)
+      if (item.enabled !== isOpen) toggleWidgetRuntime(ctx, item.widgetId)
+    }
+    ctx.io.emit('widget:layout:apply:items', validItems)
+  })
+
   socket.on('widget:simulate:intent', (payload) => {
     if (socket.id !== ctx.simulationLeaderSocketId) return
     ctx.io.emit('widget:simulate:intent', payload)

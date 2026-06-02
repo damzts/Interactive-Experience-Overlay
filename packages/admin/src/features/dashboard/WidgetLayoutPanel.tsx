@@ -1,17 +1,215 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_SYSTEM_WIDGET_LAYOUTS, withDesktopConfigDefaults } from '@ieom/shared'
-import type { WidgetLayoutDefinition, WidgetLayoutSnapshot } from '@ieom/shared'
+import type { WidgetLayoutDefinition, WidgetLayoutItem, WidgetLayoutSnapshot } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
-import { Btn, ConfigApplyBar, ConfigCard, ConfigNotice, ConfigSectionPanel, IconGlyph, isSameDraft } from '../../shared/ui'
-import { WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN } from './constants'
+import { Btn, ConfigApplyBar, ConfigCard, ConfigNotice, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
 import {
   buildWidgetLayoutItem,
-  clampWidgetDimension,
   createWidgetLayoutFromCurrentState,
   createWidgetLayoutSnapshot,
   normalizeWidgetLayoutsForEditor,
 } from './widgetHelpers'
+
+// ── WidgetCanvas ──────────────────────────────────────────────────────
+
+type Corner = 'nw' | 'ne' | 'sw' | 'se'
+
+function WidgetCanvas({
+  items,
+  widgetApps,
+  readonly = false,
+  onChange,
+}: {
+  items: WidgetLayoutItem[]
+  widgetApps: { id: string; label: string; icon: string }[]
+  readonly?: boolean
+  onChange: (widgetId: string, patch: Partial<Pick<WidgetLayoutItem, 'x' | 'y' | 'width' | 'height' | 'enabled'>>) => void
+}) {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<{
+    widgetId: string; pointerId: number
+    startClientX: number; startClientY: number
+    startX: number; startY: number
+  } | null>(null)
+  const [resizing, setResizing] = useState<{
+    widgetId: string; corner: Corner; pointerId: number
+    startClientX: number; startClientY: number
+    startX: number; startY: number; startW: number; startH: number
+  } | null>(null)
+  const movedRef = useRef(false)
+
+  const enabledItems = items.filter((i) => i.enabled)
+  const selectedItem = items.find((i) => i.widgetId === selectedId) ?? null
+
+  const getStageScale = () => {
+    const rect = stageRef.current?.getBoundingClientRect()
+    return rect ? { sx: 1920 / rect.width, sy: 1080 / rect.height } : { sx: 1, sy: 1 }
+  }
+
+  // ── drag (move) ──
+  const onItemPointerDown = (e: React.PointerEvent<HTMLDivElement>, item: WidgetLayoutItem) => {
+    if (readonly) return
+    e.preventDefault(); e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    movedRef.current = false
+    setSelectedId(item.widgetId)
+    setDragging({ widgetId: item.widgetId, pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startX: item.x, startY: item.y })
+  }
+  const onItemPointerMove = (e: React.PointerEvent<HTMLDivElement>, item: WidgetLayoutItem) => {
+    if (!dragging || dragging.widgetId !== item.widgetId || dragging.pointerId !== e.pointerId) return
+    const { sx, sy } = getStageScale()
+    const dx = (e.clientX - dragging.startClientX) * sx
+    const dy = (e.clientY - dragging.startClientY) * sy
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true
+    onChange(item.widgetId, {
+      x: Math.max(0, Math.min(1920 - item.width,  Math.round(dragging.startX + dx))),
+      y: Math.max(0, Math.min(1080 - item.height, Math.round(dragging.startY + dy))),
+    })
+  }
+  const onItemPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragging?.pointerId !== e.pointerId) return
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    setDragging(null)
+  }
+
+  // ── resize ──
+  const onHandlePointerDown = (e: React.PointerEvent<HTMLDivElement>, item: WidgetLayoutItem, corner: Corner) => {
+    if (readonly) return
+    e.preventDefault(); e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setResizing({ widgetId: item.widgetId, corner, pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startX: item.x, startY: item.y, startW: item.width, startH: item.height })
+  }
+  const onHandlePointerMove = (e: React.PointerEvent<HTMLDivElement>, item: WidgetLayoutItem) => {
+    if (!resizing || resizing.widgetId !== item.widgetId || resizing.pointerId !== e.pointerId) return
+    const { sx, sy } = getStageScale()
+    const dx = (e.clientX - resizing.startClientX) * sx
+    const dy = (e.clientY - resizing.startClientY) * sy
+    const { corner, startX, startY, startW, startH } = resizing
+    let x = startX, y = startY, w = startW, h = startH
+    if (corner === 'se') { w = startW + dx; h = startH + dy }
+    if (corner === 'sw') { x = startX + dx; w = startW - dx; h = startH + dy }
+    if (corner === 'ne') { y = startY + dy; w = startW + dx; h = startH - dy }
+    if (corner === 'nw') { x = startX + dx; y = startY + dy; w = startW - dx; h = startH - dy }
+    onChange(item.widgetId, {
+      x: Math.max(0, Math.round(x)),
+      y: Math.max(0, Math.round(y)),
+      width:  Math.max(120, Math.min(1920, Math.round(w))),
+      height: Math.max(80,  Math.min(1080, Math.round(h))),
+    })
+  }
+  const onHandlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (resizing?.pointerId !== e.pointerId) return
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    setResizing(null)
+  }
+
+  const CORNERS: { corner: Corner; className: string }[] = [
+    { corner: 'nw', className: 'top-0 left-0 cursor-nw-resize -translate-x-1/2 -translate-y-1/2' },
+    { corner: 'ne', className: 'top-0 right-0 cursor-ne-resize translate-x-1/2 -translate-y-1/2' },
+    { corner: 'sw', className: 'bottom-0 left-0 cursor-sw-resize -translate-x-1/2 translate-y-1/2' },
+    { corner: 'se', className: 'bottom-0 right-0 cursor-se-resize translate-x-1/2 translate-y-1/2' },
+  ]
+
+  return (
+    <div className="space-y-3">
+      {/* Toggle buttons — all widgets */}
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => {
+          const app = widgetApps.find((a) => a.id === item.widgetId)
+          if (!app) return null
+          const isSelected = selectedId === item.widgetId
+          return (
+            <button
+              key={item.widgetId}
+              type="button"
+              onClick={() => {
+                if (readonly) return
+                onChange(item.widgetId, { enabled: !item.enabled })
+                if (!item.enabled) setSelectedId(item.widgetId)
+                else if (isSelected) setSelectedId(null)
+              }}
+              className={[
+                'flex flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-center transition-colors',
+                readonly
+                  ? item.enabled
+                    ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-300 cursor-default'
+                    : 'border-zinc-700/60 bg-zinc-900/40 text-zinc-500 cursor-default'
+                  : item.enabled
+                    ? isSelected
+                      ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]'
+                      : 'border-cyan-400/35 bg-cyan-500/10 text-cyan-300'
+                    : 'border-zinc-700/60 bg-zinc-900/40 text-zinc-500 hover:border-zinc-600/60 hover:text-zinc-400',
+              ].join(' ')}
+            >
+              <IconGlyph icon={app.icon} label={app.label} size={18} />
+              <span className="text-[10px] font-medium leading-none">{app.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Preview canvas — enabled widgets only */}
+      <OverlayPreview stageRef={stageRef}>
+        {enabledItems.map((item) => {
+          const app = widgetApps.find((a) => a.id === item.widgetId)
+          if (!app) return null
+          const isSelected = selectedId === item.widgetId
+          const isDragging = dragging?.widgetId === item.widgetId
+          return (
+            <OverlayPreviewItem
+              key={item.widgetId}
+              x={item.x} y={item.y} width={item.width} height={item.height}
+              className={[
+                'rounded-lg border select-none',
+                isSelected
+                  ? 'border-cyan-400/60 bg-cyan-500/12 shadow-[0_0_0_1px_rgba(34,211,238,0.25)] z-10'
+                  : 'border-zinc-600/50 bg-zinc-900/40',
+                readonly ? 'cursor-default' : isDragging ? 'cursor-grabbing' : 'cursor-grab',
+              ].join(' ')}
+              onPointerDown={(e) => onItemPointerDown(e, item)}
+              onPointerMove={(e) => onItemPointerMove(e, item)}
+              onPointerUp={onItemPointerUp}
+              onPointerCancel={onItemPointerUp}
+              onClick={() => { if (!movedRef.current) setSelectedId(item.widgetId) }}
+            >
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 pointer-events-none">
+                <IconGlyph icon={app.icon} label={app.label} size={14} />
+                <span className={`max-w-full truncate text-[9px] font-medium ${isSelected ? 'text-cyan-200' : 'text-zinc-400'}`}>{app.label}</span>
+              </div>
+
+              {/* Corner resize handles — only on selected */}
+              {isSelected && CORNERS.map(({ corner, className }) => (
+                <div
+                  key={corner}
+                  className={`absolute z-20 h-3 w-3 rounded-sm border-2 border-cyan-400 bg-zinc-900 ${className}`}
+                  onPointerDown={(e) => onHandlePointerDown(e, item, corner)}
+                  onPointerMove={(e) => onHandlePointerMove(e, item)}
+                  onPointerUp={onHandlePointerUp}
+                  onPointerCancel={onHandlePointerUp}
+                />
+              ))}
+            </OverlayPreviewItem>
+          )
+        })}
+        {enabledItems.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-zinc-600">Enable widgets above to preview their positions</div>
+        )}
+      </OverlayPreview>
+
+      {/* Coordinate readout for selected widget */}
+      {selectedItem?.enabled && (
+        <div className="grid grid-cols-3 gap-2 text-[10px] text-zinc-500">
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(selectedItem.x)}</div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(selectedItem.y)}</div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">{Math.round(selectedItem.width)} × {Math.round(selectedItem.height)}</div>
+        </div>
+      )}
+      <div className="text-[10px] text-zinc-600">{readonly ? 'System layout — read-only preview' : 'Click to toggle · Drag to move · Corner handles to resize'}</div>
+    </div>
+  )
+}
 
 // ── WidgetLayoutPanel ─────────────────────────────────────────────────
 
@@ -133,7 +331,10 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
     onDeleted()
   }
 
-  const applyLayout = async () => { await persistLayout(layout); socket.emit('widget:layout:apply', layoutId) }
+  const applyLayout = () => {
+    socket.emit('widget:layout:apply:items', layout.items)
+    void persistLayout(layout)
+  }
 
   const clearLayoutOverride = () => {
     if (!hasRuntimeOverride || clearingOverride) return
@@ -149,7 +350,7 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   return (
     <div className="space-y-3">
       <ConfigApplyBar label={layout.label} dirty={dirty} saving={saving} saved={saved}
-        onApply={() => { void persistLayout(layout) }} onReset={() => { void restoreDefaults() }} alwaysShow />
+        onApply={() => { void applyLayout() }} onReset={() => { void restoreDefaults() }} alwaysShow />
       <div className="space-y-0 pt-3">
         <ConfigSectionPanel label="Runtime Override" first>
           <div className="space-y-2.5">
@@ -198,7 +399,7 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
         </ConfigSectionPanel>
 
         <ConfigSectionPanel label="Layout Configuration">
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {layout.source === 'system' && <div className="text-[10px] text-zinc-500">Built-in taskbar layout. Persistent, not removable.</div>}
             <div className="flex justify-end">
               <div className="flex flex-wrap justify-end gap-2">
@@ -208,50 +409,16 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
                 <Btn type="button" onClick={() => captureCurrentIntoLayout()} className="px-2.5 py-1 text-[10px]">Use Current</Btn>
               </div>
             </div>
-            <div className="space-y-1.5">
-              {layout.items.map((item) => {
-                const app = widgetApps.find((entry) => entry.id === item.widgetId)
-                if (!app) return null
-                return (
-                  <div key={item.widgetId} className="rounded border border-zinc-800/80 bg-zinc-950/40 px-2 py-1.5 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <input type="checkbox" checked={item.enabled}
-                        onChange={(e) => updateLayout((draft) => { const row = draft.items.find((entry) => entry.widgetId === item.widgetId); if (row) row.enabled = e.target.checked })} />
-                      <div className="w-5 h-5 rounded border border-zinc-700 bg-zinc-900 flex items-center justify-center shrink-0">
-                        <IconGlyph icon={app.icon} label={app.label} size={14} />
-                      </div>
-                      <div className="flex-1 min-w-0 text-[11px] text-zinc-200 truncate">{app.label}</div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[9px] uppercase tracking-wider text-zinc-500">Stack Order</span>
-                        <input type="number" min={-999} max={999} value={item.focusPriority}
-                          onChange={(e) => updateLayout((draft) => { const row = draft.items.find((entry) => entry.widgetId === item.widgetId); if (row) row.focusPriority = Math.max(-999, Math.min(999, Math.round(Number(e.target.value) || 0))) })}
-                          className="w-14 font-mono text-[11px]" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {(['x', 'y', 'width', 'height'] as const).map((field) => (
-                        <div key={field}>
-                          <div className="text-[9px] text-zinc-500 mb-0.5 uppercase tracking-wider">{field === 'width' ? 'W' : field === 'height' ? 'H' : field.toUpperCase()}</div>
-                          <input type="number"
-                            min={field === 'width' ? WIDGET_WIDTH_MIN : field === 'height' ? WIDGET_HEIGHT_MIN : 0}
-                            max={field === 'width' ? WIDGET_WIDTH_MAX : field === 'height' ? WIDGET_HEIGHT_MAX : undefined}
-                            value={item[field]}
-                            onChange={(e) => updateLayout((draft) => {
-                              const row = draft.items.find((entry) => entry.widgetId === item.widgetId)
-                              if (!row) return
-                              const v = Number(e.target.value) || 0
-                              if (field === 'width')  row.width  = clampWidgetDimension(v, WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  row.width)
-                              else if (field === 'height') row.height = clampWidgetDimension(v, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, row.height)
-                              else row[field] = Math.max(0, Math.round(v))
-                            })}
-                            className="w-full font-mono text-[11px]" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
+            <WidgetCanvas
+              items={layout.items}
+              widgetApps={widgetApps}
+              readonly={layout.source === 'system'}
+              onChange={(widgetId, patch) => updateLayout((draft) => {
+                const row = draft.items.find((item) => item.widgetId === widgetId)
+                if (row) Object.assign(row, patch)
               })}
-            </div>
+            />
+            <div className="text-[10px] text-zinc-600">Click a widget to toggle on/off · Drag to reposition</div>
           </div>
         </ConfigSectionPanel>
       </div>
