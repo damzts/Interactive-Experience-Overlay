@@ -238,6 +238,7 @@ export function LeftSidebar({ selected, onSelect, onActivate }: {
         <SidebarBtn icon="⏱" label="Scheduler" active={isActive({ kind: 'scheduler' })} onClick={() => onSelect({ kind: 'scheduler' })} />
         <SidebarBtn icon="🔄" label="Scene Machine" active={isActive({ kind: 'scene-machine' })} onClick={() => onSelect({ kind: 'scene-machine' })} />
         <SidebarBtn icon="🎬" label="OBS" active={isActive({ kind: 'obs' })} onClick={() => onSelect({ kind: 'obs' })} />
+        <SidebarBtn icon="🔊" label="Audio Engine" active={isActive({ kind: 'audio' })} onClick={() => onSelect({ kind: 'audio' })} />
         <SidebarBtn icon="🌐" label="Online Rooms" active={isActive({ kind: 'pov-online' })} onClick={() => onSelect({ kind: 'pov-online' })} />
         <SidebarBtn icon="🗂" label="Asset Library" active={isActive({ kind: 'asset-library' })} onClick={() => onSelect({ kind: 'asset-library' })} />
         <SidebarBtn icon="⚙" label="Settings" active={isActive({ kind: 'settings' })} onClick={() => onSelect({ kind: 'settings' })} />

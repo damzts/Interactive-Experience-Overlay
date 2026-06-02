@@ -229,7 +229,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     headerIcon  = '🎨'
     headerLabel = 'Desktop Theme'
     headerMeta  = 'Utility'
-  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio';    headerMeta = 'Utility' }
+  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio Engine'; headerMeta = 'Engine' }
   else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
   else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';       headerMeta = 'Utility' }
   else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings';      headerMeta = 'Utility' }
@@ -269,14 +269,14 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
 // ── SettingsModal ──────────────────────────────────────────────────
 
-export type SettingsTab = 'general' | 'audio' | 'keybinds' | 'about'
+export type SettingsTab = 'general' | 'keybinds' | 'about'
 
 function SettingsPanel() {
   const [tab, setTab] = useState<SettingsTab>('general')
   return (
     <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
       <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
-        {(['general', 'audio', 'keybinds', 'about'] as const).map((id) => (
+        {(['general', 'keybinds', 'about'] as const).map((id) => (
           <button key={id} type="button" onClick={() => setTab(id)}
             className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' + (
               tab === id
@@ -288,7 +288,6 @@ function SettingsPanel() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tab === 'about'    && <SettingsPage mode="about" />}
         {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
-        {tab === 'audio'    && <AudioPanel />}
         {tab === 'keybinds' && <KeybindEditor />}
       </div>
     </div>
@@ -308,7 +307,6 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
         <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
           {([
             ['general', 'General'],
-            ['audio', 'Audio'],
             ['keybinds', 'Keybinds'],
             ['about', 'About'],
           ] as const).map(([id, label]) => (
@@ -330,7 +328,6 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'about'    && <SettingsPage mode="about" />}
           {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
-          {tab === 'audio'    && <AudioPanel />}
           {tab === 'keybinds' && <KeybindEditor />}
         </div>
       </div>
