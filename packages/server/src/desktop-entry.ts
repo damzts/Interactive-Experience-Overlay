@@ -15,7 +15,7 @@ import fastifyCookie from '@fastify/cookie'
 import fastifyStatic from '@fastify/static'
 import fastifyMultipart from '@fastify/multipart'
 import { Server as SocketIOServer } from 'socket.io'
-import { existsSync, mkdirSync, createWriteStream } from 'fs'
+import { existsSync, mkdirSync, createWriteStream, readFileSync } from 'fs'
 import { join } from 'path'
 import { pipeline } from 'stream/promises'
 
@@ -23,6 +23,7 @@ import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 
 import { SceneMachine } from './state/machine.js'
+import { RuntimeStateStore } from './state/runtimeStateStore.js'
 import { setupSocketHandlers } from './socket/handlers.js'
 import { ObsBridge } from './obs/bridge.js'
 import { EventScheduler } from './events/scheduler.js'
@@ -44,6 +45,7 @@ import { CloudSignaling } from './room/cloud-signaling.js'
 import { OnlineRoomManager } from './online/manager.js'
 import { onlineRoute } from './online/routes.js'
 import { registerOnlineNamespace } from './online/namespace.js'
+import { registerJoinNamespace } from './socket/joinNamespace.js'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -75,6 +77,8 @@ export interface DesktopServer {
   stop(): Promise<void>
   /** Get the port the server is bound to */
   getPort(): number
+  /** In-memory runtime state (scene, widgets, overlay connection) — read without touching SQLite */
+  runtimeState: import('./state/runtimeStateStore.js').RuntimeStateStore
 }
 
 // ── Constant desktop user ID (single-tenant, no auth) ────────────
@@ -188,6 +192,14 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // ── Scene state machine ──────────────────────────────────────
   const machine = new SceneMachine()
+  const runtimeState = new RuntimeStateStore()
+
+  // Keep RuntimeStateStore in sync with scene machine transitions
+  machine.on('state:change', (payload: { state: import('@ieom/shared').STATE }) => {
+    runtimeState.setCurrentScene(payload.state)
+    runtimeState.setTransitionInProgress(false)
+  })
+  machine.on('transition:start', () => runtimeState.setTransitionInProgress(true))
 
   // ── Managers ─────────────────────────────────────────────────
   let cachedConfig: AppConfig = await configService.getForUser(DESKTOP_USER_ID)
@@ -250,6 +262,19 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const onlineManager = new OnlineRoomManager(cloudSignaling, povOrchestrator, { cloudUrl, getToken })
   registerOnlineNamespace(io, onlineManager)
   await app.register(onlineRoute, { onlineManager })
+
+  // ── LAN /join (no-cloud WebRTC for local guests) ─────────────
+  registerJoinNamespace(io, hubConnection, povOrchestrator)
+
+  // Serve the join page at /join
+  const joinPagePath = join(import.meta.dirname, 'join.html')
+  if (existsSync(joinPagePath)) {
+    const joinHtml = readFileSync(joinPagePath, 'utf8')
+    app.get('/join', async (_req, reply) => {
+      reply.header('content-type', 'text/html; charset=utf-8')
+      return reply.send(joinHtml)
+    })
+  }
 
   // ── OBS WebSocket bridge ─────────────────────────────────────
   const defaultObsUrl = process.env.OBS_URL ?? 'ws://localhost:4455'
@@ -318,7 +343,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     return boundPort
   }
 
-  return { app, io, start, stop, getPort }
+  return { app, io, start, stop, getPort, runtimeState }
 }
 
 // ── Dev-mode self-start ──────────────────────────────────────────

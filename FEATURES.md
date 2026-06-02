@@ -29,9 +29,11 @@ The engine is presentation-agnostic. It manages state, schedules events, runs am
 | Source Renderer | `pluginRegistry` + `LayerStack` | Renders visual sources (images, video, camera, etc.) |
 | Widget System | `widgetRegistry` + open/close/toggle | Composable UI units with state |
 | Audio Engine | `AudioEngine` | SFX, music, volume control |
-| Config Persistence | `DesktopConfigService` + SQLite | Stores and retrieves all state |
-| Real-time Bridge | Socket.IO handlers | Syncs state between server and clients |
+| Config Persistence | `DesktopConfigService` + SQLite | Stores config that survives a restart |
+| Runtime State | `RuntimeStateStore` (in-memory) | Live session state: scene, widgets, overlay connection |
+| Real-time Bridge | Socket.IO domain handlers | Syncs state between server and clients |
 | Online Rooms | WebRTC hub + cloud signaling | Multi-participant streaming |
+| LAN Join | `/join` namespace + `join.html` | Local-network participants without cloud |
 
 The engine exposes: **events, commands, state, config**.
 The engine knows nothing about: windows, taskbars, icons, chrome, visual metaphors.
@@ -51,6 +53,74 @@ Currently: **Desktop OS** — a Win98-inspired desktop metaphor with draggable w
 ### Adding a Second Presentation
 
 No server changes needed. Create a new package (e.g. `packages/overlay-broadcast`), implement the three contracts (Socket.IO events, Config API, WebRTC handshake), point `overlayDir` at its `dist/`, and the engine drives it identically.
+
+---
+
+## Runtime State vs Config Persistence
+
+These are two distinct systems that must not be conflated.
+
+**Config persistence** (`DesktopConfigService` + SQLite): everything that should survive a server restart — scenes, applications, events, themes, keybinds, ambiance schedules. Reads/writes are on the admin save path, not the real-time rendering path.
+
+**Runtime state** (`RuntimeStateStore`, in-memory): live session data that has no meaning across restarts — current scene, which widgets are open, whether the overlay is connected, the active ambiance leader. This is always reconstructed from incoming socket events on reconnect.
+
+### Why this matters
+
+Any code that needs to know "is the overlay currently connected" or "which widgets are open right now" must read from `RuntimeStateStore`, not SQLite. Reading SQLite for hot-path state queries would add unnecessary latency and complexity.
+
+### State ownership rule
+
+> If state survives a server restart, it belongs in SQLite.
+> If it's live-session state, it belongs in `RuntimeStateStore`.
+
+This same rule applies client-side in the overlay: persisted config is in `configSlice`, live widget open/close state is in `desktopSlice`.
+
+---
+
+## Socket Handler Architecture
+
+The Socket.IO protocol is split into domain-scoped handler modules. Each module exports a `register(ctx, socket)` function. Shared mutable state (open widgets, overlay slot, simulation leader, runtime overrides) is passed via a `HandlerContext` object.
+
+This separation means:
+- A scene change handler can never accidentally touch the desktop state
+- Runtime config override logic lives in one place (`runtimeOverride.ts`), used by multiple domains
+- Adding a new socket event means touching one file, not a 1200-line monolith
+
+The orchestrator (`handlers/index.ts`) owns the overlay slot gate, connection/disconnection logic, and initial state push on connect.
+
+---
+
+## Widget Lifecycle Contract
+
+Widgets are React components — most need nothing beyond their props. For widgets that need to acquire/release resources (camera, audio context, WebRTC), an optional `WidgetLifecycle` interface is available in `@ieom/shared`.
+
+### When to use it
+
+- `onMount` / `onUnmount`: camera capture, audio context, WebRTC peer connection
+- `onConfigUpdate`: widgets that need to react to config changes without a full re-render
+- `serialize` / `deserialize`: save and restore widget state across overlay reconnects (e.g., playback position)
+- `onClosing`: begin teardown before the close animation finishes (e.g., fade audio before window closes)
+
+### When NOT to use it
+
+Don't use lifecycle hooks for UI state that is naturally managed by React (hover, focus, open/close animation). Those belong in component-local state.
+
+### Overlay reconnect recovery
+
+`serialize()` is called on all live widgets before the overlay socket reconnects. On reconnect, the server pushes full state, and `deserialize()` is called on each widget with its saved state before `onMount`. This lets music players resume their track position, galleries restore their scroll index, etc.
+
+---
+
+## Widget Registry — Lazy Loading
+
+Widget components are **not** imported at module load time. The registry is a manifest of dynamic import factories. On first use, the component is loaded and cached.
+
+Implications:
+- The initial overlay bundle does not contain any widget code
+- Widget #30 costs one line in the manifest — no bundle impact on unrelated widgets
+- Widgets that are never opened in a session are never downloaded
+
+The overlay pre-warms the registry for all widgets the user has configured (derived from the loaded config), so visible widgets are ready before they open.
 
 ---
 
@@ -173,65 +243,62 @@ Overlay (localhost:3001):
 
 ## Camera Capture
 
-Local camera capture is handled by the **overlay's CameraWidget** (`packages/overlay/src/desktop/CameraWidget.tsx`). It uses `getUserMedia` directly in the OBS browser source — no server-side camera management.
+Local camera capture is handled by the overlay's CameraWidget. It uses `getUserMedia` directly in the OBS browser source — no server-side camera management.
 
 ---
 
-## LAN WebRTC via `/join` (future)
+## LAN WebRTC via `/join`
 
-**Status**: Not yet implemented. Design spec for future development.
+**Status**: Implemented.
 
 ### Problem
 
-Currently, all multi-participant WebRTC requires the cloud service for signaling. On a LAN, guests can already reach the server directly — the cloud is unnecessary overhead and a paid gate for what should be a free local feature.
-
-### Concept
-
-The local server serves a `/join` page. A guest on the same network opens `http://<host-ip>:3000/join` in their browser, grants camera/mic, and connects directly to the WebRTC hub — no cloud, no room creation, no account needed.
+All multi-participant WebRTC previously required the cloud service for signaling. On a LAN, guests can reach the server directly — the cloud is unnecessary overhead and a paid gate for a free local feature.
 
 ### How It Works
 
-1. Guest opens `http://<local-ip>:3000/join` in any browser
-2. Server serves a lightweight join page (camera/mic permissions + WebRTC client)
-3. Guest's browser creates an offer and sends it to the server via Socket.IO (same local server)
-4. Server (werift hub) processes the offer, returns an answer, exchanges ICE candidates — all over the local Socket.IO connection
-5. WebRTC P2P establishes (likely host candidates only — no STUN/TURN needed on LAN)
-6. Guest's video/audio arrives at the hub, enters the same POV switching + overlay relay pipeline as cloud participants
+1. Guest opens `http://<local-ip>:3000/join` in any browser on the same network
+2. Server serves `join.html` — a lightweight standalone page (no build step, no framework)
+3. Guest grants camera/mic, page creates a WebRTC offer
+4. Offer is sent to the server via the `/join` Socket.IO namespace
+5. Server (werift hub) processes the offer, sends back the answer, exchanges ICE candidates — all over the local Socket.IO connection
+6. WebRTC P2P establishes using host candidates only (no STUN/TURN needed on LAN)
+7. Guest's video/audio arrives at the hub, enters the same POV switching + overlay relay pipeline as cloud participants
 
 ### Key Differences from Cloud Flow
 
 | Aspect | Cloud | LAN `/join` |
 |---|---|---|
-| Signaling relay | ieom-api WebSocket | Local server Socket.IO |
-| Discovery | Room code shared out-of-band | Guest knows the IP/URL |
+| Signaling relay | ieom-api WebSocket | Local server `/join` Socket.IO namespace |
+| Discovery | Room code shared out-of-band | Guest knows the host IP |
 | Auth required | Yes (paid feature) | No |
 | STUN/TURN | Needed (NAT traversal) | Not needed (same network) |
-| Room creation | Cloud API | None — server accepts connections directly |
+| Room creation | Cloud API | None — server accepts directly |
 
-### Design Constraints
-
-- The hub (werift) and POV pipeline are already presentation-agnostic — LAN guests feed into the same system
-- The `/join` page is a separate lightweight client (not the overlay, not the admin)
-- No changes to the overlay relay needed — it already receives tracks via `replaceTrack()`
-- Must coexist with cloud rooms (a LAN guest and cloud guests could theoretically be active simultaneously)
-
-### Signaling Flow (local)
+### Signaling Flow
 
 ```
 Guest Browser (LAN)              Local Server (hub)
      │                                │
-     │── Socket.IO connect ──────────►│  (http://<ip>:3000, /join namespace)
-     │── getUserMedia ───────────────►│
+     │── WS /join namespace ─────────►│
      │── offer (SDP) ────────────────►│
      │◄── answer (SDP) ──────────────│  (werift creates PC, generates answer)
      │── ice-candidate ──────────────►│
-     │◄── ice-candidate ─────────────│
+     │◄── ice-candidate ─────────────│  (buffered until after answer is sent)
      │                                │
      │◄═══════ WebRTC P2P (LAN) ════►│  (host candidates, no relay needed)
      │  video + audio tracks          │
      │                                ▼
      │                         POV pipeline → overlay
 ```
+
+### ICE candidate buffering
+
+Hub ICE candidates are buffered until after the answer SDP is sent to the guest, then flushed. This avoids the race condition where candidates arrive before the guest has set the remote description.
+
+### Coexistence with cloud rooms
+
+LAN participants and cloud participants feed into the same `HubConnection` and `POVOrchestrator`. They are distinguished by participant ID prefix (`lan-` vs cloud IDs). Both can be active simultaneously.
 
 ---
 
@@ -241,3 +308,4 @@ Guest Browser (LAN)              Local Server (hub)
 - **Re-offers from participants**: Hub silently closes old PC, new tracks trigger `replaceTrack()` on overlay relay.
 - **werift `MediaStream` parameter**: `addTrack(track, ms?)` — `ms` param is unimplemented. Build `MediaStream` manually from `event.track`.
 - **ICE candidate ordering**: Hub ICE candidates must arrive at participant AFTER the answer SDP. Buffer during `handleOffer`, flush after sending answer.
+- **Widget lazy loading race**: If a widget is toggled open before its dynamic import resolves, the overlay renders `GenericWidget` for one frame then replaces it once the component loads. This is intentional — the `forceUpdate` after load triggers the re-render.
