@@ -1,8 +1,8 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import type { SourcePreset } from '@ieom/shared'
 import { AssetSelectionInput } from './AssetLibrary'
 import { findSourceCatalogEntry, SOURCE_CATALOG, type CatalogEntry, type FieldDef } from '../../shared/sourceCatalog'
-import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayPreview, OverlayPreviewItem } from '../../shared/ui'
+import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
   return (
@@ -95,18 +95,10 @@ export function SourcePresetPreview({
 }: {
   preset: SourcePreset
   meta?: CatalogEntry
-  onPositionChange?: (position: { x: number; y: number }) => void
+  onPositionChange?: (position: { x: number; y: number; width: number; height: number }) => void
 }) {
   const config = preset.config ?? {}
   const opacityValue = Math.max(0, Math.min(1, Number(config.opacity ?? 1)))
-  const stageRef = useRef<HTMLDivElement | null>(null)
-  const [dragState, setDragState] = useState<{
-    pointerId: number
-    startClientX: number
-    startClientY: number
-    startX: number
-    startY: number
-  } | null>(null)
   const sourcePosition = {
     x: Math.max(0, Math.min(1920, Number(preset.defaultPosition?.x ?? 0))),
     y: Math.max(0, Math.min(1080, Number(preset.defaultPosition?.y ?? 0))),
@@ -236,69 +228,28 @@ export function SourcePresetPreview({
       )
   }
 
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!onPositionChange) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setDragState({
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: sourcePosition.x,
-      startY: sourcePosition.y,
-    })
-  }
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState || dragState.pointerId !== event.pointerId || !onPositionChange || !stageRef.current) return
-    const rect = stageRef.current.getBoundingClientRect()
-    if (!rect.width || !rect.height) return
-
-    const deltaX = ((event.clientX - dragState.startClientX) / rect.width) * 1920
-    const deltaY = ((event.clientY - dragState.startClientY) / rect.height) * 1080
-    const nextX = Math.max(0, Math.min(1920 - sourcePosition.width, Math.round(dragState.startX + deltaX)))
-    const nextY = Math.max(0, Math.min(1080 - sourcePosition.height, Math.round(dragState.startY + deltaY)))
-    onPositionChange({ x: nextX, y: nextY })
-  }
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragState?.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    setDragState(null)
-  }
+  const canvasItem = { id: 'source', ...sourcePosition }
 
   return (
     <div className="space-y-3">
-      <OverlayPreview stageRef={stageRef}>
-        <div className="absolute left-3 top-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] text-zinc-300">
-          {meta?.icon ?? '▣'} {meta?.label ?? preset.pluginType}
-        </div>
-        <div className="absolute bottom-3 right-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 font-mono text-[10px] text-zinc-300">
-          {Math.round(preset.defaultPosition?.width ?? 1920)} x {Math.round(preset.defaultPosition?.height ?? 1080)}
-        </div>
-        <div className="absolute bottom-3 left-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 font-mono text-[10px] text-zinc-300">
-          {Math.round(sourcePosition.x)}, {Math.round(sourcePosition.y)}
-        </div>
-        <OverlayPreviewItem
-          x={sourcePosition.x} y={sourcePosition.y} width={sourcePosition.width} height={sourcePosition.height}
-          className={'rounded-xl border border-cyan-400/35 bg-zinc-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.1),0_12px_32px_rgba(2,6,23,0.4)] ' + (onPositionChange ? (dragState ? 'cursor-grabbing' : 'cursor-grab') : '')}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        >
-          <div className="absolute inset-0">{previewNode}</div>
-          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
-        </OverlayPreviewItem>
-      </OverlayPreview>
+      <OverlayCanvas
+        items={[canvasItem]}
+        selectedId="source"
+        onChange={onPositionChange ? (_, patch) => onPositionChange({ ...sourcePosition, ...patch }) : undefined}
+        readonly={!onPositionChange}
+        renderItem={() => (
+          <>
+            <div className="absolute inset-0">{previewNode}</div>
+            <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
+          </>
+        )}
+      />
       <div className="grid gap-2 text-[10px] text-zinc-500 sm:grid-cols-3">
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">label: {preset.label || meta?.label || 'Draft'}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">x: {Math.round(sourcePosition.x)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">y: {Math.round(sourcePosition.y)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">{Math.round(sourcePosition.width)} × {Math.round(sourcePosition.height)}</div>
       </div>
-      <div className="text-[10px] text-zinc-500">Drag the preview frame to update x and y.</div>
+      <div className="text-[10px] text-zinc-500">Drag to move · Corner handles to resize</div>
     </div>
   )
 }
@@ -545,12 +496,8 @@ export function SourcesTabContent({
               <SourcePresetPreview
                 preset={editingSourcePreset}
                 meta={selectedSourceMeta}
-                onPositionChange={({ x, y }) => patchSourcePresetDraft({
-                  defaultPosition: {
-                    ...(editingSourcePreset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }),
-                    x,
-                    y,
-                  },
+                onPositionChange={({ x, y, width, height }) => patchSourcePresetDraft({
+                  defaultPosition: { x, y, width, height },
                 })}
               />
             </ConfigSectionPanel>

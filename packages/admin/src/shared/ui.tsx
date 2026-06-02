@@ -577,6 +577,123 @@ export function SaveBar({
   )
 }
 
+// ── OverlayCanvas ─────────────────────────────────────────────────────
+// Generic drag+resize canvas. Items are positioned in 1920×1080 space.
+// Use this for any editable overlay preview (widget layouts, sources, etc.)
+
+export interface OverlayCanvasItem {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+type CanvasCorner = 'nw' | 'ne' | 'sw' | 'se'
+
+export function OverlayCanvas<T extends OverlayCanvasItem>({
+  items,
+  selectedId,
+  onSelect,
+  onChange,
+  readonly = false,
+  renderItem,
+  emptyMessage,
+}: {
+  items: T[]
+  selectedId?: string | null
+  onSelect?: (id: string | null) => void
+  onChange?: (id: string, patch: Partial<Pick<T, 'x' | 'y' | 'width' | 'height'>>) => void
+  readonly?: boolean
+  renderItem?: (item: T, selected: boolean) => ReactNode
+  emptyMessage?: string
+}) {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState<{ id: string; pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number } | null>(null)
+  const [resizing, setResizing] = useState<{ id: string; corner: CanvasCorner; pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number; startW: number; startH: number } | null>(null)
+  const movedRef = useRef(false)
+
+  const getScale = () => {
+    const rect = stageRef.current?.getBoundingClientRect()
+    return rect ? { sx: 1920 / rect.width, sy: 1080 / rect.height } : { sx: 1, sy: 1 }
+  }
+
+  const CORNERS: { corner: CanvasCorner; style: React.CSSProperties }[] = [
+    { corner: 'nw', style: { top: 0, left: 0, cursor: 'nw-resize', transform: 'translate(-50%,-50%)' } },
+    { corner: 'ne', style: { top: 0, right: 0, cursor: 'ne-resize', transform: 'translate(50%,-50%)' } },
+    { corner: 'sw', style: { bottom: 0, left: 0, cursor: 'sw-resize', transform: 'translate(-50%,50%)' } },
+    { corner: 'se', style: { bottom: 0, right: 0, cursor: 'se-resize', transform: 'translate(50%,50%)' } },
+  ]
+
+  return (
+    <OverlayPreview stageRef={stageRef}>
+      {items.map((item) => {
+        const isSelected = selectedId === item.id
+        const isDragging = dragging?.id === item.id
+        return (
+          <OverlayPreviewItem
+            key={item.id}
+            x={item.x} y={item.y} width={item.width} height={item.height}
+            className={['rounded-lg border select-none',
+              isSelected ? 'border-cyan-400/60 bg-cyan-500/12 shadow-[0_0_0_1px_rgba(34,211,238,0.25)] z-10' : 'border-zinc-600/50 bg-zinc-900/40',
+              readonly ? 'cursor-default' : isDragging ? 'cursor-grabbing' : 'cursor-grab',
+            ].join(' ')}
+            onPointerDown={(e) => {
+              if (readonly || !onChange) return
+              e.preventDefault(); e.stopPropagation()
+              e.currentTarget.setPointerCapture(e.pointerId)
+              movedRef.current = false
+              onSelect?.(item.id)
+              setDragging({ id: item.id, pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startX: item.x, startY: item.y })
+            }}
+            onPointerMove={(e) => {
+              if (dragging?.id === item.id && dragging.pointerId === e.pointerId) {
+                const { sx, sy } = getScale()
+                const dx = (e.clientX - dragging.startClientX) * sx
+                const dy = (e.clientY - dragging.startClientY) * sy
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true
+                onChange?.(item.id, { x: Math.max(0, Math.min(1920 - item.width, Math.round(dragging.startX + dx))), y: Math.max(0, Math.min(1080 - item.height, Math.round(dragging.startY + dy))) } as any)
+              }
+              if (resizing?.id === item.id && resizing.pointerId === e.pointerId) {
+                const { sx, sy } = getScale()
+                const dx = (e.clientX - resizing.startClientX) * sx
+                const dy = (e.clientY - resizing.startClientY) * sy
+                const { corner, startX, startY, startW, startH } = resizing
+                let x = startX, y = startY, w = startW, h = startH
+                if (corner === 'se') { w = startW + dx; h = startH + dy }
+                if (corner === 'sw') { x = startX + dx; w = startW - dx; h = startH + dy }
+                if (corner === 'ne') { y = startY + dy; w = startW + dx; h = startH - dy }
+                if (corner === 'nw') { x = startX + dx; y = startY + dy; w = startW - dx; h = startH - dy }
+                onChange?.(item.id, { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)), width: Math.max(80, Math.min(1920, Math.round(w))), height: Math.max(48, Math.min(1080, Math.round(h))) } as any)
+              }
+            }}
+            onPointerUp={(e) => {
+              if (dragging?.pointerId === e.pointerId) { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); setDragging(null) }
+              if (resizing?.pointerId === e.pointerId) { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); setResizing(null) }
+              if (!movedRef.current) onSelect?.(isSelected ? null : item.id)
+            }}
+            onPointerCancel={() => { setDragging(null); setResizing(null) }}
+          >
+            {renderItem?.(item, isSelected)}
+            {isSelected && !readonly && CORNERS.map(({ corner, style }) => (
+              <div key={corner} style={{ position: 'absolute', width: 12, height: 12, borderRadius: 3, border: '2px solid rgba(34,211,238,0.8)', background: '#09090b', zIndex: 20, ...style }}
+                onPointerDown={(e) => {
+                  e.preventDefault(); e.stopPropagation()
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  setResizing({ id: item.id, corner, pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startX: item.x, startY: item.y, startW: item.width, startH: item.height })
+                }}
+              />
+            ))}
+          </OverlayPreviewItem>
+        )
+      })}
+      {items.length === 0 && emptyMessage && (
+        <div className="absolute inset-0 flex items-center justify-center text-[11px] text-zinc-600">{emptyMessage}</div>
+      )}
+    </OverlayPreview>
+  )
+}
+
 // ── OverlayPreview ────────────────────────────────────────────────────
 // Generic 16:9 stage (1920×1080 coordinate space). Renders children
 // as positioned items. Use OverlayPreviewItem to place content.
@@ -620,23 +737,30 @@ export function OverlayPreview({
   children,
   className = '',
   stageRef: externalRef,
+  resizable = false,
 }: {
   children?: ReactNode
   className?: string
   stageRef?: React.RefObject<HTMLDivElement>
+  resizable?: boolean
 }) {
   const internalRef = useRef<HTMLDivElement>(null)
   const ref = externalRef ?? internalRef
-  return (
+  const stage = (
     <div
       ref={ref}
       className={`relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${className}`}
     >
-      {/* backdrop */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
       <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
       {children}
+    </div>
+  )
+  if (!resizable) return stage
+  return (
+    <div style={{ resize: 'horizontal', overflow: 'hidden', width: '60%', minWidth: '200px', maxWidth: '100%' }}>
+      {stage}
     </div>
   )
 }
