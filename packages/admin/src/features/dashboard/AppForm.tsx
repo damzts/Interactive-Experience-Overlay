@@ -330,13 +330,13 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
   const supportsSceneTransitions = form.appType === 'scene'
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
-      <div className="space-y-0 pt-3">
+      <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'1rem'}}>
 
         {form.appType === 'widget' && (
           <ConfigSectionPanel label="Runtime Override" first>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className={hasRuntimeOverride ? 'text-[11px] font-medium text-red-100' : 'text-[11px] font-medium text-zinc-400'}>
                   {hasRuntimeOverride ? 'Runtime override active' : 'No runtime override active'}
@@ -346,7 +346,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                   ? 'bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.95),0_0_20px_rgba(239,68,68,0.55)]'
                   : 'bg-zinc-700 shadow-[0_0_0_rgba(0,0,0,0)]'].join(' ')} />
               </div>
-              <div className="space-y-1.5 rounded border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+              <div className="space-y-1.5 rounded border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                 {runtimeOverrideEntries.map((entry) => (
                   <div key={entry.key} className="flex items-start justify-between gap-3 text-[10px]">
                     <div className="uppercase tracking-[0.14em] text-zinc-500">{entry.key}</div>
@@ -365,7 +365,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
         )}
 
         <ConfigSectionPanel label="Identity" first={form.appType !== 'widget'}>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <div className="text-[10px] text-zinc-500 mb-1">Label</div>
               <input type="text" value={form.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full text-xs" />
@@ -561,7 +561,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                   </div>
                 </>
               ) : (
-                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-500">
+                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-5 py-4 text-[10px] leading-relaxed text-zinc-500">
                   This widget currently inherits the shared desktop widget theme from the Desktop environment editor.
                 </div>
               )}
@@ -581,7 +581,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
 
         {form.appType === 'widget' && widgetComponent === 'camera' && (
           <ConfigSectionPanel label="Camera Defaults">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="text-[10px] text-zinc-400">
                 Configure the camera for this widget. The widget displays video only — no controls. Open OBS with <span className="font-mono text-zinc-300">?obs=1</span> in the browser source URL.
               </div>
@@ -624,7 +624,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
 
         {form.appType === 'widget' && widgetComponent === 'source' && (
           <ConfigSectionPanel label="Source Binding">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="text-[10px] text-zinc-400">
                 Source widgets render one scene source inside a desktop window. Bind this widget to any configured source and change it later without recreating the widget.
               </div>
@@ -663,7 +663,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                 <div className="text-[10px] text-zinc-600">This scene currently has no sources to bind.</div>
               )}
               {selectedSource && selectedSourceScene && (
-                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 space-y-1">
+                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-5 py-4 space-y-1">
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Current Binding</div>
                   <div className="text-[11px] text-zinc-200">{selectedSourceScene.label}</div>
                   <div className="text-[10px] text-zinc-400 font-mono">{selectedSource.id} · {selectedSourceResolved?.pluginType ?? 'unbound'}</div>
@@ -713,7 +713,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
 
         {form.appType === 'widget' && form.id === 'gallery' && (
           <ConfigSectionPanel label="Gallery Settings">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <Toggle checked={form.gallerySettings?.randomOrder ?? true} label="Random order"
                 onChange={(v) => update((d) => { d.gallerySettings = { randomOrder: v, autoPlay: d.gallerySettings?.autoPlay ?? false, intervalSec: d.gallerySettings?.intervalSec ?? 8 } })} />
               <Toggle checked={form.gallerySettings?.autoPlay ?? false} label="Auto play"

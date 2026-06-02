@@ -73,7 +73,7 @@ export function LoginPage() {
                   'Keep your workspace available after logout',
                   'Works smoothly as a desktop-first app',
                 ].map((item) => (
-                  <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                  <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-5 py-4">
                     <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-400/15 text-cyan-300">✓</span>
                     <span className="text-sm leading-5 text-slate-200">{item}</span>
                   </div>
@@ -118,13 +118,13 @@ export function LoginPage() {
                     <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Authentication</p>
                     <h2 className="mt-1 text-xl font-medium text-white">Choose how you want to continue</h2>
                   </div>
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/10 px-3 py-2 text-[11px] text-cyan-200">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/10 px-5 py-4 text-[11px] text-cyan-200">
                     Optional
                   </div>
                 </div>
 
                 {errorMessage ? (
-                  <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-200">
                     {errorMessage}
                   </div>
                 ) : null}
@@ -132,7 +132,7 @@ export function LoginPage() {
                 <div className="space-y-3">
                   <button
                     onClick={login}
-                    className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-400 to-sky-500 px-4 py-3.5 font-medium text-slate-950 shadow-lg shadow-cyan-500/20 transition-transform hover:-translate-y-0.5 hover:shadow-cyan-500/30 cursor-pointer"
+                    className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-400 to-sky-500 px-5 py-4.5 font-medium text-slate-950 shadow-lg shadow-cyan-500/20 transition-transform hover:-translate-y-0.5 hover:shadow-cyan-500/30 cursor-pointer"
                   >
                     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                       <path
@@ -157,7 +157,7 @@ export function LoginPage() {
 
                   <button
                     onClick={goToAdmin}
-                    className="flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5 font-medium text-slate-200 transition-colors hover:bg-white/10 cursor-pointer"
+                    className="flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-4.5 font-medium text-slate-200 transition-colors hover:bg-white/10 cursor-pointer"
                   >
                     Back to admin
                   </button>

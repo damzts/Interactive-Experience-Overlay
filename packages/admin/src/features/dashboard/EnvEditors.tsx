@@ -169,12 +169,12 @@ export function ScenePanel({ sceneId }: { sceneId: string }) {
   const label = isLobby ? 'Lobby Scene' : isDesktop ? 'Desktop Scene' : 'Scene Configuration'
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <ConfigApplyBar label={label} dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
-      <div className="space-y-0 pt-3">
+      <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'1rem'}}>
 
         <ConfigSectionPanel label="Transitions" first>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {([
               { key: 'introTransitions' as const, label: 'Intro (entering)' },
               { key: 'exitTransitions'  as const, label: 'Exit (leaving)'   },
@@ -268,9 +268,9 @@ export function LobbyThemeEditor() {
   }, [scene])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <ConfigApplyBar label="Lobby Global Theme" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
-      <div className="space-y-0 pt-3">
+      <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'1rem'}}>
         <LobbyConfigSections form={form} update={update} first />
       </div>
     </div>
@@ -384,7 +384,7 @@ export function DesktopThemeEditor() {
   }, [setRuntimeConfigOverride])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <ConfigApplyBar label="Desktop Theme" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="grid gap-4 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4 lg:grid-cols-2">
         <Btn type="button" variant="ghost" onClick={clearAllRuntime}
@@ -392,7 +392,7 @@ export function DesktopThemeEditor() {
           Clear All Runtime
         </Btn>
       </div>
-      <div className="space-y-0 pt-3">
+      <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'1rem'}}>
         <ConfigSectionPanel label="Desktop Theme" first>
           <div className="space-y-4">
             <div className="text-[10px] text-zinc-500 leading-relaxed">
@@ -534,7 +534,7 @@ function LobbyConfigSections({ form, update, first }: {
         </div>
       </ConfigSectionPanel>
       <ConfigSectionPanel label="Room Life">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
             <Toggle checked={form.virtualPet.enabled} onChange={(v) => update((d) => { d.virtualPet.enabled = v })} label="Virtual pet" />
             {form.virtualPet.enabled && (
@@ -581,7 +581,7 @@ function DesktopConfigSections({ form, update, first }: {
   return (
     <>
       <ConfigSectionPanel label="Desktop Icons" first={first}>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Icons</div>
             <div className="text-[10px] text-zinc-500 leading-relaxed">

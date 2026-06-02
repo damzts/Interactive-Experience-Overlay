@@ -87,7 +87,7 @@ export function SceneMachinePanel() {
         <ConfigSectionPanel label="Transition history">
           <div className="space-y-1">
             {history.map((entry, i) => (
-              <div key={i} className="flex items-center gap-2 text-[11px] rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
+              <div key={i} className="flex items-center gap-2 text-[11px] rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4">
                 <span className="text-zinc-500 font-mono shrink-0">{formatTime(entry.at)}</span>
                 <span className="text-zinc-400">{stateLabel(entry.from)}</span>
                 <span className="text-zinc-600">→</span>

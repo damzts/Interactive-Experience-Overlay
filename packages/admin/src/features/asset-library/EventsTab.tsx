@@ -115,7 +115,7 @@ export function EventsTabContent({
 
       {editingEvent ? (
         <ConfigCard className="space-y-4 p-5 sm:p-6">
-          <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-4 py-3">
+          <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-5 py-4">
             <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Event Editor</div>
             <div className="text-xs text-zinc-500">Primary event authoring card.</div>
           </div>
@@ -124,7 +124,7 @@ export function EventsTabContent({
             <div className="min-w-0">
               <ConfigSectionPanel label="Event Summary" first>
                 <div className="space-y-3">
-                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                     <div className="flex items-baseline justify-between gap-3 text-[11px]">
                       <span className="text-zinc-500">Label</span>
                       <span className="truncate text-right font-semibold text-zinc-100">{editingEvent.label}</span>
@@ -147,7 +147,7 @@ export function EventsTabContent({
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                  <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                     Create or refine event identity, trigger rules, runtime actions, and overlay effects below.
                   </div>
                 </div>
@@ -157,7 +157,7 @@ export function EventsTabContent({
             <div className="min-w-0">
               <ConfigSectionPanel label="Actions" first>
                 <div className="space-y-3">
-                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                     <div className="flex items-baseline justify-between gap-3 text-[11px]">
                       <span className="text-zinc-500">Editing</span>
                       <span className="truncate text-right font-semibold text-zinc-100">{editingEventCreatesNew ? 'New event draft' : editingEvent.label}</span>

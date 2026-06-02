@@ -294,9 +294,9 @@ export function SourcePresetPreview({
         </OverlayPreviewItem>
       </OverlayPreview>
       <div className="grid gap-2 text-[10px] text-zinc-500 sm:grid-cols-3">
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">label: {preset.label || meta?.label || 'Draft'}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">label: {preset.label || meta?.label || 'Draft'}</div>
       </div>
       <div className="text-[10px] text-zinc-500">Drag the preview frame to update x and y.</div>
     </div>
@@ -341,7 +341,7 @@ export function SourcesTabSidebar({
               key={preset.id}
               type="button"
               onClick={() => onSelectSourcePreset(preset.id)}
-              className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
+              className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
                 active
                   ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
                   : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
@@ -418,7 +418,7 @@ export function SourcesTabContent({
           </ConfigCard>
 
           <ConfigCard className="space-y-4 p-5 sm:p-6">
-            <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-4 py-3">
+            <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-5 py-4">
               <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Editor</div>
               <div className="text-xs text-zinc-500">Primary source preset authoring card.</div>
             </div>
@@ -428,25 +428,25 @@ export function SourcesTabContent({
                 <ConfigSectionPanel label="Preset Summary" first>
                   <div className="space-y-3">
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Label</span>
                           <span className="truncate text-right font-semibold text-zinc-100">{editingSourcePreset.label}</span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Preset Id</span>
                           <span className="truncate text-right font-semibold text-zinc-100">{sourcePresetOriginalId ?? 'Draft until saved'}</span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Type</span>
                           <span className="truncate text-right font-semibold text-zinc-100">{selectedSourceMeta.label}</span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Used In Scenes</span>
                           <span className="text-right font-semibold text-zinc-100">{selectedSourceUsageCount}</span>
@@ -454,7 +454,7 @@ export function SourcesTabContent({
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                       Review the selected draft details and configure the preset below.
                     </div>
                   </div>
@@ -489,7 +489,7 @@ export function SourcesTabContent({
                         className="w-full text-sm"
                       />
                     </div>
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                       {sourceDraftCreatesNewPreset
                         ? 'Saving will create a new preset because this label differs from the saved source.'
                         : 'Saving will update the currently selected preset.'}

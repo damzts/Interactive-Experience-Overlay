@@ -71,9 +71,9 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   }
 
   return (
-    <div className="space-y-0 pt-1">
+    <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'0.25rem'}}>
       <ConfigSectionPanel label="Create Widget" first>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="text-[10px] text-zinc-400 leading-relaxed">
             New widgets are stored as user widget records. Choose the base component first, then create the widget and continue configuring it from the standard widget editor.
           </div>
@@ -125,13 +125,13 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
             </div>
           </div>
           {widgetComponent === 'source' && (
-            <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-400">
+            <div className="rounded border border-zinc-800 bg-zinc-900/40 px-5 py-4 text-[10px] leading-relaxed text-zinc-400">
               {firstSourceReference
                 ? `Initial binding will use ${firstSourceReference.sceneId} / ${firstSourceReference.sourceId}. You can change this immediately after creation.`
                 : 'No scene sources are available yet. The widget will still be created, but you will need to bind it to a source from the widget editor later.'}
             </div>
           )}
-          {error && <div className="rounded border border-red-900/60 bg-red-950/30 px-3 py-2 text-[10px] text-red-300">{error}</div>}
+          {error && <div className="rounded border border-red-900/60 bg-red-950/30 px-5 py-4 text-[10px] text-red-300">{error}</div>}
           <div className="flex justify-end">
             <Btn variant="primary" onClick={() => { void handleCreate() }} disabled={creating}>
               {creating ? 'Creating...' : 'Create Widget'}

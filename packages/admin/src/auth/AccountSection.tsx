@@ -5,7 +5,7 @@ export function AccountSection() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-between rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-4 py-3">
+      <div className="flex items-center justify-between rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">
         <div>
           <div className="text-xs font-medium text-zinc-300">Account</div>
           <div className="text-[11px] text-zinc-500 mt-0.5">Sign in to unlock online features</div>
@@ -21,7 +21,7 @@ export function AccountSection() {
   }
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-4 py-3">
+    <div className="flex items-center justify-between rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">
       <div>
         <div className="text-xs font-medium text-zinc-200">{user?.name || 'Signed in'}</div>
         <div className="text-[11px] text-zinc-500 mt-0.5">{user?.email || user?.id}</div>

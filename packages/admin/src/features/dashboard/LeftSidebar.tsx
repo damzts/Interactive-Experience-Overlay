@@ -18,7 +18,7 @@ export function SidebarBtn({ icon, label, live, statusLabel, statusClassName, ac
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       title={onDoubleClick ? 'Click to configure · Double-click to activate' : undefined}
-      className={'mb-1 flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition-all duration-150 ' +
+      className={'mb-1.5 flex w-full items-center gap-2 rounded-xl border px-5 py-4.5 text-left text-xs transition-all duration-150 ' +
         (active
           ? 'border-cyan-400/30 bg-cyan-500/12 text-zinc-50 shadow-[0_0_0_1px_rgba(34,211,238,0.06)]'
           : 'border-white/5 bg-white/[0.02] text-zinc-400 hover:border-cyan-400/20 hover:bg-white/[0.04] hover:text-zinc-100')}>
@@ -35,7 +35,7 @@ export function SidebarBtn({ icon, label, live, statusLabel, statusClassName, ac
 export function AddBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className="mb-1 flex w-full items-center gap-1.5 rounded-xl border border-dashed border-white/10 px-3 py-2 text-[11px] text-zinc-500 transition-colors hover:border-cyan-500/35 hover:bg-cyan-500/8 hover:text-cyan-200">
+      className="mb-1.5 flex w-full items-center gap-1.5 rounded-xl border border-dashed border-white/10 px-5 py-4.5 text-[11px] text-zinc-500 transition-colors hover:border-cyan-500/35 hover:bg-cyan-500/8 hover:text-cyan-200">
       <span className="text-sm w-4 text-center shrink-0">+</span>
       <span>{label}</span>
     </button>
@@ -46,7 +46,7 @@ export function AddBtn({ label, onClick }: { label: string; onClick: () => void 
 
 export function SectionLabel({ children, hint: _hint, first = false }: { children: string; hint?: string; first?: boolean }) {
   return (
-    <div className={first ? 'px-2.5 pt-3 mb-3' : 'mt-6 mb-3 px-2.5 pt-3 border-t border-white/8'}>
+    <div className={first ? 'px-2.5 pt-3 mb-3' : 'mt-7 mb-3 px-2.5 pt-3 border-t border-white/8'}>
       <span className="inline-flex rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
         {children}
       </span>
@@ -111,8 +111,8 @@ export function LeftSidebar({ selected, onSelect, onActivate }: {
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
   return (
-    <div className="admin-shell-panel admin-shell-panel--soft flex w-60 shrink-0 flex-col border-r px-2 py-2">
-      <div className="flex-1 overflow-y-auto pb-1 pr-1">
+    <div style={{padding: '0.75rem'}} className="admin-shell-panel admin-shell-panel--soft flex w-60 shrink-0 flex-col border-r">
+      <div style={{display:'flex', flexDirection:'column', gap:'0.35rem'}} className="flex-1 overflow-y-auto pb-3 pr-1">
         <div className="mb-3 rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-400">Navigator</div>
           <div className="mt-1 text-[11px] leading-5 text-zinc-500">

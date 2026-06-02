@@ -344,7 +344,7 @@ export function AmbiancePanel() {
               <span className="text-zinc-400">Accepted / rejected</span>
               <span className="text-zinc-100">{ambianceAcceptedCount} / {ambianceRejectedCount}</span>
             </div>
-            <div className="rounded-lg border border-zinc-800/70 bg-zinc-900/55 px-3 py-2 text-[11px] text-zinc-400">
+            <div className="rounded-lg border border-zinc-800/70 bg-zinc-900/55 px-5 py-4 text-[11px] text-zinc-400">
               {ambiance.lastSkipReason ? `Last skip: ${ambiance.lastSkipReason}` : 'No skip reason.'}
             </div>
             <div className="border-t border-zinc-800/70 pt-2">

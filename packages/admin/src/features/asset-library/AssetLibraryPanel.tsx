@@ -475,7 +475,7 @@ export function AssetLibraryPanel() {
                             key={asset.id}
                             type="button"
                             onClick={() => setSelectedCatalogAssetId(asset.id)}
-                            className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
+                            className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
                               active
                                 ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
                                 : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
@@ -548,7 +548,7 @@ export function AssetLibraryPanel() {
                         key={transition.id}
                         type="button"
                         onClick={() => setSelectedTransitionKey(`system:${transition.id}`)}
-                        className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
+                        className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
                           active
                             ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
                             : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
@@ -573,7 +573,7 @@ export function AssetLibraryPanel() {
                         key={entry.id}
                         type="button"
                         onClick={() => setSelectedTransitionKey(`user:${entry.id}`)}
-                        className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
+                        className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
                           active
                             ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
                             : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'

@@ -108,7 +108,7 @@ function WidgetCanvas({
   ]
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Toggle buttons — all widgets */}
       <div className="flex flex-wrap gap-2">
         {items.map((item) => {
@@ -126,7 +126,7 @@ function WidgetCanvas({
                 else if (isSelected) setSelectedId(null)
               }}
               className={[
-                'flex flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-center transition-colors',
+                'flex flex-col items-center gap-1 rounded-xl border px-5 py-4.5 text-center transition-colors',
                 readonly
                   ? item.enabled
                     ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-300 cursor-default'
@@ -196,9 +196,9 @@ function WidgetCanvas({
       {/* Coordinate readout for selected widget */}
       {selectedItem?.enabled && (
         <div className="grid grid-cols-3 gap-2 text-[10px] text-zinc-500">
-          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(selectedItem.x)}</div>
-          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(selectedItem.y)}</div>
-          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">{Math.round(selectedItem.width)} × {Math.round(selectedItem.height)}</div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">x: {Math.round(selectedItem.x)}</div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">y: {Math.round(selectedItem.y)}</div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">{Math.round(selectedItem.width)} × {Math.round(selectedItem.height)}</div>
         </div>
       )}
       <div className="text-[10px] text-zinc-600">{readonly ? 'System layout — read-only preview' : 'Click to toggle · Drag to move · Corner handles to resize'}</div>
@@ -256,12 +256,12 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <ConfigApplyBar label={layout.label} dirty={dirty} saving={saving} saved={saved}
         onApply={() => void persistLayout(layout)} onReset={() => setLayout(structuredClone(sourceLayout))} alwaysShow />
-      <div className="space-y-0 pt-3">
+      <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'1rem'}}>
         <ConfigSectionPanel label="Layout Configuration" first>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex gap-2 items-start">
               <input type="text" value={layout.icon}
                 onChange={(e) => updateLayout((draft) => { draft.icon = e.target.value || '📐' })}

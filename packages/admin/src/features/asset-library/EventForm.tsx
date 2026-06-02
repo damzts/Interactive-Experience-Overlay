@@ -552,7 +552,7 @@ export function EventForm({
     }
 
     return (
-      <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-3 py-2 text-[11px] text-zinc-500">
+      <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-5 py-4 text-[11px] text-zinc-500">
         This effect uses the built-in animation with no extra configuration beyond timing.
       </div>
     )
@@ -762,7 +762,7 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'desktop-config' && (
                     <div className="space-y-2">
-                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
                         <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
                           if (draft.kind !== 'desktop-config') return
                           draft.timeoutSeconds = value
@@ -820,7 +820,7 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'widget-theme-overrides' && (
                     <div className="space-y-2">
-                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
                         <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
                           if (draft.kind !== 'widget-theme-overrides') return
                           draft.timeoutSeconds = value
@@ -863,7 +863,7 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'widget-layout' && (
                     <div className="space-y-2">
-                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
                         <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
                           if (draft.kind !== 'widget-layout') return
                           draft.timeoutSeconds = value
@@ -909,7 +909,7 @@ export function EventForm({
 
                   {!collapsedActionIndexes.includes(index) && action.kind === 'ambiance-patch' && (
                     <div className="grid grid-cols-2 gap-2 pl-1">
-                      <div className="col-span-2 rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                      <div className="col-span-2 rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
                         <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
                           if (draft.kind !== 'ambiance-patch') return
                           draft.timeoutSeconds = value
@@ -939,7 +939,7 @@ export function EventForm({
                   )}
 
                   {collapsedActionIndexes.includes(index) && (
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-3 py-2 text-[11px] text-zinc-500">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-5 py-4 text-[11px] text-zinc-500">
                       Configuration hidden. Expand this action to edit its settings.
                     </div>
                   )}
@@ -997,7 +997,7 @@ export function EventForm({
                   </div>
 
                   {!collapsedEffectIndexes.includes(index) && (
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-3 py-2">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-5 py-4">
                       <Slider label="Delay" value={effect.delay ?? 0} min={0} max={10} step={0.1} unit="s" onChange={(value) => update((draft) => {
                         draft.effects[index] = { ...draft.effects[index], delay: value }
                       })} />
@@ -1007,7 +1007,7 @@ export function EventForm({
                   {!collapsedEffectIndexes.includes(index) && renderEffectConfig(effect, index)}
 
                   {collapsedEffectIndexes.includes(index) && (
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-3 py-2 text-[11px] text-zinc-500">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-5 py-4 text-[11px] text-zinc-500">
                       Configuration hidden. Expand this effect to edit its settings.
                     </div>
                   )}

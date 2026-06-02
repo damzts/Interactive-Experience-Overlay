@@ -129,7 +129,7 @@ function EventRow({
 
           {/* Diagnostics */}
           {diag && (
-            <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2 text-[10px] text-zinc-500 space-y-0.5">
+            <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4 text-[10px] text-zinc-500 space-y-0.5">
               <div>Next run: <span className="text-zinc-400">{formatRelative(diag.nextRunAt)}</span></div>
               {diag.idleTriggered && <div className="text-zinc-600">Idle already triggered this session</div>}
             </div>
@@ -174,19 +174,19 @@ export function SchedulerPanel() {
 
       <ConfigSectionPanel label="Engine status">
         <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
+          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
             <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Next fire</div>
             <div className="text-zinc-300 font-medium">{formatRelative(diag.nextFireAt)}</div>
           </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
+          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
             <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Active events</div>
             <div className="text-zinc-300 font-medium">{diag.activeEventCount}</div>
           </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
+          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
             <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last processed</div>
             <div className="text-zinc-400">{formatAgo(diag.lastProcessedAt)}</div>
           </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
+          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
             <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last fired</div>
             <div className="text-zinc-400">
               {diag.lastTriggeredEventId

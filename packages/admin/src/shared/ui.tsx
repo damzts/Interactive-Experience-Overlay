@@ -66,8 +66,8 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
   alwaysShow?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-3 pt-3 pb-2 backdrop-blur-xl">
-      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
+    <div className="sticky top-0 z-20 -mx-5 -mt-5 mb-5 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-5 pt-5 pb-2 backdrop-blur-xl">
+      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-5 py-4.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
           <SaveBar
             dirty={dirty}
@@ -236,7 +236,7 @@ export function Panel({
   title,
   children,
   className = '',
-  bodyClassName = 'p-3',
+  bodyClassName = 'p-8',
 }: {
   title?: string
   children: ReactNode
@@ -267,13 +267,14 @@ export function ConfigSectionPanel({
   className?: string
 }) {
   return (
-    <section className={first ? 'px-0.5 pt-0.5' : 'mt-6 px-0.5'}>
-      <div className={first ? 'mb-2 px-0.5' : 'mb-2 border-t border-cyan-500/20 px-0.5 pt-2'}>
+    <section>
+      {!first && <hr style={{ border: 'none', borderTop: '1px solid rgba(34,211,238,0.2)', margin: '0 0 1.25rem 0' }} />}
+      <div style={{ marginBottom: '0.75rem' }}>
         <span className="admin-text-kicker inline-flex rounded-md border border-cyan-400/35 bg-cyan-500/12 px-2.5 py-0.5 font-semibold uppercase tracking-[0.22em] text-cyan-200">
           {label}
         </span>
       </div>
-      <Panel className={className} bodyClassName="p-2.5">{children}</Panel>
+      <Panel className={className} bodyClassName="p-8">{children}</Panel>
     </section>
   )
 }
@@ -299,7 +300,7 @@ export function ConfigPageIntro({
   className?: string
 }) {
   return (
-    <div className={`mb-4 rounded-2xl border border-cyan-500/18 bg-[linear-gradient(180deg,rgba(10,10,12,0.88),rgba(16,16,20,0.72))] px-4 py-3 shadow-[0_18px_54px_rgba(0,0,0,0.28)] backdrop-blur ${className}`.trim()}>
+    <div className={`mb-4 rounded-2xl border border-cyan-500/18 bg-[linear-gradient(180deg,rgba(10,10,12,0.88),rgba(16,16,20,0.72))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.28)] backdrop-blur ${className}`.trim()}>
       <div className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/80">{eyebrow}</div>
       <div className="admin-text-display mt-1 font-semibold text-zinc-100">{title}</div>
       <div className="admin-text-body mt-1 max-w-prose text-zinc-400">{children}</div>
@@ -317,7 +318,7 @@ export function ConfigNotice({
   className?: string
 }) {
   return (
-    <div className={`admin-text-body rounded-xl border px-3 py-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
+    <div className={`admin-text-body rounded-xl border px-5 py-4.5 shadow-[0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
       {children}
     </div>
   )
@@ -325,7 +326,7 @@ export function ConfigNotice({
 
 export function ConfigToolbar({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-wrap items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur ${className}`.trim()}>
+    <div className={`flex flex-wrap items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-5 py-4.5 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur ${className}`.trim()}>
       {children}
     </div>
   )
@@ -333,7 +334,7 @@ export function ConfigToolbar({ children, className = '' }: { children: ReactNod
 
 export function ConfigCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-white/8 bg-white/[0.03] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-sm ${className}`.trim()}>
+    <div className={`rounded-xl border border-white/8 bg-white/[0.03] p-8 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-sm ${className}`.trim()}>
       {children}
     </div>
   )
@@ -551,14 +552,14 @@ export function SaveBar({
       {(dirty || alwaysShow) && (
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={onSave} disabled={saving || !dirty}
-            className="flex flex-col items-center gap-1 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-200 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 disabled:opacity-40">
+            className="flex flex-col items-center gap-1 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-4 text-amber-200 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 disabled:opacity-40">
             <span className="text-lg">💾</span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">{saving ? 'Saving…' : 'Save'}</span>
             <span className="text-[9px] text-amber-300/60">Apply &amp; write to database</span>
           </button>
           {onRevert && (
             <button type="button" onClick={onRevert} disabled={!dirty}
-              className="flex flex-col items-center gap-1 rounded-xl border border-zinc-600/40 bg-zinc-800/40 px-4 py-3 text-zinc-300 transition-colors hover:border-zinc-500/60 hover:bg-zinc-700/40 disabled:opacity-40">
+              className="flex flex-col items-center gap-1 rounded-xl border border-zinc-600/40 bg-zinc-800/40 px-5 py-4 text-zinc-300 transition-colors hover:border-zinc-500/60 hover:bg-zinc-700/40 disabled:opacity-40">
               <span className="text-lg">↩︎</span>
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">Restore</span>
               <span className="text-[9px] text-zinc-500">Revert unsaved changes</span>
@@ -567,7 +568,7 @@ export function SaveBar({
         </div>
       )}
       {saved && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4">
           <span className="text-base">✅</span>
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Saved successfully</span>
         </div>

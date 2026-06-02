@@ -258,7 +258,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
           ×
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto bg-zinc-950/55 p-3">
+      <div style={{padding: '2rem', display:'flex', flexDirection:'column', gap:'1.5rem'}} className="flex-1 overflow-y-auto bg-zinc-950/55">
         <RightPaneErrorBoundary>
           <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
         </RightPaneErrorBoundary>

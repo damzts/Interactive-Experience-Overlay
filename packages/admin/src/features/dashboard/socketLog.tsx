@@ -121,7 +121,7 @@ export function SocketLogConsole({ variant = 'sidebar' }: { variant?: 'sidebar' 
 
   return (
     <div className={isSettingsVariant ? 'rounded-xl border border-zinc-800/80 bg-zinc-950/70' : 'shrink-0 border-t border-zinc-800/80 bg-zinc-950/65'}>
-      <ConfigToolbar className={isSettingsVariant ? 'rounded-none border-0 border-b border-zinc-800/80 bg-zinc-950/40 px-3 py-2' : 'rounded-none border-0 border-b border-zinc-800/80 bg-zinc-950/35 px-2.5 py-1.5'}>
+      <ConfigToolbar className={isSettingsVariant ? 'rounded-none border-0 border-b border-zinc-800/80 bg-zinc-950/40 px-5 py-4' : 'rounded-none border-0 border-b border-zinc-800/80 bg-zinc-950/35 px-2.5 py-1.5'}>
         <span className={isSettingsVariant ? 'flex-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400' : 'flex-1 text-[9px] font-bold uppercase tracking-widest text-zinc-600'}>
           {isSettingsVariant ? 'Socket Console' : 'Console'}
         </span>

@@ -41,7 +41,7 @@ export function ThemeAppearanceFields({
   const activeFont = GOOGLE_FONTS.find((font) => font.css === appearance.fontFamily) ?? GOOGLE_FONTS[0]
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {helperText && <div className="text-[10px] text-zinc-500 leading-relaxed">{helperText}</div>}
       <div>
         <div className="mb-1 flex items-center justify-between gap-2">

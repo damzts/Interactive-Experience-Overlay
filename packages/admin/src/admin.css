@@ -9,6 +9,7 @@
   --admin-bg: #050507;
   --admin-surface: rgba(9, 9, 11, 0.72);
   --admin-surface-strong: rgba(15, 15, 18, 0.92);
+  --admin-panel-padding: 1.25rem;
   --admin-border: rgba(255, 255, 255, 0.08);
   --admin-border-strong: rgba(34, 211, 238, 0.16);
   --admin-accent: #22d3ee;

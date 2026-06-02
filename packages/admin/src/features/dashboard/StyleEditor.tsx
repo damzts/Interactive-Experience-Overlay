@@ -1,11 +1,11 @@
-﻿import { STATE } from '@ieom/shared'
+import { STATE } from '@ieom/shared'
 import type { BackgroundType, OverlayStyle, ParticlePreset } from '@ieom/shared'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
 import { ConfigSectionPanel, Slider, Toggle } from '../../shared/ui'
 import { BG_TYPES, GRADIENT_PRESETS, PARTICLE_PRESETS, PATTERN_CSS } from './constants'
 
-// â”€â”€ StyleSections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Stateless render â€” used by ScenePanel to embed style fields in unified draft.
+// ── StyleSections ─────────────────────────────────────────────────────
+// Stateless render — used by ScenePanel to embed style fields in unified draft.
 
 export function StyleSections({ sceneId, style, update }: {
   sceneId: string
@@ -19,7 +19,7 @@ export function StyleSections({ sceneId, style, update }: {
   return (
     <div className="space-y-0">
         <ConfigSectionPanel label="Background" first>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <select value={bg.type} onChange={(e) => update((d) => { d.background.type = e.target.value as BackgroundType })} className="w-full text-xs">
               {BG_TYPES.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
             </select>
@@ -52,7 +52,7 @@ export function StyleSections({ sceneId, style, update }: {
                 </div>
                 <input type="text" value={bg.gradient}
                   onChange={(e) => update((d) => { d.background.gradient = e.target.value })}
-                  placeholder="linear-gradient(â€¦)" className="w-full text-xs" />
+                  placeholder="linear-gradient(…)" className="w-full text-xs" />
               </div>
             )}
 
@@ -112,7 +112,7 @@ export function StyleSections({ sceneId, style, update }: {
         </ConfigSectionPanel>
 
         <ConfigSectionPanel label="Particles">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <select value={pt.preset}
               onChange={(e) => update((d) => { d.particles.preset = e.target.value as ParticlePreset; d.particles.enabled = e.target.value !== 'none' })}
               className="w-full text-xs">
