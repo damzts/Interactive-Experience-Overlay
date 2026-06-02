@@ -9,7 +9,7 @@ import {
 } from '../../shared/ui'
 import { SettingsPage } from '../settings/SettingsPage'
 import { ArchivePanel } from '../archive/ArchivePanel'
-import { KeybindEditor } from '../keybinds/KeybindEditor'
+import { KeybindsPage } from '../keybinds/KeybindsPage'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
@@ -140,7 +140,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'lobby-theme')   return <LobbyThemeEditor />
   if (selected.kind === 'desktop-theme') return <DesktopThemeEditor />
   if (selected.kind === 'audio')    return <AudioPanel />
-  if (selected.kind === 'keybinds') return <KeybindEditor />
+  if (selected.kind === 'keybinds') return <KeybindsPage />
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPanel />
   if (selected.kind === 'asset-library') return <AssetLibraryPanel />
@@ -230,7 +230,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     headerLabel = 'Desktop Theme'
     headerMeta  = 'Utility'
   } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio Engine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
+  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Input Engine'; headerMeta = 'Engine' }
   else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';       headerMeta = 'Utility' }
   else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings';      headerMeta = 'Utility' }
   else if (selected.kind === 'asset-library') { headerIcon = '🗂'; headerLabel = 'Asset Library'; headerMeta = 'Utility' }
@@ -269,14 +269,14 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
 // ── SettingsModal ──────────────────────────────────────────────────
 
-export type SettingsTab = 'general' | 'keybinds' | 'about'
+export type SettingsTab = 'general' | 'about'
 
 function SettingsPanel() {
   const [tab, setTab] = useState<SettingsTab>('general')
   return (
     <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
       <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
-        {(['general', 'keybinds', 'about'] as const).map((id) => (
+        {(['general', 'about'] as const).map((id) => (
           <button key={id} type="button" onClick={() => setTab(id)}
             className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' + (
               tab === id
@@ -288,7 +288,6 @@ function SettingsPanel() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tab === 'about'    && <SettingsPage mode="about" />}
         {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
-        {tab === 'keybinds' && <KeybindEditor />}
       </div>
     </div>
   )
@@ -307,7 +306,6 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
         <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
           {([
             ['general', 'General'],
-            ['keybinds', 'Keybinds'],
             ['about', 'About'],
           ] as const).map(([id, label]) => (
             <button
@@ -328,7 +326,6 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'about'    && <SettingsPage mode="about" />}
           {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
-          {tab === 'keybinds' && <KeybindEditor />}
         </div>
       </div>
     </FloatingWindowShell>
