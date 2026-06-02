@@ -175,16 +175,16 @@ export function SchedulerPanel() {
       <ConfigSectionPanel label="Engine status">
         <div className="grid grid-cols-2 gap-2 text-[11px]">
           <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Tick rate</div>
-            <div className="text-zinc-300 font-medium">{diag.tickMs / 1000}s</div>
+            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Next fire</div>
+            <div className="text-zinc-300 font-medium">{formatRelative(diag.nextFireAt)}</div>
           </div>
           <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
             <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Active events</div>
             <div className="text-zinc-300 font-medium">{diag.activeEventCount}</div>
           </div>
           <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last evaluated</div>
-            <div className="text-zinc-400">{formatAgo(diag.lastEvaluatedAt)}</div>
+            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last processed</div>
+            <div className="text-zinc-400">{formatAgo(diag.lastProcessedAt)}</div>
           </div>
           <div className="rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2">
             <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last fired</div>

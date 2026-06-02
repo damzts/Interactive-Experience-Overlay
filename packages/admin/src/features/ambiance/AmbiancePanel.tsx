@@ -25,16 +25,6 @@ function formatRelativeTime(timestamp: number | null) {
   return `${hours}h ago`
 }
 
-function formatFutureTime(timestamp: number | null) {
-  if (!timestamp) return 'Not scheduled'
-  const diffMs = timestamp - Date.now()
-  if (diffMs <= 0) return 'Due now'
-  const seconds = Math.ceil(diffMs / 1000)
-  if (seconds < 60) return `In ${seconds}s`
-  const minutes = Math.ceil(seconds / 60)
-  return `In ${minutes}m`
-}
-
 function formatDateTime(timestamp: number | null) {
   if (!timestamp) return 'Never'
   return new Date(timestamp).toLocaleTimeString([], {
@@ -198,8 +188,6 @@ export function AmbiancePanel() {
   const simConfig = form.widgetSimulation
   const scheduler = runtimeDiagnostics.scheduler
   const ambiance = runtimeDiagnostics.ambiance
-  const activeAutoEvents = scheduler.events.filter((eventDef) => eventDef.enabled)
-
   const requestOverlayResync = useCallback(() => {
     setResyncing(true)
     socket.emit('overlay:force-resync', { reason: 'admin-panel-manual-resync' })
@@ -312,27 +300,6 @@ export function AmbiancePanel() {
           )}
         </div>
       </ConfigSectionPanel>
-      <ConfigSectionPanel label="Scheduler Queue">
-        {activeAutoEvents.length === 0 ? (
-          <ConfigNotice tone="info">No auto-events are enabled.</ConfigNotice>
-        ) : (
-          <div className="space-y-2">
-            {activeAutoEvents.map((eventDef) => (
-              <ConfigCard key={eventDef.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-medium text-zinc-100">{eventDef.label}</div>
-                    <div className="text-[10px] text-zinc-500">{eventDef.mode === 'interval' ? `Interval every ~${eventDef.intervalMin}m` : `Idle after ${eventDef.idleMin}m`}</div>
-                  </div>
-                  <div className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${eventDef.due ? 'bg-amber-500/15 text-amber-200' : 'bg-cyan-500/10 text-cyan-200'}`}>
-                    {eventDef.mode === 'interval' ? formatFutureTime(eventDef.nextRunAt) : (eventDef.idleTriggered ? 'Idle fired' : 'Waiting')}
-                  </div>
-                </div>
-              </ConfigCard>
-            ))}
-          </div>
-        )}
-      </ConfigSectionPanel>
       <ConfigSectionPanel label="Ambiance Runtime">
         <div className="space-y-3">
           <div className="flex items-center justify-end gap-3">
@@ -382,13 +349,6 @@ export function AmbiancePanel() {
             </div>
             <div className="border-t border-zinc-800/70 pt-2">
               <div className="space-y-2">
-                <div className="flex items-start justify-between gap-3 text-sm">
-                  <div className="min-w-0">
-                    <div className="text-zinc-400">Scheduler tick</div>
-                    <div className="text-[11px] text-zinc-500">Eval {formatRelativeTime(scheduler.lastEvaluatedAt)}</div>
-                  </div>
-                  <div className="text-right text-zinc-100">{Math.round(scheduler.tickMs / 1000)}s</div>
-                </div>
                 <div className="flex items-start justify-between gap-3 text-sm">
                   <div className="min-w-0">
                     <div className="text-zinc-400">Last activity</div>
