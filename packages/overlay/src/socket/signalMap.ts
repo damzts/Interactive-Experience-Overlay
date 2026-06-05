@@ -10,7 +10,6 @@
 
 import { withDesktopConfigDefaults, DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS } from '@ieom/shared'
 import type {
-  AmbianceSimulationPayload,
   CursorMirrorPayload,
   DesktopNotificationPayload,
   DesktopRecycleBinPayload,
