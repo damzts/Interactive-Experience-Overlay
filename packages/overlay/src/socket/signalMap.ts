@@ -31,6 +31,7 @@ import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
 import { dispatchWidgetSimulationIntent } from '../desktop/widgetSimulationEvents'
 import { runWidgetCursorSimulation } from '../desktop/cursorSimUtils'
+import { socket } from './client'
 import type { AppStore } from '../store/useAppStore'
 
 // ── Types ────────────────────────────────────────────────────────
@@ -105,11 +106,15 @@ export const signalHandlers: SignalHandlerMap = {
     })
   },
 
-  'overlay:resync': (_payload, store) => {
-    // Trigger a full resync by re-requesting state from the server.
-    // The store's connect handler will fire — handled by useSignalReceiver reconnect logic.
-    // We dispatch a synthetic connect event so scene/desktop state is re-fetched.
-    store.syncDesktopRuntimeState({ openWidgetIds: [], recycleBinFull: false })
+  'overlay:resync': (_payload, _store) => {
+    // Signal the connect-sync hook to re-request state from server.
+    // Handled by the socket 'connect' listener in useSocket.
+    socket.emit('state:request', (serverState) => {
+      _store.setVisualState(serverState as Exclude<typeof serverState, 'TRANSITIONING'>)
+    })
+    socket.emit('desktop:state:request', (payload) => {
+      _store.syncDesktopRuntimeState(payload)
+    })
   },
 
   // ── Config signals ─────────────────────────────────────────────

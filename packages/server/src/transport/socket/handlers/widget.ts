@@ -6,16 +6,15 @@ import { applyRuntimeConfigOverride } from './runtimeOverride.js'
 // ── Core widget runtime helpers (used by scene.ts too) ───────────
 
 export function toggleWidgetRuntime(ctx: HandlerContext, widgetId: string): void {
-  if (ctx.openWidgetIds.has(widgetId)) ctx.openWidgetIds.delete(widgetId)
-  else ctx.openWidgetIds.add(widgetId)
+  ctx.runtimeState.toggleWidget(widgetId)
   ctx.io.emit('widget:toggle', widgetId)
 }
 
 export function setWidgetRuntimeOpenState(ctx: HandlerContext, widgetId: string, shouldOpen: boolean): void {
-  const isOpen = ctx.openWidgetIds.has(widgetId)
+  const isOpen = ctx.runtimeState.openWidgetIds.has(widgetId)
   if (shouldOpen === isOpen) return
-  if (shouldOpen) ctx.openWidgetIds.add(widgetId)
-  else ctx.openWidgetIds.delete(widgetId)
+  if (shouldOpen) ctx.runtimeState.openWidget(widgetId)
+  else ctx.runtimeState.closeWidget(widgetId)
   ctx.io.emit('widget:toggle', widgetId)
 }
 
@@ -94,7 +93,7 @@ export function applySavedWidgetLayout(
   }
 
   for (const item of layoutItems) {
-    const isOpen = ctx.openWidgetIds.has(item.widgetId)
+    const isOpen = ctx.runtimeState.openWidgetIds.has(item.widgetId)
     if (item.enabled !== isOpen) toggleWidgetRuntime(ctx, item.widgetId)
   }
 
@@ -179,7 +178,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
 
     for (const item of validItems) {
-      const isOpen = ctx.openWidgetIds.has(item.widgetId)
+      const isOpen = ctx.runtimeState.openWidgetIds.has(item.widgetId)
       if (item.enabled !== isOpen) toggleWidgetRuntime(ctx, item.widgetId)
     }
     ctx.io.emit('widget:layout:apply:items', validItems)

@@ -30,24 +30,31 @@ export function setupSocketHandlers(
   options?: {
     getObsStatus?: () => ObsStatusPayload
     getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
+    bus?: import('../../kernel/bus.js').KernelBus
+    runtimeState?: import('../../kernel/managers/runtime.js').RuntimeStateStore
     povOrchestrator?: any
     onlineSessionManager?: any
     onlineSignalingServer?: any
     configService?: any
   },
 ): { isOverlaySlotTaken: () => boolean } {
+  // Seed recycleBinFull from config default if runtimeState provided and not yet set
+  if (options?.runtimeState) {
+    const defaultFull = withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig).recycleBin.fullOnStart
+    options.runtimeState.setRecycleBinFull(defaultFull)
+  }
+
   const ctx: HandlerContext = {
     io,
     machine,
     scheduler,
     ambianceManager,
+    runtimeState: options?.runtimeState ?? (() => { throw new Error('[kernel] runtimeState required') })(),
     configService: options?.configService ?? null,
     getObsStatus: options?.getObsStatus,
     getManagerStatuses: options?.getManagerStatuses,
+    bus: options?.bus,
 
-    openWidgetIds: new Set(),
-    recycleBinFull: withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig).recycleBin.fullOnStart,
-    startMenuState: { open: false, activeRoot: null },
     runtimeConfigOverride: {},
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,
 
@@ -73,7 +80,7 @@ export function setupSocketHandlers(
   }
 
   // Give ambiance manager live access to runtime state
-  ambianceManager.setOpenWidgetIdsGetter(() => ctx.openWidgetIds)
+  ambianceManager.setOpenWidgetIdsGetter(() => ctx.runtimeState.openWidgetIds as Set<string>)
   ambianceManager.setSimulationLeaderGetter(() => ctx.simulationLeaderSocketId)
 
   // Wire scheduler/ambiance → diagnostics broadcast

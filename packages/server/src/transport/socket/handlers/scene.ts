@@ -251,9 +251,16 @@ export function registerMachineListeners(ctx: HandlerContext): void {
     ctx.io.emit('overlay:show', payload)
   })
 
-  // event:trigger is emitted by EventScheduler via machine.emit() to fire scheduled events
+  // event:trigger fallback for when no bus is wired (backward compat)
   ctx.machine.on('event:trigger', (eventDef: EventConfig) => {
     void executeConfiguredEvent(ctx, eventDef)
   })
+
+  // KernelBus: scheduler fires events through the bus when wired
+  if (ctx.bus) {
+    ctx.bus.on('scheduler:fired', ({ event }) => {
+      void executeConfiguredEvent(ctx, event)
+    })
+  }
 }
 

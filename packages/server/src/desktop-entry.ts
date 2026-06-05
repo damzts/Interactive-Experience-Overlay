@@ -138,7 +138,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const userRepository = new UserRepository(dbQueryAdapter)
   const machine = new SceneMachine()
   const runtimeState = new RuntimeStateStore()
-  const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
+  const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
   const obsBridge = new ObsBridge(io, machine)
   const hubConnection = new HubConnection()
@@ -148,10 +148,10 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const kernel = new Kernel()
   kernel.register(configService)
   kernel.register(runtimeState)
-  kernel.register(machine)
-  kernel.register(scheduler)
-  kernel.register(ambianceManager)
-  kernel.register(obsBridge)
+  kernel.register(machine, { after: ['DesktopConfigService'] })
+  kernel.register(scheduler, { after: ['SceneMachine', 'DesktopConfigService'] })
+  kernel.register(ambianceManager, { after: ['DesktopConfigService'] })
+  kernel.register(obsBridge, { after: ['SceneMachine'] })
   kernel.register(povOrchestrator)
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
@@ -165,6 +165,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const { isOverlaySlotTaken } = setupSocketHandlers(io, machine, scheduler, ambianceManager, {
     getObsStatus: () => obsBridge.getStatus(),
     getManagerStatuses: () => kernel.getManagerStatuses(),
+    bus: kernel.bus,
+    runtimeState,
     configService: configService as any,
   })
 

@@ -19,6 +19,7 @@ export interface WidgetRuntimeState {
   openWidgetIds: ReadonlySet<string>
   recycleBinFull: boolean
   startMenuOpen: boolean
+  startMenuActiveRoot: 'programs' | 'widget-layouts' | null
 }
 
 export interface OverlayRuntimeState {
@@ -52,6 +53,7 @@ export class RuntimeStateStore implements Manager {
   private _openWidgetIds = new Set<string>()
   private _recycleBinFull = false
   private _startMenuOpen = false
+  private _startMenuActiveRoot: 'programs' | 'widget-layouts' | null = null
 
   // ── Scene ─────────────────────────────────────────────────────
 
@@ -90,6 +92,17 @@ export class RuntimeStateStore implements Manager {
   get startMenuOpen(): boolean { return this._startMenuOpen }
   setStartMenuOpen(v: boolean): void { this._startMenuOpen = v }
 
+  get startMenuActiveRoot(): 'programs' | 'widget-layouts' | null { return this._startMenuActiveRoot }
+  setStartMenuActiveRoot(r: 'programs' | 'widget-layouts' | null): void { this._startMenuActiveRoot = r }
+
+  get startMenuState(): { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } {
+    return { open: this._startMenuOpen, activeRoot: this._startMenuActiveRoot }
+  }
+  setStartMenuState(open: boolean, activeRoot: 'programs' | 'widget-layouts' | null): void {
+    this._startMenuOpen = open
+    this._startMenuActiveRoot = open ? activeRoot : null
+  }
+
   // ── Snapshot ──────────────────────────────────────────────────
 
   snapshot(): RuntimeStateSnapshot {
@@ -98,6 +111,7 @@ export class RuntimeStateStore implements Manager {
         openWidgetIds: new Set(this._openWidgetIds),
         recycleBinFull: this._recycleBinFull,
         startMenuOpen: this._startMenuOpen,
+        startMenuActiveRoot: this._startMenuActiveRoot,
       },
       overlay: {
         currentScene: this._currentScene,

@@ -11,9 +11,9 @@ import { applyRuntimeConfigOverride } from './runtimeOverride.js'
 
 export function getDesktopRuntimeState(ctx: HandlerContext): DesktopRuntimeStatePayload {
   return {
-    openWidgetIds: [...ctx.openWidgetIds],
-    recycleBinFull: ctx.recycleBinFull,
-    startMenuState: ctx.startMenuState,
+    openWidgetIds: [...ctx.runtimeState.openWidgetIds],
+    recycleBinFull: ctx.runtimeState.recycleBinFull,
+    startMenuState: ctx.runtimeState.startMenuState,
   }
 }
 
@@ -65,17 +65,14 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
 
   socket.on('desktop:recycle-bin', (payload: DesktopRecycleBinPayload) => {
     ctx.scheduler?.noteActivity()
-    ctx.recycleBinFull = payload.full
+    ctx.runtimeState.setRecycleBinFull(payload.full)
     ctx.io.emit('desktop:recycle-bin', payload)
   })
 
   socket.on('desktop:start-menu:state', (payload: DesktopStartMenuStatePayload) => {
     if (payload.open) ctx.scheduler?.noteActivity()
-    ctx.startMenuState = {
-      open: payload.open,
-      activeRoot: payload.open ? payload.activeRoot : null,
-    }
-    ctx.io.emit('desktop:start-menu:state', ctx.startMenuState)
+    ctx.runtimeState.setStartMenuState(payload.open, payload.open ? payload.activeRoot : null)
+    ctx.io.emit('desktop:start-menu:state', ctx.runtimeState.startMenuState)
   })
 
   socket.on('desktop:start-menu:phase', (payload: DesktopStartMenuSimulationPhasePayload) => {

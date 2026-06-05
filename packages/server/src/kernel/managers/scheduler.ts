@@ -1,6 +1,7 @@
 import type { SceneMachine } from './scene.js'
 import { STATE } from '@ieom/shared'
 import type { AppConfig, EventConfig, Manager, ManagerStatus, SchedulerDiagnosticsPayload } from '@ieom/shared'
+import type { KernelBus } from '../bus.js'
 
 function randBetween(minValue: number, maxValue: number) {
   return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue
@@ -32,7 +33,7 @@ export class EventScheduler implements Manager {
   private lastTriggeredEventId: string | null = null
   private diagnosticsListener?: (payload: SchedulerDiagnosticsPayload) => void
 
-  constructor(private machine: SceneMachine, private getConfig: () => AppConfig) {}
+  constructor(private machine: SceneMachine, private getConfig: () => AppConfig, private bus?: KernelBus) {}
 
   // ── Manager interface ────────────────────────────────────────
   init(): void { this._status = 'idle' }
@@ -157,7 +158,12 @@ export class EventScheduler implements Manager {
     this.lastTriggeredEventId = eventDef.id
     this.lastTriggeredAt = triggeredAt
     this.lastTriggeredByEvent.set(eventDef.id, triggeredAt)
-    this.machine.emit('event:trigger', eventDef, 'scheduler')
+    if (this.bus) {
+      this.bus.emit('scheduler:fired', { eventId: eventDef.id, event: eventDef })
+    } else {
+      // fallback: emit on machine for backward compat if no bus provided
+      this.machine.emit('event:trigger', eventDef, 'scheduler')
+    }
     this.emitDiagnostics()
   }
 

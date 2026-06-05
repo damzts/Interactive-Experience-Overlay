@@ -2,13 +2,13 @@
  * Kernel — the central orchestrator of @ieom/server.
  *
  * Owns a registry of named managers and an internal event bus.
- * Boots all registered managers in registration order, shuts them
- * down in reverse order.
+ * Boot order is determined by declared dependencies (topological sort).
+ * Shutdown is the reverse of the resolved boot order.
  *
  * Usage:
  *   const kernel = new Kernel()
  *   kernel.register(configService)
- *   kernel.register(sceneMachine)
+ *   kernel.register(sceneMachine, { after: ['DesktopConfigService'] })
  *   await kernel.boot()
  *   // later:
  *   await kernel.shutdown()
@@ -23,15 +23,16 @@ export type { KernelEvents } from './bus.js'
 export class Kernel {
   readonly bus: KernelBus = new KernelBus()
   private managers: Map<string, Manager> = new Map()
-  private registrationOrder: string[] = []
+  private deps: Map<string, string[]> = new Map()
+  private bootOrder: string[] = []
 
-  /** Register a manager. Must be called before boot(). */
-  register(manager: Manager): void {
+  /** Register a manager. `after` lists manager names that must boot before this one. */
+  register(manager: Manager, options?: { after?: string[] }): void {
     if (this.managers.has(manager.name)) {
       throw new Error(`[kernel] Manager '${manager.name}' is already registered`)
     }
     this.managers.set(manager.name, manager)
-    this.registrationOrder.push(manager.name)
+    this.deps.set(manager.name, options?.after ?? [])
   }
 
   /** Retrieve a registered manager by name. Throws if not found. */
@@ -48,25 +49,64 @@ export class Kernel {
     return result
   }
 
-  /**
-   * Boot: init all managers in registration order, then start all.
-   * Each step is sequential to allow managers to depend on earlier ones.
-   */
-  async boot(): Promise<void> {
-    for (const name of this.registrationOrder) {
-      await this.managers.get(name)!.init()
+  /** Kahn's algorithm — returns names in dependency-safe boot order. */
+  private topoSort(): string[] {
+    const inDegree = new Map<string, number>()
+    const adjReverse = new Map<string, string[]>() // name → who depends on it
+
+    for (const name of this.managers.keys()) {
+      inDegree.set(name, 0)
+      adjReverse.set(name, [])
     }
-    for (const name of this.registrationOrder) {
-      await this.managers.get(name)!.start()
+
+    for (const [name, predecessors] of this.deps) {
+      for (const pred of predecessors) {
+        if (!this.managers.has(pred)) {
+          throw new Error(`[kernel] '${name}' declares dependency on unknown manager '${pred}'`)
+        }
+        adjReverse.get(pred)!.push(name)
+        inDegree.set(name, (inDegree.get(name) ?? 0) + 1)
+      }
     }
-    console.log(`[kernel] booted (${this.registrationOrder.length} managers)`)
+
+    const queue = [...this.managers.keys()].filter((n) => inDegree.get(n) === 0)
+    const order: string[] = []
+
+    while (queue.length > 0) {
+      const node = queue.shift()!
+      order.push(node)
+      for (const dependent of adjReverse.get(node) ?? []) {
+        const deg = (inDegree.get(dependent) ?? 0) - 1
+        inDegree.set(dependent, deg)
+        if (deg === 0) queue.push(dependent)
+      }
+    }
+
+    if (order.length !== this.managers.size) {
+      throw new Error('[kernel] Circular dependency detected in manager boot graph')
+    }
+    return order
   }
 
   /**
-   * Shutdown: stop all in reverse order, then dispose all in reverse order.
+   * Boot: resolve dependency order, then init all → start all.
+   */
+  async boot(): Promise<void> {
+    this.bootOrder = this.topoSort()
+    for (const name of this.bootOrder) {
+      await this.managers.get(name)!.init()
+    }
+    for (const name of this.bootOrder) {
+      await this.managers.get(name)!.start()
+    }
+    console.log(`[kernel] booted (${this.bootOrder.length} managers: ${this.bootOrder.join(' → ')})`)
+  }
+
+  /**
+   * Shutdown: stop all in reverse boot order, then dispose all.
    */
   async shutdown(): Promise<void> {
-    const reversed = [...this.registrationOrder].reverse()
+    const reversed = [...this.bootOrder].reverse()
     for (const name of reversed) {
       await this.managers.get(name)!.stop()
     }
