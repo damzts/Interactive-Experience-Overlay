@@ -5,17 +5,13 @@ import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { SOURCE_CATALOG, findSourceCatalogEntry, getSafeSceneSources } from '../../shared/sourceCatalog'
 import { TRANSITION_OPTIONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
-import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { MediaEntry, SourcePreset } from '@ieom/shared'
 
 export type AssetLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
 
-// Context shape — all state + actions needed by Sidebar and Content
 export interface AssetLibraryContextValue {
   tab: AssetLibraryTab
   setTab: (t: AssetLibraryTab) => void
-
-  // catalog
   catalogSearch: string
   setCatalogSearch: (v: string) => void
   catalogKindFilter: 'all' | AssetKind
@@ -27,8 +23,6 @@ export interface AssetLibraryContextValue {
   catalogError: string | null
   refreshCatalog: () => void
   handleDeleteCatalogAsset: (asset: AssetRecord) => void
-
-  // events
   eventSearch: string
   setEventSearch: (v: string) => void
   filteredEventDefs: EventDef[]
@@ -42,8 +36,6 @@ export interface AssetLibraryContextValue {
   saveEventDraft: () => void
   deleteEventDraft: () => void
   handleTriggerEvent: (def: EventDef) => void
-
-  // sources
   sourceSearch: string
   setSourceSearch: (v: string) => void
   filteredSourcePresets: SourcePreset[]
@@ -59,8 +51,6 @@ export interface AssetLibraryContextValue {
   patchSourcePresetDraft: (updates: Partial<SourcePreset>) => void
   saveSourcePresetDraft: () => void
   deleteSourcePresetDraft: () => void
-
-  // transitions
   transitionSearch: string
   setTransitionSearch: (v: string) => void
   filteredSystemTransitions: typeof TRANSITION_OPTIONS
@@ -87,18 +77,17 @@ export function useAssetLibrary(): AssetLibraryContextValue {
   return ctx
 }
 
-/** Returns null if no provider is present — useful for optional rendering */
 export function useAssetLibraryOptional(): AssetLibraryContextValue | null {
   return useContext(AssetLibraryContext)
 }
 
 export function AssetLibraryProvider({ children }: { children: ReactNode }) {
-  const config = useAdminStore((state) => state.config)
-  const mediaLibrary = useAdminStore((state) => state.config.mediaLibrary ?? [])
-  const eventDefs = useAdminStore((state) => (state.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
-  const widgetIds = useAdminStore((state) => state.config.applications.filter((app) => app.appType === 'widget').map((app) => app.id))
-  const widgetLayouts = useAdminStore((state) => withDesktopConfigDefaults(state.config.desktopConfig).widgetLayouts ?? [])
-  const saveConfig = useAdminStore((state) => state.saveConfig)
+  const config      = useAdminStore((s) => s.config)
+  const sourceMedia = useAdminStore((s) => s.config.sourceMedia ?? [])
+  const eventDefs   = useAdminStore((s) => (s.config.sourceEvents ?? DEFAULT_EVENT_DEFS) as EventDef[])
+  const widgetIds   = useAdminStore((s) => s.config.applications.filter((a) => a.appType === 'widget').map((a) => a.id))
+  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
+  const saveConfig  = useAdminStore((s) => s.saveConfig)
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useAssetCatalog()
 
   const [tab, setTab] = useState<AssetLibraryTab>('catalog')
@@ -118,27 +107,26 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const sourcePresets = config.sourcePresets ?? []
-
   const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
 
   const filteredEventDefs = useMemo(() => {
-    const query = eventSearch.trim().toLowerCase()
-    if (!query) return eventDefs
-    return eventDefs.filter((def) => [def.label, def.desc, def.id].some((v) => v.toLowerCase().includes(query)))
+    const q = eventSearch.trim().toLowerCase()
+    if (!q) return eventDefs
+    return eventDefs.filter((d) => [d.label, d.desc, d.id].some((v) => v.toLowerCase().includes(q)))
   }, [eventDefs, eventSearch])
 
   const filteredEventPresets = useMemo(() => {
-    const query = eventSearch.trim().toLowerCase()
-    return EVENT_PRESET_OPTIONS.filter((p) => p.id !== 'blank' && (!query || [p.label, p.description, p.id].some((v) => v.toLowerCase().includes(query))))
+    const q = eventSearch.trim().toLowerCase()
+    return EVENT_PRESET_OPTIONS.filter((p) => p.id !== 'blank' && (!q || [p.label, p.description, p.id].some((v) => v.toLowerCase().includes(q))))
   }, [eventSearch])
 
-  const catalogSavedAssets = useMemo(() => mediaLibrary.map(mediaEntryToAsset), [mediaLibrary])
+  const catalogSavedAssets = useMemo(() => sourceMedia.map(mediaEntryToAsset), [sourceMedia])
   const filteredCatalogAssets = useMemo(() => {
-    const query = catalogSearch.trim().toLowerCase()
-    const matches = (asset: AssetRecord) => {
-      if (catalogKindFilter !== 'all' && asset.kind !== catalogKindFilter) return false
-      if (!query) return true
-      return [asset.name, asset.url, asset.folder, asset.relativePath, asset.game ?? ''].some((v) => v.toLowerCase().includes(query))
+    const q = catalogSearch.trim().toLowerCase()
+    const matches = (a: AssetRecord) => {
+      if (catalogKindFilter !== 'all' && a.kind !== catalogKindFilter) return false
+      if (!q) return true
+      return [a.name, a.url, a.folder, a.relativePath, a.game ?? ''].some((v) => v.toLowerCase().includes(q))
     }
     return [...catalogSavedAssets, ...catalogAssets].filter(matches)
   }, [catalogAssets, catalogKindFilter, catalogSavedAssets, catalogSearch])
@@ -147,9 +135,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     const groups = new Map<string, AssetRecord[]>()
     for (const asset of filteredCatalogAssets) {
       const prefix = asset.source === 'saved' ? 'Saved Media' : asset.source === 'games' ? `Game Images${asset.game ? ` / ${asset.game}` : ''}` : `Project Assets / ${asset.folder}`
-      const list = groups.get(prefix)
-      if (list) list.push(asset)
-      else groups.set(prefix, [asset])
+      const list = groups.get(prefix); if (list) list.push(asset); else groups.set(prefix, [asset])
     }
     return Array.from(groups.entries())
       .map(([folder, items]) => ({ folder, items: [...items].sort((a, b) => a.name.localeCompare(b.name)) }))
@@ -157,19 +143,19 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   }, [filteredCatalogAssets])
 
   const sortedTransitionLibrary = useMemo(() => (
-    [...mediaLibrary].sort((a, b) => getMediaTransitionLabel(a).localeCompare(getMediaTransitionLabel(b)))
-  ), [mediaLibrary])
+    [...sourceMedia].sort((a, b) => getMediaTransitionLabel(a).localeCompare(getMediaTransitionLabel(b)))
+  ), [sourceMedia])
 
   const filteredSystemTransitions = useMemo(() => {
-    const query = transitionSearch.trim().toLowerCase()
-    if (!query) return TRANSITION_OPTIONS
-    return TRANSITION_OPTIONS.filter((t) => [t.id, t.label].some((v) => v.toLowerCase().includes(query)))
+    const q = transitionSearch.trim().toLowerCase()
+    if (!q) return TRANSITION_OPTIONS
+    return TRANSITION_OPTIONS.filter((t) => [t.id, t.label].some((v) => v.toLowerCase().includes(q)))
   }, [transitionSearch])
 
   const filteredTransitionLibrary = useMemo(() => {
-    const query = transitionSearch.trim().toLowerCase()
-    if (!query) return sortedTransitionLibrary
-    return sortedTransitionLibrary.filter((e) => [e.name, e.url, e.id, getMediaTransitionLabel(e)].some((v) => v.toLowerCase().includes(query)))
+    const q = transitionSearch.trim().toLowerCase()
+    if (!q) return sortedTransitionLibrary
+    return sortedTransitionLibrary.filter((e) => [e.name, e.url, e.id, getMediaTransitionLabel(e)].some((v) => v.toLowerCase().includes(q)))
   }, [sortedTransitionLibrary, transitionSearch])
 
   const selectedCatalogAsset = useMemo(() => (
@@ -179,22 +165,17 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const selectedTransition = useMemo(() => {
     if (!selectedTransitionKey) return filteredSystemTransitions[0] ? { kind: 'system' as const, entry: filteredSystemTransitions[0] } : filteredTransitionLibrary[0] ? { kind: 'user' as const, entry: filteredTransitionLibrary[0] } : null
     if (selectedTransitionKey.startsWith('system:')) {
-      const id = selectedTransitionKey.slice('system:'.length)
-      const entry = filteredSystemTransitions.find((t) => t.id === id)
+      const entry = filteredSystemTransitions.find((t) => t.id === selectedTransitionKey.slice(7))
       return entry ? { kind: 'system' as const, entry } : null
     }
-    if (selectedTransitionKey.startsWith('user:')) {
-      const id = selectedTransitionKey.slice('user:'.length)
-      const entry = filteredTransitionLibrary.find((t) => t.id === id)
-      return entry ? { kind: 'user' as const, entry } : null
-    }
-    return null
+    const entry = filteredTransitionLibrary.find((t) => t.id === selectedTransitionKey.slice(5))
+    return entry ? { kind: 'user' as const, entry } : null
   }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
 
   const filteredSourcePresets = useMemo(() => {
-    const query = sourceSearch.trim().toLowerCase()
-    if (!query) return sourcePresets
-    return sourcePresets.filter((p) => [p.label, p.id, p.pluginType].some((v) => v.toLowerCase().includes(query)))
+    const q = sourceSearch.trim().toLowerCase()
+    if (!q) return sourcePresets
+    return sourcePresets.filter((p) => [p.label, p.id, p.pluginType].some((v) => v.toLowerCase().includes(q)))
   }, [sourcePresets, sourceSearch])
 
   const usageCountByPreset = useMemo(() => (
@@ -223,7 +204,6 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
 
   const editingEvent = eventDraft?.event ?? null
 
-  // Effects
   useEffect(() => {
     if (selectedEventId && !eventDefs.some((d) => d.id === selectedEventId)) setSelectedEventId(null)
   }, [eventDefs, selectedEventId])
@@ -239,16 +219,13 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!selectedSourcePresetId) return
     const preset = sourcePresets.find((e) => e.id === selectedSourcePresetId)
-    if (!preset) return
-    if (sourcePresetDraft?.originalId === preset.id) return
+    if (!preset || sourcePresetDraft?.originalId === preset.id) return
     setSourcePresetDraft({ preset: { ...preset, config: { ...preset.config }, defaultPosition: preset.defaultPosition ? { ...preset.defaultPosition } : undefined }, originalId: preset.id, originalLabel: preset.label })
   }, [selectedSourcePresetId, sourcePresets, sourcePresetDraft?.originalId])
 
   useEffect(() => {
     if (filteredCatalogAssets.length === 0) { if (selectedCatalogAssetId !== null) setSelectedCatalogAssetId(null); return }
-    if (!selectedCatalogAssetId || !filteredCatalogAssets.some((a) => a.id === selectedCatalogAssetId)) {
-      setSelectedCatalogAssetId(filteredCatalogAssets[0].id)
-    }
+    if (!selectedCatalogAssetId || !filteredCatalogAssets.some((a) => a.id === selectedCatalogAssetId)) setSelectedCatalogAssetId(filteredCatalogAssets[0].id)
   }, [filteredCatalogAssets, selectedCatalogAssetId])
 
   useEffect(() => {
@@ -257,32 +234,32 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     if (!selectedTransitionKey || !options.includes(selectedTransitionKey)) setSelectedTransitionKey(options[0])
   }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
 
-  // Handlers
+  // ── Handlers ───────────────────────────────────────────────────
+
   const handleSave = async () => {
     if (!url) return
     const durVal = parseFloat(durStr)
     const type = pendingTransitionKind
     const hasDur = type === 'image' && !Number.isNaN(durVal) && durVal > 0
     const entry: MediaEntry = { id: 'media-' + Date.now(), name: name.trim() || url.split('/').pop() || 'Unnamed', type, url, ...(hasDur ? { duration: durVal } : {}) }
-    await saveConfig({ mediaLibrary: [...mediaLibrary, entry] })
+    // Catalog tab saves only to source_media
+    await saveConfig({ sourceMedia: [...sourceMedia, entry] })
     resetForm()
   }
 
   const handleDeleteMediaEntry = async (id: string) => {
-    await saveConfig({ mediaLibrary: mediaLibrary.filter((e) => e.id !== id) })
+    // source_media only — no scene patch (Task 8: soft references)
+    await saveConfig({ sourceMedia: sourceMedia.filter((e) => e.id !== id) })
   }
 
-  const saveSourcePresets = (nextSourcePresets: SourcePreset[], nextScenes = config.scenes) => {
-    void saveConfig({ sourcePresets: nextSourcePresets, scenes: nextScenes })
+  // Task 8: source_presets only — removed cross-table scenes write
+  const saveSourcePresets = (next: SourcePreset[]) => {
+    void saveConfig({ sourcePresets: next })
   }
 
   const removeSourcePreset = (presetId: string) => {
-    const nextSourcePresets = sourcePresets.filter((p) => p.id !== presetId)
-    const nextScenes = Object.fromEntries(Object.entries(config.scenes).map(([sceneId, scene]) => [
-      sceneId, { ...scene, sources: getSafeSceneSources(scene).filter((s) => s.sourcePresetId !== presetId) },
-    ])) as typeof config.scenes
-    saveSourcePresets(nextSourcePresets, nextScenes)
-    if (selectedSourcePresetId === presetId) setSelectedSourcePresetId(nextSourcePresets[0]?.id ?? null)
+    saveSourcePresets(sourcePresets.filter((p) => p.id !== presetId))
+    if (selectedSourcePresetId === presetId) setSelectedSourcePresetId((sourcePresets.filter((p) => p.id !== presetId))[0]?.id ?? null)
   }
 
   const createSourcePresetDraft = (entry: typeof SOURCE_CATALOG[number]) => {
@@ -335,10 +312,10 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   }
 
   const selectEvent = (eventId: string) => {
-    const eventDef = eventDefs.find((e) => e.id === eventId)
-    if (!eventDef) return
+    const def = eventDefs.find((e) => e.id === eventId)
+    if (!def) return
     setSelectedEventId(eventId)
-    setEventDraft({ event: structuredClone(eventDef), originalId: eventDef.id })
+    setEventDraft({ event: structuredClone(def), originalId: def.id })
   }
 
   const patchEventDraft = (updated: EventDef) => {
@@ -349,13 +326,13 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     if (!eventDraft) return
     const normalizedEvent: EventDef = { ...eventDraft.event, label: eventDraft.event.label.trim() || 'New Event', icon: eventDraft.event.icon || '⚡', desc: eventDraft.event.desc ?? '', actions: structuredClone(eventDraft.event.actions ?? []), effects: structuredClone(eventDraft.event.effects ?? []), auto: { ...eventDraft.event.auto } }
     if (eventDraft.originalId) {
-      const nextEvents = eventDefs.map((e) => e.id === eventDraft.originalId ? { ...normalizedEvent, id: eventDraft.originalId } : e)
-      void saveConfig({ events: nextEvents })
+      // sourceEvents only (Task 1 rename)
+      void saveConfig({ sourceEvents: eventDefs.map((e) => e.id === eventDraft.originalId ? { ...normalizedEvent, id: eventDraft.originalId } : e) })
       setSelectedEventId(eventDraft.originalId)
       setEventDraft({ event: { ...normalizedEvent, id: eventDraft.originalId }, originalId: eventDraft.originalId })
       return
     }
-    void saveConfig({ events: [...eventDefs, normalizedEvent] })
+    void saveConfig({ sourceEvents: [...eventDefs, normalizedEvent] })
     setSelectedEventId(normalizedEvent.id)
     setEventDraft({ event: normalizedEvent, originalId: normalizedEvent.id })
   }
@@ -365,18 +342,17 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     if (!eventDraft.originalId) { setEventDraft(null); return }
     const id = eventDraft.originalId
     if (selectedEventId === id) setSelectedEventId(null)
-    void saveConfig({ events: eventDefs.filter((e) => e.id !== id) })
+    void saveConfig({ sourceEvents: eventDefs.filter((e) => e.id !== id) })
     setEventDraft(null)
   }
 
-  const handleTriggerEvent = (def: EventDef) => { socket.emit('event:preview', def) }
+  const handleTriggerEvent = (def: EventDef) => socket.emit('event:preview', def)
 
   const value: AssetLibraryContextValue = {
     tab, setTab,
     catalogSearch, setCatalogSearch, catalogKindFilter, setCatalogKindFilter,
     selectedCatalogAsset, setSelectedCatalogAssetId,
-    catalogFolderGroups, catalogLoading, catalogError, refreshCatalog,
-    handleDeleteCatalogAsset,
+    catalogFolderGroups, catalogLoading, catalogError, refreshCatalog, handleDeleteCatalogAsset,
     eventSearch, setEventSearch, filteredEventDefs, filteredEventPresets,
     selectedEventId, editingEvent, eventDraftOriginalId: eventDraft?.originalId ?? null,
     selectEvent, createEventDraft, patchEventDraft, saveEventDraft, deleteEventDraft, handleTriggerEvent,
@@ -387,8 +363,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     transitionSearch, setTransitionSearch, filteredSystemTransitions, filteredTransitionLibrary,
     selectedTransition, setSelectedTransitionKey,
     handleSave, handleDeleteMediaEntry,
-    name, setName, url, setUrl, durStr, setDurStr,
-    pendingTransitionKind, resetForm,
+    name, setName, url, setUrl, durStr, setDurStr, pendingTransitionKind, resetForm,
   }
 
   return <AssetLibraryContext.Provider value={value}>{children}</AssetLibraryContext.Provider>

@@ -25,7 +25,7 @@ export function TransitionPicker({
   onChange: (v: string) => void
   placeholder?: string
 }) {
-  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
+  const mediaLibrary = useAdminStore((s) => s.config.sourceMedia ?? [])
   const [durationDraft, setDurationDraft] = useState('')
 
   const mediaParsed = value.startsWith('media:') ? parseMediaTransitionValue(value) : null
@@ -152,7 +152,7 @@ export function TransitionList({
   value: TransitionStep[]
   onChange: (steps: TransitionStep[]) => void
 }) {
-  const mediaLibrary = useAdminStore((s) => s.config.mediaLibrary ?? [])
+  const mediaLibrary = useAdminStore((s) => s.config.sourceMedia ?? [])
   const steps = value ?? []
 
   const userTransitions = useMemo(

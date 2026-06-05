@@ -45,8 +45,8 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
     setCreating(true)
     setError('')
     try {
-      const nextDesktop = withDesktopConfigDefaults(config.desktopConfig)
-      const nextDefaultZIndex = Math.max(-1, ...Object.values(nextDesktop.widgetDefaultZIndices ?? {})) + 1
+      const existingZIndices = applications.filter((a) => a.appType === 'widget').map((a) => a.zIndexDefault ?? 0)
+      const nextDefaultZIndex = Math.max(-1, ...existingZIndices) + 1
       const nextWidget: Application = {
         id: previewId,
         label: nextLabel,
@@ -57,13 +57,11 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
         widgetComponent,
         transitionType: 'instant',
         iconSize: 'normal',
+        zIndexDefault: nextDefaultZIndex,
         ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
         ...(widgetComponent === 'source' && firstSourceReference ? { sourceWidgetSettings: firstSourceReference } : {}),
       }
-      await saveConfig({
-        applications: [...applications, nextWidget],
-        desktopConfig: { ...nextDesktop, widgetDefaultZIndices: { ...(nextDesktop.widgetDefaultZIndices ?? {}), [previewId]: nextDefaultZIndex } },
-      })
+      await saveConfig({ applications: [...applications, nextWidget] })
       onCreated(previewId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create widget.')

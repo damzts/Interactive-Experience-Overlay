@@ -21,7 +21,7 @@ import { ScreenSaver } from './ScreenSaver'
 import { DesktopNotifications } from './DesktopNotifications'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
-import { patchApplicationConfig, patchDesktopConfig, replaceConfig } from './configPersistence'
+import { patchApplicationConfig, replaceConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
@@ -492,6 +492,8 @@ export function Desktop({ apps }: DesktopProps) {
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const desktopConfigRef = useRef(desktopConfig)
   desktopConfigRef.current = desktopConfig
+  const applicationsRef = useRef(config.applications)
+  applicationsRef.current = config.applications
   const desktopStyle = resolveSceneStyle(config, STATE.DESKTOP)
   const supportedApps = useMemo(() => apps, [apps])
   const cameraPermissionState = useAppStore((s) => s.cameraPermissionState)
@@ -871,14 +873,20 @@ export function Desktop({ apps }: DesktopProps) {
       const newIds = ids.filter((id) => !next.includes(id))
       if (newIds.length === 0) return next.length === prev.length ? prev : next
 
-      const defaultZIndices = desktopConfigRef.current.widgetDefaultZIndices ?? {}
+      const defaultZIndices = Object.fromEntries(
+        applicationsRef.current.map((a) => [a.id, a.zIndexDefault ?? 0])
+      )
 
       if (suppressZIndexPersistRef.current) {
-        const runtimeZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+        const runtimeZIndices = Object.fromEntries(
+          applicationsRef.current.map((a) => [a.id, a.zIndexCurrent ?? a.zIndexDefault ?? 0])
+        )
         return orderVisibleWidgetIds(ids, runtimeZIndices, defaultZIndices)
       }
 
-      const persistedZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+      const persistedZIndices = Object.fromEntries(
+        applicationsRef.current.map((a) => [a.id, a.zIndexCurrent ?? 0])
+      )
 
       newIds.forEach((id) => {
         pendingDefaultSeedWidgetIdsRef.current.add(id)
@@ -908,7 +916,15 @@ export function Desktop({ apps }: DesktopProps) {
       const nextOpenWidgetZIndices = Object.fromEntries(nextOrderedIds.map((id, idx) => [id, idx]))
       const nextPersistedZIndices = { ...persistedZIndices, ...nextOpenWidgetZIndices }
 
-      patchDesktopConfig({ widgetZIndices: nextPersistedZIndices })
+      // Persist zIndexCurrent on each application (geometry lives on applications table, not desktopConfig)
+      const updatedApps = applicationsRef.current.map((a) =>
+        nextPersistedZIndices[a.id] !== undefined ? { ...a, zIndexCurrent: nextPersistedZIndices[a.id] } : a
+      )
+      fetch('/api/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applications: updatedApps }),
+      })
         .catch(() => {})
         .finally(() => {
           newIds.forEach((id) => pendingDefaultSeedWidgetIdsRef.current.delete(id))
@@ -919,11 +935,15 @@ export function Desktop({ apps }: DesktopProps) {
   }, [visibleWidgets])
 
   useEffect(() => {
-    const runtimeZIndices = { ...(desktopConfig.widgetZIndices ?? {}) }
+    const runtimeZIndices = Object.fromEntries(
+      config.applications.map((a) => [a.id, a.zIndexCurrent ?? 0])
+    )
     pendingDefaultSeedWidgetIdsRef.current.forEach((id) => {
       delete runtimeZIndices[id]
     })
-    const defaultZIndices = desktopConfig.widgetDefaultZIndices ?? {}
+    const defaultZIndices = Object.fromEntries(
+      config.applications.map((a) => [a.id, a.zIndexDefault ?? 0])
+    )
     const visibleIds = visibleWidgets.map((widget) => widget.id)
     if (!visibleIds.some((id) => runtimeZIndices[id] !== undefined)) return
 
@@ -934,7 +954,7 @@ export function Desktop({ apps }: DesktopProps) {
       }
       return sortedVisibleIds
     })
-  }, [desktopConfig.widgetDefaultZIndices, desktopConfig.widgetZIndices, visibleWidgets])
+  }, [config.applications, visibleWidgets])
 
   const focusWidget = useCallback((widgetId: string) => {
     setWindowOrder((prev) => {
@@ -944,10 +964,17 @@ export function Desktop({ apps }: DesktopProps) {
         return next
       }
       // Persist updated z-order so it survives reconnects
-      const currentZIndices = desktopConfigRef.current.widgetZIndices ?? {}
+      const currentZIndices = Object.fromEntries(applicationsRef.current.map((a) => [a.id, a.zIndexCurrent ?? 0]))
       const nextOpenWidgetZIndices = Object.fromEntries(next.map((id, idx) => [id, idx]))
       const zIndices = { ...currentZIndices, ...nextOpenWidgetZIndices }
-      patchDesktopConfig({ widgetZIndices: zIndices }).catch(() => {})
+      const updatedApps = applicationsRef.current.map((a) =>
+        zIndices[a.id] !== undefined ? { ...a, zIndexCurrent: zIndices[a.id] } : a
+      )
+      fetch('/api/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applications: updatedApps }),
+      }).catch(() => {})
       return next
     })
   }, [])
@@ -1360,16 +1387,17 @@ export function Desktop({ apps }: DesktopProps) {
   }, [config.applications, config.desktopConfig, desktopApps, persistDesktopLayoutRecovery])
 
   const handleResetWidgetWindows = useCallback(() => {
+    const nextApplications = config.applications.map((app) => ({
+      ...app,
+      windowPosition: undefined,
+      windowSize: undefined,
+      zIndexCurrent: undefined,
+    }))
     return persistDesktopLayoutRecovery({
-      nextDesktopConfig: {
-        ...desktopConfig,
-        widgetPositions: undefined,
-        widgetSizes: undefined,
-        widgetZIndices: undefined,
-      },
+      nextApplications,
       notificationBody: 'Widget windows restored to their saved defaults.',
     })
-  }, [config.desktopConfig, persistDesktopLayoutRecovery])
+  }, [config.applications, persistDesktopLayoutRecovery])
 
   const applyWidgetLayoutById = useCallback((layoutId: string) => {
     socket.emit('widget:layout:apply', layoutId)
@@ -1378,10 +1406,10 @@ export function Desktop({ apps }: DesktopProps) {
 
   useEffect(() => {
     const handleSavedWidgetLayoutApply = (layoutId: string) => {
-      const layout = (desktopConfigRef.current.widgetLayouts ?? []).find((entry) => entry.id === layoutId)
+      const layout = (config.widgetLayouts ?? []).find((entry) => entry.id === layoutId)
       if (!layout) return
 
-      const defaultZIndices = desktopConfigRef.current.widgetDefaultZIndices ?? {}
+      const defaultZIndices = Object.fromEntries(applicationsRef.current.map((a) => [a.id, a.zIndexDefault ?? 0]))
       const nextOrder = [...layout.items]
         .filter((item) => item.enabled)
         .sort((a, b) => {
@@ -1491,7 +1519,7 @@ export function Desktop({ apps }: DesktopProps) {
   const simProgramsHover = startMenuSimulationPhase?.phase === 'programs-hover'
   const simTargetAppId = startMenuSimulationPhase?.targetAppId
   const simTargetHover = startMenuSimulationPhase?.phase === 'target-hover' || startMenuSimulationPhase?.phase === 'target-select'
-  const widgetLayouts = desktopConfig.widgetLayouts ?? []
+  const widgetLayouts = config.widgetLayouts ?? []
   const systemWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]

@@ -124,6 +124,17 @@ export interface RecycleBinSettings {
   fullIcon: string
 }
 
+// ── Transition asset ──────────────────────────────────────────────
+
+/** A named transition asset stored in source_transitions table */
+export interface TransitionDefinition {
+  id: string
+  label: string
+  /** GSAP key or 'media' */
+  type: string
+  params?: Record<string, unknown>
+}
+
 // ── Application entity ────────────────────────────────────────────
 
 export interface ApplicationDefaultSnapshot {
@@ -208,6 +219,14 @@ export interface Application {
     /** Auto-play interval in seconds. */
     intervalSec?: number
   }
+  /** Persisted widget window position on the 1920×1080 desktop canvas */
+  windowPosition?: { x: number; y: number }
+  /** Persisted widget window size override */
+  windowSize?: WidgetWindowSize
+  /** Default widget z-index baseline */
+  zIndexDefault?: number
+  /** Current persisted widget z-index (runtime stack order) */
+  zIndexCurrent?: number
   /** Optional per-widget defaults for camera widget runtime behavior. */
   cameraSettings?: {
     /** Preferred camera device label (or partial label) used as fallback default for this widget. */

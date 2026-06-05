@@ -18,7 +18,7 @@
 | [webrtc-online-rooms.md](docs/webrtc-online-rooms.md) | SFU architecture, cloud rooms, LAN join, POV pipeline, overlay relay, ICE ordering constraint, werift gotchas |
 | [widget-authoring.md](docs/widget-authoring.md) | How to write a new widget, local state vs server config, simulation intents, the four-file checklist |
 | [widget-communication.md](docs/widget-communication.md) | Widget-to-widget pub/sub, the DOM intent bus, the server-mediated signal path, the full ambiance reactive loop |
-| [admin-engine-pages.md](docs/admin-engine-pages.md) | One page per engine subsystem in the admin sidebar: Scheduler, Scene Machine, OBS, Ambiance, Online. Data flow, routing pattern, reconnect trigger. |
+| [admin-engine-pages.md](docs/admin-engine-pages.md) | Panel-to-table ownership map, DB table inventory, why geometry moved to `applications`, why transitions are named assets, routing checklist. |
 
 ## Known constraints & gotchas
 

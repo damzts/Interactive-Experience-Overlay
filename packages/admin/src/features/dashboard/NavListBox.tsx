@@ -7,6 +7,7 @@ import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
 import type { AssetRecord } from '../../shared/catalog'
+import { createScene as createSceneApi } from '../../api/configApi'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -104,9 +105,9 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
 }) {
   const currentState   = useAdminStore((s) => s.currentState)
   const saveConfig     = useAdminStore((s) => s.saveConfig)
+  const setConfig      = useAdminStore((s) => s.setConfig)
   const applications   = useAdminStore((s) => s.config.applications)
   const scenes         = useAdminStore((s) => s.config.scenes)
-  const overlayStyle   = useAdminStore((s) => s.config.overlayStyle)
   const desktopConfig  = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
   const openWidgetIds  = useAdminStore((s) => s.openWidgetIds)
 
@@ -115,7 +116,7 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
   const systemWidgetApps = widgetApps.filter((app) => getWidgetSource(app) === 'system')
   const userWidgetApps   = widgetApps.filter((app) => getWidgetSource(app) === 'user')
   const decorationApps   = applications.filter((a) => a.appType === 'decoration')
-  const persistedWidgetLayouts = desktopConfig.widgetLayouts ?? []
+  const persistedWidgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const systemWidgetLayouts    = persistedWidgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts      = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts   = [...systemWidgetLayouts, ...userWidgetLayouts]
@@ -134,10 +135,7 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
     const nextUserLayoutNumber = userWidgetLayouts.length + 1
     const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${nextUserLayoutNumber}`, widgetApps, desktopConfig, openWidgetIds)
     await saveConfig({
-      desktopConfig: {
-        ...desktopConfig,
-        widgetLayouts: [...persistedWidgetLayouts, nextLayout],
-      },
+      widgetLayouts: [...persistedWidgetLayouts, nextLayout],
     })
     onSelect({ kind: 'widget-layout', layoutId: nextLayout.id })
   }
@@ -170,19 +168,25 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
               onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}
               onDoubleClick={() => onActivate({ kind: 'scene', sceneState: scene.id })} />
           ))}
-          <AddBtn label="New Scene" onClick={() => {
+          <AddBtn label="New Scene" onClick={async () => {
             const sceneId = 'SCENE_' + Date.now()
             const a: Application = {
               id: 'app-' + Date.now(), label: 'New App', icon: '🎮', appType: 'scene',
               targetSceneId: sceneId, transitionType: 'desktop-to-gameplay',
-              introTransition: 'desktop-to-gameplay', exitTransition: 'gameplay-to-desktop',
             }
             const newScene: Scene = {
               id: sceneId, label: 'New App', backgroundOpaque: false, sources: [],
-              style: { ...overlayStyle, background: { ...overlayStyle.background, type: 'none', opacity: 0 } },
+              style: { background: { type: 'none', color: '#000000', gradient: '', imageUrl: '', videoUrl: '', pattern: 'none', opacity: 0, blur: 0 }, effects: { crt: false, noise: false, vignette: false, flicker: false, chromatic: false, scanlineOpacity: 0, noiseOpacity: 0, vignetteStrength: 0 }, particles: { enabled: false, preset: 'none', density: 0.25, speed: 0.25 }, fontFamily: 'default', accentColor: '#00ff41', textColor: '#ffffff' },
             }
-            saveConfig({ applications: [...applications, a], scenes: { ...scenes, [sceneId]: newScene } })
-            onSelect({ kind: 'app', appId: a.id })
+            try {
+              const updatedConfig = await createSceneApi(a, newScene)
+              setConfig(updatedConfig)
+              onSelect({ kind: 'app', appId: a.id })
+            } catch {
+              // fallback: dual-key save if server endpoint not available
+              saveConfig({ applications: [...applications, a], scenes: { ...scenes, [sceneId]: newScene } })
+              onSelect({ kind: 'app', appId: a.id })
+            }
           }} />
         </>}
 

@@ -4,39 +4,28 @@ import type { Application, OverlayStyle, Scene, SourceInstance } from '@ieom/sha
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
-import { TransitionList, compactTransitionSteps } from './TransitionPicker'
 import { StyleSections } from './StyleEditor'
 import { SourcesEditor } from './SceneConfig'
 import { AppForm, type AppFormHandle } from './AppForm'
 
 type ScenePanelDraft = {
-  introTransitions: any[]
-  exitTransitions:  any[]
-  style:            OverlayStyle
-  sources:          SourceInstance[]
-  musicTrack:       string
+  onEntry: string[]
+  onExit:  string[]
+  style:   OverlayStyle
+  sources: SourceInstance[]
+  musicTrack: string
 }
 
 function buildScenePanelDraft(
   sceneId: string,
   config: ReturnType<typeof useAdminStore.getState>['config'],
 ): ScenePanelDraft {
-  const scene = config.scenes[sceneId] as (Scene & { introTransitions?: any[]; exitTransitions?: any[] }) | undefined
-  const isLobby   = sceneId === STATE.LOBBY
-  const isDesktop = sceneId === STATE.DESKTOP
-  const linkedApp = !isLobby && !isDesktop
-    ? config.applications.find((a) => a.targetSceneId === sceneId)
-    : undefined
-
+  const scene = config.scenes[sceneId] as Scene | undefined
   return {
-    introTransitions: structuredClone(
-      isLobby || isDesktop ? (scene?.introTransitions ?? []) : (linkedApp?.introTransitions ?? [])
-    ),
-    exitTransitions: structuredClone(
-      isLobby || isDesktop ? (scene?.exitTransitions ?? []) : (linkedApp?.exitTransitions ?? [])
-    ),
-    style:      structuredClone(withOverlayStyleDefaults(scene?.style, config.overlayStyle)),
-    sources:    structuredClone(scene?.sources ?? []),
+    onEntry: structuredClone(scene?.onEntry ?? []),
+    onExit:  structuredClone(scene?.onExit ?? []),
+    style:   structuredClone(withOverlayStyleDefaults(scene?.style)),
+    sources: structuredClone(scene?.sources ?? []),
     musicTrack: scene?.musicTrack ?? '',
   }
 }
@@ -44,11 +33,8 @@ function buildScenePanelDraft(
 export function ScenePanel({ sceneId, app, onDelete }: { sceneId: string; app?: Application; onDelete?: () => void }) {
   const config        = useAdminStore((s) => s.config)
   const saveConfig    = useAdminStore((s) => s.saveConfig)
+  const isUser    = sceneId !== STATE.LOBBY && sceneId !== STATE.DESKTOP
   const sourcePresets = config.sourcePresets ?? []
-
-  const isLobby   = sceneId === STATE.LOBBY
-  const isDesktop = sceneId === STATE.DESKTOP
-  const isUser    = !isLobby && !isDesktop
 
   const sourceDraft = buildScenePanelDraft(sceneId, config)
   const [draft,  setDraft]  = useState<ScenePanelDraft>(sourceDraft)
@@ -79,57 +65,21 @@ export function ScenePanel({ sceneId, app, onDelete }: { sceneId: string; app?: 
   const apply = useCallback(async () => {
     setSaving(true)
     const scene = config.scenes[sceneId] ?? {}
-    const compactIntro = compactTransitionSteps(draft.introTransitions)
-    const compactExit  = compactTransitionSteps(draft.exitTransitions)
-
-    if (isLobby) {
-      await saveConfig({
-        scenes: {
-          [STATE.LOBBY]: {
-            ...scene,
-            style: draft.style,
-            introTransitions: compactIntro.length ? compactIntro : undefined,
-            exitTransitions:  compactExit.length  ? compactExit  : undefined,
-          },
-        },
-      })
-    } else if (isDesktop) {
-      await saveConfig({
-        scenes: {
-          [STATE.DESKTOP]: {
-            ...scene,
-            style: draft.style,
-            introTransitions: compactIntro.length ? compactIntro : undefined,
-            exitTransitions:  compactExit.length  ? compactExit  : undefined,
-          },
-        },
-      })
-    } else {
-      const linkedApp = config.applications.find((a) => a.targetSceneId === sceneId)
-      const nextScene: Scene = {
-        ...scene as Scene,
-        style: draft.style,
-        sources: draft.sources,
-        musicTrack: draft.musicTrack.trim() || undefined,
-      }
-      const applications = linkedApp
-        ? config.applications.map((a) => a.id === linkedApp.id
-            ? {
-                ...a,
-                introTransitions: compactIntro.length ? compactIntro : undefined,
-                exitTransitions:  compactExit.length  ? compactExit  : undefined,
-              }
-            : a)
-        : config.applications
-      await saveConfig({ scenes: { [sceneId]: nextScene }, applications })
+    const nextScene: Scene = {
+      ...scene as Scene,
+      style:      draft.style,
+      sources:    draft.sources,
+      onEntry:    draft.onEntry.length ? draft.onEntry : undefined,
+      onExit:     draft.onExit.length  ? draft.onExit  : undefined,
+      musicTrack: draft.musicTrack.trim() || undefined,
     }
-
+    await saveConfig({ scenes: { [sceneId]: nextScene } })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
     await appFormRef.current?.apply()
-  }, [config, draft, isLobby, isDesktop, sceneId, saveConfig])
+  }, [config, draft, sceneId, saveConfig])
 
   const reset = useCallback(() => {
     setDraft(buildScenePanelDraft(sceneId, config))
@@ -137,7 +87,7 @@ export function ScenePanel({ sceneId, app, onDelete }: { sceneId: string; app?: 
     appFormRef.current?.reset()
   }, [sceneId, config])
 
-  const label = isLobby ? 'Lobby Scene' : isDesktop ? 'Desktop Scene' : 'Scene Configuration'
+  const label = sceneId === STATE.LOBBY ? 'Lobby Scene' : sceneId === STATE.DESKTOP ? 'Desktop Scene' : 'Scene Configuration'
 
   return (
     <div className="space-y-3">
@@ -168,14 +118,19 @@ export function ScenePanel({ sceneId, app, onDelete }: { sceneId: string; app?: 
           <ConfigPanel title="Transitions" className="mb-4">
             <div className="space-y-3">
               {([
-                { key: 'introTransitions' as const, label: 'Intro (entering)' },
-                { key: 'exitTransitions'  as const, label: 'Exit (leaving)'   },
+                { key: 'onEntry' as const, label: 'On Entry' },
+                { key: 'onExit'  as const, label: 'On Exit'  },
               ]).map(({ key, label: tLabel }) => (
                 <div key={key}>
-                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">{tLabel}</div>
-                  <TransitionList
-                    value={draft[key]}
-                    onChange={(steps) => update((d) => { d[key] = steps })}
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">{tLabel} — comma-separated transition names</div>
+                  <input
+                    type="text"
+                    value={draft[key].join(', ')}
+                    onChange={(e) => update((d) => {
+                      d[key] = e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
+                    })}
+                    placeholder="e.g. fade, slide-left"
+                    className="w-full font-mono text-xs"
                   />
                 </div>
               ))}

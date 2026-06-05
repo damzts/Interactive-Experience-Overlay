@@ -47,14 +47,5 @@ export interface OverlayStyle {
   textColor: string
 }
 
-// ── Media asset entry ────────────────────────────────────────────
-
-/** A named media asset saved in the centralised Asset Library */
-export interface MediaEntry {
-  id: string
-  name: string
-  type: 'image' | 'video'
-  url: string
-  /** Display duration in seconds (images only; videos auto-detect) */
-  duration?: number
-}
+/** @deprecated Use MediaEntry from domain/scene.ts instead */
+export type { MediaEntry } from './scene.js'

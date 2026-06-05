@@ -82,7 +82,6 @@ export function LobbyThemeEditor() {
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const scene      = config.scenes[STATE.LOBBY] as (Scene & { lobbyConfig?: LobbyConfig }) | undefined
   const sourceForm = withLobbyConfigDefaults(scene?.lobbyConfig)
-
   const [form,   setForm]   = useState<LobbyConfig>(sourceForm)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)

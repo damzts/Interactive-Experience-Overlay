@@ -143,7 +143,7 @@ function EventRow({
 // ── SchedulerPanel ─────────────────────────────────────────────────
 
 export function SchedulerPanel() {
-  const events    = useAdminStore((s) => s.config.events ?? [])
+  const events    = useAdminStore((s) => s.config.sourceEvents ?? [])
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const diag      = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
 
@@ -161,7 +161,7 @@ export function SchedulerPanel() {
     const next = events.map((e) =>
       e.id === eventId ? { ...e, auto: { ...e.auto, ...patch } } : e,
     )
-    void saveConfig({ events: next })
+    void saveConfig({ sourceEvents: next })
   }
 
   return (

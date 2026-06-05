@@ -59,15 +59,6 @@ export function mergeRuntimeConfigOverride(
           widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides
             ? { ...(base.desktopConfig?.widgetThemeOverrides ?? {}), ...updates.desktopConfig.widgetThemeOverrides }
             : base.desktopConfig?.widgetThemeOverrides,
-          widgetPositions: updates.desktopConfig.widgetPositions
-            ? { ...(base.desktopConfig?.widgetPositions ?? {}), ...updates.desktopConfig.widgetPositions }
-            : base.desktopConfig?.widgetPositions,
-          widgetSizes: updates.desktopConfig.widgetSizes
-            ? { ...(base.desktopConfig?.widgetSizes ?? {}), ...updates.desktopConfig.widgetSizes }
-            : base.desktopConfig?.widgetSizes,
-          widgetZIndices: updates.desktopConfig.widgetZIndices
-            ? { ...(base.desktopConfig?.widgetZIndices ?? {}), ...updates.desktopConfig.widgetZIndices }
-            : base.desktopConfig?.widgetZIndices,
           screenSaver: updates.desktopConfig.screenSaver
             ? { ...(base.desktopConfig?.screenSaver ?? {}), ...updates.desktopConfig.screenSaver } as NonNullable<RuntimeConfigOverridePayload['desktopConfig']>['screenSaver']
             : base.desktopConfig?.screenSaver,
@@ -91,6 +82,15 @@ export function mergeRuntimeConfigOverride(
             : base.desktopAmbiance?.widgetSimulation,
         } as RuntimeConfigOverridePayload['desktopAmbiance']
       : base.desktopAmbiance,
+    widgetPositions: updates.widgetPositions
+      ? { ...(base.widgetPositions ?? {}), ...updates.widgetPositions }
+      : base.widgetPositions,
+    widgetSizes: updates.widgetSizes
+      ? { ...(base.widgetSizes ?? {}), ...updates.widgetSizes }
+      : base.widgetSizes,
+    widgetZIndices: updates.widgetZIndices
+      ? { ...(base.widgetZIndices ?? {}), ...updates.widgetZIndices }
+      : base.widgetZIndices,
   }
 }
 
@@ -168,27 +168,21 @@ export function clearAllRuntimeConfigOverrides(ctx: HandlerContext) {
 // ── Widget layout override ────────────────────────────────────────
 
 export function clearWidgetRuntimeLayoutOverride(ctx: HandlerContext, widgetId: string): boolean {
-  const nextDesktop = { ...(ctx.runtimeConfigOverride.desktopConfig ?? {}) }
-  const nextPositions = { ...(nextDesktop.widgetPositions ?? {}) }
-  const nextSizes = { ...(nextDesktop.widgetSizes ?? {}) }
-  const nextZIndices = { ...(nextDesktop.widgetZIndices ?? {}) }
+  const nextPositions = { ...(ctx.runtimeConfigOverride.widgetPositions ?? {}) }
+  const nextSizes     = { ...(ctx.runtimeConfigOverride.widgetSizes ?? {}) }
+  const nextZIndices  = { ...(ctx.runtimeConfigOverride.widgetZIndices ?? {}) }
   let changed = false
 
   if (widgetId in nextPositions) { delete nextPositions[widgetId]; changed = true }
-  if (widgetId in nextSizes) { delete nextSizes[widgetId]; changed = true }
-  if (widgetId in nextZIndices) { delete nextZIndices[widgetId]; changed = true }
+  if (widgetId in nextSizes)     { delete nextSizes[widgetId];     changed = true }
+  if (widgetId in nextZIndices)  { delete nextZIndices[widgetId];  changed = true }
   if (!changed) return false
 
-  if (Object.keys(nextPositions).length) nextDesktop.widgetPositions = nextPositions
-  else delete nextDesktop.widgetPositions
-  if (Object.keys(nextSizes).length) nextDesktop.widgetSizes = nextSizes
-  else delete nextDesktop.widgetSizes
-  if (Object.keys(nextZIndices).length) nextDesktop.widgetZIndices = nextZIndices
-  else delete nextDesktop.widgetZIndices
-
   ctx.runtimeConfigOverride = {
-    desktopConfig: Object.keys(nextDesktop).length ? nextDesktop as RuntimeConfigOverridePayload['desktopConfig'] : undefined,
-    desktopAmbiance: ctx.runtimeConfigOverride.desktopAmbiance,
+    ...ctx.runtimeConfigOverride,
+    widgetPositions: Object.keys(nextPositions).length ? nextPositions : undefined,
+    widgetSizes:     Object.keys(nextSizes).length     ? nextSizes     : undefined,
+    widgetZIndices:  Object.keys(nextZIndices).length  ? nextZIndices  : undefined,
   }
   ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
   return true

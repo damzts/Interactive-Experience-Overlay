@@ -159,7 +159,13 @@ export interface AmbianceSimulationPayload {
 // ── Runtime config override ───────────────────────────────────────
 
 export interface RuntimeConfigOverridePayload {
-  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'widgetPositions' | 'widgetSizes' | 'widgetZIndices' | 'screenSaver'>
+  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'screenSaver'>
+  /** Transient per-widget position overrides (not persisted — runtime events only) */
+  widgetPositions?: Record<string, { x: number; y: number }>
+  /** Transient per-widget size overrides (not persisted — runtime events only) */
+  widgetSizes?: Record<string, { width?: number; height?: number }>
+  /** Transient per-widget z-index overrides (not persisted — runtime events only) */
+  widgetZIndices?: Record<string, number>
   desktopAmbiance?: Partial<DesktopAmbianceConfig>
 }
 

@@ -49,3 +49,12 @@ export async function patchConfig(
   return merged
 }
 
+export async function createScene(app: Application, scene: import('@ieom/shared').Scene): Promise<AppConfig> {
+  const result = await apiFetch<{ ok: boolean; config: AppConfig }>('/api/config/scenes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app, scene }),
+  })
+  return result.config
+}
+

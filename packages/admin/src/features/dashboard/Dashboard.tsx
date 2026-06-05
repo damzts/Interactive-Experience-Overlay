@@ -28,8 +28,9 @@ const NAV_SECTIONS: SidebarSection[] = [
 export function Dashboard() {
   // ─── Existing state (preserved) ───
   const [selected, setSelected] = useState<SelectedItem | null>(null)
-  const applications = useAdminStore((s) => s.config.applications)
+  const applications  = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
+  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
 
   // ─── New layout state ───
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarPersistence()
@@ -66,10 +67,10 @@ export function Dashboard() {
   }, [applications, selected])
 
   useEffect(() => {
-    if (selected?.kind === 'widget-layout' && !(desktopConfig.widgetLayouts ?? []).some((layout) => layout.id === selected.layoutId)) {
+    if (selected?.kind === 'widget-layout' && !(widgetLayouts).some((layout) => layout.id === selected.layoutId)) {
       setSelected(null)
     }
-  }, [desktopConfig.widgetLayouts, selected])
+  }, [widgetLayouts, selected])
 
   const handleSelect = (item: SelectedItem) => {
     if (selected && itemKey(item) === itemKey(selected)) {

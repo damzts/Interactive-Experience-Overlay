@@ -57,7 +57,7 @@ Think of IEOM as a **small computer**:
 | **System calls** | Socket.IO events (client → server) | How userspace requests things from the kernel. Typed contract, validated on arrival. |
 | **Signals / interrupts** | Socket.IO events (server → client) | How the kernel tells userspace to update: scene changed, widget toggled, effect fired. Userspace reacts but doesn't block the kernel. |
 | **IPC** | DOM CustomEvent bus | How apps (widgets) talk to each other inside userspace without going through the kernel. |
-| **Filesystem** | SQLite (`DesktopConfigService`) | Persistent storage that survives reboot (restart). The kernel reads/writes it; userspace gets a projected view. |
+| **Filesystem** | SQLite (`DesktopConfigService`) | Persistent storage that survives reboot (restart). The kernel reads/writes it; userspace gets a projected view. Each table has a single owning panel in the admin. |
 | **RAM** | `RuntimeStateStore` + Zustand slices | Session-only state. Lost on restart. Fast access, no I/O. |
 | **Shell / terminal** | `@ieom/admin` | Optional operator interface. Sends commands to the kernel, reads diagnostics. System works without it. |
 | **Hardware** | `@ieom/desktop` (Electron) | The physical machine. Wraps the kernel, provides OS-level access (filesystem, OAuth, window management). |
@@ -309,7 +309,7 @@ Like a real computer, the system has two kinds of memory:
 
 | Store | What lives here | Persists? |
 |-------|----------------|-----------|
-| `DesktopConfigService` (SQLite) | Scenes, applications, events, themes, keybinds, schedules | ✅ Yes |
+| `DesktopConfigService` (SQLite) | Scenes (`scenes`), applications with widget geometry (`applications`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`) | ✅ Yes |
 | `RuntimeStateStore` (in-memory) | Current scene, open widgets, overlay connected, ambiance leader | ❌ No |
 | `HandlerContext` (socket closure) | Runtime config overrides, simulation metrics, overlay slot | ❌ No |
 
@@ -392,6 +392,7 @@ These rules apply everywhere. Break them and things fall apart:
 5. **Unidirectional data flow for rendering.** Kernel → signal → store → React render. No upward data flow for display.
 6. **Single overlay instance.** Deterministic state requires one consumer.
 7. **Shared package has zero runtime.** Types and constants only. No side effects, no instantiation.
+8. **Each admin panel owns exactly one DB table.** A panel that writes to multiple tables indicates a schema or abstraction problem. Widget geometry lives on `applications`; scene transitions live on `scenes`; layout presets live on `widget_layouts`. No cross-table saves from the client.
 
 ---
 

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -86,12 +85,11 @@ function WidgetCanvas({
 // ── WidgetLayoutPanel ─────────────────────────────────────────────────
 
 export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDeleted: () => void }) {
-  const config               = useAdminStore((s) => s.config)
-  const saveConfig           = useAdminStore((s) => s.saveConfig)
-  const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
-  const widgetApps    = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
-  const sourceLayouts = useMemo(() => normalizeWidgetLayoutsForEditor(desktopConfig.widgetLayouts, widgetApps, desktopConfig), [desktopConfig, widgetApps])
-  const sourceLayout  = useMemo(() => sourceLayouts.find((layout) => layout.id === layoutId) ?? null, [layoutId, sourceLayouts])
+  const config      = useAdminStore((s) => s.config)
+  const saveConfig  = useAdminStore((s) => s.saveConfig)
+  const widgetApps  = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
+  const sourceLayouts = useMemo(() => normalizeWidgetLayoutsForEditor(config.widgetLayouts, widgetApps, null), [config.widgetLayouts, widgetApps])
+  const sourceLayout = useMemo(() => sourceLayouts.find((l) => l.id === layoutId) ?? null, [layoutId, sourceLayouts])
 
   const [layout,  setLayout]  = useState<WidgetLayoutDefinition | null>(sourceLayout)
   const [saving,  setSaving]  = useState(false)
@@ -112,7 +110,7 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const dirty = !isSameDraft(layout, sourceLayout)
   const persistLayout = async (nextLayout: WidgetLayoutDefinition) => {
     setSaving(true)
-    await saveConfig({ desktopConfig: { ...desktopConfig, widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? nextLayout : entry) } })
+    await saveConfig({ widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? nextLayout : entry) })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
@@ -127,7 +125,7 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const deleteLayout = async () => {
     if (layout.source === 'system') return
     setSaving(true)
-    await saveConfig({ desktopConfig: { ...desktopConfig, widgetLayouts: sourceLayouts.filter((entry) => entry.id !== layoutId) } })
+    await saveConfig({ widgetLayouts: sourceLayouts.filter((entry) => entry.id !== layoutId) })
     setSaving(false)
     onDeleted()
   }

@@ -479,7 +479,7 @@ function Scene() {
   const env = config.scenes[STATE.LOBBY]?.lobbyConfig
   const lobbyStyle = resolveSceneStyle(config, STATE.LOBBY)
   const lobbyBackground = lobbyStyle.background
-  const defaultLobbyBackground = DEFAULT_CONFIG.scenes[STATE.LOBBY].style?.background ?? config.overlayStyle.background
+  const defaultLobbyBackground = DEFAULT_CONFIG.scenes[STATE.LOBBY].style?.background
 
   const fogColor         = resolveAlphaColor(env?.fogColor, '#080810')
   const fogNear          = env?.fogNear           ?? 6

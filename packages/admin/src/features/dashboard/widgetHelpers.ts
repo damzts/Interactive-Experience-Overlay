@@ -3,12 +3,10 @@ import {
   getDefaultWidgetWindowSize,
   getDefaultWidgetZIndex,
   getWidgetComponent,
-  withDesktopConfigDefaults,
 } from '@ieom/shared'
 import type {
   Application,
   ApplicationDefaultSnapshot,
-  DesktopConfig,
   Scene,
   SceneDefaultSnapshot,
   WidgetComponentType,
@@ -35,35 +33,35 @@ export function getDefaultWidgetSize(app: Pick<Application, 'id' | 'appType' | '
   return getDefaultWidgetWindowSize(app.id, resolveAppWidgetComponent(app))
 }
 
-export function resolveWidgetSizeFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
+export function resolveWidgetSizeFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent' | 'windowSize'>, _desktopConfig?: unknown) {
   const defaults = getDefaultWidgetSize(app)
-  const raw = desktopConfig.widgetSizes?.[app.id]
+  const raw = app.windowSize
   return {
     width:  clampWidgetDimension(raw?.width  ?? defaults.width,  WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  defaults.width),
     height: clampWidgetDimension(raw?.height ?? defaults.height, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, defaults.height),
   }
 }
 
-export function resolveWidgetPositionFromConfig(app: Pick<Application, 'id'>, desktopConfig: DesktopConfig) {
-  const raw = desktopConfig.widgetPositions?.[app.id]
+export function resolveWidgetPositionFromConfig(app: Pick<Application, 'id' | 'windowPosition'>, _desktopConfig?: unknown) {
+  const raw = app.windowPosition
   return {
     x: Math.max(0, Math.round(raw?.x ?? 0)),
     y: Math.max(0, Math.round(raw?.y ?? 0)),
   }
 }
 
-export function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
-  const value = desktopConfig.widgetDefaultZIndices?.[app.id]
+export function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent' | 'zIndexDefault'>, _desktopConfig?: unknown) {
+  const value = app.zIndexDefault
   return Number.isFinite(value)
     ? Math.max(0, Math.round(value as number))
     : getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
 }
 
-export function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>, desktopConfig: DesktopConfig) {
-  const value = desktopConfig.widgetZIndices?.[app.id]
+export function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'appType' | 'widgetComponent' | 'zIndexDefault' | 'zIndexCurrent'>, _desktopConfig?: unknown) {
+  const value = app.zIndexCurrent
   return Number.isFinite(value)
     ? Math.max(0, Math.round(value as number))
-    : resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
+    : resolveWidgetDefaultZIndexFromConfig(app)
 }
 
 export function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'themeOverride'>) {
@@ -72,7 +70,7 @@ export function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'the
 
 // ── Snapshot helpers ──────────────────────────────────────────────────
 
-export function createApplicationSnapshot(source: Application, desktopConfig: DesktopConfig): ApplicationDefaultSnapshot {
+export function createApplicationSnapshot(source: Application): ApplicationDefaultSnapshot {
   return {
     id: source.id,
     label: source.label,
@@ -96,18 +94,17 @@ export function createApplicationSnapshot(source: Application, desktopConfig: De
     recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
     widgetDefaults: source.appType === 'widget'
       ? {
-          windowPosition: desktopConfig.widgetPositions?.[source.id] ? clone(desktopConfig.widgetPositions[source.id]) : undefined,
-          windowSize: desktopConfig.widgetSizes?.[source.id] ? clone(desktopConfig.widgetSizes[source.id]) : undefined,
-          defaultZIndex: desktopConfig.widgetDefaultZIndices?.[source.id],
+          windowSize: source.windowSize ? clone(source.windowSize) : undefined,
+          defaultZIndex: source.zIndexDefault,
           themeOverride: source.themeOverride ? clone(source.themeOverride) : undefined,
         }
       : undefined,
   }
 }
 
-export function buildApplicationDefaultSnapshot(app: Application, desktopConfig: DesktopConfig): ApplicationDefaultSnapshot {
+export function buildApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
   const source = DEFAULT_CONFIG.applications.find((entry) => entry.id === app.id) ?? app
-  return createApplicationSnapshot(source, desktopConfig)
+  return createApplicationSnapshot(source)
 }
 
 export function resolveApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
@@ -137,57 +134,6 @@ export function resolveSceneDefaultSnapshot(sceneId: string, scene: Scene): Scen
   return scene.defaultConfig ? clone(scene.defaultConfig) : buildSceneDefaultSnapshot(sceneId, scene)
 }
 
-export function applyWidgetDefaultSnapshotToDesktopConfig(
-  desktopConfig: DesktopConfig,
-  app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>,
-  snapshot: ApplicationDefaultSnapshot,
-) {
-  if (app.appType !== 'widget') return desktopConfig
-
-  const nextDesktop = clone(withDesktopConfigDefaults(desktopConfig))
-  const defaultSize = getDefaultWidgetSize(app)
-  const nextWidgetPositions = { ...(nextDesktop.widgetPositions ?? {}) }
-  const nextWidgetSizes = { ...(nextDesktop.widgetSizes ?? {}) }
-  const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
-
-  const snapshotPosition = snapshot.widgetDefaults?.windowPosition
-  if (snapshotPosition) {
-    nextWidgetPositions[app.id] = {
-      x: Math.max(0, Math.round(snapshotPosition.x)),
-      y: Math.max(0, Math.round(snapshotPosition.y)),
-    }
-  } else {
-    delete nextWidgetPositions[app.id]
-  }
-
-  const snapshotSize = snapshot.widgetDefaults?.windowSize
-  if (snapshotSize?.width !== undefined || snapshotSize?.height !== undefined) {
-    const width  = clampWidgetDimension(snapshotSize.width  ?? defaultSize.width,  WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  defaultSize.width)
-    const height = clampWidgetDimension(snapshotSize.height ?? defaultSize.height, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, defaultSize.height)
-    if (width === defaultSize.width && height === defaultSize.height) {
-      delete nextWidgetSizes[app.id]
-    } else {
-      nextWidgetSizes[app.id] = { width, height }
-    }
-  } else {
-    delete nextWidgetSizes[app.id]
-  }
-
-  const baseZIndex = getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
-  const snapshotZIndex = snapshot.widgetDefaults?.defaultZIndex
-  if (Number.isFinite(snapshotZIndex) && Math.round(snapshotZIndex as number) !== baseZIndex) {
-    nextWidgetDefaultZIndices[app.id] = Math.max(0, Math.round(snapshotZIndex as number))
-  } else {
-    delete nextWidgetDefaultZIndices[app.id]
-  }
-
-  nextDesktop.widgetPositions        = Object.keys(nextWidgetPositions).length        ? nextWidgetPositions        : undefined
-  nextDesktop.widgetSizes            = Object.keys(nextWidgetSizes).length            ? nextWidgetSizes            : undefined
-  nextDesktop.widgetDefaultZIndices  = Object.keys(nextWidgetDefaultZIndices).length  ? nextWidgetDefaultZIndices  : undefined
-
-  return nextDesktop
-}
-
 // ── Widget layout helpers ─────────────────────────────────────────────
 
 export function buildWidgetLayoutFallbackPosition(widgetIndex: number) {
@@ -200,21 +146,22 @@ export function buildWidgetLayoutFallbackPosition(widgetIndex: number) {
 export function buildWidgetLayoutItem(
   app: Application,
   widgetIndex: number,
-  desktopConfig: DesktopConfig,
+  _desktopConfig: unknown,
   enabled: boolean,
 ): WidgetLayoutItem {
-  const position = desktopConfig.widgetPositions?.[app.id] ?? buildWidgetLayoutFallbackPosition(widgetIndex)
-  const size = resolveWidgetSizeFromConfig(app, desktopConfig)
-  const focusPriority = desktopConfig.widgetZIndices?.[app.id] ?? resolveWidgetDefaultZIndexFromConfig(app, desktopConfig)
+  const position = resolveWidgetPositionFromConfig(app)
+  const size = resolveWidgetSizeFromConfig(app)
+  const fallbackPos = buildWidgetLayoutFallbackPosition(widgetIndex)
+  const focusPriority = resolveWidgetDefaultZIndexFromConfig(app)
 
   return {
     widgetId: app.id,
     enabled,
-    x: Math.max(0, Math.round(position.x)),
-    y: Math.max(0, Math.round(position.y)),
+    x: Math.max(0, Math.round(position.x || fallbackPos.x)),
+    y: Math.max(0, Math.round(position.y || fallbackPos.y)),
     width:  Math.max(WIDGET_WIDTH_MIN,  Math.round(size.width)),
     height: Math.max(WIDGET_HEIGHT_MIN, Math.round(size.height)),
-    focusPriority: Math.max(0, Math.round(Number.isFinite(focusPriority as number) ? (focusPriority as number) : 0)),
+    focusPriority: Math.max(0, Math.round(focusPriority)),
   }
 }
 
@@ -245,88 +192,36 @@ export function createWidgetLayoutSnapshot(layout: Pick<WidgetLayoutDefinition, 
   }
 }
 
-export function normalizeWidgetLayoutSnapshotForEditor(
-  snapshot: WidgetLayoutSnapshot | undefined,
-  widgetApps: Application[],
-  desktopConfig: DesktopConfig,
-): WidgetLayoutSnapshot | undefined {
-  if (!snapshot) return undefined
-
-  return {
-    label: snapshot.label,
-    icon: snapshot.icon,
-    description: snapshot.description,
-    items: widgetApps.map((app, index) => {
-      const source = snapshot.items.find((item) => item.widgetId === app.id)
-      const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
-
-      return {
-        widgetId: app.id,
-        enabled: source?.enabled ?? fallback.enabled,
-        x: Math.max(0, Math.round(source?.x ?? fallback.x)),
-        y: Math.max(0, Math.round(source?.y ?? fallback.y)),
-        width:  clampWidgetDimension(source?.width  ?? fallback.width,  WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  fallback.width),
-        height: clampWidgetDimension(source?.height ?? fallback.height, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, fallback.height),
-        focusPriority: Number.isFinite(source?.focusPriority)
-          ? Math.round(source!.focusPriority)
-          : fallback.focusPriority,
-      }
-    }),
-  }
-}
-
 export function normalizeWidgetLayoutsForEditor(
   widgetLayouts: WidgetLayoutDefinition[] | undefined,
   widgetApps: Application[],
-  desktopConfig: DesktopConfig,
+  _desktopConfig: unknown,
 ) {
   const layouts = widgetLayouts ?? []
-
   return layouts.map((layout) => ({
     ...layout,
-    defaultConfig: normalizeWidgetLayoutSnapshotForEditor(layout.defaultConfig, widgetApps, desktopConfig),
     items: widgetApps.map((app, index) => {
       const source = layout.items.find((item) => item.widgetId === app.id)
-      const fallback = buildWidgetLayoutItem(app, index, desktopConfig, false)
-
+      const size = resolveWidgetSizeFromConfig(app)
+      const pos  = resolveWidgetPositionFromConfig(app)
+      const fallbackX = 80 + (index % 2) * 48
+      const fallbackY = 72 + index * 28
       return {
         widgetId: app.id,
-        enabled: source?.enabled ?? fallback.enabled,
-        x: Math.max(0, Math.round(source?.x ?? fallback.x)),
-        y: Math.max(0, Math.round(source?.y ?? fallback.y)),
-        width:  clampWidgetDimension(source?.width  ?? fallback.width,  WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  fallback.width),
-        height: clampWidgetDimension(source?.height ?? fallback.height, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, fallback.height),
-        focusPriority: Number.isFinite(source?.focusPriority)
-          ? Math.round(source!.focusPriority)
-          : fallback.focusPriority,
+        enabled: source?.enabled ?? false,
+        x: Math.max(0, Math.round(source?.x ?? pos.x ?? fallbackX)),
+        y: Math.max(0, Math.round(source?.y ?? pos.y ?? fallbackY)),
+        width:  clampWidgetDimension(source?.width  ?? size.width,  WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  size.width),
+        height: clampWidgetDimension(source?.height ?? size.height, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, size.height),
+        focusPriority: Number.isFinite(source?.focusPriority) ? Math.round(source!.focusPriority) : resolveWidgetDefaultZIndexFromConfig(app),
       }
     }),
   }))
 }
 
-export function removeWidgetFromDesktopConfig(desktopConfig: DesktopConfig, widgetId: string): DesktopConfig {
-  const next = withDesktopConfigDefaults(desktopConfig)
-  const nextPositions        = { ...(next.widgetPositions ?? {}) }
-  const nextSizes            = { ...(next.widgetSizes ?? {}) }
-  const nextDefaultZIndices  = { ...(next.widgetDefaultZIndices ?? {}) }
-  const nextRuntimeZIndices  = { ...(next.widgetZIndices ?? {}) }
-
-  delete nextPositions[widgetId]
-  delete nextSizes[widgetId]
-  delete nextDefaultZIndices[widgetId]
-  delete nextRuntimeZIndices[widgetId]
-
-  return {
-    ...next,
-    widgetPositions:       Object.keys(nextPositions).length       ? nextPositions       : undefined,
-    widgetSizes:           Object.keys(nextSizes).length           ? nextSizes           : undefined,
-    widgetDefaultZIndices: Object.keys(nextDefaultZIndices).length ? nextDefaultZIndices : undefined,
-    widgetZIndices:        Object.keys(nextRuntimeZIndices).length ? nextRuntimeZIndices : undefined,
-    widgetLayouts: (next.widgetLayouts ?? []).map((layout) => ({
-      ...layout,
-      items: layout.items.filter((item) => item.widgetId !== widgetId),
-    })),
-  }
+/** Geometry is now on the application row itself — deletion removes it. This helper is a no-op kept for call-site compatibility. */
+export function removeWidgetFromDesktopConfig(desktopConfig: import('@ieom/shared').DesktopConfig, _widgetId: string) {
+  return desktopConfig
 }
 
 // ── User widget creation helpers ──────────────────────────────────────

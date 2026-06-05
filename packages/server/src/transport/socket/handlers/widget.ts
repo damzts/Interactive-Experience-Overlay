@@ -1,4 +1,4 @@
-import { withDesktopConfigDefaults, mergeAppConfig } from '@ieom/shared'
+import { mergeAppConfig } from '@ieom/shared'
 import type { WidgetSimulationCommandPayload } from '@ieom/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 import { applyRuntimeConfigOverride } from './runtimeOverride.js'
@@ -24,8 +24,7 @@ export function applySavedWidgetLayout(
   options?: { persist?: boolean; userId?: string },
 ): { ok: boolean; error?: string } {
   const currentConfig = ctx.cachedUserConfig
-  const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
-  const layout = (currentDesktop.widgetLayouts ?? []).find((e) => e.id === layoutId)
+  const layout = (currentConfig.widgetLayouts ?? []).find((e) => e.id === layoutId)
   if (!layout) return { ok: false, error: `Unknown widget layout: ${layoutId}` }
 
   const validWidgetIds = new Set(
@@ -35,7 +34,7 @@ export function applySavedWidgetLayout(
   if (!layoutItems.length) return { ok: false, error: `Widget layout has no valid widgets: ${layoutId}` }
 
   const enabledItems = layoutItems.filter((i) => i.enabled)
-  const defaultZIndices = currentDesktop.widgetDefaultZIndices ?? {}
+  const defaultZIndices = Object.fromEntries(currentConfig.applications.map((a) => [a.id, a.zIndexDefault ?? 0]))
 
   const orderedEnabled = [...enabledItems].sort((a, b) => {
     if (a.focusPriority !== b.focusPriority) return a.focusPriority - b.focusPriority
@@ -71,24 +70,23 @@ export function applySavedWidgetLayout(
     }
     ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
   } else {
-    const nextPositions = { ...(currentDesktop.widgetPositions ?? {}) }
-    const nextSizes = { ...(currentDesktop.widgetSizes ?? {}) }
-    const nextZIndices = { ...(currentDesktop.widgetZIndices ?? {}) }
-    for (const item of layoutItems) {
-      nextPositions[item.widgetId] = { x: item.x, y: item.y }
-      nextSizes[item.widgetId] = { width: item.width, height: item.height }
-    }
-    for (const item of orderedEnabled) {
-      nextZIndices[item.widgetId] = item.focusPriority
-    }
-
-    const nextConfig = mergeAppConfig(currentConfig, {
-      desktopConfig: { widgetPositions: nextPositions, widgetSizes: nextSizes, widgetZIndices: nextZIndices } as any,
+    // Persist path: update application geometry directly
+    const nextApplications = currentConfig.applications.map((app) => {
+      const item = layoutItems.find((i) => i.widgetId === app.id)
+      if (!item) return app
+      const zItem = orderedEnabled.find((e) => e.widgetId === app.id)
+      return {
+        ...app,
+        windowPosition: { x: item.x, y: item.y },
+        windowSize: { width: item.width, height: item.height },
+        ...(zItem ? { zIndexCurrent: zItem.focusPriority } : {}),
+      }
     })
+    const nextConfig = mergeAppConfig(currentConfig, { applications: nextApplications })
     if (options?.userId) {
-      void ctx.configService?.persistForUser(options.userId, nextConfig, ctx.machine, {
-        desktopConfig: { widgetPositions: nextConfig.desktopConfig?.widgetPositions, widgetSizes: nextConfig.desktopConfig?.widgetSizes, widgetZIndices: nextConfig.desktopConfig?.widgetZIndices } as any,
-      }).then((result: any) => { if (result) ctx.cachedUserConfig = result })
+      void ctx.configService?.persistForUser(options.userId, nextConfig, { applications: nextApplications }).then((result: any) => {
+        if (result) ctx.cachedUserConfig = result
+      })
     }
   }
 
@@ -142,16 +140,14 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   socket.on('widget:layout:apply:items', (items) => {
     ctx.scheduler?.noteActivity()
     const currentConfig = ctx.cachedUserConfig
-    const currentDesktop = withDesktopConfigDefaults(currentConfig.desktopConfig)
     const validWidgetIds = new Set(currentConfig.applications.filter((a) => a.appType === 'widget').map((a) => a.id))
     const validItems = items.filter((i) => validWidgetIds.has(i.widgetId))
     if (!validItems.length) return
 
-    const nextDesktop = { ...(ctx.runtimeConfigOverride.desktopConfig ?? {}) }
-    const nextPositions = { ...(nextDesktop.widgetPositions ?? {}) }
-    const nextSizes = { ...(nextDesktop.widgetSizes ?? {}) }
-    const nextZIndices = { ...(nextDesktop.widgetZIndices ?? {}) }
-    const defaultZIndices = currentDesktop.widgetDefaultZIndices ?? {}
+    const nextPositions = { ...(ctx.runtimeConfigOverride.widgetPositions ?? {}) }
+    const nextSizes     = { ...(ctx.runtimeConfigOverride.widgetSizes ?? {}) }
+    const nextZIndices  = { ...(ctx.runtimeConfigOverride.widgetZIndices ?? {}) }
+    const defaultZIndices = Object.fromEntries(currentConfig.applications.map((a) => [a.id, a.zIndexDefault ?? 0]))
 
     for (const item of validItems) {
       delete nextPositions[item.widgetId]
@@ -163,17 +159,15 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     )
     for (const item of enabledItems) {
       nextPositions[item.widgetId] = { x: item.x, y: item.y }
-      nextSizes[item.widgetId] = { width: item.width, height: item.height }
-      nextZIndices[item.widgetId] = item.focusPriority
+      nextSizes[item.widgetId]     = { width: item.width, height: item.height }
+      nextZIndices[item.widgetId]  = item.focusPriority
     }
 
-    if (Object.keys(nextPositions).length) nextDesktop.widgetPositions = nextPositions; else delete nextDesktop.widgetPositions
-    if (Object.keys(nextSizes).length) nextDesktop.widgetSizes = nextSizes; else delete nextDesktop.widgetSizes
-    if (Object.keys(nextZIndices).length) nextDesktop.widgetZIndices = nextZIndices; else delete nextDesktop.widgetZIndices
-
     ctx.runtimeConfigOverride = {
-      desktopConfig: Object.keys(nextDesktop).length ? nextDesktop as typeof ctx.runtimeConfigOverride['desktopConfig'] : undefined,
-      desktopAmbiance: ctx.runtimeConfigOverride.desktopAmbiance,
+      ...ctx.runtimeConfigOverride,
+      widgetPositions: Object.keys(nextPositions).length ? nextPositions : undefined,
+      widgetSizes:     Object.keys(nextSizes).length     ? nextSizes     : undefined,
+      widgetZIndices:  Object.keys(nextZIndices).length  ? nextZIndices  : undefined,
     }
     ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
 

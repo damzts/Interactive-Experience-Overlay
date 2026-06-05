@@ -92,8 +92,8 @@ export function DesktopWindow({
   children,
 }: DesktopWindowProps) {
   const rawDesktopConfig = useAppStore((store) => store.config.desktopConfig)
-  const configPos = useAppStore((store) => store.config.desktopConfig?.widgetPositions?.[id])
-  const sizeOverride = useAppStore((store) => store.config.desktopConfig?.widgetSizes?.[id])
+  const configPos = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowPosition)
+  const sizeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowSize)
   const persistedAppThemeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.themeOverride)
   // Runtime event override wins over persisted app override
   const widgetThemeOverride = withDesktopConfigDefaults(rawDesktopConfig).widgetThemeOverrides?.[id] ?? persistedAppThemeOverride

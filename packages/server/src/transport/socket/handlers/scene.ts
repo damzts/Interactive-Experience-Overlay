@@ -165,7 +165,7 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
 
 function triggerConfiguredEvent(ctx: HandlerContext, eventId: string): { ok: boolean; error?: string } {
   const normalized = eventId.toLowerCase().replace(/[_\s]+/g, '-')
-  const eventDef = (ctx.cachedUserConfig.events ?? []).find((e) => e.id.toLowerCase().replace(/[_\s]+/g, '-') === normalized)
+  const eventDef = (ctx.cachedUserConfig.sourceEvents ?? []).find((e) => e.id.toLowerCase().replace(/[_\s]+/g, '-') === normalized)
   if (!eventDef) return { ok: false, error: `Unknown event: ${eventId}` }
   return executeConfiguredEvent(ctx, eventDef)
 }

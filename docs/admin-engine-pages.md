@@ -1,96 +1,108 @@
-# Admin — Engine Configuration Pages
+# Admin — Right Pane Panels & Table Ownership
 
-Each server subsystem has a dedicated configuration page in the admin sidebar. The goal is one page per engine concern: configuration and live diagnostics in the same place, clearly separated from scene/widget editing.
+Each right-pane panel in the admin is responsible for exactly one DB table. A panel that saves to multiple tables indicates a schema design problem or mixed abstraction — fix the schema or split the panel.
 
 ---
 
-## Pages
+## Panel → Table Map
 
-| Sidebar label | `SelectedItem.kind` | Panel component | Server subsystem | Config section |
+| Panel | `SelectedItem.kind` | Component | DB Table | `AppConfig` key |
 |---|---|---|---|---|
-| Ambiance | `ambiance` | `AmbiancePanel` | `AmbianceManager` | `desktopAmbiance.widgetSimulation` |
-| Scheduler | `scheduler` | `SchedulerPanel` | `EventScheduler` | `events[].auto` |
-| Scene Machine | `scene-machine` | `SceneMachinePanel` | `SceneMachine` | — (read-only diagnostics + control) |
-| OBS | `obs` | `ObsPanel` | `ObsBridge` | `obs.url`, `obs.password` |
-| Online / POV | `pov-online` | `OnlineRoomsPanel` | `POVOrchestrator`, `HubConnection`, `OnlineRoomManager` | cloud rooms + WebRTC |
-
-All five live in the **Utilities** section of the left sidebar.
+| Scene editor (Lobby / Desktop / user) | `env`, `scene` | `ScenePanel` | `scenes` | `scenes` |
+| Widget / app editor | `app` | `AppForm` | `applications` | `applications` |
+| Desktop Theme & Icons | `desktop-theme` | `DesktopThemeEditor` | `desktop_config` | `desktopConfig` |
+| Widget Layouts | `widget-layout` | `WidgetLayoutPanel` | `widget_layouts` + `widget_layout_items` | `widgetLayouts` |
+| Ambiance | `ambiance` | `AmbiancePanel` | `desktop_ambiance` | `desktopAmbiance` |
+| Audio Engine | `audio` | `AudioPanel` | `audio_config` | `audio` |
+| OBS | `obs` | `ObsPanel` | `obs_config` | `obs` |
+| Input Engine (Keybinds) | `keybinds` | `KeybindEditor` | `keybinds` | `keybinds` |
+| Settings | `settings` | `SettingsPage` | — (display only, no saves) | — |
+| Asset Library: Catalog | `asset-catalog` | `AssetLibraryPanel` | `source_media` | `sourceMedia` |
+| Asset Library: Events | `asset-events` | `AssetLibraryPanel` | `source_events` | `sourceEvents` |
+| Asset Library: Sources | `asset-sources` | `AssetLibraryPanel` | `source_presets` | `sourcePresets` |
+| Asset Library: Transitions | `asset-transitions` | `AssetLibraryPanel` | `source_transitions` | `sourceTransitions` |
+| Scheduler | `scheduler` | `SchedulerPanel` | `source_events` (auto fields only) | `sourceEvents` |
 
 ---
 
-## Data flow
+## Schema Table Inventory
 
-All panels are purely client-side React. No new server code was added for this feature.
+All tables currently in the DB:
 
-**Live state** arrives via existing socket events that `useSocketEvents` already subscribes to:
-
-| Socket event | Store field | Used by |
+| Table | Owned by | Notes |
 |---|---|---|
-| `runtime:diagnostics` | `runtimeDiagnostics.scheduler` | `SchedulerPanel` |
-| `runtime:diagnostics` | `runtimeDiagnostics.ambiance` | `AmbiancePanel` |
-| `obs:status` | `obsStatus` | `ObsPanel` |
-| `state:update` | `currentState` | `SceneMachinePanel` |
-
-**Config edits** go through `saveConfig(updates)` → `PATCH /api/config` → server applies → `config:update` broadcast → all clients update.
-
-The `SchedulerPanel` and `ObsPanel` save into their respective config sections. Changes take effect on the server immediately via `configService.onConfigUpdate`.
-
----
-
-## SchedulerPanel
-
-Shows the `EventScheduler` engine state and lets the user edit the `auto` field of every event config.
-
-**What it shows:**
-- Tick rate, active event count, last evaluated timestamp, last triggered event
-- Per-event row: mode (interval / idle), timing, chance, cooldown, allowed scenes, next-fire countdown
-
-**Next-fire countdown** is computed client-side from `nextRunAt` in the scheduler diagnostic payload. The panel runs a 1-second local interval to refresh display — no extra server traffic.
-
-**Editing:** clicking a row expands inline controls. Each change calls `saveConfig({ events: [...] })` with the full array. The server immediately re-reads config and the scheduler adjusts on the next tick.
-
-**Empty state:** if no events are configured, the panel tells the user to create events in the Asset Library. The Scheduler panel only configures when and how often events fire — not what they do.
+| `scenes` | `ScenePanel` | Includes `on_entry_json`, `on_exit_json` (named transition refs), `music_track`, `style_json` |
+| `applications` | `AppForm` | Widget geometry (`window_x/y`, `window_width/height`, `z_index_default/current`) lives here |
+| `desktop_config` | `DesktopThemeEditor` | OS presentation only: theme, icon config, screensaver, system sounds. No geometry. |
+| `widget_layouts` + `widget_layout_items` | `WidgetLayoutPanel` | Named layout presets. Independent of `desktop_config`. |
+| `desktop_ambiance` | `AmbiancePanel` | Widget simulation config |
+| `audio_config` | `AudioPanel` | Master/SFX/music volumes |
+| `obs_config` | `ObsPanel` | WebSocket URL and password |
+| `keybinds` | `KeybindEditor` | OBS and admin key→action mappings |
+| `source_media` | Asset Library: Catalog | Named media assets (images, videos) |
+| `source_events` | Asset Library: Events + Scheduler | Event definitions with effects, actions, auto-trigger config |
+| `source_presets` | Asset Library: Sources | Reusable scene source plugin configs |
+| `source_transitions` | Asset Library: Transitions | Named transition definitions (type + params) |
+| `users` | Auth | Google OAuth accounts |
+| `license_cache` | Desktop shell | License tier, validation timestamp |
+| `window_state` | Desktop shell | Electron window position/size |
+| `app_settings` | Desktop shell | Startup behavior |
+| `schema_migrations` | DB infra | Migration version tracking |
 
 ---
 
-## SceneMachinePanel
+## Why Scenes Reference Transitions by Name
 
-Read-only diagnostics + imperative controls for `SceneMachine`.
+Transition steps used to be inline JSON blobs on `scenes` and `applications`. They are now named assets in `source_transitions`, and scenes reference them as string arrays (`onEntry`, `onExit`).
 
-**Current state** is read from `useAdminStore(s => s.currentState)` which is kept in sync by `state:update` socket events.
-
-**Transition history** is built client-side: the panel subscribes to `state:update` in a `useEffect` and prepends entries to local state (capped at 10). History resets when the panel unmounts — it is not persisted anywhere.
-
-**Controls:**
-- Force transition to Lobby or Desktop: `socket.emit('scene:change', target)`
-- Panic reset: `socket.emit('panic')` — calls `machine.forceState(STATE.DESKTOP)`, bypassing transition animations
-
-There is no config to save here. The panel is pure diagnostics + emergency control.
+**Benefits:**
+- `ScenePanel` saves only to `scenes` — no cross-table write
+- Transitions are reusable across scenes
+- The Asset Library Transitions tab is the single place to create/edit/delete transitions
+- Stale references (deleted transition name) silently fall back to default — no crash
 
 ---
 
-## ObsPanel
+## Why Widget Geometry Moved to `applications`
 
-Configuration for `ObsBridge` and live connection status.
+Position, size, and z-index used to live in `desktop_config` as nested JSON maps. They now live as columns directly on the `applications` row.
 
-**Status** arrives via `obs:status` socket event (emitted by `ObsBridge` on every state change). Fields used: `connected`, `reconnecting`, `reconnectAttempt`, `nextRetryAt`, `retryDelayMs`, `lastError`.
+**Benefits:**
+- `AppForm` saves only to `applications` — no cross-table write
+- Widget geometry is colocated with the widget definition
+- `DesktopThemePanel` saves only presentation config, never widget positions
+- The DB record for a widget is self-contained
 
-**Retry countdown** is computed client-side from `nextRetryAt` using a 1-second interval, same pattern as SchedulerPanel.
+---
 
-**Reconnect button:** saves the current values back via `saveConfig({ obs: { url, password } })`. This triggers `configService.onConfigUpdate` on the server → `obsBridge.updateConnection(url, password)`. The bridge resets its retry state and opens a new connection. There is intentionally no separate "reconnect" socket event — saving config is the trigger.
+## `SettingsPage` — No Saves
 
-**Dirty state:** the form tracks dirty state locally. The save button only appears when URL or password has been changed. On save, dirty clears. If the server pushes a `config:update` with different values (e.g. another admin changed it), the local fields reset to match.
+`SettingsPage` is intentionally display-only:
+- **Account** section — shows logged-in user, logout (auth only, no config save)
+- **Server Info** — read-only URL display
+
+OBS credentials are edited exclusively in `ObsPanel` (System → OBS).
+
+---
+
+## Data Flow
+
+All panels follow the same pattern:
+
+1. Read from `useAdminStore(s => s.config.<key>)`
+2. Local form state tracks unsaved changes (dirty flag)
+3. Save bar calls `saveConfig({ <key>: value })` with exactly one top-level key
+4. `saveConfig` → `PATCH /api/config` → `DesktopConfigService.persistForUser` → writes one table → emits `config:update`
+
+**Single-key constraint:** `configApi.patchConfig` sends `{ <key>: value }`. The server's `writeSections` switches on the key and writes exactly the table it maps to. Multi-key payloads are only allowed for the atomic `POST /api/config/scenes` endpoint (creates both a `scenes` row and an `applications` row in one server-side transaction).
 
 ---
 
 ## Routing
 
-All pages follow the same pattern as every other sidebar item:
+All panels follow the same four-point checklist:
 
-1. `SelectedItem` union in `types.ts` — one new `kind` per page
-2. `LeftSidebar.tsx` — one `<SidebarBtn>` per page under the Utilities section label
-3. `RightPane.tsx`:
-   - `RightPaneContent` — one `if (selected.kind === '...')` returning the panel component
-   - Header block — one `else if` setting `headerIcon`, `headerLabel`, `headerMeta = 'Engine'`
-
-Adding a new engine page in the future follows the same four-point checklist.
+1. Add a `kind` to the `SelectedItem` union in `types.ts`
+2. Add a `SidebarBtn` in the appropriate nav section
+3. Add a case to `RightPaneContent` in `RightPane.tsx`
+4. Add a header block to `RightPane`'s header switch

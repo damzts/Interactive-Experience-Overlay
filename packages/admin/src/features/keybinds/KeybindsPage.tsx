@@ -46,7 +46,7 @@ export function KeybindsPage() {
     const widgets = config.applications.filter((a) => a.appType === 'widget').map((a) => ({
       id: `widget:${a.id}`, label: a.label, icon: typeof a.icon === 'string' ? a.icon : '🪟', action: `widget:${a.id}`,
     }))
-    const events = (config.events ?? []).map((e) => ({
+    const events = (config.sourceEvents ?? []).map((e) => ({
       id: `event:${e.id}`, label: e.label, icon: (e as { icon?: string }).icon ?? '⚡', action: `event:${e.id}`,
     }))
     return [
@@ -54,7 +54,7 @@ export function KeybindsPage() {
       ...widgets,
       ...events,
     ]
-  }, [config.scenes, config.applications, config.events])
+  }, [config.scenes, config.applications, config.sourceEvents])
 
   return (
     <div className="w-full max-w-none space-y-0 pt-1">

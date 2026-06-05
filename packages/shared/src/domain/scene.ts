@@ -81,9 +81,21 @@ export interface SceneDefaultSnapshot {
   sources: SourceInstance[]
   style?: OverlayStyle
   lobbyConfig?: LobbyConfig
-  introTransitions?: TransitionStep[]
-  exitTransitions?: TransitionStep[]
+  onEntry?: string[]
+  onExit?: string[]
   musicTrack?: string
+}
+
+// ── Media asset entry ────────────────────────────────────────────
+
+/** A named media asset saved in the centralised Asset Library (source_media table) */
+export interface MediaEntry {
+  id: string
+  name: string
+  type: 'image' | 'video'
+  url: string
+  /** Display duration in seconds (images only; videos auto-detect) */
+  duration?: number
 }
 
 // ── Scene entity ─────────────────────────────────────────────────
@@ -98,14 +110,10 @@ export interface Scene {
   style?: OverlayStyle
   /** 3D room configuration. Used by LOBBY scene. */
   lobbyConfig?: LobbyConfig
-  /** @deprecated use introTransitions */
-  introTransition?: string
-  /** @deprecated use exitTransitions */
-  exitTransition?: string
-  /** Ordered pipeline of transitions played when entering this scene. */
-  introTransitions?: TransitionStep[]
-  /** Ordered pipeline of transitions played when leaving this scene. */
-  exitTransitions?: TransitionStep[]
+  /** Ordered list of named transition IDs to play when entering this scene. */
+  onEntry?: string[]
+  /** Ordered list of named transition IDs to play when leaving this scene. */
+  onExit?: string[]
   /** Background music track URL to play when this scene is active. */
   musicTrack?: string
   /** Persisted factory snapshot used to restore this scene to defaults. */

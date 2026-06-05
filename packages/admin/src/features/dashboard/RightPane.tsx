@@ -78,7 +78,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 }) {
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const applications  = useAdminStore((s) => s.config.applications)
-  const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
 
   if (selected.kind === 'env') {
     const isLobby = selected.envState === STATE.LOBBY
@@ -107,7 +106,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
           if (isSystemWidget(app)) return
           saveConfig({
             applications: applications.filter((a) => a.id !== selected.appId),
-            desktopConfig: removeWidgetFromDesktopConfig(desktopConfig, app.id),
           })
           onDeleted()
         }} />
@@ -160,7 +158,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
   { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
   { icon: '🖥', label: 'Global Lobby Theme', kind: 'lobby-theme' },
-  { icon: '🎨', label: 'Global Desktop Theme', kind: 'desktop-theme' },
+  { icon: '🎨', label: 'Desktop Theme & Icons', kind: 'desktop-theme' },
   { icon: '🔄', label: 'Scene Machine',      kind: 'scene-machine' },
   { icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
@@ -185,7 +183,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   const currentState  = useAdminStore((s) => s.currentState)
   const setLastError  = useAdminStore((s) => s.setLastError)
   const applications  = useAdminStore((s) => s.config.applications)
-  const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
+  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
 
   const triggerScene = (state: string) => {
     setLastError(null)
@@ -271,7 +269,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     headerLabel = 'New Widget'
     headerMeta  = 'User Widget Creator'
   } else if (selected.kind === 'widget-layout') {
-    const layout = (desktopConfig.widgetLayouts ?? []).find((entry) => entry.id === selected.layoutId)
+    const layout = (widgetLayouts).find((entry) => entry.id === selected.layoutId)
     headerIcon  = layout?.icon ?? '📐'
     headerLabel = layout?.label ?? 'Widget Layout'
     headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'

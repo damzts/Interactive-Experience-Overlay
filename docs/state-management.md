@@ -11,7 +11,7 @@
 
 There are exactly two places server-side state lives, and they must never be conflated.
 
-**Config persistence** is everything that should survive a server restart — scenes, applications, events, themes, keybinds, ambiance schedules. It lives in SQLite, managed by a dedicated service. Reads and writes happen on the admin save path. The real-time rendering path never touches it.
+**Config persistence** is everything that should survive a server restart — scenes, applications (including widget geometry), source events, source media, source presets, source transitions, widget layouts, desktop theme, keybinds, ambiance schedules. It lives in SQLite, managed by a dedicated service. Each table has a single owning admin panel. Reads and writes happen on the admin save path. The real-time rendering path never touches it.
 
 **Runtime state** is live session data that has no meaning across restarts — the current scene, which widgets are open, whether the overlay is connected, who the active ambiance leader is. It lives in memory, reconstructed from socket events on reconnect. It is never written to disk.
 

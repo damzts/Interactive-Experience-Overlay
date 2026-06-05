@@ -71,7 +71,7 @@ export type EventAction =
 
 // ── Event entity ─────────────────────────────────────────────────
 
-/** A saved event definition — persisted in AppConfig.events */
+/** A saved event definition — persisted in AppConfig.sourceEvents */
 export interface EventConfig {
   id: string
   label: string

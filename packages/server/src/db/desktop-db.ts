@@ -203,6 +203,32 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 4,
+    name: 'rename_source_tables_add_geometry_transitions',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE media_library RENAME TO source_media;
+        ALTER TABLE events RENAME TO source_events;
+        CREATE TABLE IF NOT EXISTS source_transitions (
+          id TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          type TEXT NOT NULL,
+          params_json TEXT NOT NULL DEFAULT '{}'
+        );
+        ALTER TABLE applications ADD COLUMN window_x REAL;
+        ALTER TABLE applications ADD COLUMN window_y REAL;
+        ALTER TABLE applications ADD COLUMN window_width REAL;
+        ALTER TABLE applications ADD COLUMN window_height REAL;
+        ALTER TABLE applications ADD COLUMN z_index_default INTEGER;
+        ALTER TABLE applications ADD COLUMN z_index_current INTEGER;
+        ALTER TABLE scenes ADD COLUMN on_entry_json TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE scenes ADD COLUMN on_exit_json TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE scenes ADD COLUMN music_track TEXT;
+        DROP TABLE IF EXISTS overlay_style;
+      `)
+    },
+  },
 ]
 
 function runMigrations(db: DesktopDatabase): void {

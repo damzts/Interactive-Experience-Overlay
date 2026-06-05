@@ -396,7 +396,39 @@ export const DEFAULT_RECYCLE_BIN_SETTINGS: RecycleBinSettings = {
   fullIcon: '🗑️',
 }
 
-export function withOverlayStyleDefaults(style: OverlayStyle | null | undefined, fallback: OverlayStyle): OverlayStyle {
+const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
+  background: {
+    type: 'none',
+    color: '#000000',
+    gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
+    imageUrl: '',
+    videoUrl: '',
+    pattern: 'none',
+    opacity: 0,
+    blur: 0,
+  },
+  effects: {
+    crt: true,
+    noise: false,
+    vignette: true,
+    flicker: false,
+    chromatic: false,
+    scanlineOpacity: 0.18,
+    noiseOpacity: 0.06,
+    vignetteStrength: 0.65,
+  },
+  particles: {
+    enabled: false,
+    preset: 'none',
+    density: 0.5,
+    speed: 0.4,
+  },
+  fontFamily: 'default',
+  accentColor: '#00ff41',
+  textColor: '#ffffff',
+}
+
+export function withOverlayStyleDefaults(style: OverlayStyle | null | undefined, fallback: OverlayStyle = DEFAULT_OVERLAY_STYLE): OverlayStyle {
   const nextStyle: OverlayStyle = {
     ...fallback,
     ...style,
@@ -480,17 +512,6 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   iconArrangement: 'grid',
   iconMotion: 0.45,
   iconArrangementMotion: 1,
-  widgetDefaultZIndices: {
-    gallery: 0,
-    browser: 0,
-    music: 10,
-    spotify: 10,
-    archive: 20,
-    'sticky-notes': 30,
-    chat: 40,
-    camera: 50,
-  },
-  widgetLayouts: [],
   recycleBin: {
     fullOnStart: false,
   },
@@ -530,10 +551,6 @@ export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height
   'newswire-desk': { width: 430, height: 340 },
   'city-nav': { width: 450, height: 340 },
   'lcd-dolphins': { width: 320, height: 240 },
-}
-
-export const DEFAULT_WIDGET_DEFAULT_Z_INDICES = {
-  ...DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices,
 }
 
 export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera', 'media-deck', 'cd-ripper', 'signal-lab', 'broadcast-scheduler', 'weather', 'clock-tower', 'newswire-desk', 'city-nav', 'lcd-dolphins', 'online-stream'] as const
@@ -617,13 +634,13 @@ const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width
 }
 
 const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> = {
-  archive: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.archive ?? 20,
-  camera: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.camera ?? 50,
-  chat: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.chat ?? 40,
-  gallery: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.gallery ?? 0,
-  music: DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.music ?? 10,
+  archive: 20,
+  camera: 50,
+  chat: 40,
+  gallery: 0,
+  music: 10,
   source: 25,
-  'sticky-notes': DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices?.['sticky-notes'] ?? 30,
+  'sticky-notes': 30,
   'spectrum-analyzer': 62,
   'equalizer-rack': 61,
   'wave-scope': 59,
@@ -1066,28 +1083,6 @@ function normalizeWidgetDimension(value: number | undefined, min: number, max: n
   return Math.min(max, Math.max(min, rounded))
 }
 
-function normalizeWidgetSizes(value?: DesktopConfig['widgetSizes']) {
-  if (!value) return undefined
-  const entries = Object.entries(value).reduce<Record<string, { width?: number; height?: number }>>((acc, [widgetId, size]) => {
-    const width = normalizeWidgetDimension(size?.width, 180, 1400)
-    const height = normalizeWidgetDimension(size?.height, 140, 1000)
-    if (width === undefined && height === undefined) return acc
-    acc[widgetId] = { width, height }
-    return acc
-  }, {})
-  return Object.keys(entries).length ? entries : undefined
-}
-
-function normalizeWidgetZIndexMap(value?: Record<string, number>) {
-  if (!value) return undefined
-  const entries = Object.entries(value).reduce<Record<string, number>>((acc, [widgetId, zIndex]) => {
-    if (!Number.isFinite(zIndex)) return acc
-    acc[widgetId] = Math.max(0, Math.round(zIndex))
-    return acc
-  }, {})
-  return Object.keys(entries).length ? entries : undefined
-}
-
 function normalizeWidgetLayoutCoordinate(value: number | undefined, fallback: number) {
   if (!Number.isFinite(value)) return fallback
   return Math.max(0, Math.round(value as number))
@@ -1245,13 +1240,6 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
       ...DEFAULT_DESKTOP_CONFIG.systemSounds,
       ...source.systemSounds,
     },
-    widgetSizes: normalizeWidgetSizes(source.widgetSizes),
-    widgetDefaultZIndices: normalizeWidgetZIndexMap({
-      ...(DEFAULT_DESKTOP_CONFIG.widgetDefaultZIndices ?? {}),
-      ...(source.widgetDefaultZIndices ?? {}),
-    }),
-    widgetZIndices: normalizeWidgetZIndexMap(source.widgetZIndices),
-    widgetLayouts: normalizeWidgetLayouts(source.widgetLayouts),
   }
 }
 
@@ -1306,18 +1294,6 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
               ? updates.desktopConfig.widgetThemeOverrides
               : undefined)
           : currentDesktopConfig.widgetThemeOverrides,
-        widgetPositions: updates.desktopConfig.widgetPositions
-          ? { ...(currentDesktopConfig.widgetPositions ?? {}), ...updates.desktopConfig.widgetPositions }
-          : currentDesktopConfig.widgetPositions,
-        widgetSizes: updates.desktopConfig.widgetSizes
-          ? { ...(currentDesktopConfig.widgetSizes ?? {}), ...updates.desktopConfig.widgetSizes }
-          : currentDesktopConfig.widgetSizes,
-        widgetDefaultZIndices: updates.desktopConfig.widgetDefaultZIndices
-          ? { ...(currentDesktopConfig.widgetDefaultZIndices ?? {}), ...updates.desktopConfig.widgetDefaultZIndices }
-          : currentDesktopConfig.widgetDefaultZIndices,
-        widgetZIndices: updates.desktopConfig.widgetZIndices
-          ? { ...(currentDesktopConfig.widgetZIndices ?? {}), ...updates.desktopConfig.widgetZIndices }
-          : currentDesktopConfig.widgetZIndices,
         recycleBin: updates.desktopConfig.recycleBin
           ? { ...currentDesktopConfig.recycleBin, ...updates.desktopConfig.recycleBin }
           : currentDesktopConfig.recycleBin,
@@ -1329,22 +1305,6 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
           : currentDesktopConfig.systemSounds,
       }
     : currentDesktopConfig
-
-  const nextOverlayStyle = updates.overlayStyle
-    ? {
-        ...base.overlayStyle,
-        ...updates.overlayStyle,
-        background: updates.overlayStyle.background
-          ? { ...base.overlayStyle.background, ...updates.overlayStyle.background }
-          : base.overlayStyle.background,
-        effects: updates.overlayStyle.effects
-          ? { ...base.overlayStyle.effects, ...updates.overlayStyle.effects }
-          : base.overlayStyle.effects,
-        particles: updates.overlayStyle.particles
-          ? { ...base.overlayStyle.particles, ...updates.overlayStyle.particles }
-          : base.overlayStyle.particles,
-      }
-    : base.overlayStyle
 
   return {
     ...base,
@@ -1361,7 +1321,6 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
       : base.keybinds,
     obs: updates.obs ? { ...base.obs, ...updates.obs } : base.obs,
     audio: updates.audio ? { ...base.audio, ...updates.audio } : base.audio,
-    overlayStyle: nextOverlayStyle,
     desktopConfig: nextDesktopConfig,
     desktopAmbiance: updates.desktopAmbiance
       ? {
@@ -1381,14 +1340,34 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
             : currentDesktopAmbiance.widgetSimulation,
         }
       : currentDesktopAmbiance,
-    events: updates.events ? withEventListDefaults(updates.events) : withEventListDefaults(base.events),
-    mediaLibrary: updates.mediaLibrary ?? base.mediaLibrary,
+    widgetLayouts: updates.widgetLayouts ?? base.widgetLayouts,
+    sourceEvents: updates.sourceEvents ? withEventListDefaults(updates.sourceEvents) : withEventListDefaults(base.sourceEvents),
+    sourceMedia: updates.sourceMedia ?? base.sourceMedia,
     sourcePresets: updates.sourcePresets ? withSourcePresetListDefaults(updates.sourcePresets) : withSourcePresetListDefaults(base.sourcePresets),
+    sourceTransitions: updates.sourceTransitions ?? base.sourceTransitions,
   }
 }
 
 export function applyRuntimeConfigOverride(base: AppConfig, runtimeOverride: RuntimeConfigOverridePayload): AppConfig {
-  return mergeAppConfig(base, runtimeOverride as unknown as Partial<AppConfig>)
+  if (!runtimeOverride || Object.keys(runtimeOverride).length === 0) return base
+
+  let applications = base.applications
+  if (runtimeOverride.widgetPositions || runtimeOverride.widgetSizes || runtimeOverride.widgetZIndices) {
+    applications = base.applications.map((app) => {
+      const pos  = runtimeOverride.widgetPositions?.[app.id]
+      const size = runtimeOverride.widgetSizes?.[app.id]
+      const z    = runtimeOverride.widgetZIndices?.[app.id]
+      if (!pos && !size && z === undefined) return app
+      return {
+        ...app,
+        ...(pos  ? { windowPosition: pos }  : {}),
+        ...(size ? { windowSize: size }      : {}),
+        ...(z !== undefined ? { zIndexCurrent: z } : {}),
+      }
+    })
+  }
+
+  return mergeAppConfig({ ...base, applications }, runtimeOverride as unknown as Partial<AppConfig>)
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -1718,43 +1697,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     musicVolume: 0.4,
   },
 
-  overlayStyle: {
-    background: {
-      type: 'none',
-      color: '#000000',
-      gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
-      imageUrl: '',
-      videoUrl: '',
-      pattern: 'none',
-      opacity: 0,
-      blur: 0,
-    },
-    effects: {
-      crt: true,
-      noise: false,
-      vignette: true,
-      flicker: false,
-      chromatic: false,
-      scanlineOpacity: 0.18,
-      noiseOpacity: 0.06,
-      vignetteStrength: 0.65,
-    },
-    particles: {
-      enabled: false,
-      preset: 'none',
-      density: 0.5,
-      speed: 0.4,
-    },
-    fontFamily: 'default',
-    accentColor: '#00ff41',
-    textColor: '#ffffff',
-  },
-
   desktopConfig: DEFAULT_DESKTOP_CONFIG,
 
   desktopAmbiance: DEFAULT_DESKTOP_AMBIANCE_CONFIG,
 
-  events: [
+  widgetLayouts: [],
+
+  sourceEvents: [
     { id: OVERLAY_EVENT.DEATH,          label: 'DEATH',    icon: '💀', color: 'text-red-400',     desc: 'Red vignette + YOU DIED',           effects: [{ type: 'death-overlay',   cfg: {} }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 20, idleMin: 5, chance: 1, cooldownMin: 0 } },
     { id: OVERLAY_EVENT.VICTORY,        label: 'VICTORY',  icon: '🏆', color: 'text-yellow-400',  desc: 'Win98 dialog: MISSION.LOG saved',   effects: [{ type: 'victory-overlay', cfg: {} }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 30, idleMin: 5, chance: 1, cooldownMin: 0 } },
     { id: OVERLAY_EVENT.REVIVE,         label: 'REVIVE',   icon: '❤',  color: 'text-emerald-400', desc: 'Terminal: Restarting process...',   effects: [{ type: 'revive-overlay',  cfg: {} }], actions: [], auto: { enabled: false, mode: 'interval', intervalMin: 25, idleMin: 5, chance: 1, cooldownMin: 0 } },
@@ -1762,5 +1711,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'idle-floaties',              label: 'FLOATIES', icon: '✨',  color: 'text-cyan-400',    desc: 'Glowing symbols drift over screen', effects: [{ type: 'floaties',         cfg: { count: 10, duration: 10, speed: 1.0 } }], actions: [], auto: { enabled: false, mode: 'idle', intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 } },
   ],
 
-  mediaLibrary: [],
+  sourceMedia: [],
+  sourcePresets: [],
+  sourceTransitions: [],
 }

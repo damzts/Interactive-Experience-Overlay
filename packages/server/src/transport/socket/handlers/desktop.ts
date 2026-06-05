@@ -31,10 +31,8 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
     if (payload.phase !== 'move') ctx.scheduler?.noteActivity()
     if (payload.phase === 'end') {
       applyRuntimeConfigOverride(ctx, {
-        desktopConfig: {
-          widgetPositions: {
-            [payload.widgetId]: { x: Math.max(0, Math.round(payload.x)), y: Math.max(0, Math.round(payload.y)) },
-          },
+        widgetPositions: {
+          [payload.widgetId]: { x: Math.max(0, Math.round(payload.x)), y: Math.max(0, Math.round(payload.y)) },
         },
       })
     }
@@ -45,13 +43,11 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
     if (payload.phase !== 'move') ctx.scheduler?.noteActivity()
     if (payload.phase === 'end') {
       applyRuntimeConfigOverride(ctx, {
-        desktopConfig: {
-          widgetPositions: {
-            [payload.widgetId]: { x: Math.max(0, Math.round(payload.x)), y: Math.max(0, Math.round(payload.y)) },
-          },
-          widgetSizes: {
-            [payload.widgetId]: { width: Math.max(180, Math.round(payload.width)), height: Math.max(140, Math.round(payload.height)) },
-          },
+        widgetPositions: {
+          [payload.widgetId]: { x: Math.max(0, Math.round(payload.x)), y: Math.max(0, Math.round(payload.y)) },
+        },
+        widgetSizes: {
+          [payload.widgetId]: { width: Math.max(180, Math.round(payload.width)), height: Math.max(140, Math.round(payload.height)) },
         },
       })
     }

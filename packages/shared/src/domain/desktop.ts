@@ -9,11 +9,7 @@
  * New engine work must not import from this file.
  */
 
-import type {
-  WidgetThemeConfig,
-  WidgetWindowSize,
-  WidgetLayoutDefinition,
-} from './application.js'
+import type { WidgetThemeConfig } from './application.js'
 
 // ── Desktop OS theme & motion types ──────────────────────────────
 
@@ -41,7 +37,7 @@ export interface GlobalThemeDefaultConfig {
 
 // ── Desktop OS configuration ──────────────────────────────────────
 
-/** Win98-specific desktop OS configuration */
+/** Win98-specific desktop OS configuration (OS presentation only — no widget geometry) */
 export interface DesktopConfig {
   /** User-defined default snapshot for the Global Theme utility. Active theme and widget theme are read from here. */
   globalThemeDefault: GlobalThemeDefaultConfig
@@ -59,16 +55,6 @@ export interface DesktopConfig {
   iconMotion: number
   /** 0-3 scalar controlling the speed/spread of the dynamic icon arrangement (1 = 100%) */
   iconArrangementMotion: number
-  /** Persisted widget window positions, keyed by widget id (e.g. 'music', 'archive') */
-  widgetPositions?: Record<string, { x: number; y: number }>
-  /** Optional per-widget window size overrides, keyed by widget id. */
-  widgetSizes?: Record<string, WidgetWindowSize>
-  /** Default widget stack order, keyed by widget id. Higher value = preferred front-most baseline. */
-  widgetDefaultZIndices?: Record<string, number>
-  /** Persisted current widget window z-index order, keyed by widget id. Higher value = rendered on top. */
-  widgetZIndices?: Record<string, number>
-  /** Saved named widget layout presets for the desktop runtime. */
-  widgetLayouts?: WidgetLayoutDefinition[]
   /** Runtime state for the recycle bin decoration app */
   recycleBin: {
     fullOnStart: boolean

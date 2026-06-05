@@ -4,8 +4,6 @@
  * Single-tenant: no user_id scoping. All queries operate on a flat schema.
  * Implements the same interface as the multi-tenant ConfigService so it can
  * be used as a drop-in replacement in desktop-entry.ts.
- *
- * Requirements: 3.1, 3.5
  */
 
 import type Database from 'better-sqlite3'
@@ -21,20 +19,20 @@ import {
   withLobbyConfigDefaults,
   withOverlayStyleDefaults,
 } from '@ieom/shared'
-import type { AppConfig, Application, DesktopConfig, Manager, ManagerStatus, Scene, OverlayStyle, WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
+import type {
+  AppConfig,
+  Application,
+  DesktopConfig,
+  Manager,
+  ManagerStatus,
+  Scene,
+  WidgetLayoutDefinition,
+  WidgetLayoutItem,
+  TransitionDefinition,
+} from '@ieom/shared'
 import type { EventConfig, AutoTrigger } from '@ieom/shared'
 
 type DesktopDatabase = Database.Database
-
-// ── Types ────────────────────────────────────────────────────────
-
-interface SceneTransitionsPayload {
-  introTransition?: string
-  exitTransition?: string
-  introTransitions?: unknown[]
-  exitTransitions?: unknown[]
-  musicTrack?: string
-}
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -55,7 +53,6 @@ function boolToInt(value: boolean | undefined): number {
   return value ? 1 : 0
 }
 
-
 const REQUIRED_DESKTOP_APP_IDS = new Set(
   DEFAULT_CONFIG.applications
     .filter((app) => app.id === 'recycle-bin' || (app.appType === 'widget' && app.widgetSource === 'system'))
@@ -70,15 +67,8 @@ function getSeedSceneSource(sceneId: string, scene: Scene) {
   return DEFAULT_CONFIG.scenes[sceneId] ?? scene
 }
 
-function buildApplicationDefaultSnapshot(
-  app: Application,
-  desktopConfig: DesktopConfig,
-): NonNullable<Application['defaultConfig']> {
+function buildApplicationDefaultSnapshot(app: Application): NonNullable<Application['defaultConfig']> {
   const source = getSeedAppSource(app)
-  const defaultWindowSize = desktopConfig.widgetSizes?.[source.id]
-  const defaultZIndex = desktopConfig.widgetDefaultZIndices?.[source.id]
-  const themeOverride = source.themeOverride
-
   return {
     id: source.id,
     label: source.label,
@@ -88,10 +78,6 @@ function buildApplicationDefaultSnapshot(
     widgetSource: source.widgetSource,
     widgetComponent: source.widgetComponent,
     transitionType: source.transitionType,
-    introTransition: source.introTransition,
-    exitTransition: source.exitTransition,
-    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
-    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
     iconPosition: source.iconPosition ? clone(source.iconPosition) : undefined,
     iconSize: source.iconSize,
     launchPipeline: source.launchPipeline ? clone(source.launchPipeline) : undefined,
@@ -100,21 +86,17 @@ function buildApplicationDefaultSnapshot(
     sourceWidgetSettings: source.sourceWidgetSettings ? clone(source.sourceWidgetSettings) : undefined,
     stickyNotesSettings: source.stickyNotesSettings ? clone(source.stickyNotesSettings) : undefined,
     recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
-    widgetDefaults:
-      source.appType === 'widget'
-        ? {
-            windowSize: defaultWindowSize ? clone(defaultWindowSize) : undefined,
-            defaultZIndex,
-            themeOverride: themeOverride ? clone(themeOverride) : undefined,
-          }
-        : undefined,
+    widgetDefaults: source.appType === 'widget'
+      ? {
+          windowSize: source.windowSize ? clone(source.windowSize) : undefined,
+          defaultZIndex: source.zIndexDefault,
+          themeOverride: source.themeOverride ? clone(source.themeOverride) : undefined,
+        }
+      : undefined,
   }
 }
 
-function buildSceneDefaultSnapshot(
-  sceneId: string,
-  scene: Scene,
-): NonNullable<Scene['defaultConfig']> {
+function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<Scene['defaultConfig']> {
   const source = getSeedSceneSource(sceneId, scene)
   return {
     label: source.label,
@@ -122,19 +104,14 @@ function buildSceneDefaultSnapshot(
     sources: clone(source.sources ?? []),
     style: source.style ? clone(source.style) : undefined,
     lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
-    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
-    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
+    onEntry: source.onEntry ? [...source.onEntry] : undefined,
+    onExit: source.onExit ? [...source.onExit] : undefined,
     musicTrack: source.musicTrack,
   }
 }
 
-
 // ── DesktopConfigService ─────────────────────────────────────────
 
-/**
- * SQLite-backed ConfigService for desktop mode.
- * No user_id scoping — single-tenant model.
- */
 export class DesktopConfigService implements Manager {
   readonly name = 'DesktopConfigService'
   private _status: ManagerStatus = 'idle'
@@ -150,12 +127,9 @@ export class DesktopConfigService implements Manager {
     this.seedSystemLayouts()
   }
 
-  // ── Manager interface ────────────────────────────────────────
-  /** db is opened externally via initDesktopDatabase — init just marks ready */
   init(): void { this._status = 'idle' }
   start(): void { this._status = 'running' }
   stop(): void { this._status = 'stopped' }
-  /** dispose closes the db — delegates to caller in desktop mode (closeDesktopDatabase) */
   dispose(): void { this._status = 'stopped' }
   status(): ManagerStatus { return this._status }
 
@@ -195,8 +169,8 @@ export class DesktopConfigService implements Manager {
     } else {
       this.writeSections(config, [
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
-        'overlayStyle', 'desktopConfig', 'desktopAmbiance',
-        'events', 'mediaLibrary', 'sourcePresets',
+        'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
+        'sourceEvents', 'sourceMedia', 'sourcePresets', 'sourceTransitions',
       ])
     }
 
@@ -210,40 +184,26 @@ export class DesktopConfigService implements Manager {
     }
 
     this.onConfigUpdateListener?.(config)
-
     return config
   }
 
   // ── Private: Load ────────────────────────────────────────────
 
   private loadFromDb(): AppConfig {
-    const scenes = this.loadScenes()
-    const applications = this.loadApplications()
-    const keybinds = this.loadKeybinds()
-    const obs = this.loadObsConfig()
-    const audio = this.loadAudioConfig()
-    const overlayStyle = this.loadOverlayStyle()
-    const desktopConfig = this.loadDesktopConfig()
-    const widgetLayouts = this.loadWidgetLayouts()
-    const desktopAmbiance = this.loadDesktopAmbiance()
-    const events = this.loadEvents()
-    const mediaLibrary = this.loadMediaLibrary()
-    const sourcePresets = this.loadSourcePresets()
-
     const base: AppConfig = {
-      scenes,
-      applications,
-      keybinds,
-      obs,
-      audio,
-      overlayStyle,
-      desktopConfig: desktopConfig ? { ...desktopConfig, widgetLayouts } : withDesktopConfigDefaults({ widgetLayouts }),
-      desktopAmbiance,
-      events,
-      mediaLibrary,
-      sourcePresets,
+      scenes:           this.loadScenes(),
+      applications:     this.loadApplications(),
+      keybinds:         this.loadKeybinds(),
+      obs:              this.loadObsConfig(),
+      audio:            this.loadAudioConfig(),
+      desktopConfig:    this.loadDesktopConfig(),
+      desktopAmbiance:  this.loadDesktopAmbiance(),
+      widgetLayouts:    this.loadWidgetLayouts(),
+      sourceEvents:     this.loadSourceEvents(),
+      sourceMedia:      this.loadSourceMedia(),
+      sourcePresets:    this.loadSourcePresets(),
+      sourceTransitions: this.loadSourceTransitions(),
     }
-
     return this.withConfigDefaults(base)
   }
 
@@ -251,24 +211,23 @@ export class DesktopConfigService implements Manager {
     const rows = this.db.prepare('SELECT * FROM scenes').all() as Array<{
       id: string; label: string; background_opaque: number;
       sources_json: string | null; style_json: string | null;
-      lobby_config_json: string | null; transitions_json: string | null;
+      lobby_config_json: string | null;
+      on_entry_json: string | null; on_exit_json: string | null;
+      music_track: string | null;
     }>
 
     const scenes: Record<string, Scene> = {}
     for (const row of rows) {
-      const transitions = parseJson<SceneTransitionsPayload>(row.transitions_json, {})
       scenes[row.id] = {
         id: row.id,
         label: row.label,
         backgroundOpaque: row.background_opaque === 1,
         sources: parseJson(row.sources_json, []),
-        style: parseJson<OverlayStyle | undefined>(row.style_json, undefined),
+        style: parseJson(row.style_json, undefined),
         lobbyConfig: parseJson(row.lobby_config_json, undefined),
-        introTransition: transitions.introTransition,
-        exitTransition: transitions.exitTransition,
-        introTransitions: transitions.introTransitions as any,
-        exitTransitions: transitions.exitTransitions as any,
-        musicTrack: transitions.musicTrack,
+        onEntry: parseJson<string[]>(row.on_entry_json, []),
+        onExit: parseJson<string[]>(row.on_exit_json, []),
+        musicTrack: row.music_track ?? undefined,
       }
     }
     return scenes
@@ -280,6 +239,9 @@ export class DesktopConfigService implements Manager {
       target_scene_id: string; widget_source: string | null;
       widget_component: string | null; icon_position_x: number | null;
       icon_position_y: number | null; icon_size: string | null;
+      window_x: number | null; window_y: number | null;
+      window_width: number | null; window_height: number | null;
+      z_index_default: number | null; z_index_current: number | null;
       settings_json: string | null;
     }>
 
@@ -297,6 +259,14 @@ export class DesktopConfigService implements Manager {
           ? { x: row.icon_position_x, y: row.icon_position_y }
           : undefined,
         iconSize: row.icon_size as Application['iconSize'] | undefined,
+        windowPosition: row.window_x != null && row.window_y != null
+          ? { x: row.window_x, y: row.window_y }
+          : undefined,
+        windowSize: row.window_width != null || row.window_height != null
+          ? { width: row.window_width ?? undefined, height: row.window_height ?? undefined }
+          : undefined,
+        zIndexDefault: row.z_index_default ?? undefined,
+        zIndexCurrent: row.z_index_current ?? undefined,
         ...settings,
       } as Application
     })
@@ -306,7 +276,6 @@ export class DesktopConfigService implements Manager {
     const rows = this.db.prepare('SELECT * FROM keybinds').all() as Array<{
       scope: string; key: string; action: string;
     }>
-
     const obs: Record<string, string> = {}
     const admin: Record<string, string> = {}
     for (const row of rows) {
@@ -332,24 +301,6 @@ export class DesktopConfigService implements Manager {
       : { masterVolume: 1, sfxVolume: 1, musicVolume: 0.7 }
   }
 
-  private loadOverlayStyle(): OverlayStyle {
-    const row = this.db.prepare('SELECT * FROM overlay_style WHERE id = 1').get() as {
-      background_json: string | null; effects_json: string | null;
-      particles_json: string | null; font_family: string | null;
-      accent_color: string | null; text_color: string | null;
-    } | undefined
-
-    if (!row) return DEFAULT_CONFIG.overlayStyle as OverlayStyle
-    return {
-      background: parseJson(row.background_json, (DEFAULT_CONFIG.overlayStyle as OverlayStyle).background),
-      effects: parseJson(row.effects_json, (DEFAULT_CONFIG.overlayStyle as OverlayStyle).effects),
-      particles: parseJson(row.particles_json, (DEFAULT_CONFIG.overlayStyle as OverlayStyle).particles),
-      fontFamily: row.font_family ?? (DEFAULT_CONFIG.overlayStyle as OverlayStyle).fontFamily,
-      accentColor: row.accent_color ?? (DEFAULT_CONFIG.overlayStyle as OverlayStyle).accentColor,
-      textColor: row.text_color ?? (DEFAULT_CONFIG.overlayStyle as OverlayStyle).textColor,
-    } as OverlayStyle
-  }
-
   private loadDesktopConfig(): DesktopConfig | undefined {
     const row = this.db.prepare('SELECT * FROM desktop_config WHERE id = 1').get() as {
       global_theme_json: string | null; icon_animation: string | null;
@@ -357,8 +308,6 @@ export class DesktopConfigService implements Manager {
       icon_arrangement_motion: number | null; default_icon_size: string | null;
       auto_arrange_icons: number | null; recycle_bin_json: string | null;
       screen_saver_json: string | null; system_sounds_json: string | null;
-      widget_positions_json: string | null; widget_sizes_json: string | null;
-      widget_z_indices_json: string | null; widget_default_z_indices_json: string | null;
     } | undefined
 
     if (!row) return undefined
@@ -373,10 +322,6 @@ export class DesktopConfigService implements Manager {
       recycleBin: parseJson(row.recycle_bin_json, undefined),
       screenSaver: parseJson(row.screen_saver_json, undefined),
       systemSounds: parseJson(row.system_sounds_json, undefined),
-      widgetPositions: parseJson(row.widget_positions_json, undefined),
-      widgetSizes: parseJson(row.widget_sizes_json, undefined),
-      widgetZIndices: parseJson(row.widget_z_indices_json, undefined),
-      widgetDefaultZIndices: parseJson(row.widget_default_z_indices_json, undefined),
     } as unknown as DesktopConfig
   }
 
@@ -412,8 +357,8 @@ export class DesktopConfigService implements Manager {
     }))
   }
 
-  private loadEvents(): EventConfig[] {
-    const rows = this.db.prepare('SELECT * FROM events').all() as Array<{
+  private loadSourceEvents(): EventConfig[] {
+    const rows = this.db.prepare('SELECT * FROM source_events').all() as Array<{
       id: string; label: string; icon: string; color: string;
       desc: string; effects_json: string; actions_json: string | null;
       auto_json: string;
@@ -431,8 +376,8 @@ export class DesktopConfigService implements Manager {
     }))
   }
 
-  private loadMediaLibrary() {
-    const rows = this.db.prepare('SELECT * FROM media_library').all() as Array<{
+  private loadSourceMedia() {
+    const rows = this.db.prepare('SELECT * FROM source_media').all() as Array<{
       id: string; name: string; type: string; url: string; duration: number | null;
     }>
     return rows.map((row) => ({
@@ -458,6 +403,17 @@ export class DesktopConfigService implements Manager {
     }))
   }
 
+  private loadSourceTransitions(): TransitionDefinition[] {
+    const rows = this.db.prepare('SELECT * FROM source_transitions').all() as Array<{
+      id: string; label: string; type: string; params_json: string;
+    }>
+    return rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      type: row.type,
+      params: parseJson(row.params_json, undefined),
+    }))
+  }
 
   // ── Private: Write ───────────────────────────────────────────
 
@@ -465,42 +421,18 @@ export class DesktopConfigService implements Manager {
     const writeTransaction = this.db.transaction(() => {
       for (const key of keys) {
         switch (key) {
-          case 'scenes':
-            this.saveScenes(cfg.scenes)
-            break
-          case 'applications':
-            this.saveApplications(cfg.applications)
-            break
-          case 'keybinds':
-            this.saveKeybinds(cfg.keybinds)
-            break
-          case 'obs':
-            this.saveObsConfig(cfg.obs)
-            break
-          case 'audio':
-            this.saveAudioConfig(cfg.audio)
-            break
-          case 'overlayStyle':
-            this.saveOverlayStyle(cfg.overlayStyle)
-            break
-          case 'desktopConfig':
-            if (cfg.desktopConfig) {
-              this.saveDesktopConfig(cfg.desktopConfig)
-              this.saveWidgetLayouts(cfg.desktopConfig.widgetLayouts ?? [])
-            }
-            break
-          case 'desktopAmbiance':
-            if (cfg.desktopAmbiance) this.saveDesktopAmbiance(cfg.desktopAmbiance)
-            break
-          case 'events':
-            this.saveEvents(cfg.events ?? [])
-            break
-          case 'mediaLibrary':
-            this.saveMediaLibrary(cfg.mediaLibrary ?? [])
-            break
-          case 'sourcePresets':
-            this.saveSourcePresets(cfg.sourcePresets ?? [])
-            break
+          case 'scenes':           this.saveScenes(cfg.scenes); break
+          case 'applications':     this.saveApplications(cfg.applications); break
+          case 'keybinds':         this.saveKeybinds(cfg.keybinds); break
+          case 'obs':              this.saveObsConfig(cfg.obs); break
+          case 'audio':            this.saveAudioConfig(cfg.audio); break
+          case 'desktopConfig':    if (cfg.desktopConfig) this.saveDesktopConfig(cfg.desktopConfig); break
+          case 'desktopAmbiance':  if (cfg.desktopAmbiance) this.saveDesktopAmbiance(cfg.desktopAmbiance); break
+          case 'widgetLayouts':    this.saveWidgetLayouts(cfg.widgetLayouts ?? []); break
+          case 'sourceEvents':     this.saveSourceEvents(cfg.sourceEvents ?? []); break
+          case 'sourceMedia':      this.saveSourceMedia(cfg.sourceMedia ?? []); break
+          case 'sourcePresets':    this.saveSourcePresets(cfg.sourcePresets ?? []); break
+          case 'sourceTransitions': this.saveSourceTransitions(cfg.sourceTransitions ?? []); break
         }
       }
     })
@@ -510,8 +442,8 @@ export class DesktopConfigService implements Manager {
   private saveScenes(scenes: Record<string, Scene>): void {
     this.db.prepare('DELETE FROM scenes').run()
     const insert = this.db.prepare(`
-      INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, transitions_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const scene of Object.values(scenes)) {
       insert.run(
@@ -521,13 +453,9 @@ export class DesktopConfigService implements Manager {
         JSON.stringify(scene.sources ?? []),
         scene.style ? JSON.stringify(scene.style) : null,
         scene.lobbyConfig ? JSON.stringify(scene.lobbyConfig) : null,
-        JSON.stringify({
-          introTransition: scene.introTransition,
-          exitTransition: scene.exitTransition,
-          introTransitions: scene.introTransitions,
-          exitTransitions: scene.exitTransitions,
-          musicTrack: scene.musicTrack,
-        }),
+        JSON.stringify(scene.onEntry ?? []),
+        JSON.stringify(scene.onExit ?? []),
+        scene.musicTrack ?? null,
       )
     }
   }
@@ -535,16 +463,18 @@ export class DesktopConfigService implements Manager {
   private saveApplications(applications: Application[]): void {
     this.db.prepare('DELETE FROM applications').run()
     const insert = this.db.prepare(`
-      INSERT INTO applications (id, label, icon, app_type, target_scene_id, widget_source, widget_component, icon_position_x, icon_position_y, icon_size, settings_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO applications (id, label, icon, app_type, target_scene_id, widget_source, widget_component,
+        icon_position_x, icon_position_y, icon_size,
+        window_x, window_y, window_width, window_height, z_index_default, z_index_current,
+        settings_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
+    // Server-side label sync: when a scene-type app saves, update its linked scene label
+    const updateSceneLabel = this.db.prepare('UPDATE scenes SET label = ? WHERE id = ?')
+
     for (const app of applications) {
       const settings: Record<string, unknown> = {}
       if (app.transitionType) settings.transitionType = app.transitionType
-      if (app.introTransition) settings.introTransition = app.introTransition
-      if (app.exitTransition) settings.exitTransition = app.exitTransition
-      if (app.introTransitions) settings.introTransitions = app.introTransitions
-      if (app.exitTransitions) settings.exitTransitions = app.exitTransitions
       if (app.launchPipeline) settings.launchPipeline = app.launchPipeline
       if (app.gallerySettings) settings.gallerySettings = app.gallerySettings
       if (app.cameraSettings) settings.cameraSettings = app.cameraSettings
@@ -552,6 +482,7 @@ export class DesktopConfigService implements Manager {
       if (app.stickyNotesSettings) settings.stickyNotesSettings = app.stickyNotesSettings
       if (app.recycleBinSettings) settings.recycleBinSettings = app.recycleBinSettings
       if (app.themeOverride) settings.themeOverride = app.themeOverride
+      if (app.onlineStreamSettings) settings.onlineStreamSettings = app.onlineStreamSettings
 
       insert.run(
         app.id,
@@ -564,52 +495,44 @@ export class DesktopConfigService implements Manager {
         app.iconPosition?.x ?? null,
         app.iconPosition?.y ?? null,
         app.iconSize ?? null,
+        app.windowPosition?.x ?? null,
+        app.windowPosition?.y ?? null,
+        app.windowSize?.width ?? null,
+        app.windowSize?.height ?? null,
+        app.zIndexDefault ?? null,
+        app.zIndexCurrent ?? null,
         Object.keys(settings).length > 0 ? JSON.stringify(settings) : null,
       )
+
+      // Task 7: sync linked scene label server-side
+      if (app.appType === 'scene' && app.targetSceneId) {
+        updateSceneLabel.run(app.label, app.targetSceneId)
+      }
     }
   }
 
   private saveKeybinds(keybinds: AppConfig['keybinds']): void {
     this.db.prepare('DELETE FROM keybinds').run()
     const insert = this.db.prepare('INSERT INTO keybinds (scope, key, action) VALUES (?, ?, ?)')
-    for (const [key, action] of Object.entries(keybinds.obs ?? {})) {
-      insert.run('obs', key, action)
-    }
-    for (const [key, action] of Object.entries(keybinds.admin ?? {})) {
-      insert.run('admin', key, action)
-    }
+    for (const [key, action] of Object.entries(keybinds.obs ?? {})) insert.run('obs', key, action)
+    for (const [key, action] of Object.entries(keybinds.admin ?? {})) insert.run('admin', key, action)
   }
 
   private saveObsConfig(obs: AppConfig['obs']): void {
-    this.db.prepare(`
-      INSERT OR REPLACE INTO obs_config (id, url, password) VALUES (1, ?, ?)
-    `).run(obs.url, obs.password)
+    this.db.prepare('INSERT OR REPLACE INTO obs_config (id, url, password) VALUES (1, ?, ?)').run(obs.url, obs.password)
   }
 
   private saveAudioConfig(audio: AppConfig['audio']): void {
-    this.db.prepare(`
-      INSERT OR REPLACE INTO audio_config (id, master_volume, sfx_volume, music_volume) VALUES (1, ?, ?, ?)
-    `).run(audio.masterVolume, audio.sfxVolume, audio.musicVolume)
-  }
-
-  private saveOverlayStyle(style: OverlayStyle): void {
-    this.db.prepare(`
-      INSERT OR REPLACE INTO overlay_style (id, background_json, effects_json, particles_json, font_family, accent_color, text_color)
-      VALUES (1, ?, ?, ?, ?, ?, ?)
-    `).run(
-      style.background ? JSON.stringify(style.background) : null,
-      style.effects ? JSON.stringify(style.effects) : null,
-      style.particles ? JSON.stringify(style.particles) : null,
-      style.fontFamily ?? null,
-      style.accentColor ?? null,
-      style.textColor ?? null,
-    )
+    this.db.prepare('INSERT OR REPLACE INTO audio_config (id, master_volume, sfx_volume, music_volume) VALUES (1, ?, ?, ?)')
+      .run(audio.masterVolume, audio.sfxVolume, audio.musicVolume)
   }
 
   private saveDesktopConfig(dc: DesktopConfig): void {
     this.db.prepare(`
-      INSERT OR REPLACE INTO desktop_config (id, global_theme_json, icon_animation, icon_arrangement, icon_motion, icon_arrangement_motion, default_icon_size, auto_arrange_icons, recycle_bin_json, screen_saver_json, system_sounds_json, widget_positions_json, widget_sizes_json, widget_z_indices_json, widget_default_z_indices_json)
-      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO desktop_config (id, global_theme_json, icon_animation, icon_arrangement,
+        icon_motion, icon_arrangement_motion, default_icon_size, auto_arrange_icons,
+        recycle_bin_json, screen_saver_json, system_sounds_json)
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       dc.globalThemeDefault ? JSON.stringify(dc.globalThemeDefault) : null,
       dc.iconAnimation ?? null,
@@ -621,24 +544,16 @@ export class DesktopConfigService implements Manager {
       dc.recycleBin ? JSON.stringify(dc.recycleBin) : null,
       dc.screenSaver ? JSON.stringify(dc.screenSaver) : null,
       dc.systemSounds ? JSON.stringify(dc.systemSounds) : null,
-      dc.widgetPositions ? JSON.stringify(dc.widgetPositions) : null,
-      dc.widgetSizes ? JSON.stringify(dc.widgetSizes) : null,
-      dc.widgetZIndices ? JSON.stringify(dc.widgetZIndices) : null,
-      dc.widgetDefaultZIndices ? JSON.stringify(dc.widgetDefaultZIndices) : null,
     )
   }
 
   private saveDesktopAmbiance(ambiance: NonNullable<AppConfig['desktopAmbiance']>): void {
-    this.db.prepare(`
-      INSERT OR REPLACE INTO desktop_ambiance (id, simulation_json) VALUES (1, ?)
-    `).run(JSON.stringify(ambiance))
+    this.db.prepare('INSERT OR REPLACE INTO desktop_ambiance (id, simulation_json) VALUES (1, ?)').run(JSON.stringify(ambiance))
   }
 
   private saveWidgetLayouts(layouts: WidgetLayoutDefinition[]): void {
-    // Only manage user layouts — system layouts are seeded once and never overwritten by saves
     const userLayouts = layouts.filter((l) => l.source !== 'system')
-
-    const deleteItems = this.db.prepare('DELETE FROM widget_layout_items WHERE layout_id = ?')
+    const deleteItems  = this.db.prepare('DELETE FROM widget_layout_items WHERE layout_id = ?')
     const deleteLayout = this.db.prepare('DELETE FROM widget_layouts WHERE id = ? AND source = ?')
     const upsertLayout = this.db.prepare(
       'INSERT OR REPLACE INTO widget_layouts (id, label, icon, source, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
@@ -647,14 +562,10 @@ export class DesktopConfigService implements Manager {
       'INSERT INTO widget_layout_items (layout_id, widget_id, enabled, x, y, width, height, focus_priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
 
-    // Remove user layouts no longer in the list
     const existingUserIds = (this.db.prepare("SELECT id FROM widget_layouts WHERE source = 'user'").all() as { id: string }[]).map((r) => r.id)
     const incomingIds = new Set(userLayouts.map((l) => l.id))
     for (const id of existingUserIds) {
-      if (!incomingIds.has(id)) {
-        deleteItems.run(id)
-        deleteLayout.run(id, 'user')
-      }
+      if (!incomingIds.has(id)) { deleteItems.run(id); deleteLayout.run(id, 'user') }
     }
 
     for (let i = 0; i < userLayouts.length; i++) {
@@ -667,19 +578,15 @@ export class DesktopConfigService implements Manager {
     }
   }
 
-  private saveEvents(events: NonNullable<AppConfig['events']>): void {
-    this.db.prepare('DELETE FROM events').run()
+  private saveSourceEvents(events: EventConfig[]): void {
+    this.db.prepare('DELETE FROM source_events').run()
     const insert = this.db.prepare(`
-      INSERT INTO events (id, label, icon, color, "desc", effects_json, actions_json, auto_json)
+      INSERT INTO source_events (id, label, icon, color, "desc", effects_json, actions_json, auto_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const event of events) {
       insert.run(
-        event.id,
-        event.label,
-        event.icon ?? '',
-        event.color ?? '',
-        event.desc ?? '',
+        event.id, event.label, event.icon ?? '', event.color ?? '', event.desc ?? '',
         JSON.stringify(event.effects ?? []),
         event.actions ? JSON.stringify(event.actions) : null,
         JSON.stringify(event.auto ?? { enabled: false, intervalMs: 0 }),
@@ -687,11 +594,9 @@ export class DesktopConfigService implements Manager {
     }
   }
 
-  private saveMediaLibrary(entries: NonNullable<AppConfig['mediaLibrary']>): void {
-    this.db.prepare('DELETE FROM media_library').run()
-    const insert = this.db.prepare(`
-      INSERT INTO media_library (id, name, type, url, duration) VALUES (?, ?, ?, ?, ?)
-    `)
+  private saveSourceMedia(entries: NonNullable<AppConfig['sourceMedia']>): void {
+    this.db.prepare('DELETE FROM source_media').run()
+    const insert = this.db.prepare('INSERT INTO source_media (id, name, type, url, duration) VALUES (?, ?, ?, ?, ?)')
     for (const entry of entries) {
       insert.run(entry.id, entry.name, entry.type, entry.url, entry.duration ?? null)
     }
@@ -699,18 +604,23 @@ export class DesktopConfigService implements Manager {
 
   private saveSourcePresets(presets: NonNullable<AppConfig['sourcePresets']>): void {
     this.db.prepare('DELETE FROM source_presets').run()
-    const insert = this.db.prepare(`
-      INSERT INTO source_presets (id, label, plugin_type, config_json, default_position_json)
-      VALUES (?, ?, ?, ?, ?)
-    `)
+    const insert = this.db.prepare(
+      'INSERT INTO source_presets (id, label, plugin_type, config_json, default_position_json) VALUES (?, ?, ?, ?, ?)'
+    )
     for (const preset of presets) {
       insert.run(
-        preset.id,
-        preset.label,
-        preset.pluginType,
+        preset.id, preset.label, preset.pluginType,
         JSON.stringify(preset.config ?? {}),
         preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
       )
+    }
+  }
+
+  private saveSourceTransitions(transitions: TransitionDefinition[]): void {
+    this.db.prepare('DELETE FROM source_transitions').run()
+    const insert = this.db.prepare('INSERT INTO source_transitions (id, label, type, params_json) VALUES (?, ?, ?, ?)')
+    for (const t of transitions) {
+      insert.run(t.id, t.label, t.type, JSON.stringify(t.params ?? {}))
     }
   }
 
@@ -719,10 +629,8 @@ export class DesktopConfigService implements Manager {
   private withConfigDefaults(next: AppConfig): AppConfig {
     const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
     let applications = [...(next.applications ?? [])]
-    const lobbyScene = next.scenes[STATE.LOBBY] ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
+    const lobbyScene   = next.scenes[STATE.LOBBY]   ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
     const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
-    const defaultLobbyStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.LOBBY].style ?? DEFAULT_CONFIG.overlayStyle)
-    const defaultDesktopStyle = structuredClone(DEFAULT_CONFIG.scenes[STATE.DESKTOP].style ?? DEFAULT_CONFIG.overlayStyle)
 
     for (const app of requiredApps) {
       if (!applications.some((existing) => existing.id === app.id)) {
@@ -734,12 +642,7 @@ export class DesktopConfigService implements Manager {
     const desktopConfig = withDesktopConfigDefaults(next.desktopConfig)
     applications = applications.map((app) => ({
       ...app,
-      defaultConfig: app.defaultConfig
-        ? clone(app.defaultConfig)
-        : buildApplicationDefaultSnapshot(
-            app,
-            DEFAULT_CONFIG.desktopConfig ? withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig) : desktopConfig,
-          ),
+      defaultConfig: app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app),
     }))
 
     const scenes: AppConfig['scenes'] = {
@@ -747,13 +650,13 @@ export class DesktopConfigService implements Manager {
       [STATE.LOBBY]: {
         ...DEFAULT_CONFIG.scenes[STATE.LOBBY],
         ...lobbyScene,
-        style: withOverlayStyleDefaults(lobbyScene.style, defaultLobbyStyle),
+        style: withOverlayStyleDefaults(lobbyScene.style),
         lobbyConfig: withLobbyConfigDefaults(lobbyScene.lobbyConfig),
       },
       [STATE.DESKTOP]: {
         ...DEFAULT_CONFIG.scenes[STATE.DESKTOP],
         ...desktopScene,
-        style: withOverlayStyleDefaults(desktopScene.style, defaultDesktopStyle),
+        style: withOverlayStyleDefaults(desktopScene.style),
       },
     }
 
@@ -768,12 +671,48 @@ export class DesktopConfigService implements Manager {
       ...next,
       applications,
       scenes,
-      overlayStyle: withOverlayStyleDefaults(next.overlayStyle, structuredClone(DEFAULT_CONFIG.overlayStyle)),
       desktopConfig,
       desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance ?? {}),
-      events: withEventListDefaults(next.events?.length ? next.events : structuredClone(DEFAULT_CONFIG.events)),
-      mediaLibrary: next.mediaLibrary ?? [],
+      widgetLayouts: next.widgetLayouts ?? [],
+      sourceEvents: withEventListDefaults(next.sourceEvents?.length ? next.sourceEvents : structuredClone(DEFAULT_CONFIG.sourceEvents)),
+      sourceMedia: next.sourceMedia ?? [],
+      sourcePresets: next.sourcePresets ?? [],
+      sourceTransitions: next.sourceTransitions ?? [],
     }
   }
-}
 
+  // ── Atomic scene creation (Task 9) ───────────────────────────
+
+  createScene(app: Application, scene: Scene): AppConfig {
+    this.db.transaction(() => {
+      // Insert scene
+      this.db.prepare(`
+        INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        scene.id, scene.label, boolToInt(scene.backgroundOpaque),
+        JSON.stringify(scene.sources ?? []),
+        scene.style ? JSON.stringify(scene.style) : null,
+        null,
+        JSON.stringify([]), JSON.stringify([]), null,
+      )
+      // Insert application
+      this.db.prepare(`
+        INSERT INTO applications (id, label, icon, app_type, target_scene_id, widget_source, widget_component,
+          icon_position_x, icon_position_y, icon_size, window_x, window_y, window_width, window_height,
+          z_index_default, z_index_current, settings_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        app.id, app.label, app.icon ?? '', app.appType, app.targetSceneId ?? '',
+        null, null,
+        app.iconPosition?.x ?? null, app.iconPosition?.y ?? null, app.iconSize ?? null,
+        null, null, null, null, null, null,
+        app.transitionType ? JSON.stringify({ transitionType: app.transitionType }) : null,
+      )
+    })()
+
+    // Invalidate cache so next read returns fresh data
+    this._cachedConfig = null
+    return this.withConfigDefaults(this.loadFromDb())
+  }
+}

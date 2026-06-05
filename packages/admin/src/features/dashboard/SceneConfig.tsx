@@ -88,6 +88,9 @@ export function SourcesEditor({
                 className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (src.visible ? 'bg-[var(--color-success-400)] hover:bg-[var(--color-success-600)]' : 'bg-[var(--color-text-muted)] hover:bg-[var(--color-text-secondary)]')} />
               <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{meta?.icon ?? '▣'}</span>
               <div className="min-w-0 flex-1">
+                {src.sourcePresetId && !sourcePresets.find((p) => p.id === src.sourcePresetId) && (
+                  <div className="text-[10px] text-[var(--color-danger-400)] mb-0.5">⚠ Preset not found: {src.sourcePresetId}</div>
+                )}
                 <select value={src.sourcePresetId ?? ''} onChange={(e) => updateSourcePreset(src.id, e.target.value)} className="w-full text-xs">
                   <option value="">-- Pick source preset --</option>
                   {sourcePresets.map((preset) => {

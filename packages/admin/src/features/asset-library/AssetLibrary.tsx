@@ -112,7 +112,7 @@ function AssetRow({
   )
 }
 
-function AssetSection({
+function AssetSectionBlock({
   title,
   items,
   selectedUrl,
@@ -136,10 +136,8 @@ function AssetSection({
       </div>
     )
   }
-
   const visibleItems = items.slice(0, ASSET_RESULT_LIMIT)
   const remaining = items.length - visibleItems.length
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
@@ -148,18 +146,10 @@ function AssetSection({
       </div>
       <div className="space-y-1.5">
         {visibleItems.map((asset) => (
-          <AssetRow
-            key={asset.id}
-            asset={asset}
-            selected={selectedUrl === asset.url}
-            onSelect={onSelect}
-            onDelete={asset.source === 'saved' ? onDelete : undefined}
-          />
+          <AssetRow key={asset.id} asset={asset} selected={selectedUrl === asset.url} onSelect={onSelect} onDelete={asset.source === 'saved' ? onDelete : undefined} />
         ))}
       </div>
-      {remaining > 0 && (
-        <div className="text-[10px] text-zinc-600">Showing the first {visibleItems.length} matches. Refine the search to narrow the list.</div>
-      )}
+      {remaining > 0 && <div className="text-[10px] text-zinc-600">Showing the first {visibleItems.length} matches. Refine the search to narrow the list.</div>}
     </div>
   )
 }
@@ -191,7 +181,7 @@ export function AssetCatalogPanel({
   onKindFilterChange?: (value: 'all' | AssetKind) => void
   showControls?: boolean
 }) {
-  const fallbackSavedEntries = useAdminStore((store) => store.config.mediaLibrary ?? [])
+  const fallbackSavedEntries = useAdminStore((store) => store.config.sourceMedia ?? [])
   const { assets, error, loading, refresh } = useAssetCatalog()
   const [internalSearch, setInternalSearch] = useState('')
   const [internalKindFilter, setInternalKindFilter] = useState<'all' | AssetKind>(kinds.length === 1 ? kinds[0] : 'all')
@@ -307,22 +297,21 @@ export function AssetCatalogPanel({
 
       {!loading && (
         <div className="space-y-4">
-          <AssetSection
+          <AssetSectionBlock
             title="Saved Media"
             items={visibleSaved}
             selectedUrl={selectedUrl}
             onSelect={onSelect}
             onDelete={onDeleteSavedEntry ? ((asset) => { void handleDelete(asset) }) : undefined}
-            emptyMessage={savedEntries === false ? undefined : undefined}
           />
-          <AssetSection
+          <AssetSectionBlock
             title="Project Assets"
             items={visibleProjectAssets}
             selectedUrl={selectedUrl}
             onSelect={onSelect}
             onDelete={allowFilesystemDelete ? ((asset) => { void handleDelete(asset) }) : undefined}
           />
-          <AssetSection
+          <AssetSectionBlock
             title="Game Images"
             items={visibleGameAssets}
             selectedUrl={selectedUrl}
@@ -341,10 +330,10 @@ async function persistSavedMediaEntry({
 }: {
   entry: MediaEntry
   existingEntries: MediaEntry[]
-  saveConfig: (updates: { mediaLibrary: MediaEntry[] }) => Promise<void>
+  saveConfig: (updates: { sourceMedia: MediaEntry[] }) => Promise<void>
 }) {
   if (existingEntries.some((candidate) => candidate.url === entry.url)) return
-  await saveConfig({ mediaLibrary: [...existingEntries, entry] })
+  await saveConfig({ sourceMedia: [...existingEntries, entry] })
 }
 
 export function AssetPickerModal({
@@ -360,7 +349,7 @@ export function AssetPickerModal({
   onSelect: (asset: AssetRecord) => void
   onClose: () => void
 }) {
-  const mediaLibrary = useAdminStore((store) => store.config.mediaLibrary ?? [])
+  const mediaLibrary = useAdminStore((store) => store.config.sourceMedia ?? [])
   const saveConfig = useAdminStore((store) => store.saveConfig)
   const [manualValue, setManualValue] = useState(selectedUrl ?? '')
   const [uploadError, setUploadError] = useState('')

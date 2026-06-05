@@ -89,9 +89,9 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const effectiveWidgetThemeOverride = runtimeWidgetThemeOverride ?? sourceWidgetThemeOverride
 
   const [form,                      setForm]                      = useState<Application>(app)
-  const [widgetSize,                setWidgetSize]                = useState(() => resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
-  const [widgetPosition,            setWidgetPosition]            = useState(() => resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
-  const [widgetDefaultZIndex,       setWidgetDefaultZIndex]       = useState<number>(() => resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
+  const [widgetSize,                setWidgetSize]                = useState(() => resolveWidgetSizeFromConfig(persistedApp))
+  const [widgetPosition,            setWidgetPosition]            = useState(() => resolveWidgetPositionFromConfig(persistedApp))
+  const [widgetDefaultZIndex,       setWidgetDefaultZIndex]       = useState<number>(() => resolveWidgetDefaultZIndexFromConfig(persistedApp))
   const [widgetThemeOverrideEnabled, setWidgetThemeOverrideEnabled] = useState(() => !!effectiveWidgetThemeOverride)
   const [widgetThemeOverride,       setWidgetThemeOverride]       = useState<WidgetThemeConfig>(() => structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
   const [recycleBinFullOnStart,     setRecycleBinFullOnStart]     = useState(() => persistedDesktopConfig.recycleBin.fullOnStart)
@@ -147,33 +147,30 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     void enumerateCameras(false)
   }, [widgetComponent, enumerateCameras])
 
-  const sourceWidgetPosition    = resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig)
-  const sourceWidgetSize        = resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig)
-  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig)
-  const liveWidgetPosition      = resolveWidgetPositionFromConfig(app, desktopConfig)
-  const liveWidgetSize          = resolveWidgetSizeFromConfig(app, desktopConfig)
-  const liveWidgetRuntimeZIndex = resolveWidgetRuntimeZIndex(app, desktopConfig)
-  const runtimeWidgetOverride       = runtimeConfigOverride.desktopConfig
-  const runtimeWidgetPositionOverride = runtimeWidgetOverride?.widgetPositions?.[app.id]
-  const runtimeWidgetSizeOverride     = runtimeWidgetOverride?.widgetSizes?.[app.id]
-  const runtimeWidgetZIndexOverride   = runtimeWidgetOverride?.widgetZIndices?.[app.id]
+  const sourceWidgetPosition    = resolveWidgetPositionFromConfig(persistedApp)
+  const sourceWidgetSize        = resolveWidgetSizeFromConfig(persistedApp)
+  const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(persistedApp)
+  const liveWidgetPosition      = resolveWidgetPositionFromConfig(app)
+  const liveWidgetSize          = resolveWidgetSizeFromConfig(app)
+  const liveWidgetRuntimeZIndex = resolveWidgetRuntimeZIndex(app)
+  const runtimeWidgetOverride = runtimeConfigOverride.desktopConfig
   const hasRuntimeWidgetThemeOverride = form.appType === 'widget' && !!runtimeWidgetThemeOverride
 
   const runtimeOverrideEntries = form.appType === 'widget' ? [
     {
       key: 'Window Position',
-      value: runtimeWidgetPositionOverride ? `${liveWidgetPosition.x}, ${liveWidgetPosition.y}` : `${sourceWidgetPosition.x}, ${sourceWidgetPosition.y}`,
-      active: !!runtimeWidgetPositionOverride,
+      value: `${sourceWidgetPosition.x}, ${sourceWidgetPosition.y}`,
+      active: false,
     },
     {
       key: 'Window Size',
-      value: runtimeWidgetSizeOverride ? `${liveWidgetSize.width}x${liveWidgetSize.height}px` : `${sourceWidgetSize.width}x${sourceWidgetSize.height}px`,
-      active: !!runtimeWidgetSizeOverride,
+      value: `${sourceWidgetSize.width}x${sourceWidgetSize.height}px`,
+      active: false,
     },
     {
       key: 'Stack Order',
-      value: runtimeWidgetZIndexOverride !== undefined ? String(liveWidgetRuntimeZIndex) : String(sourceWidgetDefaultZIndex),
-      active: runtimeWidgetZIndexOverride !== undefined,
+      value: String(sourceWidgetDefaultZIndex),
+      active: false,
     },
     {
       key: 'Theme Override',
@@ -208,9 +205,9 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
   useEffect(() => {
     setForm(persistedApp)
-    setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
-    setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
-    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp))
+    setWidgetSize(resolveWidgetSizeFromConfig(persistedApp))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp))
     setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)
     setSaved(false)
   }, [persistedApp, persistedDesktopConfig])
@@ -252,58 +249,33 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
   const buildDraftPersistence = useCallback(() => {
     const draftApp: Application = structuredClone(form)
-    const scene = persistedConfig.scenes[draftApp.targetSceneId]
-    const updates: Partial<typeof config> = { applications: [] }
-    let nextDesktopConfig: DesktopConfig | null = null
-    const ensureNextDesktopConfig = () => {
-      if (!nextDesktopConfig) nextDesktopConfig = structuredClone(persistedDesktopConfig)
-      return nextDesktopConfig
-    }
+    const updates: Partial<typeof config> = {}
 
     if (draftApp.appType === 'widget') {
-      const nextDesktop = ensureNextDesktopConfig()
       const normalizedWidth  = clampWidgetDimension(widgetSize.width,  WIDGET_WIDTH_MIN,  WIDGET_WIDTH_MAX,  sourceWidgetSize.width)
       const normalizedHeight = clampWidgetDimension(widgetSize.height, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX, sourceWidgetSize.height)
       const defaults = getDefaultWidgetSize(draftApp)
-      const nextWidgetPositions       = { ...(nextDesktop.widgetPositions ?? {}) }
-      const nextWidgetSizes           = { ...(nextDesktop.widgetSizes ?? {}) }
-      const nextWidgetDefaultZIndices = { ...(nextDesktop.widgetDefaultZIndices ?? {}) }
 
-      nextWidgetPositions[draftApp.id] = { x: Math.max(0, Math.round(widgetPosition.x)), y: Math.max(0, Math.round(widgetPosition.y)) }
-
-      if (normalizedWidth === defaults.width && normalizedHeight === defaults.height) {
-        delete nextWidgetSizes[draftApp.id]
-      } else {
-        nextWidgetSizes[draftApp.id] = { width: normalizedWidth, height: normalizedHeight }
-      }
-
-      nextWidgetDefaultZIndices[draftApp.id] = Math.max(0, Math.round(widgetDefaultZIndex))
-
+      draftApp.windowPosition = { x: Math.max(0, Math.round(widgetPosition.x)), y: Math.max(0, Math.round(widgetPosition.y)) }
+      draftApp.windowSize = (normalizedWidth === defaults.width && normalizedHeight === defaults.height)
+        ? undefined
+        : { width: normalizedWidth, height: normalizedHeight }
+      draftApp.zIndexDefault = Math.max(0, Math.round(widgetDefaultZIndex))
       draftApp.themeOverride = widgetThemeOverrideEnabled ? structuredClone(widgetThemeOverride) : undefined
-
-      nextDesktop.widgetPositions       = Object.keys(nextWidgetPositions).length       ? nextWidgetPositions       : undefined
-      nextDesktop.widgetSizes           = Object.keys(nextWidgetSizes).length           ? nextWidgetSizes           : undefined
-      nextDesktop.widgetDefaultZIndices = Object.keys(nextWidgetDefaultZIndices).length ? nextWidgetDefaultZIndices : undefined
     }
 
     if (isRecycleBinDecoration && recycleBinFullOnStart !== persistedDesktopConfig.recycleBin.fullOnStart) {
-      const nextDesktop = ensureNextDesktopConfig()
-      nextDesktop.recycleBin = { ...nextDesktop.recycleBin, fullOnStart: recycleBinFullOnStart }
+      updates.desktopConfig = { ...persistedDesktopConfig, recycleBin: { ...persistedDesktopConfig.recycleBin, fullOnStart: recycleBinFullOnStart } }
     }
 
     const apps = [...persistedConfig.applications]
     const idx = apps.findIndex((entry) => entry.id === draftApp.id)
-    if (idx !== -1) apps[idx] = draftApp
-    else apps.push(draftApp)
+    if (idx !== -1) apps[idx] = draftApp; else apps.push(draftApp)
     updates.applications = apps
 
-    if (scene) {
-      updates.scenes = { [draftApp.targetSceneId]: { ...scene, label: draftApp.label } }
-    }
-
-    if (nextDesktopConfig) updates.desktopConfig = nextDesktopConfig
+    // Task 7: No scenes write — server syncs scene label from app label in saveApplications
     return updates
-  }, [config, form, isRecycleBinDecoration, persistedConfig.applications, persistedConfig.scenes, persistedDesktopConfig, recycleBinFullOnStart, sourceWidgetSize, widgetDefaultZIndex, widgetPosition, widgetSize, widgetThemeOverride, widgetThemeOverrideEnabled])
+  }, [config, form, isRecycleBinDecoration, persistedConfig.applications, persistedDesktopConfig, recycleBinFullOnStart, sourceWidgetSize, widgetDefaultZIndex, widgetPosition, widgetSize, widgetThemeOverride, widgetThemeOverrideEnabled])
 
   const apply = async () => {
     setSaving(true)
@@ -317,9 +289,9 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
   const reset = () => {
     setForm(persistedApp)
-    setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp, persistedDesktopConfig))
-    setWidgetSize(resolveWidgetSizeFromConfig(persistedApp, persistedDesktopConfig))
-    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp, persistedDesktopConfig))
+    setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp))
+    setWidgetSize(resolveWidgetSizeFromConfig(persistedApp))
+    setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp))
     setWidgetThemeOverrideEnabled(!!sourceWidgetThemeOverride)
     setWidgetThemeOverride(structuredClone(sourceWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
     setRecycleBinFullOnStart(persistedDesktopConfig.recycleBin.fullOnStart)

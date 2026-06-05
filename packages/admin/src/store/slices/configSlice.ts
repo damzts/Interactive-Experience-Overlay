@@ -72,7 +72,6 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
   },
 })
 
-// Minimal cross-slice ref for error reporting
 interface UiSliceRef {
   setLastError: (e: string | null) => void
 }

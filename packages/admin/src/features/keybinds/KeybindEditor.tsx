@@ -83,7 +83,7 @@ export function KeybindEditor() {
         label: `Toggle ${app.label}`,
         detail: 'Widget',
       }))
-    const eventOptions = (config.events ?? []).map((eventDef) => ({
+    const eventOptions = (config.sourceEvents ?? []).map((eventDef) => ({
       value: `event:${eventDef.id}`,
       label: `Fire ${eventDef.label}`,
       detail: 'Event',
@@ -95,7 +95,7 @@ export function KeybindEditor() {
       ...widgetOptions,
       ...eventOptions,
     ]
-  }, [config.applications, config.events, config.scenes])
+  }, [config.applications, config.sourceEvents, config.scenes])
 
   const [rows, setRows] = useState<BindingRow[]>(() => rowsFromKeybinds(config.keybinds.obs, config.keybinds.admin))
   const [saving, setSaving] = useState(false)

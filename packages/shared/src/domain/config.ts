@@ -1,9 +1,8 @@
-import type { Application } from './application.js'
+import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
 import type { DesktopAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventConfig } from './event.js'
-import type { MediaEntry, OverlayStyle } from './overlay.js'
-import type { Scene, SourcePreset } from './scene.js'
+import type { MediaEntry, Scene, SourcePreset } from './scene.js'
 
 /** Root application config — stored in server memory */
 export interface AppConfig {
@@ -22,13 +21,16 @@ export interface AppConfig {
     sfxVolume: number
     musicVolume: number
   }
-  overlayStyle: OverlayStyle
   desktopConfig?: DesktopConfig
   desktopAmbiance?: DesktopAmbianceConfig
-  /** Saved event definitions. Falls back to DEFAULT_CONFIG.events if absent. */
-  events?: EventConfig[]
-  /** Centralised media asset library (images / videos) used by TransitionPicker. */
-  mediaLibrary?: MediaEntry[]
-  /** Reusable source presets referenced by scenes and source widgets. */
+  /** Named widget layout presets (owned by WidgetLayoutPanel → widget_layouts table) */
+  widgetLayouts?: WidgetLayoutDefinition[]
+  /** Source events (Asset Library Events tab → source_events table) */
+  sourceEvents?: EventConfig[]
+  /** Centralised media asset library (Asset Library Catalog tab → source_media table) */
+  sourceMedia?: MediaEntry[]
+  /** Reusable source presets (Asset Library Sources tab → source_presets table) */
   sourcePresets?: SourcePreset[]
+  /** Named transition definitions (Asset Library Transitions tab → source_transitions table) */
+  sourceTransitions?: TransitionDefinition[]
 }

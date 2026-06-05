@@ -60,7 +60,7 @@ export function EventForm({
   const config = useAdminStore((s) => s.config)
   const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
   const widgetApps = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
-  const widgetLayouts = desktopConfig.widgetLayouts ?? []
+  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const [collapsedActionIndexes, setCollapsedActionIndexes] = useState<number[]>([])
   const [collapsedEffectIndexes, setCollapsedEffectIndexes] = useState<number[]>([])
   const normalizedEffects = useMemo(() => def.effects.map((effect) => normalizeEventEffectConfig(effect)), [def.effects])
