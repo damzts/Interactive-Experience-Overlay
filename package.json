@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n server,overlay,app -c cyan,green,yellow \"pnpm --filter @ieom/server dev\" \"pnpm --filter @ieom/overlay dev\" \"pnpm --filter @ieom/admin dev\"",
+    "dev": "pnpm --filter @ieom/shared build && concurrently -n shared,server,overlay,app -c blue,cyan,green,yellow \"pnpm --filter @ieom/shared dev\" \"pnpm --filter @ieom/server dev\" \"pnpm --filter @ieom/overlay dev\" \"pnpm --filter @ieom/admin dev\"",
     "dev:desktop": "pnpm build:desktop && pnpm --filter @ieom/desktop dev",
     "build": "pnpm --filter @ieom/shared build && pnpm --filter @ieom/overlay build && pnpm --filter @ieom/admin build",
     "build:desktop": "pnpm --filter @ieom/shared build && pnpm --filter @ieom/server build && pnpm --filter @ieom/overlay build && pnpm --filter @ieom/admin build && pnpm --filter @ieom/desktop build",
