@@ -20,7 +20,7 @@ import { registerWidgetHandlers } from './widget.js'
 import { registerAmbianceHandlers } from './ambiance.js'
 import { registerDesktopHandlers } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
-import { registerDiagnosticsHandlers, buildOverlayClientInfo, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
+import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
 
 export function setupSocketHandlers(
   io: IO,
@@ -55,11 +55,7 @@ export function setupSocketHandlers(
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,
 
     overlaySocketId: null,
-    overlayClientInfo: null,
     socketClientTypes: new Map(),
-
-    acceptedSimulatedToggles: 0,
-    rejectedSimulatedToggles: 0,
   }
 
   if (options?.configService) {
@@ -97,8 +93,7 @@ export function setupSocketHandlers(
         return
       }
       ctx.overlaySocketId = socket.id
-      ctx.overlayClientInfo = buildOverlayClientInfo(socket)
-      ambianceManager.setLeaderLeaseState({ ready: false, leaseDurationMs: 0, expiresAt: null, lastHeartbeatAt: null })
+      ambianceManager.setOverlayReady(false)
       ambianceManager.recordHistory('leader-elected', 'overlay connected', { leaderSocketId: socket.id })
       io.emit('overlay:owner', { socketId: socket.id })
       queueRuntimeDiagnosticsEmit(ctx)
@@ -112,7 +107,7 @@ export function setupSocketHandlers(
       }
     }
 
-    socket.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
+    socket.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
     socket.emit('overlay:owner', { socketId: ctx.overlaySocketId })
     socket.emit('runtime:config:override', ctx.runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
@@ -136,9 +131,9 @@ export function setupSocketHandlers(
       ctx.socketClientTypes.delete(socket.id)
       if (socket.id === ctx.overlaySocketId) {
         ctx.overlaySocketId = null
-        ctx.overlayClientInfo = null
+        ctx.runtimeState.resetSimulationMetrics()
         ambianceManager.markSimulationCompleted(undefined, undefined, { recordHistory: false })
-        ambianceManager.setLeaderLeaseState({ ready: false, leaseDurationMs: 0, expiresAt: null, lastHeartbeatAt: null })
+        ambianceManager.setOverlayReady(false)
         ambianceManager.recordHistory('leader-cleared', 'overlay disconnected', {})
         io.emit('overlay:owner', { socketId: null })
         queueRuntimeDiagnosticsEmit(ctx)

@@ -329,7 +329,7 @@ export function AmbiancePanel() {
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-zinc-400">Leader ready</span>
-              <span className={ambiance.leaderReady ? 'text-emerald-300' : 'text-amber-300'}>{ambiance.leaderReady ? 'Ready' : 'Not ready'}</span>
+              <span className={ambiance.overlayReady ? 'text-emerald-300' : 'text-amber-300'}>{ambiance.overlayReady ? 'Ready' : 'Not ready'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-zinc-400">Widgets in pool</span>

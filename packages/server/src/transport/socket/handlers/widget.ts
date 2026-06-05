@@ -111,25 +111,25 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
 
   socket.on('widget:simulate', (widgetId: string) => {
     if (socket.id !== ctx.overlaySocketId) {
-      ctx.rejectedSimulatedToggles += 1
-      ctx.io.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
+      ctx.runtimeState.incrementRejected()
+      ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
       console.warn(`[ambiance] Ignored simulated toggle from non-leader ${socket.id} for ${widgetId}`)
       return
     }
-    ctx.acceptedSimulatedToggles += 1
-    ctx.io.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
+    ctx.runtimeState.incrementAccepted()
+    ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
     toggleWidgetRuntime(ctx, widgetId)
   })
 
   socket.on('widget:simulate:action', (payload: WidgetSimulationCommandPayload) => {
     if (socket.id !== ctx.overlaySocketId) {
-      ctx.rejectedSimulatedToggles += 1
-      ctx.io.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
+      ctx.runtimeState.incrementRejected()
+      ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
       console.warn(`[ambiance] Ignored simulated action from non-leader ${socket.id} for ${payload.widgetId}`)
       return
     }
-    ctx.acceptedSimulatedToggles += 1
-    ctx.io.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
+    ctx.runtimeState.incrementAccepted()
+    ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
     if (payload.action === 'toggle') toggleWidgetRuntime(ctx, payload.widgetId)
     else setWidgetRuntimeOpenState(ctx, payload.widgetId, payload.action === 'open')
   })

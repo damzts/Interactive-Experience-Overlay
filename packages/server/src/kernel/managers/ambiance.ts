@@ -82,10 +82,7 @@ export class AmbianceManager implements Manager {
   private lastActionWidgetId: string | null = null
   private lastAction: 'open' | 'close' | 'interact' | null = null
   private lastSkipReason: string | null = null
-  private leaderReady = false
-  private leaderLeaseDurationMs = 0
-  private leaderLeaseExpiresAt: number | null = null
-  private leaderLastHeartbeatAt: number | null = null
+  private overlayReady = false
   private history: AmbianceHistoryEntry[] = []
   private historySequence = 0
   private diagnosticsListener?: (payload: AmbianceDiagnosticsPayload) => void
@@ -148,16 +145,8 @@ export class AmbianceManager implements Manager {
     return this.simulationInFlight
   }
 
-  setLeaderLeaseState(state: {
-    ready: boolean
-    leaseDurationMs: number
-    expiresAt: number | null
-    lastHeartbeatAt: number | null
-  }) {
-    this.leaderReady = state.ready
-    this.leaderLeaseDurationMs = state.leaseDurationMs
-    this.leaderLeaseExpiresAt = state.expiresAt
-    this.leaderLastHeartbeatAt = state.lastHeartbeatAt
+  setOverlayReady(ready: boolean) {
+    this.overlayReady = ready
     this.emitDiagnostics()
   }
 
@@ -345,14 +334,7 @@ this.lastSkipReason = 'simulation completion timeout released lock'
       pendingPhase: this.pendingPhase,
       pendingActionId: this.inFlightActionId,
       leaderSocketId,
-      leaderClientKind: null,
-      leaderClientPort: null,
-      leaderClientLabel: null,
-      leaderReady: this.leaderReady,
-      leaderLeaseDurationMs: this.leaderLeaseDurationMs,
-      leaderLeaseExpiresAt: this.leaderLeaseExpiresAt,
-      leaderLastHeartbeatAt: this.leaderLastHeartbeatAt,
-      overlayClients: [],
+      overlayReady: this.overlayReady,
       history: this.history,
       openWidgetCount,
       enabledWidgetCount,

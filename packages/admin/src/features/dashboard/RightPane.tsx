@@ -24,7 +24,6 @@ import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
 import { WidgetLayoutPanel } from './WidgetLayoutPanel'
 import { ScenePanel, LobbyThemeEditor, DesktopThemeEditor } from './EnvEditors'
-import { SocketLogConsole } from './socketLog'
 import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 
 // ── RightPaneErrorBoundary ─────────────────────────────────────────
@@ -290,7 +289,7 @@ function SettingsPanel() {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tab === 'about'    && <SettingsPage mode="about" />}
-        {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
+        {tab === 'general'  && <SettingsPage />}
       </div>
     </div>
   )
@@ -328,7 +327,7 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
 
         <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'about'    && <SettingsPage mode="about" />}
-          {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
+          {tab === 'general'  && <SettingsPage />}
         </div>
       </div>
     </FloatingWindowShell>

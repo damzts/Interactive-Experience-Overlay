@@ -1,17 +1,3 @@
-/**
- * In-memory runtime state store.
- *
- * Separates live, ephemeral state (current scene, open widgets, ambiance state,
- * transition in-progress) from SQLite-persisted configuration.
- *
- * Rule: if state survives a server restart, it belongs in SQLite (DesktopConfigService).
- *       if it's live-session state, it belongs here.
- *
- * The HandlerContext openWidgetIds, recycleBinFull, startMenuState already live in memory
- * inside setupSocketHandlers. This store makes that state accessible outside the socket
- * handler closure — e.g. for HTTP routes that need to read current runtime state.
- */
-
 import { STATE } from '@ieom/shared'
 import type { Manager, ManagerStatus } from '@ieom/shared'
 
@@ -39,7 +25,6 @@ export class RuntimeStateStore implements Manager {
   readonly name = 'RuntimeStateStore'
   private _managerStatus: ManagerStatus = 'idle'
 
-  // ── Manager interface ────────────────────────────────────────
   init(): void { this._managerStatus = 'idle' }
   start(): void { this._managerStatus = 'running' }
   stop(): void { this._managerStatus = 'stopped' }
@@ -54,6 +39,8 @@ export class RuntimeStateStore implements Manager {
   private _recycleBinFull = false
   private _startMenuOpen = false
   private _startMenuActiveRoot: 'programs' | 'widget-layouts' | null = null
+  private _acceptedSimulatedToggles = 0
+  private _rejectedSimulatedToggles = 0
 
   // ── Scene ─────────────────────────────────────────────────────
 
@@ -90,10 +77,7 @@ export class RuntimeStateStore implements Manager {
   setRecycleBinFull(v: boolean): void { this._recycleBinFull = v }
 
   get startMenuOpen(): boolean { return this._startMenuOpen }
-  setStartMenuOpen(v: boolean): void { this._startMenuOpen = v }
-
   get startMenuActiveRoot(): 'programs' | 'widget-layouts' | null { return this._startMenuActiveRoot }
-  setStartMenuActiveRoot(r: 'programs' | 'widget-layouts' | null): void { this._startMenuActiveRoot = r }
 
   get startMenuState(): { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } {
     return { open: this._startMenuOpen, activeRoot: this._startMenuActiveRoot }
@@ -102,6 +86,15 @@ export class RuntimeStateStore implements Manager {
     this._startMenuOpen = open
     this._startMenuActiveRoot = open ? activeRoot : null
   }
+
+  // ── Simulation metrics ────────────────────────────────────────
+
+  get acceptedSimulatedToggles(): number { return this._acceptedSimulatedToggles }
+  get rejectedSimulatedToggles(): number { return this._rejectedSimulatedToggles }
+
+  incrementAccepted(): void { this._acceptedSimulatedToggles++ }
+  incrementRejected(): void { this._rejectedSimulatedToggles++ }
+  resetSimulationMetrics(): void { this._acceptedSimulatedToggles = 0; this._rejectedSimulatedToggles = 0 }
 
   // ── Snapshot ──────────────────────────────────────────────────
 

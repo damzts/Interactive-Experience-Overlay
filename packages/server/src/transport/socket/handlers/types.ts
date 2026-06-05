@@ -5,7 +5,6 @@ import type {
   InterServerEvents,
   SocketData,
   RuntimeConfigOverridePayload,
-  OverlayClientDiagnostics,
   ObsStatusPayload,
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
@@ -33,12 +32,6 @@ export interface HandlerContext {
   runtimeConfigOverride: RuntimeConfigOverridePayload
   cachedUserConfig: AppConfig
 
-  // Overlay slot — the overlay socket IS the simulation executor (no separate leader)
   overlaySocketId: string | null
-  overlayClientInfo: OverlayClientDiagnostics | null
   socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>
-
-  // Ambiance simulation metrics
-  acceptedSimulatedToggles: number
-  rejectedSimulatedToggles: number
 }

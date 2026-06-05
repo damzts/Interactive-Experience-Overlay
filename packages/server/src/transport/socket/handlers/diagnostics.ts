@@ -1,4 +1,4 @@
-import type { OverlayRuntimeStatusPayload, OverlayClientKind, OverlayClientDiagnostics } from '@ieom/shared'
+import type { OverlayRuntimeStatusPayload } from '@ieom/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 
 // ── Diagnostics throttle state ────────────────────────────────────
@@ -28,34 +28,10 @@ export function queueRuntimeDiagnosticsEmit(ctx: HandlerContext): void {
   runtimeDiagnosticsFlushTimer = setTimeout(flush, waitMs)
 }
 
-export function buildOverlayClientInfo(socket: AppSocket): OverlayClientDiagnostics {
-  const auth = socket.handshake.auth as { overlayKind?: string; overlayPort?: string; overlayLabel?: string } | undefined
-  const kind: OverlayClientKind = auth?.overlayKind === 'runtime' || auth?.overlayKind === 'dev' ? auth.overlayKind : 'unknown'
-  const port = auth?.overlayPort?.trim() || null
-  const label = auth?.overlayLabel?.trim()
-    || (kind === 'runtime' ? 'OBS Browser Source (3000)' : kind === 'dev' ? `Direct Overlay Browser${port ? ` (${port})` : ''}` : `Overlay${port ? ` (${port})` : ''}`)
-
-  return { socketId: socket.id, kind, port, label, mounted: false, cursorReady: false, widgetRegistryReady: false, ready: false, readyAt: null, lastHeartbeatAt: null, cameraPermission: 'unknown' }
-}
-
 export function registerDiagnosticsHandlers(ctx: HandlerContext, socket: AppSocket): void {
   socket.on('overlay:runtime:status', (payload: OverlayRuntimeStatusPayload) => {
-    if (socket.id !== ctx.overlaySocketId || !ctx.overlayClientInfo) return
-    ctx.overlayClientInfo = {
-      ...ctx.overlayClientInfo,
-      mounted: payload.mounted,
-      cursorReady: payload.cursorReady,
-      widgetRegistryReady: payload.widgetRegistryReady,
-      ready: payload.ready,
-      readyAt: payload.ready ? ctx.overlayClientInfo.readyAt ?? Date.now() : null,
-      cameraPermission: payload.cameraPermission,
-    }
-    ctx.ambianceManager.setLeaderLeaseState({
-      ready: payload.ready,
-      leaseDurationMs: 0,
-      expiresAt: null,
-      lastHeartbeatAt: null,
-    })
+    if (socket.id !== ctx.overlaySocketId) return
+    ctx.ambianceManager.setOverlayReady(payload.ready)
     queueRuntimeDiagnosticsEmit(ctx)
   })
 }

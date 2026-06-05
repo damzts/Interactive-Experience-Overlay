@@ -101,14 +101,8 @@ export interface AmbianceDiagnosticsPayload {
   pendingPhase: 'awaiting-acceptance' | 'awaiting-start' | 'running' | null
   pendingActionId: string | null
   leaderSocketId: string | null
-  leaderClientKind: OverlayClientKind | null
-  leaderClientPort: string | null
-  leaderClientLabel: string | null
-  leaderReady: boolean
-  leaderLeaseDurationMs: number
-  leaderLeaseExpiresAt: number | null
-  leaderLastHeartbeatAt: number | null
-  overlayClients: OverlayClientDiagnostics[]
+  /** Whether the overlay has reported itself ready to execute simulations */
+  overlayReady: boolean
   history: AmbianceHistoryEntry[]
   openWidgetCount: number
   enabledWidgetCount: number
