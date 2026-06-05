@@ -164,7 +164,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
   if (!selected) {
     return (
-      <div className="flex-1 min-w-0 overflow-y-auto border-l border-zinc-800 bg-zinc-950/95">
+      <div className="flex-1 min-w-0 overflow-y-auto bg-[var(--color-bg-base)]">
           <ConfigCard className="text-left">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
             <div className="text-[10px] text-zinc-400 leading-relaxed">
@@ -228,24 +228,24 @@ export function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/95">
-      <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/70 px-3 py-2.5 backdrop-blur-sm">
+    <div className="flex flex-1 min-w-0 flex-col overflow-hidden bg-[var(--color-bg-base)]">
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
         <span className="text-sm shrink-0">{headerIcon}</span>
         <span className="flex-1 min-w-0">
-          <span className="block text-xs font-semibold text-zinc-200 truncate">{headerLabel}</span>
-          {headerMeta && <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{headerMeta}</span>}
+          <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
+          {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
         </span>
         {actionFn && (
-          <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-2.5 py-1 text-xs">
+          <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-3 py-1.5 text-xs">
             {actionLabel}
           </Btn>
         )}
         <button onClick={onClose}
-          className="ml-0.5 rounded-md border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 text-sm leading-none text-zinc-500 transition-colors hover:border-zinc-700/80 hover:text-zinc-100">
+          className="ml-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] px-2.5 py-1 text-sm leading-none text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]">
           ×
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto bg-zinc-950/55 p-3">
+      <div className="flex-1 overflow-y-auto p-5">
         <RightPaneErrorBoundary>
           <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
         </RightPaneErrorBoundary>

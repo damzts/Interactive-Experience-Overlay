@@ -18,7 +18,7 @@ export function SidebarBtn({ icon, label, live, statusLabel, statusClassName, ac
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       title={onDoubleClick ? 'Click to configure · Double-click to activate' : undefined}
-      className={'mb-1 flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition-all duration-150 ' +
+      className={'mb-1.5 flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-xs transition-all duration-150 ' +
         (active
           ? 'border-cyan-400/30 bg-cyan-500/12 text-zinc-50 shadow-[0_0_0_1px_rgba(34,211,238,0.06)]'
           : 'border-white/5 bg-white/[0.02] text-zinc-400 hover:border-cyan-400/20 hover:bg-white/[0.04] hover:text-zinc-100')}>
@@ -114,9 +114,9 @@ export function LeftSidebar({ selected, onSelect, onActivate, libraryOpen, onLib
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
   return (
-    <div className="admin-shell-panel admin-shell-panel--soft flex w-60 shrink-0 flex-col border-r px-2 py-2">
-      <div className="flex-1 overflow-y-auto pb-1 pr-1">
-        <div className="mb-3 rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+    <div className="flex w-[240px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4">
+      <div className="flex-1 overflow-y-auto pb-2 pr-1">
+        <div className="mb-4 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-400">Navigator</div>
           <div className="mt-1 text-[11px] leading-5 text-zinc-500">
             Scenes, widgets, and utilities are grouped by what they change in the runtime.

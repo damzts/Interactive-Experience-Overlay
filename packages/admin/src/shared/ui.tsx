@@ -1,3 +1,20 @@
+/**
+ * @deprecated This file is part of the legacy shared UI library.
+ *
+ * The following components have been replaced by the new component library
+ * at `../components/` and should no longer be imported from here:
+ *   - `Btn` → use `Button` from `../components/atoms/Button`
+ *   - `Toggle` → use `Toggle` from `../components/atoms/Toggle`
+ *   - `ConfigCard` → use `Card` from `../components/molecules/Card`
+ *   - `ConfigNotice` → use `Toast` from `../components/molecules/Toast`
+ *   - `ConfigSectionPanel` → use `ConfigPanel` from `../components/organisms/ConfigPanel`
+ *
+ * Remaining exports (Slider, isSameDraft, IconGlyph, ConfigApplyBar,
+ * ConfigPageIntro, ConfigTable, ConfigToolbar, ConfigChoiceButton, Field)
+ * do not yet have replacements in the new design system and may still be
+ * imported from this file until migration is complete.
+ */
+
 // Deep compare for config objects
 export function isSameDraft(a: any, b: any): boolean {
   if (a === b) return true;

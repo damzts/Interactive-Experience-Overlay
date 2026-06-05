@@ -1,24 +1,70 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { LayoutDashboard, Monitor, Layers, Image, Globe, Settings } from 'lucide-react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
+import { useAuth } from '../../auth/AuthContext'
+import { Sidebar as NewSidebar, TopBar as NewTopBar } from '../../components/organisms'
+import type { SidebarSection } from '../../components/organisms'
+import { DashboardContainer } from './DashboardContainer'
+import { useSidebarPersistence } from '../../hooks/useSidebarPersistence'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { AssetLibraryPanel as ExtractedAssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
-import { TopBar } from './TopBar'
 import { LeftSidebar } from './LeftSidebar'
 import { RightPane, SettingsModal } from './RightPane'
 import type { SelectedItem } from './types'
 import { itemKey } from './types'
 
+// ── Navigation sections for the new Sidebar ────────────────────────────────
+
+const NAV_SECTIONS: SidebarSection[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'scenes', label: 'Scenes', icon: Monitor },
+  { id: 'widgets', label: 'Widgets', icon: Layers },
+  { id: 'media', label: 'Media', icon: Image },
+  { id: 'online', label: 'Online', icon: Globe },
+  { id: 'system', label: 'System', icon: Settings },
+]
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const [selected,       setSelected]       = useState<SelectedItem | null>(null)
-  const [libraryOpen,    setLibraryOpen]    = useState(false)
+  // ─── Existing state (preserved) ───
+  const [selected, setSelected] = useState<SelectedItem | null>(null)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [libraryMounted, setLibraryMounted] = useState(false)
-  const [settingsOpen,   setSettingsOpen]   = useState(false)
-  const [settingsTab,    setSettingsTab]    = useState<'general' | 'audio' | 'keybinds' | 'about'>('general')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'general' | 'audio' | 'keybinds' | 'about'>('general')
   const libraryRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const applications  = useAdminStore((s) => s.config.applications)
+  const applications = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
+
+  // ─── New layout state ───
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarPersistence()
+  const { isMobile } = useBreakpoint()
+  const [activeSection, setActiveSection] = useState('dashboard')
+
+  // ─── Runtime state for TopBar status indicators ───
+  const overlayOwnerSocketId = useAdminStore((s) => s.overlayOwnerSocketId)
+  const obsConnected = useAdminStore((s) => s.obsConnected)
+  const { user } = useAuth()
+
+  const overlayStatus: 'connected' | 'disconnected' =
+    overlayOwnerSocketId != null ? 'connected' : 'disconnected'
+  const obsStatus: 'connected' | 'disconnected' =
+    obsConnected ? 'connected' : 'disconnected'
+
+  // ─── Auto-collapse sidebar on mobile ───
+  useEffect(() => {
+    if (isMobile && !sidebarCollapsed) {
+      setSidebarCollapsed(true)
+    }
+  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Sidebar width for layout ───
+  const sidebarWidth = sidebarCollapsed ? 48 : 240
+
+  // ─── Existing handlers (preserved) ───
 
   const clearLibraryRestoreTimeout = () => {
     if (libraryRestoreTimeoutRef.current) {
@@ -110,22 +156,108 @@ export function Dashboard() {
     }
   }
 
+  // ─── New sidebar navigation handler ───
+
+  const handleNavigate = useCallback((section: string) => {
+    setActiveSection(section)
+    switch (section) {
+      case 'dashboard':
+        // Show the DashboardContainer view
+        setSelected(null)
+        break
+      case 'scenes':
+        // Stay on scenes — let the LeftSidebar handle scene selection
+        break
+      case 'widgets':
+        // Stay on widgets — let the LeftSidebar handle widget selection
+        break
+      case 'media':
+        // Open the asset library
+        if (!libraryOpen) {
+          setLibraryMounted(true)
+          setLibraryOpen(true)
+        }
+        break
+      case 'online':
+        // Show the online rooms panel
+        setSelected({ kind: 'pov-online' })
+        break
+      case 'system':
+        // Open settings modal
+        if (!settingsOpen) {
+          setSettingsTab('general')
+          setSettingsOpen(true)
+        }
+        break
+    }
+  }, [libraryOpen, settingsOpen])
+
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed(!sidebarCollapsed)
+  }, [sidebarCollapsed, setSidebarCollapsed])
+
+  // ─── Command palette integration ───
+  const setCommandPaletteOpen = useAdminStore((s) => s.setCommandPaletteOpen)
+  const handleSearchOpen = useCallback(() => {
+    setCommandPaletteOpen(true)
+  }, [setCommandPaletteOpen])
+
+  // ─── Determine whether to show the dashboard overview or the existing content ───
+  const showDashboard = activeSection === 'dashboard'
+
   return (
-    <div className="relative flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
-      <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <LeftSidebar
-          selected={selected}
-          onSelect={handleSelect}
-          onActivate={handleActivate}
-          libraryOpen={libraryOpen}
-          onLibrary={handleLibraryToggle}
-          settingsOpen={settingsOpen}
-          onSettings={handleSettingsToggle}
-        />
-        <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
+    <div
+      className="h-screen overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)]"
+      data-tour="dashboard-root"
+    >
+      {/* ─── New Design System Sidebar (fixed left) ─── */}
+      <NewSidebar
+        collapsed={sidebarCollapsed}
+        onToggle={handleSidebarToggle}
+        activeSection={activeSection}
+        onNavigate={handleNavigate}
+        sections={NAV_SECTIONS}
+      />
+
+      {/* ─── New Design System TopBar (fixed top, offset by sidebar) ─── */}
+      <NewTopBar
+        onSearchOpen={handleSearchOpen}
+        overlayStatus={overlayStatus}
+        obsStatus={obsStatus}
+        userName={user?.name ?? 'Admin'}
+        style={{ left: `${sidebarWidth}px`, transition: 'left 250ms cubic-bezier(0, 0, 0.2, 1)' }}
+      />
+
+      {/* ─── Main content area (offset by sidebar + topbar) ─── */}
+      <div
+        className="absolute top-14 bottom-0 right-0 overflow-hidden"
+        style={{ left: `${sidebarWidth}px`, transition: 'left 250ms cubic-bezier(0, 0, 0.2, 1)' }}
+        data-tour="main-content"
+      >
+        {showDashboard ? (
+          <div className="h-full overflow-y-auto px-6 py-5" data-tour="quick-actions">
+            <DashboardContainer />
+          </div>
+        ) : (
+          <div className="flex h-full overflow-hidden" data-tour="navigator-content">
+            <LeftSidebar
+              selected={selected}
+              onSelect={handleSelect}
+              onActivate={handleActivate}
+              libraryOpen={libraryOpen}
+              onLibrary={handleLibraryToggle}
+              settingsOpen={settingsOpen}
+              onSettings={handleSettingsToggle}
+            />
+            <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
+          </div>
+        )}
       </div>
-      {libraryMounted && <ExtractedAssetLibraryPanel isOpen={libraryOpen} onHide={handleLibraryHide} onClose={handleLibraryClose} />}
+
+      {/* ─── Existing modals/panels (preserved) ─── */}
+      {libraryMounted && (
+        <ExtractedAssetLibraryPanel isOpen={libraryOpen} onHide={handleLibraryHide} onClose={handleLibraryClose} />
+      )}
       {settingsOpen && (
         <SettingsModal
           tab={settingsTab}

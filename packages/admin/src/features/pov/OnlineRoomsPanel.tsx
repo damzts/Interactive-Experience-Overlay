@@ -13,16 +13,10 @@ import type {
   OnlineClientToServerEvents,
 } from '@ieom/shared'
 import { getOnlineConfig, updateOnlineConfig, getOnlineRooms, provideAuthToken } from '../../api/onlineApi'
-import {
-  Btn,
-  ConfigCard,
-  ConfigNotice,
-  ConfigPageIntro,
-  ConfigSectionPanel,
-  ConfigChoiceButton,
-  Slider,
-  Field,
-} from '../../shared/ui'
+import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'
+import { Button } from '../../components/atoms'
+import { Card } from '../../components/molecules'
+import { ConfigPanel } from '../../components/organisms'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -51,6 +45,23 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
+// ── Notice ─────────────────────────────────────────────────────────
+
+/** Notice component for informational/warning messages within config panels */
+function Notice({ tone = 'info', className, children }: { tone?: 'info' | 'warning' | 'danger' | 'success'; className?: string; children: React.ReactNode }) {
+  const toneStyles: Record<string, string> = {
+    info: 'border-[var(--color-primary-400)]/25 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-100)]',
+    warning: 'border-[var(--color-accent-400)]/30 bg-[var(--color-accent-500)]/12 text-[var(--color-accent-100)]',
+    danger: 'border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/12 text-[var(--color-danger-400)]',
+    success: 'border-[var(--color-success-400)]/30 bg-[var(--color-success-500)]/12 text-[var(--color-success-400)]',
+  }
+  return (
+    <div className={`rounded-[var(--radius-lg)] border px-3 py-2.5 text-sm shadow-[var(--shadow-sm)] backdrop-blur ${toneStyles[tone]} ${className ?? ''}`}>
+      {children}
+    </div>
+  )
+}
+
 // ── CopyButton ─────────────────────────────────────────────────────
 
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
@@ -65,13 +76,14 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
   }, [text])
 
   return (
-    <Btn
-      variant={copied ? 'active' : 'ghost'}
+    <Button
+      variant={copied ? 'success' : 'ghost'}
+      size="sm"
       onClick={handleCopy}
       className="text-[10px] px-2 py-0.5"
     >
       {copied ? '✓ Copied' : label}
-    </Btn>
+    </Button>
   )
 }
 
@@ -93,53 +105,54 @@ function ParticipantRow({
   return (
     <div
       className={`flex items-center gap-3 rounded-md px-2 py-1.5 ${
-        isActive ? 'bg-cyan-500/8 ring-1 ring-cyan-400/30' : ''
+        isActive ? 'bg-[var(--color-primary-500)]/8 ring-1 ring-[var(--color-primary-400)]/30' : ''
       }`}
     >
       {/* Connection status dot */}
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${
-          participant.connectionStatus === 'connected' ? 'bg-emerald-400' : 'bg-red-400'
+          participant.connectionStatus === 'connected' ? 'bg-[var(--color-success-400)]' : 'bg-[var(--color-danger-400)]'
         }`}
         title={participant.connectionStatus}
       />
 
       {/* Display name */}
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-zinc-100">
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--color-text-primary)]">
         {participant.displayName}
       </span>
 
       {/* Active indicator */}
       {isActive && (
-        <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-cyan-200">
+        <span className="shrink-0 rounded-full border border-[var(--color-primary-400)]/30 bg-[var(--color-primary-500)]/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--color-primary-200)]">
           Active
         </span>
       )}
 
       {/* Activity score bar */}
       <div className="w-16 shrink-0">
-        <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden">
+        <div className="h-1.5 w-full rounded-full bg-[var(--color-bg-elevated)]/80 overflow-hidden">
           <div
-            className="h-full rounded-full bg-cyan-400/70 transition-all duration-300"
+            className="h-full rounded-full bg-[var(--color-primary-400)]/70 transition-all duration-300"
             style={{ width: `${scorePercent}%` }}
           />
         </div>
       </div>
 
       {/* Score value */}
-      <span className="w-8 shrink-0 text-right text-[10px] font-mono text-zinc-500">
+      <span className="w-8 shrink-0 text-right text-[10px] font-mono text-[var(--color-text-muted)]">
         {participant.activityScore.toFixed(2)}
       </span>
 
       {/* Manual select button */}
-      <Btn
-        variant={isActive ? 'active' : 'default'}
+      <Button
+        variant={isActive ? 'primary' : 'secondary'}
+        size="sm"
         onClick={() => onSelect(participant.id)}
         disabled={isActive || selecting || participant.connectionStatus !== 'connected'}
         className="text-[10px] px-2 py-0.5"
       >
         {isActive ? '● Live' : 'Select'}
-      </Btn>
+      </Button>
     </div>
   )
 }
@@ -186,20 +199,20 @@ function RoomCard({
   }, [confirmClose, room.roomCode, onClose])
 
   return (
-    <ConfigCard className={room.status === 'idle' ? 'opacity-70' : ''}>
+    <Card variant="default" padding="md" className={room.status === 'idle' ? 'opacity-70' : ''}>
       {/* Room header */}
       <div className="flex items-center gap-3">
         {/* Expand toggle */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="shrink-0 text-zinc-500 hover:text-zinc-200 transition-colors text-sm"
+          className="shrink-0 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors text-sm"
           aria-label={expanded ? 'Collapse room' : 'Expand room'}
         >
           {expanded ? '▾' : '▸'}
         </button>
 
         {/* Room code */}
-        <span className="shrink-0 rounded-md border border-zinc-700/80 bg-zinc-950/70 px-2 py-0.5 font-mono text-sm font-bold text-zinc-100 tracking-wider">
+        <span className="shrink-0 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/70 px-2 py-0.5 font-mono text-sm font-bold text-[var(--color-text-primary)] tracking-wider">
           {room.roomCode}
         </span>
 
@@ -207,75 +220,76 @@ function RoomCard({
         <span
           className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
             room.status === 'active'
-              ? 'border border-emerald-500/30 bg-emerald-500/12 text-emerald-200'
-              : 'border border-amber-500/30 bg-amber-500/12 text-amber-200'
+              ? 'border border-[var(--color-success-400)]/30 bg-[var(--color-success-500)]/12 text-[var(--color-success-400)]'
+              : 'border border-[var(--color-accent-400)]/30 bg-[var(--color-accent-500)]/12 text-[var(--color-accent-400)]'
           }`}
         >
           {room.status}
         </span>
 
         {/* Participant count */}
-        <span className="shrink-0 text-xs text-zinc-400">
+        <span className="shrink-0 text-xs text-[var(--color-text-secondary)]">
           {room.participantCount}/{room.maxPlayers} players
         </span>
 
         {/* Created time */}
-        <span className="shrink-0 text-[10px] text-zinc-600">
+        <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">
           Created {formatTimestamp(room.createdAt)}
         </span>
 
         <div className="flex-1" />
 
         {/* Mode toggle */}
-        <Btn
-          variant={room.mode === 'automatic' ? 'primary' : 'warning'}
+        <Button
+          variant={room.mode === 'automatic' ? 'primary' : 'ghost'}
+          size="sm"
           onClick={() => onModeSet(room.roomCode, room.mode === 'automatic' ? 'manual' : 'automatic')}
           className="text-[10px] px-2 py-0.5"
         >
           {room.mode === 'automatic' ? '⚡ Auto' : '✋ Manual'}
-        </Btn>
+        </Button>
 
         {/* Close button */}
         {confirmClose ? (
           <div className="flex items-center gap-1">
-            <Btn variant="danger" onClick={handleClose} className="text-[10px] px-2 py-0.5">
+            <Button variant="danger" size="sm" onClick={handleClose} className="text-[10px] px-2 py-0.5">
               Confirm
-            </Btn>
-            <Btn variant="ghost" onClick={() => setConfirmClose(false)} className="text-[10px] px-2 py-0.5">
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmClose(false)} className="text-[10px] px-2 py-0.5">
               Cancel
-            </Btn>
+            </Button>
           </div>
         ) : (
-          <Btn variant="danger" onClick={handleClose} className="text-[10px] px-2 py-0.5">
+          <Button variant="danger" size="sm" onClick={handleClose} className="text-[10px] px-2 py-0.5">
             Close Room
-          </Btn>
+          </Button>
         )}
       </div>
 
       {/* URLs row */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5 rounded-md border border-zinc-800/80 bg-zinc-950/55 px-2 py-1">
-          <span className="text-[10px] text-zinc-500">Join:</span>
-          <span className="text-[10px] font-mono text-zinc-300 max-w-[200px] truncate">{joinUrl}</span>
+        <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
+          <span className="text-[10px] text-[var(--color-text-muted)]">Join:</span>
+          <span className="text-[10px] font-mono text-[var(--color-text-secondary)] max-w-[200px] truncate">{joinUrl}</span>
           <CopyButton text={joinUrl} label="Copy" />
         </div>
-        <div className="flex items-center gap-1.5 rounded-md border border-zinc-800/80 bg-zinc-950/55 px-2 py-1">
-          <span className="text-[10px] text-zinc-500">OBS Source:</span>
-          <span className="text-[10px] font-mono text-zinc-300 max-w-[200px] truncate">{overlayUrl}</span>
+        <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
+          <span className="text-[10px] text-[var(--color-text-muted)]">OBS Source:</span>
+          <span className="text-[10px] font-mono text-[var(--color-text-secondary)] max-w-[200px] truncate">{overlayUrl}</span>
           <CopyButton text={overlayUrl} label="Copy" />
         </div>
       </div>
 
       {/* Expanded section: participants */}
       {expanded && (
-        <div className="mt-3 border-t border-zinc-800/60 pt-3">
+        <div className="mt-3 border-t border-[var(--color-border-default)] pt-3">
           {room.participants.length === 0 ? (
-            <ConfigNotice tone="info">
+            <Notice tone="info">
               No participants connected yet. Share the join URL to invite players.
-            </ConfigNotice>
+            </Notice>
           ) : (
             <div className="space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 px-2 mb-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] px-2 mb-1">
                 Participants
               </div>
               {room.participants.map((p) => (
@@ -291,7 +305,7 @@ function RoomCard({
           )}
         </div>
       )}
-    </ConfigCard>
+    </Card>
   )
 }
 
@@ -554,146 +568,148 @@ export function OnlineRoomsPanel() {
 
       {/* Status indicators */}
       {configSaved && (
-        <ConfigNotice tone="success" className="mb-3">
+        <Notice tone="success" className="mb-3">
           ✔ Configuration saved successfully.
-        </ConfigNotice>
+        </Notice>
       )}
       {error && (
-        <ConfigNotice tone="danger" className="mb-3">
+        <Notice tone="danger" className="mb-3">
           ✖ {error}
-        </ConfigNotice>
+        </Notice>
       )}
 
-      {/* Active Rooms */}
-      <ConfigSectionPanel label="Active Rooms" first>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-zinc-400">
-            {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
-          </span>
-          <Btn variant="primary" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
-            {creating ? 'Creating…' : '+ Create Room'}
-          </Btn>
-        </div>
-
-        {rooms.length === 0 ? (
-          <ConfigNotice tone="info">
-            No online rooms active. Create a room to get started.
-          </ConfigNotice>
-        ) : (
-          <div className="space-y-2">
-            {rooms.map((room) => (
-              <RoomCard
-                key={room.roomCode}
-                room={room}
-                onClose={handleCloseRoom}
-                onModeSet={handleModeSet}
-                onSelect={handleSelect}
-                socket={socketRef.current}
-              />
-            ))}
+      <div className="space-y-6 pt-3">
+        {/* Active Rooms */}
+        <ConfigPanel title="Active Rooms" collapsible>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
+            </span>
+            <Button variant="primary" size="sm" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
+              {creating ? 'Creating…' : '+ Create Room'}
+            </Button>
           </div>
-        )}
-      </ConfigSectionPanel>
 
-      {/* Configuration */}
-      <ConfigSectionPanel label="Online Mode Configuration">
-        <ConfigNotice>
-          Configure switching behavior for online rooms. These settings apply to all active and future rooms.
-        </ConfigNotice>
-        <div className="mt-4 space-y-2">
-          <Slider
-            label="Switch Cooldown"
-            value={configDraft.cooldownMs / 1000}
-            min={ONLINE_CONFIG_BOUNDS.cooldownMs.min / 1000}
-            max={ONLINE_CONFIG_BOUNDS.cooldownMs.max / 1000}
-            step={0.5}
-            unit="s"
-            onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
-          />
-          <Slider
-            label="Activity Threshold"
-            value={configDraft.activityThreshold}
-            min={ONLINE_CONFIG_BOUNDS.activityThreshold.min}
-            max={ONLINE_CONFIG_BOUNDS.activityThreshold.max}
-            step={0.01}
-            onChange={(v) => updateConfigDraft('activityThreshold', v)}
-          />
-          <Slider
-            label="Silence Threshold"
-            value={configDraft.silenceThreshold}
-            min={ONLINE_CONFIG_BOUNDS.silenceThreshold.min}
-            max={ONLINE_CONFIG_BOUNDS.silenceThreshold.max}
-            step={0.01}
-            onChange={(v) => updateConfigDraft('silenceThreshold', v)}
-          />
-          <Slider
-            label="Rolling Window"
-            value={configDraft.rollingWindowMs}
-            min={ONLINE_CONFIG_BOUNDS.rollingWindowMs.min}
-            max={ONLINE_CONFIG_BOUNDS.rollingWindowMs.max}
-            step={100}
-            unit="ms"
-            onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
-          />
-          <Slider
-            label="Audio Report Interval"
-            value={configDraft.audioReportIntervalMs}
-            min={ONLINE_CONFIG_BOUNDS.audioReportIntervalMs.min}
-            max={ONLINE_CONFIG_BOUNDS.audioReportIntervalMs.max}
-            step={10}
-            unit="ms"
-            onChange={(v) => updateConfigDraft('audioReportIntervalMs', Math.round(v))}
-          />
-        </div>
-
-        {/* Transition Settings */}
-        <div className="mt-4">
-          <Field label="Transition Type">
-            <div className="flex gap-2">
-              <ConfigChoiceButton
-                selected={configDraft.transition.type === 'cut'}
-                onClick={() => updateConfigDraft('transition', { type: 'cut', durationMs: 0 })}
-              >
-                Cut
-              </ConfigChoiceButton>
-              <ConfigChoiceButton
-                selected={configDraft.transition.type === 'fade'}
-                onClick={() =>
-                  updateConfigDraft('transition', {
-                    type: 'fade',
-                    durationMs: configDraft.transition.durationMs || 500,
-                  })
-                }
-              >
-                Fade
-              </ConfigChoiceButton>
+          {rooms.length === 0 ? (
+            <Notice tone="info">
+              No online rooms active. Create a room to get started.
+            </Notice>
+          ) : (
+            <div className="space-y-2">
+              {rooms.map((room) => (
+                <RoomCard
+                  key={room.roomCode}
+                  room={room}
+                  onClose={handleCloseRoom}
+                  onModeSet={handleModeSet}
+                  onSelect={handleSelect}
+                  socket={socketRef.current}
+                />
+              ))}
             </div>
-          </Field>
-          {configDraft.transition.type === 'fade' && (
-            <Slider
-              label="Fade Duration"
-              value={configDraft.transition.durationMs}
-              min={100}
-              max={5000}
-              step={50}
-              unit="ms"
-              onChange={(v) =>
-                updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
-              }
-            />
           )}
-        </div>
+        </ConfigPanel>
 
-        {/* Save / Reset */}
-        <div className="mt-5 flex items-center gap-3">
-          <Btn variant="primary" onClick={handleSaveConfig} disabled={savingConfig}>
-            {savingConfig ? 'Saving…' : 'Apply Configuration'}
-          </Btn>
-          <Btn variant="default" onClick={handleResetConfig} disabled={savingConfig}>
-            Reset
-          </Btn>
-        </div>
-      </ConfigSectionPanel>
+        {/* Configuration */}
+        <ConfigPanel title="Online Mode Configuration" collapsible>
+          <Notice>
+            Configure switching behavior for online rooms. These settings apply to all active and future rooms.
+          </Notice>
+          <div className="mt-4 space-y-2">
+            <Slider
+              label="Switch Cooldown"
+              value={configDraft.cooldownMs / 1000}
+              min={ONLINE_CONFIG_BOUNDS.cooldownMs.min / 1000}
+              max={ONLINE_CONFIG_BOUNDS.cooldownMs.max / 1000}
+              step={0.5}
+              unit="s"
+              onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
+            />
+            <Slider
+              label="Activity Threshold"
+              value={configDraft.activityThreshold}
+              min={ONLINE_CONFIG_BOUNDS.activityThreshold.min}
+              max={ONLINE_CONFIG_BOUNDS.activityThreshold.max}
+              step={0.01}
+              onChange={(v) => updateConfigDraft('activityThreshold', v)}
+            />
+            <Slider
+              label="Silence Threshold"
+              value={configDraft.silenceThreshold}
+              min={ONLINE_CONFIG_BOUNDS.silenceThreshold.min}
+              max={ONLINE_CONFIG_BOUNDS.silenceThreshold.max}
+              step={0.01}
+              onChange={(v) => updateConfigDraft('silenceThreshold', v)}
+            />
+            <Slider
+              label="Rolling Window"
+              value={configDraft.rollingWindowMs}
+              min={ONLINE_CONFIG_BOUNDS.rollingWindowMs.min}
+              max={ONLINE_CONFIG_BOUNDS.rollingWindowMs.max}
+              step={100}
+              unit="ms"
+              onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
+            />
+            <Slider
+              label="Audio Report Interval"
+              value={configDraft.audioReportIntervalMs}
+              min={ONLINE_CONFIG_BOUNDS.audioReportIntervalMs.min}
+              max={ONLINE_CONFIG_BOUNDS.audioReportIntervalMs.max}
+              step={10}
+              unit="ms"
+              onChange={(v) => updateConfigDraft('audioReportIntervalMs', Math.round(v))}
+            />
+          </div>
+
+          {/* Transition Settings */}
+          <div className="mt-4">
+            <Field label="Transition Type">
+              <div className="flex gap-2">
+                <ConfigChoiceButton
+                  selected={configDraft.transition.type === 'cut'}
+                  onClick={() => updateConfigDraft('transition', { type: 'cut', durationMs: 0 })}
+                >
+                  Cut
+                </ConfigChoiceButton>
+                <ConfigChoiceButton
+                  selected={configDraft.transition.type === 'fade'}
+                  onClick={() =>
+                    updateConfigDraft('transition', {
+                      type: 'fade',
+                      durationMs: configDraft.transition.durationMs || 500,
+                    })
+                  }
+                >
+                  Fade
+                </ConfigChoiceButton>
+              </div>
+            </Field>
+            {configDraft.transition.type === 'fade' && (
+              <Slider
+                label="Fade Duration"
+                value={configDraft.transition.durationMs}
+                min={100}
+                max={5000}
+                step={50}
+                unit="ms"
+                onChange={(v) =>
+                  updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
+                }
+              />
+            )}
+          </div>
+
+          {/* Save / Reset */}
+          <div className="mt-5 flex items-center gap-3">
+            <Button variant="primary" size="md" onClick={handleSaveConfig} disabled={savingConfig}>
+              {savingConfig ? 'Saving…' : 'Apply Configuration'}
+            </Button>
+            <Button variant="secondary" size="md" onClick={handleResetConfig} disabled={savingConfig}>
+              Reset
+            </Button>
+          </div>
+        </ConfigPanel>
+      </div>
     </div>
   )
 }

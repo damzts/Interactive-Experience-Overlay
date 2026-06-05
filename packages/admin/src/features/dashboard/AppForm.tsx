@@ -29,16 +29,14 @@ import {
 } from '../asset-library/eventPresets'
 import { getSafeSceneSources } from '../../shared/sourceCatalog'
 import {
-  Btn,
   ConfigApplyBar,
   ConfigChoiceButton,
-  ConfigNotice,
-  ConfigSectionPanel,
   IconGlyph,
   isSameDraft,
   Slider,
-  Toggle,
 } from '../../shared/ui'
+import { Button, Toggle } from '../../components/atoms'
+import { ConfigPanel } from '../../components/organisms'
 import { WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN, WIDGET_Z_INDEX_MAX, WIDGET_Z_INDEX_MIN } from './constants'
 import { ThemeAppearanceFields } from './formAtoms'
 const postPreviewConfigPatch = (_patch: unknown) => {} // no-op: embedded preview removed
@@ -53,6 +51,22 @@ import {
   resolveWidgetSizeFromConfig,
   resolveWidgetThemeOverrideFromConfig,
 } from './widgetHelpers'
+
+// ── Inline Notice component ───────────────────────────────────────────
+
+function Notice({ tone = 'info', children, className = '' }: { tone?: 'info' | 'warning' | 'danger' | 'success'; children: React.ReactNode; className?: string }) {
+  const toneStyles: Record<string, string> = {
+    info: 'border-[var(--color-primary-400)]/25 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-100)]',
+    warning: 'border-[var(--color-accent-400)]/30 bg-[var(--color-accent-500)]/12 text-[var(--color-accent-100)]',
+    danger: 'border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/12 text-[var(--color-danger-400)]',
+    success: 'border-[var(--color-success-400)]/30 bg-[var(--color-success-500)]/12 text-[var(--color-success-400)]',
+  }
+  return (
+    <div className={`rounded-[var(--radius-lg)] border px-3 py-2.5 text-sm shadow-[var(--shadow-sm)] backdrop-blur ${toneStyles[tone]} ${className}`}>
+      {children}
+    </div>
+  )
+}
 
 // ── Shared utility for model display ─────────────────────────────────
 
@@ -69,9 +83,9 @@ function formatIconPositionModel(position?: { x: number; y: number }) {
 
 function ModelField({ field, value, mono = false }: { field: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{field}</div>
-      <div className={`text-[11px] text-zinc-100 break-all ${mono ? 'font-mono' : ''}`}>{value}</div>
+    <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2">
+      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">{field}</div>
+      <div className={`text-[11px] text-[var(--color-text-primary)] break-all ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
   )
 }
@@ -357,45 +371,45 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
       <div className="space-y-0 pt-3">
 
         {form.appType === 'widget' && (
-          <ConfigSectionPanel label="Runtime Override" first>
+          <ConfigPanel title="Runtime Override" className="mb-4">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <div className={hasRuntimeOverride ? 'text-[11px] font-medium text-red-100' : 'text-[11px] font-medium text-zinc-400'}>
+                <div className={hasRuntimeOverride ? 'text-[11px] font-medium text-[var(--color-danger-400)]' : 'text-[11px] font-medium text-[var(--color-text-muted)]'}>
                   {hasRuntimeOverride ? 'Runtime override active' : 'No runtime override active'}
                 </div>
                 <span className="flex-1" />
                 <span className={['inline-block h-2.5 w-2.5 rounded-full transition-all', hasRuntimeOverride
-                  ? 'bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.95),0_0_20px_rgba(239,68,68,0.55)]'
-                  : 'bg-zinc-700 shadow-[0_0_0_rgba(0,0,0,0)]'].join(' ')} />
+                  ? 'bg-[var(--color-danger-400)] shadow-[0_0_10px_rgba(248,113,113,0.95),0_0_20px_rgba(239,68,68,0.55)]'
+                  : 'bg-[var(--color-border-strong)] shadow-[0_0_0_rgba(0,0,0,0)]'].join(' ')} />
               </div>
-              <div className="space-y-1.5 rounded border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+              <div className="space-y-1.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2">
                 {runtimeOverrideEntries.map((entry) => (
                   <div key={entry.key} className="flex items-start justify-between gap-3 text-[10px]">
-                    <div className="uppercase tracking-[0.14em] text-zinc-500">{entry.key}</div>
-                    <div className={entry.active ? 'text-right font-mono text-zinc-200' : 'text-right font-mono text-zinc-500'}>{entry.value}</div>
+                    <div className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">{entry.key}</div>
+                    <div className={entry.active ? 'text-right font-mono text-[var(--color-text-primary)]' : 'text-right font-mono text-[var(--color-text-muted)]'}>{entry.value}</div>
                   </div>
                 ))}
               </div>
-              {clearOverrideError && <ConfigNotice tone="danger">{clearOverrideError}</ConfigNotice>}
+              {clearOverrideError && <Notice tone="danger">{clearOverrideError}</Notice>}
               <div className="flex justify-end">
-                <Btn type="button" onClick={clearWidgetRuntimeOverride} disabled={!hasRuntimeOverride || clearingOverride} className="px-2.5 py-1 text-[10px]">
+                <Button variant="secondary" size="sm" onClick={clearWidgetRuntimeOverride} disabled={!hasRuntimeOverride || clearingOverride}>
                   {clearingOverride ? 'Clearing Override...' : 'Clear Override'}
-                </Btn>
+                </Button>
               </div>
             </div>
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
-        <ConfigSectionPanel label="Identity" first={form.appType !== 'widget'}>
+        <ConfigPanel title="Identity" className="mb-4">
           <div className="space-y-3">
             <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Label</div>
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Label</div>
               <input type="text" value={form.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full text-xs" />
             </div>
             <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Icon</div>
               <div className="flex gap-2 items-center">
-                <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
+                <div className="w-11 h-11 flex items-center justify-center bg-[var(--color-bg-elevated)] rounded border border-[var(--color-border-strong)] overflow-hidden shrink-0">
                   <IconGlyph icon={form.icon} label={form.label} size={32} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -407,7 +421,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-zinc-500 mb-1">Size</div>
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Size</div>
               <div className="flex gap-1">
                 {(['small', 'normal', 'large'] as const).map((s) => (
                   <ConfigChoiceButton key={s} type="button" selected={(form.iconSize ?? 'normal') === s}
@@ -418,94 +432,94 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
               </div>
             </div>
           </div>
-        </ConfigSectionPanel>
+        </ConfigPanel>
 
         {form.appType !== 'widget' && (
-          <ConfigSectionPanel label="Position">
-            <div className="text-[10px] text-zinc-600 mb-2">1920×1080 canvas, pixels from top-left.</div>
+          <ConfigPanel title="Position" className="mb-4">
+            <div className="text-[10px] text-[var(--color-text-muted)] mb-2">1920×1080 canvas, pixels from top-left.</div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">X</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">X</div>
                 <input type="number" min={0} max={1850} value={form.iconPosition?.x ?? 16}
                   onChange={(e) => update((d) => { d.iconPosition = { x: Number(e.target.value), y: d.iconPosition?.y ?? 16 } })}
                   className="w-full font-mono text-xs" />
               </div>
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Y</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Y</div>
                 <input type="number" min={0} max={990} value={form.iconPosition?.y ?? 16}
                   onChange={(e) => update((d) => { d.iconPosition = { x: d.iconPosition?.x ?? 16, y: Number(e.target.value) } })}
                   className="w-full font-mono text-xs" />
               </div>
             </div>
-            <div className="text-[10px] text-zinc-600 mt-1.5">Tip: X=16, Y increments of 94</div>
-            <div className="text-[10px] text-zinc-600 mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
-          </ConfigSectionPanel>
+            <div className="text-[10px] text-[var(--color-text-muted)] mt-1.5">Tip: X=16, Y increments of 94</div>
+            <div className="text-[10px] text-[var(--color-text-muted)] mt-1">Desktop icons can also be dragged live when auto-arrange is off.</div>
+          </ConfigPanel>
         )}
 
         {form.appType === 'widget' && (
-          <ConfigSectionPanel label="Widget Window Defaults">
+          <ConfigPanel title="Widget Window Defaults" className="mb-4">
             <div className="flex justify-end mb-3">
-              <Btn type="button" onClick={useCurrentWidgetValues} className="px-2.5 py-1 text-[10px]">Use Current</Btn>
+              <Button variant="secondary" size="sm" onClick={useCurrentWidgetValues}>Use Current</Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Width</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Width</div>
                 <input type="number" min={WIDGET_WIDTH_MIN} max={WIDGET_WIDTH_MAX} value={widgetSize.width}
                   onChange={(e) => setWidgetSize((prev) => ({ ...prev, width: Number(e.target.value) }))}
                   className="w-full font-mono text-xs" />
               </div>
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Height</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Height</div>
                 <input type="number" min={WIDGET_HEIGHT_MIN} max={WIDGET_HEIGHT_MAX} value={widgetSize.height}
                   onChange={(e) => setWidgetSize((prev) => ({ ...prev, height: Number(e.target.value) }))}
                   className="w-full font-mono text-xs" />
               </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-zinc-700/50">
-              <div className="text-[10px] text-zinc-500 mb-2">Position</div>
+            <div className="mt-3 pt-3 border-t border-[var(--color-border-default)]">
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-2">Position</div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[10px] text-zinc-500 mb-1">X</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">X</div>
                   <input type="number" min={0} max={1850} value={widgetPosition.x}
                     onChange={(e) => setWidgetPosition((prev) => ({ ...prev, x: Number(e.target.value) }))}
                     className="w-full font-mono text-xs" />
                 </div>
                 <div>
-                  <div className="text-[10px] text-zinc-500 mb-1">Y</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Y</div>
                   <input type="number" min={0} max={990} value={widgetPosition.y}
                     onChange={(e) => setWidgetPosition((prev) => ({ ...prev, y: Number(e.target.value) }))}
                     className="w-full font-mono text-xs" />
                 </div>
               </div>
-              <div className="mt-2 text-[10px] text-zinc-600">Saved desktop position for this widget window.</div>
+              <div className="mt-2 text-[10px] text-[var(--color-text-muted)]">Saved desktop position for this widget window.</div>
             </div>
-            <div className="mt-3 pt-3 border-t border-zinc-700/50">
-              <div className="text-[10px] text-zinc-500 mb-1">
+            <div className="mt-3 pt-3 border-t border-[var(--color-border-default)]">
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">
                 Default Stack Order
-                <span className="text-zinc-600 ml-1">(higher = nearer the front by default)</span>
+                <span className="text-[var(--color-text-muted)] ml-1">(higher = nearer the front by default)</span>
               </div>
               <div className="flex gap-2 items-center">
                 <input type="number" min={WIDGET_Z_INDEX_MIN} max={WIDGET_Z_INDEX_MAX} value={widgetDefaultZIndex}
                   onChange={(e) => { setWidgetDefaultZIndex(Math.max(WIDGET_Z_INDEX_MIN, Math.min(WIDGET_Z_INDEX_MAX, Math.round(Number(e.target.value) || 0)))) }}
                   className="w-24 font-mono text-xs" />
               </div>
-              <div className="text-[10px] text-zinc-600 mt-1">
+              <div className="text-[10px] text-[var(--color-text-muted)] mt-1">
                 Baseline stack order for this widget. Layout configurations can override this per-layout, and manual focus or taskbar clicks will still bring a window to the front at runtime.
               </div>
             </div>
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
         {form.appType === 'widget' && (
-          <ConfigSectionPanel label="Widget Theme Override">
+          <ConfigPanel title="Widget Theme Override" className="mb-4">
             <div className="space-y-4">
-              <div className="text-[10px] text-zinc-500 leading-relaxed">
+              <div className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
                 Keep widgets self-sufficient by giving each one its own skin, theming, motion, and atmosphere profile. Leave this off to inherit the shared desktop widget theme.
               </div>
               {hasRuntimeWidgetThemeOverride && (
-                <ConfigNotice className="px-3 py-2 text-[10px]" tone="info">
+                <Notice className="px-3 py-2 text-[10px]" tone="info">
                   Runtime override active. The values below reflect the live override currently applied to this widget.
-                </ConfigNotice>
+                </Notice>
               )}
               <Toggle checked={widgetThemeOverrideEnabled}
                 onChange={(value) => {
@@ -513,34 +527,35 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                   if (value && !sourceWidgetThemeOverride) setWidgetThemeOverride(structuredClone(desktopConfig.globalThemeDefault.widgetTheme))
                   setSaved(false)
                 }}
+                size="sm"
                 label="Use widget-specific appearance" />
               {widgetThemeOverrideEnabled ? (
                 <>
-                  <div className="grid grid-cols-2 gap-1.5 border-t border-zinc-800 pt-3">
+                  <div className="grid grid-cols-2 gap-1.5 border-t border-[var(--color-border-default)] pt-3">
                     {WIDGET_SKINS.map((skin) => (
                       <ConfigChoiceButton key={skin.id} type="button" selected={widgetThemeOverride.skin === skin.id}
                         onClick={() => { setWidgetThemeOverride(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[skin.id])); setSaved(false) }}
                         className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case" title={skin.description}>
                         <span className="text-[11px] font-semibold leading-none">{skin.label}</span>
-                        <span className="text-[10px] leading-relaxed text-zinc-500">{skin.description}</span>
+                        <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{skin.description}</span>
                       </ConfigChoiceButton>
                     ))}
                   </div>
-                  <div className="border-t border-zinc-800 pt-3">
+                  <div className="border-t border-[var(--color-border-default)] pt-3">
                     <ThemeAppearanceFields appearance={widgetThemeOverride as any}
                       onChange={(updater) => { setWidgetThemeOverride((prev) => { const next = structuredClone(prev); updater(next as any); return next }); setSaved(false) }}
                       helperText="Use a different font, accent, and text color when this widget should feel like its own application instead of just another window using the global chrome." />
                   </div>
-                  <div className="border-t border-zinc-800 pt-3 space-y-3">
+                  <div className="border-t border-[var(--color-border-default)] pt-3 space-y-3">
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Motion</div>
+                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Motion</div>
                       <div className="grid grid-cols-2 gap-1.5">
                         {WIDGET_THEME_ANIMATIONS.map((animation) => (
                           <ConfigChoiceButton key={animation.id} type="button" selected={widgetThemeOverride.animation === animation.id}
                             onClick={() => { setWidgetThemeOverride((prev) => ({ ...prev, animation: animation.id })); setSaved(false) }}
                             className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
                             <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
-                            <span className="text-[10px] leading-relaxed text-zinc-500">{animation.description}</span>
+                            <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{animation.description}</span>
                           </ConfigChoiceButton>
                         ))}
                       </div>
@@ -552,20 +567,20 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Atmosphere</div>
+                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Atmosphere</div>
                       <div className="grid grid-cols-2 gap-1.5">
                         {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
                           <ConfigChoiceButton key={atmosphere.id} type="button" selected={widgetThemeOverride.atmosphere === atmosphere.id}
                             onClick={() => { setWidgetThemeOverride((prev) => ({ ...prev, atmosphere: atmosphere.id })); setSaved(false) }}
                             className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
                             <span className="text-[11px] font-semibold leading-none">{atmosphere.label}</span>
-                            <span className="text-[10px] leading-relaxed text-zinc-500">{atmosphere.description}</span>
+                            <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{atmosphere.description}</span>
                           </ConfigChoiceButton>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Chrome</div>
+                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Chrome</div>
                       <div className="space-y-1.5">
                         <Slider label="Opacity" value={Math.round(widgetThemeOverride.shellOpacity * 100)} min={10} max={100} step={5} unit="%"
                           onChange={(value) => { setWidgetThemeOverride((prev) => ({ ...prev, shellOpacity: value / 100 })); setSaved(false) }} />
@@ -576,19 +591,19 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                       </div>
                     </div>
                     <div className="flex justify-end">
-                      <Btn type="button" onClick={() => { setWidgetThemeOverride(structuredClone(desktopConfig.globalThemeDefault.widgetTheme)); setSaved(false) }} className="px-2 py-1 text-[10px]">
+                      <Button variant="secondary" size="sm" onClick={() => { setWidgetThemeOverride(structuredClone(desktopConfig.globalThemeDefault.widgetTheme)); setSaved(false) }}>
                         Copy Desktop Theme
-                      </Btn>
+                      </Button>
                     </div>
                   </div>
                 </>
               ) : (
-                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-500">
+                <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-muted)]">
                   This widget currently inherits the shared desktop widget theme from the Desktop environment editor.
                 </div>
               )}
             </div>
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
         {isStickyNotesWidget && (
@@ -602,22 +617,22 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
         )}
 
         {form.appType === 'widget' && widgetComponent === 'camera' && (
-          <ConfigSectionPanel label="Camera Defaults">
+          <ConfigPanel title="Camera Defaults" className="mb-4">
             <div className="space-y-3">
-              <div className="text-[10px] text-zinc-400">
-                Configure the camera for this widget. The widget displays video only — no controls. Open OBS with <span className="font-mono text-zinc-300">?obs=1</span> in the browser source URL.
+              <div className="text-[10px] text-[var(--color-text-secondary)]">
+                Configure the camera for this widget. The widget displays video only — no controls. Open OBS with <span className="font-mono text-[var(--color-text-primary)]">?obs=1</span> in the browser source URL.
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <div className="text-[10px] text-zinc-500">Camera device</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)]">Camera device</div>
                   {!cameraLabelsGranted && (
-                    <Btn type="button" disabled={detectingCameras} onClick={() => void enumerateCameras(true)} className="px-2 py-0.5 text-[10px]">
+                    <Button variant="secondary" size="sm" disabled={detectingCameras} onClick={() => void enumerateCameras(true)}>
                       {detectingCameras ? 'Detecting...' : '🔓 Get real names'}
-                    </Btn>
+                    </Button>
                   )}
                 </div>
                 {detectingCameras && detectedCameras.length === 0 ? (
-                  <div className="text-[10px] text-zinc-500 italic">Detecting devices...</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] italic">Detecting devices...</div>
                 ) : (
                   <select value={form.cameraSettings?.preferredDeviceLabel ?? ''}
                     onChange={(e) => update((d) => { d.cameraSettings = { ...(d.cameraSettings ?? {}), preferredDeviceLabel: e.target.value } })}
@@ -629,7 +644,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                     )}
                   </select>
                 )}
-                <div className="text-[10px] text-zinc-600 mt-1">
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-1">
                   {!cameraLabelsGranted && detectedCameras.length > 0
                     ? 'Generic names — click "Get real names" to see actual system labels.'
                     : 'The label is saved on the server. OBS uses it to find the same camera automatically.'}
@@ -638,20 +653,20 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
               <div className="flex items-center gap-2">
                 <input id={`cam-mirror-${form.id}`} type="checkbox" checked={form.cameraSettings?.mirror ?? false}
                   onChange={(e) => update((d) => { d.cameraSettings = { ...(d.cameraSettings ?? {}), mirror: e.target.checked } })} />
-                <label htmlFor={`cam-mirror-${form.id}`} className="text-[11px] text-zinc-300 cursor-pointer">Mirror (flip horizontally)</label>
+                <label htmlFor={`cam-mirror-${form.id}`} className="text-[11px] text-[var(--color-text-primary)] cursor-pointer">Mirror (flip horizontally)</label>
               </div>
             </div>
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
         {form.appType === 'widget' && widgetComponent === 'source' && (
-          <ConfigSectionPanel label="Source Binding">
+          <ConfigPanel title="Source Binding" className="mb-4">
             <div className="space-y-3">
-              <div className="text-[10px] text-zinc-400">
+              <div className="text-[10px] text-[var(--color-text-secondary)]">
                 Source widgets render one scene source inside a desktop window. Bind this widget to any configured source and change it later without recreating the widget.
               </div>
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Scene</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Scene</div>
                 <select value={selectedSourceSceneId}
                   onChange={(e) => update((d) => {
                     const nextSceneId = e.target.value
@@ -667,7 +682,7 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                 </select>
               </div>
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Source</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Source</div>
                 <select value={form.sourceWidgetSettings?.sourceId ?? ''}
                   onChange={(e) => update((d) => { d.sourceWidgetSettings = { sceneId: d.sourceWidgetSettings?.sceneId ?? '', sourceId: e.target.value } })}
                   disabled={!selectedSourceSceneId || availableSources.length === 0}
@@ -679,43 +694,43 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                 </select>
               </div>
               {availableSourceScenes.length === 0 && (
-                <div className="text-[10px] text-amber-300 leading-relaxed">No scene sources are configured yet. Add a source to any scene, then bind this widget to it.</div>
+                <div className="text-[10px] text-[var(--color-accent-300)] leading-relaxed">No scene sources are configured yet. Add a source to any scene, then bind this widget to it.</div>
               )}
               {selectedSourceSceneId && availableSources.length === 0 && (
-                <div className="text-[10px] text-zinc-600">This scene currently has no sources to bind.</div>
+                <div className="text-[10px] text-[var(--color-text-muted)]">This scene currently has no sources to bind.</div>
               )}
               {selectedSource && selectedSourceScene && (
-                <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 space-y-1">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Current Binding</div>
-                  <div className="text-[11px] text-zinc-200">{selectedSourceScene.label}</div>
-                  <div className="text-[10px] text-zinc-400 font-mono">{selectedSource.id} · {selectedSourceResolved?.pluginType ?? 'unbound'}</div>
+                <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 space-y-1">
+                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">Current Binding</div>
+                  <div className="text-[11px] text-[var(--color-text-primary)]">{selectedSourceScene.label}</div>
+                  <div className="text-[10px] text-[var(--color-text-secondary)] font-mono">{selectedSource.id} · {selectedSourceResolved?.pluginType ?? 'unbound'}</div>
                 </div>
               )}
             </div>
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
         {supportsSceneTransitions && (
-          <ConfigSectionPanel label="Launch Pipeline">
-            <div className="text-[10px] text-zinc-500 mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
-            <Toggle checked={!!form.launchPipeline} label="Enable"
+          <ConfigPanel title="Launch Pipeline" className="mb-4">
+            <div className="text-[10px] text-[var(--color-text-muted)] mb-2">Effects fired before the scene change. Fires in order, each with its own delay.</div>
+            <Toggle checked={!!form.launchPipeline} label="Enable" size="sm"
               onChange={(v) => update((d) => { d.launchPipeline = v ? { effects: [], delayMs: 0 } : undefined })} />
             {form.launchPipeline && (
               <div className="mt-3 space-y-3">
                 <Slider label="Scene change delay (ms)" value={form.launchPipeline.delayMs} min={0} max={5000} step={100}
                   onChange={(v) => update((d) => { if (d.launchPipeline) d.launchPipeline.delayMs = v })} />
                 <div>
-                  <div className="text-[10px] text-zinc-500 mb-1">Effects</div>
-                  {form.launchPipeline.effects.length === 0 && <div className="text-[10px] text-zinc-600 italic">No effects added.</div>}
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Effects</div>
+                  {form.launchPipeline.effects.length === 0 && <div className="text-[10px] text-[var(--color-text-muted)] italic">No effects added.</div>}
                   {form.launchPipeline.effects.map((eff, i) => (
-                    <div key={i} className="flex items-center gap-2 py-1 border-b border-zinc-700/40">
-                      <span className="flex-1 text-[11px] font-mono text-zinc-300">{eff.type}</span>
+                    <div key={i} className="flex items-center gap-2 py-1 border-b border-[var(--color-border-default)]">
+                      <span className="flex-1 text-[11px] font-mono text-[var(--color-text-primary)]">{eff.type}</span>
                       <input type="number" min={0} max={10} step={0.1} value={eff.delay ?? 0}
                         onChange={(e) => update((d) => { if (!d.launchPipeline) return; d.launchPipeline.effects[i] = { ...d.launchPipeline.effects[i], delay: Number(e.target.value) } })}
                         className="w-16 font-mono text-xs" title="Delay (s)" />
-                      <span className="text-[9px] text-zinc-600">s</span>
+                      <span className="text-[9px] text-[var(--color-text-muted)]">s</span>
                       <button onClick={() => update((d) => { if (!d.launchPipeline) return; d.launchPipeline.effects.splice(i, 1) })}
-                        className="text-[10px] text-red-500 hover:text-red-300 px-1">✕</button>
+                        className="text-[10px] text-[var(--color-danger-500)] hover:text-[var(--color-danger-400)] px-1">✕</button>
                     </div>
                   ))}
                   <select defaultValue="" onChange={(e) => {
@@ -730,28 +745,28 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
                 </div>
               </div>
             )}
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
         {form.appType === 'widget' && form.id === 'gallery' && (
-          <ConfigSectionPanel label="Gallery Settings">
+          <ConfigPanel title="Gallery Settings" className="mb-4">
             <div className="space-y-3">
-              <Toggle checked={form.gallerySettings?.randomOrder ?? true} label="Random order"
+              <Toggle checked={form.gallerySettings?.randomOrder ?? true} label="Random order" size="sm"
                 onChange={(v) => update((d) => { d.gallerySettings = { randomOrder: v, autoPlay: d.gallerySettings?.autoPlay ?? false, intervalSec: d.gallerySettings?.intervalSec ?? 8 } })} />
-              <Toggle checked={form.gallerySettings?.autoPlay ?? false} label="Auto play"
+              <Toggle checked={form.gallerySettings?.autoPlay ?? false} label="Auto play" size="sm"
                 onChange={(v) => update((d) => { d.gallerySettings = { randomOrder: d.gallerySettings?.randomOrder ?? true, autoPlay: v, intervalSec: d.gallerySettings?.intervalSec ?? 8 } })} />
               <div>
-                <div className="text-[10px] text-zinc-500 mb-1">Auto interval (seconds)</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Auto interval (seconds)</div>
                 <input type="number" min={2} max={120} value={form.gallerySettings?.intervalSec ?? 8}
                   onChange={(e) => update((d) => { d.gallerySettings = { randomOrder: d.gallerySettings?.randomOrder ?? true, autoPlay: d.gallerySettings?.autoPlay ?? false, intervalSec: Math.max(2, Math.min(120, Number(e.target.value) || 8)) } })}
                   className="w-24 font-mono text-xs" />
-                <div className="text-[10px] text-zinc-600 mt-1">Playback controls in overlay use Previous / Play / Next.</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-1">Playback controls in overlay use Previous / Play / Next.</div>
               </div>
             </div>
-          </ConfigSectionPanel>
+          </ConfigPanel>
         )}
 
-        <ConfigSectionPanel label="Application Model">
+        <ConfigPanel title="Application Model" className="mb-4">
           <div className="space-y-3">
             <div className="grid gap-2 md:grid-cols-2">
               <ModelField field="id" value={form.id} mono />
@@ -771,14 +786,14 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
               )}
             </div>
           </div>
-        </ConfigSectionPanel>
+        </ConfigPanel>
       </div>
 
       <button onClick={onDelete} disabled={isProtectedSystemWidget}
         className={'text-xs px-2 py-1 rounded border transition-colors ' + (
           isProtectedSystemWidget
-            ? 'border-zinc-800 text-zinc-600 cursor-not-allowed'
-            : 'text-red-400 hover:text-red-300 border-red-900/50 hover:border-red-700'
+            ? 'border-[var(--color-border-default)] text-[var(--color-text-muted)] cursor-not-allowed'
+            : 'text-[var(--color-danger-400)] hover:text-[var(--color-danger-400)] border-[var(--color-danger-500)]/50 hover:border-[var(--color-danger-400)]'
         )}>
         {isProtectedSystemWidget ? 'Protected' : 'Remove'}
       </button>
