@@ -1,8 +1,8 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import type { SourcePreset } from '@ieom/shared'
 import { AssetSelectionInput } from './AssetLibrary'
 import { findSourceCatalogEntry, SOURCE_CATALOG, type CatalogEntry, type FieldDef } from '../../shared/sourceCatalog'
-import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput } from '../../shared/ui'
+import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
   return (
@@ -95,30 +95,16 @@ export function SourcePresetPreview({
 }: {
   preset: SourcePreset
   meta?: CatalogEntry
-  onPositionChange?: (position: { x: number; y: number }) => void
+  onPositionChange?: (position: { x: number; y: number; width: number; height: number }) => void
 }) {
   const config = preset.config ?? {}
   const opacityValue = Math.max(0, Math.min(1, Number(config.opacity ?? 1)))
-  const stageRef = useRef<HTMLDivElement | null>(null)
-  const [dragState, setDragState] = useState<{
-    pointerId: number
-    startClientX: number
-    startClientY: number
-    startX: number
-    startY: number
-  } | null>(null)
   const sourcePosition = {
     x: Math.max(0, Math.min(1920, Number(preset.defaultPosition?.x ?? 0))),
     y: Math.max(0, Math.min(1080, Number(preset.defaultPosition?.y ?? 0))),
     width: Math.max(80, Math.min(1920, Number(preset.defaultPosition?.width ?? 1920))),
     height: Math.max(48, Math.min(1080, Number(preset.defaultPosition?.height ?? 1080))),
   }
-  const previewFrameStyle = {
-    left: `${(sourcePosition.x / 1920) * 100}%`,
-    top: `${(sourcePosition.y / 1080) * 100}%`,
-    width: `${(sourcePosition.width / 1920) * 100}%`,
-    height: `${(sourcePosition.height / 1080) * 100}%`,
-  } as const
 
   let previewNode: ReactNode
 
@@ -242,72 +228,28 @@ export function SourcePresetPreview({
       )
   }
 
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!onPositionChange) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setDragState({
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: sourcePosition.x,
-      startY: sourcePosition.y,
-    })
-  }
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState || dragState.pointerId !== event.pointerId || !onPositionChange || !stageRef.current) return
-    const rect = stageRef.current.getBoundingClientRect()
-    if (!rect.width || !rect.height) return
-
-    const deltaX = ((event.clientX - dragState.startClientX) / rect.width) * 1920
-    const deltaY = ((event.clientY - dragState.startClientY) / rect.height) * 1080
-    const nextX = Math.max(0, Math.min(1920 - sourcePosition.width, Math.round(dragState.startX + deltaX)))
-    const nextY = Math.max(0, Math.min(1080 - sourcePosition.height, Math.round(dragState.startY + deltaY)))
-    onPositionChange({ x: nextX, y: nextY })
-  }
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragState?.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    setDragState(null)
-  }
+  const canvasItem = { id: 'source', ...sourcePosition }
 
   return (
     <div className="space-y-3">
-      <div ref={stageRef} className="relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
-        <div className="absolute left-3 top-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 text-[10px] text-zinc-300">
-          {meta?.icon ?? '▣'} {meta?.label ?? preset.pluginType}
-        </div>
-        <div className="absolute bottom-3 right-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 font-mono text-[10px] text-zinc-300">
-          {Math.round(preset.defaultPosition?.width ?? 1920)} x {Math.round(preset.defaultPosition?.height ?? 1080)}
-        </div>
-        <div className="absolute bottom-3 left-3 z-10 rounded-full border border-zinc-700/80 bg-zinc-950/75 px-2 py-1 font-mono text-[10px] text-zinc-300">
-          {Math.round(sourcePosition.x)}, {Math.round(sourcePosition.y)}
-        </div>
-        <div
-          className={'absolute overflow-hidden rounded-xl border border-cyan-400/35 bg-zinc-950/35 shadow-[0_0_0_1px_rgba(34,211,238,0.1),0_12px_32px_rgba(2,6,23,0.4)] ' + (onPositionChange ? (dragState ? 'cursor-grabbing' : 'cursor-grab') : '')}
-          style={previewFrameStyle}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        >
-          <div className="absolute inset-0">{previewNode}</div>
-          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
-        </div>
-      </div>
+      <OverlayCanvas
+        items={[canvasItem]}
+        selectedId="source"
+        onChange={onPositionChange ? (_, patch) => onPositionChange({ ...sourcePosition, ...patch }) : undefined}
+        readonly={!onPositionChange}
+        renderItem={() => (
+          <>
+            <div className="absolute inset-0">{previewNode}</div>
+            <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
+          </>
+        )}
+      />
       <div className="grid gap-2 text-[10px] text-zinc-500 sm:grid-cols-3">
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">x: {Math.round(preset.defaultPosition?.x ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">y: {Math.round(preset.defaultPosition?.y ?? 0)}</div>
-        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2">label: {preset.label || meta?.label || 'Draft'}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">x: {Math.round(sourcePosition.x)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">y: {Math.round(sourcePosition.y)}</div>
+        <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">{Math.round(sourcePosition.width)} × {Math.round(sourcePosition.height)}</div>
       </div>
-      <div className="text-[10px] text-zinc-500">Drag the preview frame to update x and y.</div>
+      <div className="text-[10px] text-zinc-500">Drag to move · Corner handles to resize</div>
     </div>
   )
 }
@@ -350,7 +292,7 @@ export function SourcesTabSidebar({
               key={preset.id}
               type="button"
               onClick={() => onSelectSourcePreset(preset.id)}
-              className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
+              className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
                 active
                   ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
                   : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
@@ -427,7 +369,7 @@ export function SourcesTabContent({
           </ConfigCard>
 
           <ConfigCard className="space-y-4 p-5 sm:p-6">
-            <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-4 py-3">
+            <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-5 py-4">
               <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Editor</div>
               <div className="text-xs text-zinc-500">Primary source preset authoring card.</div>
             </div>
@@ -437,25 +379,25 @@ export function SourcesTabContent({
                 <ConfigSectionPanel label="Preset Summary" first>
                   <div className="space-y-3">
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Label</span>
                           <span className="truncate text-right font-semibold text-zinc-100">{editingSourcePreset.label}</span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Preset Id</span>
                           <span className="truncate text-right font-semibold text-zinc-100">{sourcePresetOriginalId ?? 'Draft until saved'}</span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Type</span>
                           <span className="truncate text-right font-semibold text-zinc-100">{selectedSourceMeta.label}</span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
                         <div className="flex items-baseline justify-between gap-3 text-[11px]">
                           <span className="text-zinc-500">Used In Scenes</span>
                           <span className="text-right font-semibold text-zinc-100">{selectedSourceUsageCount}</span>
@@ -463,7 +405,7 @@ export function SourcesTabContent({
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                       Review the selected draft details and configure the preset below.
                     </div>
                   </div>
@@ -498,7 +440,7 @@ export function SourcesTabContent({
                         className="w-full text-sm"
                       />
                     </div>
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                       {sourceDraftCreatesNewPreset
                         ? 'Saving will create a new preset because this label differs from the saved source.'
                         : 'Saving will update the currently selected preset.'}
@@ -554,12 +496,8 @@ export function SourcesTabContent({
               <SourcePresetPreview
                 preset={editingSourcePreset}
                 meta={selectedSourceMeta}
-                onPositionChange={({ x, y }) => patchSourcePresetDraft({
-                  defaultPosition: {
-                    ...(editingSourcePreset.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }),
-                    x,
-                    y,
-                  },
+                onPositionChange={({ x, y, width, height }) => patchSourcePresetDraft({
+                  defaultPosition: { x, y, width, height },
                 })}
               />
             </ConfigSectionPanel>

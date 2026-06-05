@@ -77,9 +77,9 @@ export interface SchedulerEventDiagnostics {
 }
 
 export interface SchedulerDiagnosticsPayload {
-  tickMs: number
+  nextFireAt: number | null
   currentState: STATE
-  lastEvaluatedAt: number | null
+  lastProcessedAt: number | null
   lastActivityAt: number
   lastTriggeredEventId: string | null
   lastTriggeredAt: number | null

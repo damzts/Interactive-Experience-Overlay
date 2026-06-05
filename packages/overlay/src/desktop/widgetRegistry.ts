@@ -1,27 +1,5 @@
 import type { ComponentType } from 'react'
 import type { Application, WidgetComponentType } from '@ieom/shared'
-import { ArchiveWidget } from './ArchiveWidget'
-import { BroadcastSchedulerWidget } from './BroadcastSchedulerWidget'
-import { CDRipperWidget } from './CDRipperWidget'
-import { CameraWidget } from './CameraWidget'
-import { OnlineStreamWidget } from './OnlineStreamWidget'
-import { ChatWidget } from './ChatWidget'
-import { CityNavigatorWidget } from './CityNavigatorWidget'
-import { ClockTowerWidget } from './ClockTowerWidget'
-import { EqualizerRackWidget } from './EqualizerRackWidget'
-import { GalleryWidget } from './GalleryWidget'
-import { LCDDolphinsWidget } from './LCDDolphinsWidget'
-import { MediaDeckWidget } from './MediaDeckWidget'
-import { MusicWidget } from './MusicWidget'
-import { NetMeterWidget } from './NetMeterWidget'
-import { NewswireDeskWidget } from './NewswireDeskWidget'
-import { PlaylistDeckWidget } from './PlaylistDeckWidget'
-import { SignalLabWidget } from './SignalLabWidget'
-import { SourceWidget } from './SourceWidget'
-import { SpectrumAnalyzerWidget } from './SpectrumAnalyzerWidget'
-import { StickyNotesWidget } from './StickyNotesWidget'
-import { WaveScopeWidget } from './WaveScopeWidget'
-import { WeatherConsoleWidget } from './WeatherConsoleWidget'
 
 export interface DesktopWidgetProps {
   appId?: string
@@ -37,48 +15,78 @@ export interface DesktopWidgetProps {
 type RegisteredWidgetComponentType = Exclude<WidgetComponentType, 'generic'>
 type DesktopWidgetRenderer = ComponentType<DesktopWidgetProps>
 
-const desktopWidgetRegistry = new Map<RegisteredWidgetComponentType, DesktopWidgetRenderer>()
+/** Lazy import manifest — each entry dynamically imports the module and extracts the named export. */
+const widgetManifest: Record<RegisteredWidgetComponentType, () => Promise<DesktopWidgetRenderer>> = {
+  'archive':             () => import('./ArchiveWidget').then((m) => m.ArchiveWidget),
+  'broadcast-scheduler': () => import('./BroadcastSchedulerWidget').then((m) => m.BroadcastSchedulerWidget),
+  'cd-ripper':           () => import('./CDRipperWidget').then((m) => m.CDRipperWidget),
+  'camera':              () => import('./CameraWidget').then((m) => m.CameraWidget),
+  'online-stream':       () => import('./OnlineStreamWidget').then((m) => m.OnlineStreamWidget),
+  'chat':                () => import('./ChatWidget').then((m) => m.ChatWidget),
+  'city-navigator':      () => import('./CityNavigatorWidget').then((m) => m.CityNavigatorWidget),
+  'clock-tower':         () => import('./ClockTowerWidget').then((m) => m.ClockTowerWidget),
+  'equalizer-rack':      () => import('./EqualizerRackWidget').then((m) => m.EqualizerRackWidget),
+  'gallery':             () => import('./GalleryWidget').then((m) => m.GalleryWidget),
+  'lcd-dolphins':        () => import('./LCDDolphinsWidget').then((m) => m.LCDDolphinsWidget),
+  'media-deck':          () => import('./MediaDeckWidget').then((m) => m.MediaDeckWidget),
+  'music':               () => import('./MusicWidget').then((m) => m.MusicWidget),
+  'net-meter':           () => import('./NetMeterWidget').then((m) => m.NetMeterWidget),
+  'newswire-desk':       () => import('./NewswireDeskWidget').then((m) => m.NewswireDeskWidget),
+  'playlist-deck':       () => import('./PlaylistDeckWidget').then((m) => m.PlaylistDeckWidget),
+  'signal-lab':          () => import('./SignalLabWidget').then((m) => m.SignalLabWidget),
+  'source':              () => import('./SourceWidget').then((m) => m.SourceWidget),
+  'spectrum-analyzer':   () => import('./SpectrumAnalyzerWidget').then((m) => m.SpectrumAnalyzerWidget),
+  'sticky-notes':        () => import('./StickyNotesWidget').then((m) => m.StickyNotesWidget),
+  'wave-scope':          () => import('./WaveScopeWidget').then((m) => m.WaveScopeWidget),
+  'weather-console':     () => import('./WeatherConsoleWidget').then((m) => m.WeatherConsoleWidget),
+}
+
+/** Cache of resolved components, populated on first use. */
+const resolvedCache = new Map<RegisteredWidgetComponentType, DesktopWidgetRenderer>()
 const missingWidgetWarnings = new Set<string>()
 
-export function registerDesktopWidget(componentType: RegisteredWidgetComponentType, component: DesktopWidgetRenderer) {
-  desktopWidgetRegistry.set(componentType, component)
-}
-
-export function getDesktopWidgetRenderer(componentType?: WidgetComponentType | null) {
+/** Load and cache a widget component. Returns null for unknown/generic types. */
+export async function loadDesktopWidget(componentType: WidgetComponentType): Promise<DesktopWidgetRenderer | null> {
   if (!componentType || componentType === 'generic') return null
-  return desktopWidgetRegistry.get(componentType) ?? null
+  const type = componentType as RegisteredWidgetComponentType
+
+  const cached = resolvedCache.get(type)
+  if (cached) return cached
+
+  const factory = widgetManifest[type]
+  if (!factory) return null
+
+  const component = await factory()
+  resolvedCache.set(type, component)
+  return component
 }
 
-export function warnMissingDesktopWidgetRegistration(app: Pick<Application, 'id' | 'label' | 'appType' | 'widgetComponent'>, componentType?: WidgetComponentType | null) {
+/**
+ * Synchronous lookup for already-loaded widgets.
+ * Returns null if the widget hasn't been loaded yet — use loadDesktopWidget() to trigger the load.
+ */
+export function getDesktopWidgetRenderer(componentType?: WidgetComponentType | null): DesktopWidgetRenderer | null {
+  if (!componentType || componentType === 'generic') return null
+  return resolvedCache.get(componentType as RegisteredWidgetComponentType) ?? null
+}
+
+export function warnMissingDesktopWidgetRegistration(
+  app: Pick<Application, 'id' | 'label' | 'appType' | 'widgetComponent'>,
+  componentType?: WidgetComponentType | null,
+): boolean {
   if (app.appType !== 'widget' || !componentType || componentType === 'generic') return false
-
-  const warningKey = `${app.id}:${componentType}`
-  if (missingWidgetWarnings.has(warningKey)) return false
-
-  missingWidgetWarnings.add(warningKey)
-  console.warn(`[desktop] Missing widget registration for "${app.id}" (${app.label}) using component "${componentType}".`)
+  const key = `${app.id}:${componentType}`
+  if (missingWidgetWarnings.has(key)) return false
+  missingWidgetWarnings.add(key)
+  console.warn(`[desktop] Missing widget renderer for "${app.id}" (${app.label}) — "${componentType}" not yet loaded.`)
   return true
 }
 
-registerDesktopWidget('archive', ArchiveWidget)
-registerDesktopWidget('broadcast-scheduler', BroadcastSchedulerWidget)
-registerDesktopWidget('cd-ripper', CDRipperWidget)
-registerDesktopWidget('camera', CameraWidget)
-registerDesktopWidget('online-stream', OnlineStreamWidget)
-registerDesktopWidget('chat', ChatWidget)
-registerDesktopWidget('city-navigator', CityNavigatorWidget)
-registerDesktopWidget('clock-tower', ClockTowerWidget)
-registerDesktopWidget('equalizer-rack', EqualizerRackWidget)
-registerDesktopWidget('gallery', GalleryWidget)
-registerDesktopWidget('lcd-dolphins', LCDDolphinsWidget)
-registerDesktopWidget('media-deck', MediaDeckWidget)
-registerDesktopWidget('music', MusicWidget)
-registerDesktopWidget('net-meter', NetMeterWidget)
-registerDesktopWidget('newswire-desk', NewswireDeskWidget)
-registerDesktopWidget('playlist-deck', PlaylistDeckWidget)
-registerDesktopWidget('signal-lab', SignalLabWidget)
-registerDesktopWidget('source', SourceWidget)
-registerDesktopWidget('spectrum-analyzer', SpectrumAnalyzerWidget)
-registerDesktopWidget('sticky-notes', StickyNotesWidget)
-registerDesktopWidget('wave-scope', WaveScopeWidget)
-registerDesktopWidget('weather-console', WeatherConsoleWidget)
+/** Pre-warm the registry for a set of widget types. Call this after config loads. */
+export function preloadWidgets(componentTypes: WidgetComponentType[]): void {
+  for (const type of componentTypes) {
+    if (type !== 'generic' && widgetManifest[type as RegisteredWidgetComponentType] && !resolvedCache.has(type as RegisteredWidgetComponentType)) {
+      void loadDesktopWidget(type)
+    }
+  }
+}

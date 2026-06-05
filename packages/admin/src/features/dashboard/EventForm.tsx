@@ -180,7 +180,7 @@ export function EventForm({
         <div className="space-y-0 sticky top-0">
           {!def.builtIn && (
             <ConfigSectionPanel label="Identity" first>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
                   <div className="text-[10px] text-zinc-400 mb-1">Label</div>
                   <input type="text" value={def.label} onChange={(e) => update((d) => { d.label = e.target.value })} className="w-full" />
@@ -242,7 +242,7 @@ export function EventForm({
 
         <div className="space-y-0">
           <ConfigSectionPanel label="Runtime Actions" first>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 {COMMON_EVENT_ACTION_KINDS.map((kind) => (
                   <button key={kind} type="button" onClick={() => addAction(kind)}
@@ -335,7 +335,7 @@ export function EventForm({
                   )}
                   {action.kind === 'widget-layout' && (
                     <div className="space-y-2">
-                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-3 py-2">
+                      <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
                         <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s"
                           onChange={(value) => updateAction(index, (draft) => { if (draft.kind !== 'widget-layout') return; draft.timeoutSeconds = value })} />
                       </div>
@@ -405,7 +405,7 @@ export function EventForm({
           </ConfigSectionPanel>
 
           <ConfigSectionPanel label="Effects">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 {COMMON_EVENT_EFFECT_TYPES.map((type) => (
                   <button key={type} type="button" onClick={() => addEffect(type)}

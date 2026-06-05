@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join Stream</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0f0;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 1.5rem;
+    }
+    h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.02em }
+    video {
+      width: min(360px, 100%);
+      aspect-ratio: 16/9;
+      background: #111;
+      border-radius: 8px;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror preview */
+    }
+    #status {
+      font-size: 0.85rem;
+      color: #888;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    #status.connected { color: #4caf50 }
+    #status.error { color: #ef5350 }
+    button {
+      padding: 0.7rem 2rem;
+      border: none;
+      border-radius: 6px;
+      background: #3b5bdb;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #4c6ef5 }
+    button:disabled { background: #333; color: #666; cursor: default }
+    .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center }
+    select {
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #181820;
+      color: #e0e0f0;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Join Stream</h1>
+  <video id="preview" autoplay muted playsinline></video>
+  <div class="controls">
+    <select id="camera-select"><option>Loading cameras…</option></select>
+    <button id="join-btn">Join</button>
+    <button id="leave-btn" disabled>Leave</button>
+  </div>
+  <div id="status">Ready</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const preview = document.getElementById('preview')
+    const statusEl = document.getElementById('status')
+    const joinBtn = document.getElementById('join-btn')
+    const leaveBtn = document.getElementById('leave-btn')
+    const cameraSelect = document.getElementById('camera-select')
+
+    let localStream = null
+    let pc = null
+    let socket = null
+
+    function setStatus(msg, kind = '') {
+      statusEl.textContent = msg
+      statusEl.className = kind
+    }
+
+    // Enumerate cameras
+    async function populateCameras() {
+      try {
+        // Need a temporary permission grant to enumerate labels
+        const tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        tmp.getTracks().forEach(t => t.stop())
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const cameras = devices.filter(d => d.kind === 'videoinput')
+        cameraSelect.innerHTML = cameras.map((d, i) =>
+          `<option value="${d.deviceId}">${d.label || `Camera ${i + 1}`}</option>`
+        ).join('')
+      } catch (e) {
+        cameraSelect.innerHTML = '<option value="">Default camera</option>'
+      }
+    }
+
+    populateCameras()
+
+    async function startPreview() {
+      const deviceId = cameraSelect.value
+      if (localStream) localStream.getTracks().forEach(t => t.stop())
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+        audio: true,
+      })
+      preview.srcObject = localStream
+    }
+
+    cameraSelect.addEventListener('change', () => {
+      if (localStream) startPreview()
+    })
+
+    joinBtn.addEventListener('click', async () => {
+      joinBtn.disabled = true
+      setStatus('Requesting camera/mic…')
+      try {
+        await startPreview()
+        setStatus('Connecting to hub…')
+
+        socket = io('/join', { transports: ['websocket'] })
+
+        socket.on('connect', async () => {
+          setStatus('Creating WebRTC connection…')
+
+          pc = new RTCPeerConnection({ iceServers: [] }) // No STUN needed on LAN
+
+          for (const track of localStream.getTracks()) {
+            pc.addTrack(track, localStream)
+          }
+
+          pc.onicecandidate = (e) => {
+            if (e.candidate) socket.emit('ice-candidate', e.candidate.toJSON())
+          }
+
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          socket.emit('offer', offer.sdp)
+        })
+
+        socket.on('answer', async (sdp) => {
+          await pc.setRemoteDescription({ type: 'answer', sdp })
+          setStatus('Connected', 'connected')
+          joinBtn.disabled = true
+          leaveBtn.disabled = false
+        })
+
+        socket.on('ice-candidate', async (candidate) => {
+          try { await pc.addIceCandidate(candidate) } catch {}
+        })
+
+        socket.on('error', (e) => {
+          setStatus(e.message || 'Connection failed', 'error')
+          cleanup()
+        })
+
+        socket.on('disconnect', () => {
+          setStatus('Disconnected')
+          cleanup()
+        })
+      } catch (err) {
+        setStatus(err.message || 'Failed to access camera', 'error')
+        joinBtn.disabled = false
+      }
+    })
+
+    leaveBtn.addEventListener('click', () => {
+      cleanup()
+      setStatus('Left')
+    })
+
+    function cleanup() {
+      if (pc) { pc.close(); pc = null }
+      if (socket) { socket.disconnect(); socket = null }
+      if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null }
+      preview.srcObject = null
+      joinBtn.disabled = false
+      leaveBtn.disabled = true
+    }
+  </script>
+</body>
+</html>

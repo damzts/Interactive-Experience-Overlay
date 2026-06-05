@@ -2,8 +2,6 @@ import type { SceneMachine } from '../state/machine.js'
 import { STATE } from '@ieom/shared'
 import type { AppConfig, EventConfig, SchedulerDiagnosticsPayload } from '@ieom/shared'
 
-const TICK_MS = 5_000
-
 function randBetween(minValue: number, maxValue: number) {
   return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue
 }
@@ -13,13 +11,20 @@ function jitterMs(minutes: number) {
   return randBetween(Math.floor(base * 0.8), Math.ceil(base * 1.2))
 }
 
+interface QueueEntry { eventId: string; fireAt: number }
+
 export class EventScheduler {
-  private tickTimer: ReturnType<typeof setInterval> | null = null
-  private lastActivityAt = Date.now()
-  private intervalNextRunAt = new Map<string, number>()
-  private lastTriggeredByEvent = new Map<string, number>()
+  // interval events: sorted priority queue + one timer
+  private queue: QueueEntry[] = []
+  private queueTimer: ReturnType<typeof setTimeout> | null = null
+
+  // idle events: one timer per event, cancelled on activity
+  private idleTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private idleTriggered = new Set<string>()
-  private lastEvaluatedAt: number | null = null
+
+  private lastActivityAt = Date.now()
+  private lastTriggeredByEvent = new Map<string, number>()
+  private lastProcessedAt: number | null = null
   private lastTriggeredAt: number | null = null
   private lastTriggeredEventId: string | null = null
   private diagnosticsListener?: (payload: SchedulerDiagnosticsPayload) => void
@@ -34,32 +39,111 @@ export class EventScheduler {
   noteActivity() {
     this.lastActivityAt = Date.now()
     this.idleTriggered.clear()
+    this.restartIdleTimers()
     this.emitDiagnostics()
   }
 
-  /** Call this when the server is ready to start scheduling. */
   start() {
     this.stop()
     this.lastActivityAt = Date.now()
-    this.lastEvaluatedAt = null
+    this.lastProcessedAt = null
     this.lastTriggeredAt = null
     this.lastTriggeredEventId = null
-    this.intervalNextRunAt.clear()
     this.lastTriggeredByEvent.clear()
     this.idleTriggered.clear()
-    this.tickTimer = setInterval(() => this.evaluateEvents(), TICK_MS)
-    this.evaluateEvents()
-    console.log('[scheduler] auto-event scheduler started')
+    this.buildQueue()
+    this.restartIdleTimers()
+    console.log('[scheduler] event scheduler started (ISR mode)')
   }
 
   stop() {
-    if (this.tickTimer) clearInterval(this.tickTimer)
-    this.tickTimer = null
+    if (this.queueTimer) { clearTimeout(this.queueTimer); this.queueTimer = null }
+    for (const t of this.idleTimers.values()) clearTimeout(t)
+    this.idleTimers.clear()
+    this.queue = []
     this.emitDiagnostics()
   }
 
+  // ── Queue helpers ────────────────────────────────────────────────
+
+  private buildQueue() {
+    if (this.queueTimer) { clearTimeout(this.queueTimer); this.queueTimer = null }
+    const now = Date.now()
+    this.queue = (this.getConfig().events ?? [])
+      .filter((e) => e.auto.enabled && e.auto.mode === 'interval' && this.eventHasWork(e))
+      .map((e) => ({ eventId: e.id, fireAt: now + jitterMs(e.auto.intervalMin) }))
+    this.queue.sort((a, b) => a.fireAt - b.fireAt)
+    this.armQueueTimer()
+  }
+
+  private armQueueTimer() {
+    if (this.queueTimer) { clearTimeout(this.queueTimer); this.queueTimer = null }
+    if (this.queue.length === 0) return
+    const delay = Math.max(0, this.queue[0].fireAt - Date.now())
+    this.queueTimer = setTimeout(() => this.processQueue(), delay)
+  }
+
+  private processQueue() {
+    this.queueTimer = null
+    if (this.machine.currentState === STATE.TRANSITIONING) {
+      this.armQueueTimer()
+      return
+    }
+    const now = Date.now()
+    this.lastProcessedAt = now
+    const events = this.getConfig().events ?? []
+    const eventMap = new Map(events.map((e) => [e.id, e]))
+
+    while (this.queue.length > 0 && this.queue[0].fireAt <= now) {
+      const entry = this.queue.shift()!
+      const eventDef = eventMap.get(entry.eventId)
+      if (!eventDef || !eventDef.auto.enabled || !this.eventHasWork(eventDef)) continue
+      if (!this.allowsCurrentState(eventDef) || this.isInCooldown(eventDef, now)) {
+        // reschedule without firing
+        this.queue.push({ eventId: entry.eventId, fireAt: now + jitterMs(eventDef.auto.intervalMin) })
+        continue
+      }
+      if (Math.random() <= eventDef.auto.chance) this.fireEvent(eventDef)
+      this.queue.push({ eventId: entry.eventId, fireAt: now + jitterMs(eventDef.auto.intervalMin) })
+    }
+
+    this.queue.sort((a, b) => a.fireAt - b.fireAt)
+    this.armQueueTimer()
+    this.emitDiagnostics()
+  }
+
+  // ── Idle timers ──────────────────────────────────────────────────
+
+  private restartIdleTimers() {
+    for (const t of this.idleTimers.values()) clearTimeout(t)
+    this.idleTimers.clear()
+    if (this.machine.currentState === STATE.TRANSITIONING) return
+
+    const events = this.getConfig().events ?? []
+    for (const eventDef of events) {
+      if (!eventDef.auto.enabled || eventDef.auto.mode !== 'idle' || !this.eventHasWork(eventDef)) continue
+      if (this.idleTriggered.has(eventDef.id)) continue
+      const delay = Math.max(1, eventDef.auto.idleMin) * 60_000
+      const t = setTimeout(() => this.fireIdleEvent(eventDef.id), delay)
+      this.idleTimers.set(eventDef.id, t)
+    }
+  }
+
+  private fireIdleEvent(eventId: string) {
+    this.idleTimers.delete(eventId)
+    if (this.machine.currentState === STATE.TRANSITIONING) return
+    const eventDef = (this.getConfig().events ?? []).find((e) => e.id === eventId)
+    if (!eventDef || !eventDef.auto.enabled || !this.eventHasWork(eventDef)) return
+    if (!this.allowsCurrentState(eventDef) || this.isInCooldown(eventDef, Date.now())) return
+    this.idleTriggered.add(eventId)
+    if (Math.random() <= eventDef.auto.chance) this.fireEvent(eventDef)
+    this.emitDiagnostics()
+  }
+
+  // ── Shared helpers ───────────────────────────────────────────────
+
   private fireEvent(eventDef: EventConfig) {
-const triggeredAt = Date.now()
+    const triggeredAt = Date.now()
     this.lastTriggeredEventId = eventDef.id
     this.lastTriggeredAt = triggeredAt
     this.lastTriggeredByEvent.set(eventDef.id, triggeredAt)
@@ -74,28 +158,30 @@ const triggeredAt = Date.now()
   private isInCooldown(eventDef: EventConfig, now: number) {
     const cooldownMs = Math.max(0, eventDef.auto.cooldownMin) * 60_000
     if (!cooldownMs) return false
-    const lastTriggeredAt = this.lastTriggeredByEvent.get(eventDef.id)
-    return lastTriggeredAt !== undefined && now - lastTriggeredAt < cooldownMs
+    const last = this.lastTriggeredByEvent.get(eventDef.id)
+    return last !== undefined && now - last < cooldownMs
   }
 
   private allowsCurrentState(eventDef: EventConfig) {
-    const allowedStates = eventDef.auto.allowedStates
-    if (!allowedStates?.length) return true
-    return allowedStates.includes(this.machine.currentState)
+    const allowed = eventDef.auto.allowedStates
+    if (!allowed?.length) return true
+    return allowed.includes(this.machine.currentState)
   }
+
+  // ── Diagnostics ──────────────────────────────────────────────────
 
   getDiagnostics(): SchedulerDiagnosticsPayload {
     const now = Date.now()
     const events = (this.getConfig().events ?? []).map((eventDef) => {
-      const nextRunAt = eventDef.auto.enabled && eventDef.auto.mode === 'interval'
-        ? (this.intervalNextRunAt.get(eventDef.id) ?? null)
+      const nextRunAt = eventDef.auto.mode === 'interval'
+        ? (this.queue.find((e) => e.eventId === eventDef.id)?.fireAt ?? null)
         : null
-      const idleThresholdMs = Math.max(1, eventDef.auto.idleMin) * 60_000
-      const due = eventDef.auto.enabled && this.eventHasWork(eventDef) && !this.isInCooldown(eventDef, now) && this.allowsCurrentState(eventDef) && (
-        eventDef.auto.mode === 'interval'
-          ? nextRunAt !== null && now >= nextRunAt
-          : !this.idleTriggered.has(eventDef.id) && now - this.lastActivityAt >= idleThresholdMs
-      )
+      const due = eventDef.auto.enabled && this.eventHasWork(eventDef) &&
+        !this.isInCooldown(eventDef, now) && this.allowsCurrentState(eventDef) && (
+          eventDef.auto.mode === 'interval'
+            ? nextRunAt !== null && now >= nextRunAt
+            : !this.idleTriggered.has(eventDef.id) && now - this.lastActivityAt >= Math.max(1, eventDef.auto.idleMin) * 60_000
+        )
 
       return {
         id: eventDef.id,
@@ -116,66 +202,18 @@ const triggeredAt = Date.now()
     })
 
     return {
-      tickMs: TICK_MS,
+      nextFireAt: this.queue[0]?.fireAt ?? null,
       currentState: this.machine.currentState,
-      lastEvaluatedAt: this.lastEvaluatedAt,
+      lastProcessedAt: this.lastProcessedAt,
       lastActivityAt: this.lastActivityAt,
       lastTriggeredEventId: this.lastTriggeredEventId,
       lastTriggeredAt: this.lastTriggeredAt,
-      activeEventCount: events.filter((eventDef) => eventDef.enabled).length,
+      activeEventCount: events.filter((e) => e.enabled).length,
       events,
     }
   }
 
   private emitDiagnostics() {
     this.diagnosticsListener?.(this.getDiagnostics())
-  }
-
-  private evaluateEvents() {
-    const now = Date.now()
-    this.lastEvaluatedAt = now
-    const events = this.getConfig().events ?? []
-    const activeIds = new Set(events.filter((eventDef) => eventDef.auto.enabled).map((eventDef) => eventDef.id))
-
-    for (const id of [...this.intervalNextRunAt.keys()]) {
-      if (!activeIds.has(id)) this.intervalNextRunAt.delete(id)
-    }
-    for (const id of [...this.idleTriggered]) {
-      if (!activeIds.has(id)) this.idleTriggered.delete(id)
-    }
-
-    if (this.machine.currentState === STATE.TRANSITIONING) {
-      this.emitDiagnostics()
-      return
-    }
-
-    events.forEach((eventDef) => {
-      if (!eventDef.auto.enabled || !this.eventHasWork(eventDef)) return
-      if (!this.allowsCurrentState(eventDef)) return
-      if (this.isInCooldown(eventDef, now)) return
-
-      if (eventDef.auto.mode === 'interval') {
-        const nextRun = this.intervalNextRunAt.get(eventDef.id) ?? (now + jitterMs(eventDef.auto.intervalMin))
-        if (!this.intervalNextRunAt.has(eventDef.id)) {
-          this.intervalNextRunAt.set(eventDef.id, nextRun)
-          return
-        }
-        if (now < nextRun) return
-        const passedChance = Math.random() <= eventDef.auto.chance
-        this.intervalNextRunAt.set(eventDef.id, now + jitterMs(eventDef.auto.intervalMin))
-        if (!passedChance) return
-        this.fireEvent(eventDef)
-        return
-      }
-
-      const idleThresholdMs = Math.max(1, eventDef.auto.idleMin) * 60_000
-      if (this.idleTriggered.has(eventDef.id)) return
-      if (now - this.lastActivityAt < idleThresholdMs) return
-      this.idleTriggered.add(eventDef.id)
-      if (Math.random() > eventDef.auto.chance) return
-      this.fireEvent(eventDef)
-    })
-
-    this.emitDiagnostics()
   }
 }

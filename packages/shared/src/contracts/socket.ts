@@ -5,6 +5,7 @@ import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { DesktopConfig } from '../domain/desktop.js'
 import type { EventConfig } from '../domain/event.js'
 import type { TransitionStep } from '../domain/scene.js'
+import type { WidgetLayoutItem } from '../domain/application.js'
 import type {
   CameraPermissionState,
   ObsStatusPayload,
@@ -226,6 +227,7 @@ export interface ServerToClientEvents {
   'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
   'widget:toggle': (widgetId: string) => void
   'widget:layout:apply': (layoutId: string) => void
+  'widget:layout:apply:items': (items: WidgetLayoutItem[]) => void
   'desktop:icon:drag': (payload: DesktopIconDragPayload) => void
   'desktop:widget:drag': (payload: DesktopWidgetDragPayload) => void
   'desktop:widget:resize': (payload: DesktopWidgetResizePayload) => void
@@ -258,6 +260,7 @@ export interface ClientToServerEvents {
   'widget:simulate': (widgetId: string) => void
   'widget:simulate:action': (payload: WidgetSimulationCommandPayload) => void
   'widget:layout:apply': (layoutId: string) => void
+  'widget:layout:apply:items': (items: WidgetLayoutItem[]) => void
   'desktop:icon:drag': (payload: DesktopIconDragPayload) => void
   'desktop:widget:drag': (payload: DesktopWidgetDragPayload) => void
   'desktop:widget:resize': (payload: DesktopWidgetResizePayload) => void

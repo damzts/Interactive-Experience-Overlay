@@ -26,7 +26,7 @@ import { CursorOverlayProvider } from './CursorOverlay'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
 import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
-import { DesktopWidgetProps, getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration } from './widgetRegistry'
+import { DesktopWidgetProps, getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets } from './widgetRegistry'
 import React from 'react';
 import { resolveSceneStyle } from '../services/SceneResolver.js'
 
@@ -576,20 +576,8 @@ export function Desktop({ apps }: DesktopProps) {
   }, [cameraPermissionState, overlayRuntimeReady, supportedApps])
 
   useEffect(() => {
-    if (!isSimulationLeader || !overlayRuntimeReady) return
-
-    const emitHeartbeat = () => {
-      socket.emit('ambiance:leader:heartbeat')
-    }
-
-    emitHeartbeat()
-    const timer = window.setInterval(emitHeartbeat, 2000)
-    socket.on('connect', emitHeartbeat)
-
-    return () => {
-      window.clearInterval(timer)
-      socket.off('connect', emitHeartbeat)
-    }
+    // With a single overlay slot, leadership is assigned on connect and held until disconnect.
+    // No heartbeat needed — the server clears the leader on socket disconnect.
   }, [isSimulationLeader, overlayRuntimeReady])
 
   useEffect(() => {
@@ -1478,6 +1466,18 @@ export function Desktop({ apps }: DesktopProps) {
       })
     })
   }, [enqueueDesktopNotification, visibleWidgets])
+
+  // Lazy-load widget components as they become visible.
+  // Forces a re-render once each component resolves so the real component replaces GenericWidget.
+  const [, forceUpdate] = React.useReducer((n: number) => n + 1, 0)
+  useEffect(() => {
+    let cancelled = false
+    const types = visibleWidgets.map((a) => getWidgetComponent(a)).filter(Boolean)
+    Promise.all(types.map((t) => loadDesktopWidget(t!))).then(() => {
+      if (!cancelled) forceUpdate()
+    })
+    return () => { cancelled = true }
+  }, [visibleWidgets])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

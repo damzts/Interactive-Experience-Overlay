@@ -83,11 +83,9 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
   alwaysShow?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-3 pt-3 pb-2 backdrop-blur-xl">
-      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
+    <div className="sticky top-0 z-20 -mx-5 -mt-5 mb-5 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-5 pt-5 pb-2 backdrop-blur-xl">
+      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-5 py-4.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/70">{label}</span>
-          <div className="flex-1" />
           <SaveBar
             dirty={dirty}
             saving={saving}
@@ -96,13 +94,14 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
             onRevert={onReset}
             alwaysShow={alwaysShow}
             showDivider={false}
+            className="w-full"
           />
         </div>
       </div>
     </div>
   );
 }
-import { useEffect, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
@@ -254,7 +253,7 @@ export function Panel({
   title,
   children,
   className = '',
-  bodyClassName = 'p-3',
+  bodyClassName = 'p-8',
 }: {
   title?: string
   children: ReactNode
@@ -285,13 +284,14 @@ export function ConfigSectionPanel({
   className?: string
 }) {
   return (
-    <section className={first ? 'px-0.5 pt-0.5' : 'mt-6 px-0.5'}>
-      <div className={first ? 'mb-2 px-0.5' : 'mb-2 border-t border-cyan-500/20 px-0.5 pt-2'}>
+    <section>
+      {!first && <hr style={{ border: 'none', borderTop: '1px solid rgba(34,211,238,0.2)', margin: '0 0 1.25rem 0' }} />}
+      <div style={{ marginBottom: '0.75rem' }}>
         <span className="admin-text-kicker inline-flex rounded-md border border-cyan-400/35 bg-cyan-500/12 px-2.5 py-0.5 font-semibold uppercase tracking-[0.22em] text-cyan-200">
           {label}
         </span>
       </div>
-      <Panel className={className} bodyClassName="p-2.5">{children}</Panel>
+      <Panel className={className} bodyClassName="p-8">{children}</Panel>
     </section>
   )
 }
@@ -317,7 +317,7 @@ export function ConfigPageIntro({
   className?: string
 }) {
   return (
-    <div className={`mb-4 rounded-2xl border border-cyan-500/18 bg-[linear-gradient(180deg,rgba(10,10,12,0.88),rgba(16,16,20,0.72))] px-4 py-3 shadow-[0_18px_54px_rgba(0,0,0,0.28)] backdrop-blur ${className}`.trim()}>
+    <div className={`mb-4 rounded-2xl border border-cyan-500/18 bg-[linear-gradient(180deg,rgba(10,10,12,0.88),rgba(16,16,20,0.72))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.28)] backdrop-blur ${className}`.trim()}>
       <div className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/80">{eyebrow}</div>
       <div className="admin-text-display mt-1 font-semibold text-zinc-100">{title}</div>
       <div className="admin-text-body mt-1 max-w-prose text-zinc-400">{children}</div>
@@ -335,7 +335,7 @@ export function ConfigNotice({
   className?: string
 }) {
   return (
-    <div className={`admin-text-body rounded-xl border px-3 py-2.5 shadow-[0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
+    <div className={`admin-text-body rounded-xl border px-5 py-4.5 shadow-[0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur ${CONFIG_NOTICE_TONES[tone]} ${className}`.trim()}>
       {children}
     </div>
   )
@@ -343,7 +343,7 @@ export function ConfigNotice({
 
 export function ConfigToolbar({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-wrap items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur ${className}`.trim()}>
+    <div className={`flex flex-wrap items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-5 py-4.5 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur ${className}`.trim()}>
       {children}
     </div>
   )
@@ -351,7 +351,7 @@ export function ConfigToolbar({ children, className = '' }: { children: ReactNod
 
 export function ConfigCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-white/8 bg-white/[0.03] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-sm ${className}`.trim()}>
+    <div className={`rounded-xl border border-white/8 bg-white/[0.03] p-8 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-sm ${className}`.trim()}>
       {children}
     </div>
   )
@@ -565,18 +565,219 @@ export function SaveBar({
 }) {
   if (!alwaysShow && !dirty && !saved) return null
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${showDivider ? 'mt-4 border-t border-white/8 pt-3' : ''} ${className}`.trim()}>
-      {saved && <span className="admin-text-body text-emerald-300">✔ Saved</span>}
+    <div className={`space-y-2 ${showDivider ? 'mt-4 border-t border-white/8 pt-3' : ''} ${className}`.trim()}>
       {(dirty || alwaysShow) && (
-        <>
-          <Btn variant={dirty || alwaysShow ? 'warning' : 'default'} onClick={onSave} disabled={saving} className="px-4 py-2 text-sm">
-            {saving ? 'Saving…' : 'Save Current as Default'}
-          </Btn>
-          {onRevert && (dirty || alwaysShow) && (
-            <Btn variant="primary" onClick={onRevert} disabled={!dirty}>Restore Defaults</Btn>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onSave} disabled={saving || !dirty}
+            className="flex flex-col items-center gap-1 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-4 text-amber-200 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 disabled:opacity-40">
+            <span className="text-lg">💾</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">{saving ? 'Saving…' : 'Save'}</span>
+            <span className="text-[9px] text-amber-300/60">Apply &amp; write to database</span>
+          </button>
+          {onRevert && (
+            <button type="button" onClick={onRevert} disabled={!dirty}
+              className="flex flex-col items-center gap-1 rounded-xl border border-zinc-600/40 bg-zinc-800/40 px-5 py-4 text-zinc-300 transition-colors hover:border-zinc-500/60 hover:bg-zinc-700/40 disabled:opacity-40">
+              <span className="text-lg">↩︎</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">Restore</span>
+              <span className="text-[9px] text-zinc-500">Revert unsaved changes</span>
+            </button>
           )}
-        </>
+        </div>
       )}
+      {saved && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4">
+          <span className="text-base">✅</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Saved successfully</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── OverlayCanvas ─────────────────────────────────────────────────────
+// Generic drag+resize canvas. Items are positioned in 1920×1080 space.
+// Use this for any editable overlay preview (widget layouts, sources, etc.)
+
+export interface OverlayCanvasItem {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+type CanvasCorner = 'nw' | 'ne' | 'sw' | 'se'
+
+export function OverlayCanvas<T extends OverlayCanvasItem>({
+  items,
+  selectedId,
+  onSelect,
+  onChange,
+  readonly = false,
+  renderItem,
+  emptyMessage,
+}: {
+  items: T[]
+  selectedId?: string | null
+  onSelect?: (id: string | null) => void
+  onChange?: (id: string, patch: Partial<Pick<T, 'x' | 'y' | 'width' | 'height'>>) => void
+  readonly?: boolean
+  renderItem?: (item: T, selected: boolean) => ReactNode
+  emptyMessage?: string
+}) {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState<{ id: string; pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number } | null>(null)
+  const [resizing, setResizing] = useState<{ id: string; corner: CanvasCorner; pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number; startW: number; startH: number } | null>(null)
+  const movedRef = useRef(false)
+
+  const getScale = () => {
+    const rect = stageRef.current?.getBoundingClientRect()
+    return rect ? { sx: 1920 / rect.width, sy: 1080 / rect.height } : { sx: 1, sy: 1 }
+  }
+
+  const CORNERS: { corner: CanvasCorner; style: React.CSSProperties }[] = [
+    { corner: 'nw', style: { top: 0, left: 0, cursor: 'nw-resize', transform: 'translate(-50%,-50%)' } },
+    { corner: 'ne', style: { top: 0, right: 0, cursor: 'ne-resize', transform: 'translate(50%,-50%)' } },
+    { corner: 'sw', style: { bottom: 0, left: 0, cursor: 'sw-resize', transform: 'translate(-50%,50%)' } },
+    { corner: 'se', style: { bottom: 0, right: 0, cursor: 'se-resize', transform: 'translate(50%,50%)' } },
+  ]
+
+  return (
+    <OverlayPreview stageRef={stageRef}>
+      {items.map((item) => {
+        const isSelected = selectedId === item.id
+        const isDragging = dragging?.id === item.id
+        return (
+          <OverlayPreviewItem
+            key={item.id}
+            x={item.x} y={item.y} width={item.width} height={item.height}
+            className={['rounded-lg border select-none',
+              isSelected ? 'border-cyan-400/60 bg-cyan-500/12 shadow-[0_0_0_1px_rgba(34,211,238,0.25)] z-10' : 'border-zinc-600/50 bg-zinc-900/40',
+              readonly ? 'cursor-default' : isDragging ? 'cursor-grabbing' : 'cursor-grab',
+            ].join(' ')}
+            onPointerDown={(e) => {
+              if (readonly || !onChange) return
+              e.preventDefault(); e.stopPropagation()
+              e.currentTarget.setPointerCapture(e.pointerId)
+              movedRef.current = false
+              onSelect?.(item.id)
+              setDragging({ id: item.id, pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startX: item.x, startY: item.y })
+            }}
+            onPointerMove={(e) => {
+              if (dragging?.id === item.id && dragging.pointerId === e.pointerId) {
+                const { sx, sy } = getScale()
+                const dx = (e.clientX - dragging.startClientX) * sx
+                const dy = (e.clientY - dragging.startClientY) * sy
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true
+                onChange?.(item.id, { x: Math.max(0, Math.min(1920 - item.width, Math.round(dragging.startX + dx))), y: Math.max(0, Math.min(1080 - item.height, Math.round(dragging.startY + dy))) } as any)
+              }
+              if (resizing?.id === item.id && resizing.pointerId === e.pointerId) {
+                const { sx, sy } = getScale()
+                const dx = (e.clientX - resizing.startClientX) * sx
+                const dy = (e.clientY - resizing.startClientY) * sy
+                const { corner, startX, startY, startW, startH } = resizing
+                let x = startX, y = startY, w = startW, h = startH
+                if (corner === 'se') { w = startW + dx; h = startH + dy }
+                if (corner === 'sw') { x = startX + dx; w = startW - dx; h = startH + dy }
+                if (corner === 'ne') { y = startY + dy; w = startW + dx; h = startH - dy }
+                if (corner === 'nw') { x = startX + dx; y = startY + dy; w = startW - dx; h = startH - dy }
+                onChange?.(item.id, { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)), width: Math.max(80, Math.min(1920, Math.round(w))), height: Math.max(48, Math.min(1080, Math.round(h))) } as any)
+              }
+            }}
+            onPointerUp={(e) => {
+              if (dragging?.pointerId === e.pointerId) { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); setDragging(null) }
+              if (resizing?.pointerId === e.pointerId) { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); setResizing(null) }
+              if (!movedRef.current) onSelect?.(isSelected ? null : item.id)
+            }}
+            onPointerCancel={() => { setDragging(null); setResizing(null) }}
+          >
+            {renderItem?.(item, isSelected)}
+            {isSelected && !readonly && CORNERS.map(({ corner, style }) => (
+              <div key={corner} style={{ position: 'absolute', width: 12, height: 12, borderRadius: 3, border: '2px solid rgba(34,211,238,0.8)', background: '#09090b', zIndex: 20, ...style }}
+                onPointerDown={(e) => {
+                  e.preventDefault(); e.stopPropagation()
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  setResizing({ id: item.id, corner, pointerId: e.pointerId, startClientX: e.clientX, startClientY: e.clientY, startX: item.x, startY: item.y, startW: item.width, startH: item.height })
+                }}
+              />
+            ))}
+          </OverlayPreviewItem>
+        )
+      })}
+      {items.length === 0 && emptyMessage && (
+        <div className="absolute inset-0 flex items-center justify-center text-[11px] text-zinc-600">{emptyMessage}</div>
+      )}
+    </OverlayPreview>
+  )
+}
+
+// ── OverlayPreview ────────────────────────────────────────────────────
+// Generic 16:9 stage (1920×1080 coordinate space). Renders children
+// as positioned items. Use OverlayPreviewItem to place content.
+
+export interface OverlayPreviewItemProps {
+  /** Position + size in 1920×1080 space */
+  x: number
+  y: number
+  width: number
+  height: number
+  children?: ReactNode
+  className?: string
+  style?: CSSProperties
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerCancel?: (e: React.PointerEvent<HTMLDivElement>) => void
+}
+
+export function OverlayPreviewItem({
+  x, y, width, height, children, className = '', style, ...handlers
+}: OverlayPreviewItemProps) {
+  return (
+    <div
+      className={`absolute overflow-hidden ${className}`}
+      style={{
+        left: `${(x / 1920) * 100}%`,
+        top: `${(y / 1080) * 100}%`,
+        width: `${(width / 1920) * 100}%`,
+        height: `${(height / 1080) * 100}%`,
+        ...style,
+      }}
+      {...handlers}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function OverlayPreview({
+  children,
+  className = '',
+  stageRef: externalRef,
+  resizable = false,
+}: {
+  children?: ReactNode
+  className?: string
+  stageRef?: React.RefObject<HTMLDivElement>
+  resizable?: boolean
+}) {
+  const internalRef = useRef<HTMLDivElement>(null)
+  const ref = externalRef ?? internalRef
+  const stage = (
+    <div
+      ref={ref}
+      className={`relative aspect-video overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${className}`}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_40%),linear-gradient(135deg,#111827,#020617)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '8.333% 11.111%' }} />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%)]" />
+      {children}
+    </div>
+  )
+  if (!resizable) return stage
+  return (
+    <div style={{ resize: 'horizontal', overflow: 'hidden', width: '60%', minWidth: '200px', maxWidth: '100%' }}>
+      {stage}
     </div>
   )
 }

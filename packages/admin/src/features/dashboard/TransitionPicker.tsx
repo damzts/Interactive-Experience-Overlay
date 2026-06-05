@@ -191,7 +191,7 @@ export function TransitionList({
   return (
     <div className="space-y-2">
       {steps.map((step, idx) => (
-        <div key={`${step.id}-${idx}`} className="flex items-start gap-2 rounded-lg border border-zinc-800/80 bg-zinc-950/50 px-3 py-2">
+        <div key={`${step.id}-${idx}`} className="flex items-start gap-2 rounded-lg border border-zinc-800/80 bg-zinc-950/50 px-5 py-4">
           <div className="min-w-0 flex-1">
             <select value={stepToStr(step)} onChange={(event) => updateStep(idx, event.target.value)} className="w-full text-xs">
               <option value="">-- Pick transition --</option>
@@ -222,7 +222,7 @@ export function TransitionList({
           Add
         </Btn>
       ) : (
-        <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[10px] text-zinc-500">
+        <div className="rounded border border-zinc-800 bg-zinc-900/40 px-5 py-4 text-[10px] text-zinc-500">
           No transitions available yet. Create user transitions in the Asset Library Transitions tab first.
         </div>
       )}
