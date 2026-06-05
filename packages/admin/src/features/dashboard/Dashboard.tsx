@@ -1,16 +1,15 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { LayoutDashboard, Monitor, Layers, Image, Globe, Settings } from 'lucide-react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { useAuth } from '../../auth/AuthContext'
-import { Sidebar as NewSidebar, TopBar as NewTopBar } from '../../components/organisms'
+import { Sidebar as LeftSidebar, TopBar as NewTopBar } from '../../components/organisms'
 import type { SidebarSection } from '../../components/organisms'
 import { DashboardContainer } from './DashboardContainer'
 import { useSidebarPersistence } from '../../hooks/useSidebarPersistence'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { AssetLibraryPanel as ExtractedAssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
-import { LeftSidebar } from './LeftSidebar'
+import { NavListBox } from './NavListBox'
 import { RightPane, SettingsModal } from './RightPane'
 import type { SelectedItem } from './types'
 import { itemKey } from './types'
@@ -31,11 +30,8 @@ const NAV_SECTIONS: SidebarSection[] = [
 export function Dashboard() {
   // ─── Existing state (preserved) ───
   const [selected, setSelected] = useState<SelectedItem | null>(null)
-  const [libraryOpen, setLibraryOpen] = useState(false)
-  const [libraryMounted, setLibraryMounted] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'general' | 'audio' | 'keybinds' | 'about'>('general')
-  const libraryRestoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const applications = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
 
@@ -66,13 +62,6 @@ export function Dashboard() {
 
   // ─── Existing handlers (preserved) ───
 
-  const clearLibraryRestoreTimeout = () => {
-    if (libraryRestoreTimeoutRef.current) {
-      clearTimeout(libraryRestoreTimeoutRef.current)
-      libraryRestoreTimeoutRef.current = null
-    }
-  }
-
   const handleSettingsToggle = () => {
     if (settingsOpen) {
       setSettingsOpen(false)
@@ -87,37 +76,6 @@ export function Dashboard() {
     setSettingsOpen(false)
     setSettingsTab('general')
   }
-
-  const handleLibraryToggle = () => {
-    clearLibraryRestoreTimeout()
-    if (libraryOpen) {
-      setLibraryOpen(false)
-      setLibraryMounted(false)
-      return
-    }
-    setLibraryMounted(true)
-    setLibraryOpen(true)
-  }
-
-  const handleLibraryHide = () => {
-    clearLibraryRestoreTimeout()
-    setLibraryOpen(false)
-    libraryRestoreTimeoutRef.current = setTimeout(() => {
-      setLibraryMounted(true)
-      setLibraryOpen(true)
-      libraryRestoreTimeoutRef.current = null
-    }, 3000)
-  }
-
-  const handleLibraryClose = () => {
-    clearLibraryRestoreTimeout()
-    setLibraryOpen(false)
-    setLibraryMounted(false)
-  }
-
-  useEffect(() => () => {
-    clearLibraryRestoreTimeout()
-  }, [])
 
   // Clear selection when selected app is removed
   useEffect(() => {
@@ -166,17 +124,14 @@ export function Dashboard() {
         setSelected(null)
         break
       case 'scenes':
-        // Stay on scenes — let the LeftSidebar handle scene selection
+        // Stay on scenes — let the NavListBox handle scene selection
         break
       case 'widgets':
-        // Stay on widgets — let the LeftSidebar handle widget selection
+        // Stay on widgets — let the NavListBox handle widget selection
         break
       case 'media':
-        // Open the asset library
-        if (!libraryOpen) {
-          setLibraryMounted(true)
-          setLibraryOpen(true)
-        }
+        // Open the asset library in RightPane
+        setSelected({ kind: 'asset-library' })
         break
       case 'online':
         // Show the online rooms panel
@@ -190,7 +145,7 @@ export function Dashboard() {
         }
         break
     }
-  }, [libraryOpen, settingsOpen])
+  }, [settingsOpen])
 
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed(!sidebarCollapsed)
@@ -211,7 +166,7 @@ export function Dashboard() {
       data-tour="dashboard-root"
     >
       {/* ─── New Design System Sidebar (fixed left) ─── */}
-      <NewSidebar
+      <LeftSidebar
         collapsed={sidebarCollapsed}
         onToggle={handleSidebarToggle}
         activeSection={activeSection}
@@ -240,14 +195,13 @@ export function Dashboard() {
           </div>
         ) : (
           <div className="flex h-full overflow-hidden" data-tour="navigator-content">
-            <LeftSidebar
+            <NavListBox
               selected={selected}
               onSelect={handleSelect}
               onActivate={handleActivate}
-              libraryOpen={libraryOpen}
-              onLibrary={handleLibraryToggle}
               settingsOpen={settingsOpen}
               onSettings={handleSettingsToggle}
+              activeSection={activeSection}
             />
             <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
           </div>
@@ -255,9 +209,6 @@ export function Dashboard() {
       </div>
 
       {/* ─── Existing modals/panels (preserved) ─── */}
-      {libraryMounted && (
-        <ExtractedAssetLibraryPanel isOpen={libraryOpen} onHide={handleLibraryHide} onClose={handleLibraryClose} />
-      )}
       {settingsOpen && (
         <SettingsModal
           tab={settingsTab}

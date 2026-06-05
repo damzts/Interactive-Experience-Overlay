@@ -9,7 +9,6 @@ import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import { ConfigPanel } from '../../components/organisms'
 import { AssetSelectionInput } from './AssetLibrary'
-import { AssetLibraryModal } from './AssetLibraryModal'
 import { SOURCE_CATALOG, findSourceCatalogEntry, getSafeSceneSources } from '../../shared/sourceCatalog'
 import { TRANSITION_ICONS, TRANSITION_OPTIONS, encodeMediaTransitionValue, getMediaTransitionLabel, strToStep } from '../../shared/transitionLibrary'
 import { withDesktopConfigDefaults } from '@ieom/shared'
@@ -30,7 +29,7 @@ function Notice({ tone = 'info', children, className = '' }: { tone?: 'info' | '
   )
 }
 
-export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean; onHide: () => void; onClose: () => void }) {
+export function AssetLibraryPanel() {
   const config = useAdminStore((state) => state.config)
   const mediaLibrary = useAdminStore((state) => state.config.mediaLibrary ?? [])
   const eventDefs = useAdminStore((state) => (state.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
@@ -416,7 +415,6 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
 
   const handleTriggerEvent = (def: EventDef) => {
     socket.emit('event:preview', def)
-    onHide()
   }
 
   const assetLibraryTabs = [
@@ -427,14 +425,33 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
   ] as const
 
   return (
-    <AssetLibraryModal
-      isOpen={isOpen}
-      onClose={onClose}
-      tabs={assetLibraryTabs}
-      activeTab={tab}
-      onTabChange={(nextTab) => setTab(nextTab as typeof tab)}
-      sidebarChildren={(
-        <>
+    <div className="grid h-full min-h-0 gap-5 grid-cols-[220px_minmax(0,1fr)]">
+      <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
+        <div className="grid gap-1.5">
+          {assetLibraryTabs.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setTab(entry.id as typeof tab)}
+              className={
+                'rounded-xl border px-3 py-3 text-left transition-colors ' +
+                (tab === entry.id
+                  ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                  : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')
+              }
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-base leading-none">{entry.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold">{entry.label}</div>
+                  <div className="text-[10px] text-zinc-500">{entry.meta}</div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
           {tab === 'catalog' && (
             <>
               <div className="space-y-2">
@@ -596,19 +613,19 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
               </div>
             </>
           )}
-        </>
-      )}
-      contentChildren={(
-        <>
-          {tab === 'catalog' && (
-            <div className="space-y-4">
-              {selectedCatalogAsset ? (
-                <Card variant="elevated" padding="lg" className="space-y-4">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="text-lg font-semibold text-[var(--color-text-primary)]">{selectedCatalogAsset.name}</div>
-                      <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">{selectedCatalogAsset.relativePath || selectedCatalogAsset.url}</div>
-                    </div>
+        </div>
+      </div>
+
+      <div className="min-w-0 min-h-0 overflow-y-auto pr-1">
+        {tab === 'catalog' && (
+          <div className="space-y-4">
+            {selectedCatalogAsset ? (
+              <Card variant="elevated" padding="lg" className="space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-[var(--color-text-primary)]">{selectedCatalogAsset.name}</div>
+                    <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">{selectedCatalogAsset.relativePath || selectedCatalogAsset.url}</div>
+                  </div>
                     <div className="flex gap-2">
                       <Button type="button" variant="secondary" size="sm" onClick={() => void refreshCatalog()}>Refresh</Button>
                       {(selectedCatalogAsset.source === 'saved' || selectedCatalogAsset.source === 'filesystem') && (
@@ -806,8 +823,7 @@ export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean
               </ConfigPanel>
             </div>
           )}
-        </>
-      )}
-    />
+        </div>
+      </div>
   )
 }
