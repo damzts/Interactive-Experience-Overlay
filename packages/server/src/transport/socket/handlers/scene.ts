@@ -67,6 +67,15 @@ export function resolvePipelines(cfg: AppConfig, fromState: STATE, toState: STAT
   let exit: TransitionStep[] | undefined
   let intro: TransitionStep[] | undefined
 
+  const resolveNames = (names?: string[]): TransitionStep[] | undefined => {
+    if (!names?.length) return undefined
+    const steps = names.flatMap((name) => {
+      const def = cfg.sourceTransitions?.find((t) => t.id === name)
+      return def ? [{ id: def.id } as TransitionStep] : (stepFromString(name) ?? [])
+    })
+    return steps.length ? steps : undefined
+  }
+
   for (const app of cfg.applications) {
     if (app.targetSceneId === toState && !intro) {
       intro = app.introTransitions?.length ? app.introTransitions : stepFromString(app.introTransition)
@@ -78,11 +87,11 @@ export function resolvePipelines(cfg: AppConfig, fromState: STATE, toState: STAT
 
   if (!intro) {
     const targetScene = cfg.scenes[toState]
-    intro = targetScene?.introTransitions?.length ? targetScene.introTransitions : stepFromString(targetScene?.introTransition)
+    intro = resolveNames(targetScene?.onEntry)
   }
   if (!exit) {
     const fromScene = cfg.scenes[fromState]
-    exit = fromScene?.exitTransitions?.length ? fromScene.exitTransitions : stepFromString(fromScene?.exitTransition)
+    exit = resolveNames(fromScene?.onExit)
   }
 
   return { exit: exit ?? [], intro: intro ?? [] }
@@ -140,7 +149,7 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
     }
 
     if (action.kind === 'widget-layout') {
-      const layout = (withDesktopConfigDefaults(ctx.cachedUserConfig.desktopConfig).widgetLayouts ?? []).find((e) => e.id === action.layoutId)
+      const layout = (ctx.cachedUserConfig.widgetLayouts ?? []).find((e) => e.id === action.layoutId)
       const result = applySavedWidgetLayout(ctx, action.layoutId, { persist: false })
       if (!result.ok) return result
       const layoutWidgetIds = Array.from(new Set((layout?.items ?? []).map((i) => i.widgetId).filter(Boolean)))

@@ -42,10 +42,9 @@ export function applySavedWidgetLayout(
   })
 
   if (options?.persist === false) {
-    const nextDesktop = { ...(ctx.runtimeConfigOverride.desktopConfig ?? {}) }
-    const nextPositions = { ...(nextDesktop.widgetPositions ?? {}) }
-    const nextSizes = { ...(nextDesktop.widgetSizes ?? {}) }
-    const nextZIndices = { ...(nextDesktop.widgetZIndices ?? {}) }
+    const nextPositions = { ...(ctx.runtimeConfigOverride.widgetPositions ?? {}) }
+    const nextSizes = { ...(ctx.runtimeConfigOverride.widgetSizes ?? {}) }
+    const nextZIndices = { ...(ctx.runtimeConfigOverride.widgetZIndices ?? {}) }
 
     for (const item of layoutItems) {
       delete nextPositions[item.widgetId]
@@ -60,13 +59,11 @@ export function applySavedWidgetLayout(
       nextZIndices[item.widgetId] = item.focusPriority
     }
 
-    if (Object.keys(nextPositions).length) nextDesktop.widgetPositions = nextPositions; else delete nextDesktop.widgetPositions
-    if (Object.keys(nextSizes).length) nextDesktop.widgetSizes = nextSizes; else delete nextDesktop.widgetSizes
-    if (Object.keys(nextZIndices).length) nextDesktop.widgetZIndices = nextZIndices; else delete nextDesktop.widgetZIndices
-
     ctx.runtimeConfigOverride = {
-      desktopConfig: Object.keys(nextDesktop).length ? nextDesktop as typeof ctx.runtimeConfigOverride['desktopConfig'] : undefined,
-      desktopAmbiance: ctx.runtimeConfigOverride.desktopAmbiance,
+      ...ctx.runtimeConfigOverride,
+      ...(Object.keys(nextPositions).length ? { widgetPositions: nextPositions } : { widgetPositions: undefined }),
+      ...(Object.keys(nextSizes).length ? { widgetSizes: nextSizes } : { widgetSizes: undefined }),
+      ...(Object.keys(nextZIndices).length ? { widgetZIndices: nextZIndices } : { widgetZIndices: undefined }),
     }
     ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
   } else {

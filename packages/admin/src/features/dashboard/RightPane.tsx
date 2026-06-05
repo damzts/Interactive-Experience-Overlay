@@ -209,7 +209,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
             <SectionLabel first>Media</SectionLabel>
             {ASSET_TABS.map(({ kind, icon, label }) => (
-              <SidebarBtn key={kind} icon={icon} label={label} active={selected?.kind === kind} onClick={() => onSelectItem({ kind } as SelectedItem)} />
+              <SidebarBtn key={kind} icon={icon} label={label} active={false} onClick={() => onSelectItem({ kind } as SelectedItem)} />
             ))}
           </div>
         )}

@@ -108,8 +108,7 @@ export function buildApplicationDefaultSnapshot(app: Application): ApplicationDe
 }
 
 export function resolveApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
-  const sourceDesktopConfig = withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig)
-  return app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app, sourceDesktopConfig)
+  return app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app)
 }
 
 export function createSceneSnapshot(scene: Scene): SceneDefaultSnapshot {
@@ -119,8 +118,8 @@ export function createSceneSnapshot(scene: Scene): SceneDefaultSnapshot {
     sources: clone(scene.sources ?? []),
     style: scene.style ? clone(scene.style) : undefined,
     lobbyConfig: scene.lobbyConfig ? clone(scene.lobbyConfig) : undefined,
-    introTransitions: scene.introTransitions ? clone(scene.introTransitions) : undefined,
-    exitTransitions: scene.exitTransitions ? clone(scene.exitTransitions) : undefined,
+    onEntry: scene.onEntry ? [...scene.onEntry] : undefined,
+    onExit: scene.onExit ? [...scene.onExit] : undefined,
     musicTrack: scene.musicTrack,
   }
 }
@@ -168,7 +167,7 @@ export function buildWidgetLayoutItem(
 export function createWidgetLayoutFromCurrentState(
   label: string,
   widgetApps: Application[],
-  desktopConfig: DesktopConfig,
+  _desktopConfig: unknown,
   openWidgetIds: string[],
 ): WidgetLayoutDefinition {
   const trimmedLabel = label.trim() || 'Widget Layout'
@@ -179,7 +178,7 @@ export function createWidgetLayoutFromCurrentState(
     label: trimmedLabel,
     icon: '📐',
     source: 'user',
-    items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, desktopConfig, openWidgetIds.includes(app.id))),
+    items: widgetApps.map((app, index) => buildWidgetLayoutItem(app, index, _desktopConfig, openWidgetIds.includes(app.id))),
   }
 }
 

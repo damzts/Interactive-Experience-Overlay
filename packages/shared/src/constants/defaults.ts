@@ -725,8 +725,7 @@ export function getDefaultWidgetWindowSize(widgetId: string, widgetComponent?: W
 }
 
 export function getDefaultWidgetZIndex(widgetId: string, widgetComponent?: WidgetComponentType) {
-  return DEFAULT_WIDGET_DEFAULT_Z_INDICES[widgetId as keyof typeof DEFAULT_WIDGET_DEFAULT_Z_INDICES]
-    ?? (widgetComponent ? DEFAULT_WIDGET_COMPONENT_Z_INDICES[widgetComponent] : undefined)
+  return (widgetComponent ? DEFAULT_WIDGET_COMPONENT_Z_INDICES[widgetComponent] : undefined)
     ?? DEFAULT_WIDGET_COMPONENT_Z_INDICES.generic
 }
 
@@ -1131,7 +1130,7 @@ function normalizeWidgetLayoutSnapshot(snapshot?: WidgetLayoutSnapshot) {
   } satisfies WidgetLayoutSnapshot
 }
 
-function normalizeWidgetLayouts(value?: DesktopConfig['widgetLayouts']) {
+function normalizeWidgetLayouts(value?: WidgetLayoutDefinition[]) {
   const normalizedSourceLayouts = (value ?? []).reduce<WidgetLayoutDefinition[]>((acc, layout) => {
     const id = typeof layout.id === 'string' ? layout.id.trim() : ''
     const label = typeof layout.label === 'string' ? layout.label.trim() : ''
@@ -1712,6 +1711,5 @@ export const DEFAULT_CONFIG: AppConfig = {
   ],
 
   sourceMedia: [],
-  sourcePresets: [],
   sourceTransitions: [],
 }

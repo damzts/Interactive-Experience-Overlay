@@ -2,10 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DEFAULT_CONFIG,
   DEFAULT_WIDGET_THEME_PRESETS,
-  STATE,
   withDesktopConfigDefaults,
 } from '@ieom/shared'
-import type { Application, AppConfig, DesktopConfig, DesktopTheme, WidgetThemeConfig } from '@ieom/shared'
+import type { DesktopConfig, DesktopTheme, WidgetThemeConfig } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, ConfigChoiceButton, isSameDraft, Slider } from '../../shared/ui'
@@ -172,13 +171,6 @@ export function DesktopThemeEditor() {
     return (pool.length > 0 ? pool : entries)[Math.floor(Math.random() * (pool.length || entries.length))] ?? null
   }, [])
 
-  const buildNextStyle = useCallback((ap: ThemeAppearance) => {
-    const next = structuredClone(sourceStyle)
-    next.fontFamily  = ap.fontFamily
-    next.accentColor = ap.accentColor
-    next.textColor   = ap.textColor
-    return next
-  }, [sourceStyle])
 
   const apply = useCallback(async () => {
     setSaving(true)
