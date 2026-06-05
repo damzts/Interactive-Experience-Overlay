@@ -50,10 +50,6 @@ export const adminSignalHandlers: AdminSignalHandlerMap = {
     store.setOverlayOwnerSocketId(socketId)
   },
 
-  'ambiance:leader': ({ socketId }: { socketId: string | null }, store) => {
-    store.setSimulationLeaderId(socketId)
-  },
-
   'ambiance:metrics': (payload: { accepted: number; rejected: number }, store) => {
     store.setAmbianceMetrics(payload)
   },

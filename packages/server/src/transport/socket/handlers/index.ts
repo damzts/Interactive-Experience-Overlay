@@ -1,8 +1,8 @@
 /**
  * Socket.IO handler orchestrator.
  *
- * Replaces the monolithic handlers.ts. Each domain module registers its own
- * event listeners. Shared mutable state is passed via HandlerContext.
+ * Each domain module registers its own event listeners.
+ * Shared mutable state is passed via HandlerContext.
  */
 import {
   DEFAULT_CONFIG,
@@ -17,10 +17,10 @@ import type { AmbianceManager } from '../../kernel/managers/ambiance.js'
 
 import { registerMachineListeners, registerSceneHandlers } from './scene.js'
 import { registerWidgetHandlers } from './widget.js'
-import { registerAmbianceHandlers, assignOverlayLeader, clearOverlayLeader } from './ambiance.js'
+import { registerAmbianceHandlers } from './ambiance.js'
 import { registerDesktopHandlers } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
-import { registerDiagnosticsHandlers, buildOverlayClientInfo, queueRuntimeDiagnosticsEmit, emitRuntimeDiagnostics } from './diagnostics.js'
+import { registerDiagnosticsHandlers, buildOverlayClientInfo, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
 
 export function setupSocketHandlers(
   io: IO,
@@ -32,13 +32,9 @@ export function setupSocketHandlers(
     getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
     bus?: import('../../kernel/bus.js').KernelBus
     runtimeState?: import('../../kernel/managers/runtime.js').RuntimeStateStore
-    povOrchestrator?: any
-    onlineSessionManager?: any
-    onlineSignalingServer?: any
     configService?: any
   },
 ): { isOverlaySlotTaken: () => boolean } {
-  // Seed recycleBinFull from config default if runtimeState provided and not yet set
   if (options?.runtimeState) {
     const defaultFull = withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig).recycleBin.fullOnStart
     options.runtimeState.setRecycleBinFull(defaultFull)
@@ -62,14 +58,10 @@ export function setupSocketHandlers(
     overlayClientInfo: null,
     socketClientTypes: new Map(),
 
-    simulationLeaderSocketId: null,
     acceptedSimulatedToggles: 0,
     rejectedSimulatedToggles: 0,
   }
 
-  // Keep cachedUserConfig always in sync with the service's in-memory cache.
-  // This ensures socket handlers (applySavedWidgetLayout, executeConfiguredEvent, etc.)
-  // always see the latest persisted state without needing explicit refresh calls.
   if (options?.configService) {
     let _cachedUserConfig: AppConfig = DEFAULT_CONFIG as unknown as AppConfig
     Object.defineProperty(ctx, 'cachedUserConfig', {
@@ -79,15 +71,13 @@ export function setupSocketHandlers(
     })
   }
 
-  // Give ambiance manager live access to runtime state
+  // Ambiance manager reads open widget state and the overlay socket ID for dispatch
   ambianceManager.setOpenWidgetIdsGetter(() => ctx.runtimeState.openWidgetIds as Set<string>)
-  ambianceManager.setSimulationLeaderGetter(() => ctx.simulationLeaderSocketId)
+  ambianceManager.setSimulationLeaderGetter(() => ctx.overlaySocketId)
 
-  // Wire scheduler/ambiance → diagnostics broadcast
   scheduler.setDiagnosticsListener(() => queueRuntimeDiagnosticsEmit(ctx))
   ambianceManager.setDiagnosticsListener(() => queueRuntimeDiagnosticsEmit(ctx))
 
-  // Wire machine → socket.io broadcast
   registerMachineListeners(ctx)
 
   const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'unknown' => {
@@ -100,22 +90,20 @@ export function setupSocketHandlers(
     ctx.socketClientTypes.set(socket.id, clientType)
     console.log(`[socket] connected: ${socket.id} (${clientType})`)
 
-    // Single overlay gate
     if (clientType === 'overlay') {
       if (ctx.overlaySocketId && io.sockets.sockets.has(ctx.overlaySocketId)) {
-        console.log(`[socket] rejected overlay ${socket.id} — slot taken by ${ctx.overlaySocketId}`)
         socket.emit('overlay:rejected', { reason: 'View is already opened, close that before opening new one' })
         setTimeout(() => socket.disconnect(true), 1000)
         return
       }
       ctx.overlaySocketId = socket.id
       ctx.overlayClientInfo = buildOverlayClientInfo(socket)
-      assignOverlayLeader(ctx, socket.id)
+      ambianceManager.setLeaderLeaseState({ ready: false, leaseDurationMs: 0, expiresAt: null, lastHeartbeatAt: null })
+      ambianceManager.recordHistory('leader-elected', 'overlay connected', { leaderSocketId: socket.id })
       io.emit('overlay:owner', { socketId: socket.id })
       queueRuntimeDiagnosticsEmit(ctx)
     }
 
-    // Load user config into cache
     const userId = socket.data.userId
     if (userId) {
       void socket.join(`user:${userId}`)
@@ -124,20 +112,18 @@ export function setupSocketHandlers(
       }
     }
 
-    // Push initial state to the newly connected client
-    socket.emit('ambiance:leader', { socketId: ctx.simulationLeaderSocketId })
     socket.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
     socket.emit('overlay:owner', { socketId: ctx.overlaySocketId })
     socket.emit('runtime:config:override', ctx.runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
       ambiance: ambianceManager.getDiagnostics(),
+      managers: options?.getManagerStatuses?.(),
     })
     if (options?.getObsStatus) {
       socket.emit('obs:status', options.getObsStatus())
     }
 
-    // Register domain handlers
     registerSceneHandlers(ctx, socket)
     registerWidgetHandlers(ctx, socket)
     registerAmbianceHandlers(ctx, socket)
@@ -151,7 +137,9 @@ export function setupSocketHandlers(
       if (socket.id === ctx.overlaySocketId) {
         ctx.overlaySocketId = null
         ctx.overlayClientInfo = null
-        clearOverlayLeader(ctx)
+        ambianceManager.markSimulationCompleted(undefined, undefined, { recordHistory: false })
+        ambianceManager.setLeaderLeaseState({ ready: false, leaseDurationMs: 0, expiresAt: null, lastHeartbeatAt: null })
+        ambianceManager.recordHistory('leader-cleared', 'overlay disconnected', {})
         io.emit('overlay:owner', { socketId: null })
         queueRuntimeDiagnosticsEmit(ctx)
       }
@@ -160,4 +148,3 @@ export function setupSocketHandlers(
 
   return { isOverlaySlotTaken: () => ctx.overlaySocketId !== null && io.sockets.sockets.has(ctx.overlaySocketId) }
 }
-

@@ -10,7 +10,6 @@ export interface RuntimeSlice {
   overlayOwnerSocketId: string | null
   openWidgetIds: string[]
   recycleBinFull: boolean
-  simulationLeaderId: string | null
   ambianceAcceptedCount: number
   ambianceRejectedCount: number
   runtimeDiagnostics: RuntimeDiagnosticsPayload
@@ -22,7 +21,6 @@ export interface RuntimeSlice {
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
   setRecycleBinFull: (full: boolean) => void
-  setSimulationLeaderId: (id: string | null) => void
   setAmbianceMetrics: (payload: { accepted: number; rejected: number }) => void
   setRuntimeDiagnostics: (payload: RuntimeDiagnosticsPayload) => void
 }
@@ -43,7 +41,6 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
   overlayOwnerSocketId: null,
   openWidgetIds: [],
   recycleBinFull: false,
-  simulationLeaderId: null,
   ambianceAcceptedCount: 0,
   ambianceRejectedCount: 0,
   runtimeDiagnostics: {
@@ -99,7 +96,6 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
         : [...state.openWidgetIds, widgetId],
     })),
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
-  setSimulationLeaderId: (id) => set({ simulationLeaderId: id }),
   setAmbianceMetrics: (payload) =>
     set({ ambianceAcceptedCount: payload.accepted, ambianceRejectedCount: payload.rejected }),
   setRuntimeDiagnostics: (payload) => set({ runtimeDiagnostics: payload }),

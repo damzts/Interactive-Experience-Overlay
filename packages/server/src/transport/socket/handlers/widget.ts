@@ -110,7 +110,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   })
 
   socket.on('widget:simulate', (widgetId: string) => {
-    if (socket.id !== ctx.simulationLeaderSocketId) {
+    if (socket.id !== ctx.overlaySocketId) {
       ctx.rejectedSimulatedToggles += 1
       ctx.io.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
       console.warn(`[ambiance] Ignored simulated toggle from non-leader ${socket.id} for ${widgetId}`)
@@ -122,7 +122,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   })
 
   socket.on('widget:simulate:action', (payload: WidgetSimulationCommandPayload) => {
-    if (socket.id !== ctx.simulationLeaderSocketId) {
+    if (socket.id !== ctx.overlaySocketId) {
       ctx.rejectedSimulatedToggles += 1
       ctx.io.emit('ambiance:metrics', { accepted: ctx.acceptedSimulatedToggles, rejected: ctx.rejectedSimulatedToggles })
       console.warn(`[ambiance] Ignored simulated action from non-leader ${socket.id} for ${payload.widgetId}`)
@@ -185,7 +185,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   })
 
   socket.on('widget:simulate:intent', (payload) => {
-    if (socket.id !== ctx.simulationLeaderSocketId) return
+    if (socket.id !== ctx.overlaySocketId) return
     ctx.io.emit('widget:simulate:intent', payload)
   })
 }

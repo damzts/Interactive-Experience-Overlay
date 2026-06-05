@@ -76,7 +76,7 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
   })
 
   socket.on('desktop:start-menu:phase', (payload: DesktopStartMenuSimulationPhasePayload) => {
-    if (socket.id !== ctx.simulationLeaderSocketId) return
+    if (socket.id !== ctx.overlaySocketId) return
     ctx.io.emit('desktop:start-menu:phase', payload)
   })
 

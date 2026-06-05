@@ -214,8 +214,7 @@ export const signalHandlers: SignalHandlerMap = {
   },
 
   // ── Ambiance signals ───────────────────────────────────────────
-  // Note: 'ambiance:simulate' and 'ambiance:leader' / 'ambiance:metrics' are
-  // handled by the ambiance-specific hooks in Desktop.tsx, which have
-  // complex stateful logic (leader management, ack/done flow).
-  // They can be migrated here incrementally.
+  // Note: 'ambiance:simulate' is handled by Desktop.tsx which owns the
+  // simulation queue, cursor control, and ack/start/done lifecycle.
+  // The overlay is always the simulation executor (single slot system).
 }

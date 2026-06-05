@@ -95,8 +95,6 @@ export interface ClientToServerEvents {
   'runtime:config:override:widget-layout:clear': (widgetIds: string[], callback?: (err: string | null) => void) => void
   /** Execute a keybind action */
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
-  /** Request the current ambiance leader socket ID */
-  'ambiance:leader:request': (callback: (payload: { socketId: string | null }) => void) => void
   /** Clear ambiance simulation history */
   'ambiance:history:clear': () => void
   /** Report the overlay's runtime status to the kernel */

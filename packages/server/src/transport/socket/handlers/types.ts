@@ -30,36 +30,15 @@ export interface HandlerContext {
   getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
   bus?: KernelBus
 
-  // Remaining socket-closure state (not in RuntimeStateStore)
   runtimeConfigOverride: RuntimeConfigOverridePayload
   cachedUserConfig: AppConfig
 
-  // Overlay slot state
+  // Overlay slot — the overlay socket IS the simulation executor (no separate leader)
   overlaySocketId: string | null
   overlayClientInfo: OverlayClientDiagnostics | null
   socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>
 
-  // Ambiance simulation leader
-  simulationLeaderSocketId: string | null
+  // Ambiance simulation metrics
   acceptedSimulatedToggles: number
   rejectedSimulatedToggles: number
 }
-
-  // Runtime state — mutated by domain handlers
-  openWidgetIds: Set<string>
-  recycleBinFull: boolean
-  startMenuState: { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null }
-  runtimeConfigOverride: RuntimeConfigOverridePayload
-  cachedUserConfig: AppConfig
-
-  // Overlay slot state
-  overlaySocketId: string | null
-  overlayClientInfo: OverlayClientDiagnostics | null
-  socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>
-
-  // Ambiance simulation leader
-  simulationLeaderSocketId: string | null
-  acceptedSimulatedToggles: number
-  rejectedSimulatedToggles: number
-}
-

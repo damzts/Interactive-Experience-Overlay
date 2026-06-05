@@ -182,8 +182,6 @@ export interface ServerToClientEvents {
   'config:patch': (updates: Partial<AppConfig>) => void
   /** OBS bridge connection status changed */
   'obs:status': (payload: ObsStatusPayload) => void
-  /** Ambiance simulation leader socket changed */
-  'ambiance:leader': (payload: { socketId: string | null }) => void
   /** Ambiance accept/reject counters updated */
   'ambiance:metrics': (payload: { accepted: number; rejected: number }) => void
   /** Periodic diagnostics snapshot from scheduler + ambiance managers */
