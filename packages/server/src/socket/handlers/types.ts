@@ -24,6 +24,7 @@ export interface HandlerContext {
   ambianceManager: AmbianceManager
   configService: any | null
   getObsStatus?: () => ObsStatusPayload
+  getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
 
   // Runtime state — mutated by domain handlers
   openWidgetIds: Set<string>

@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { STATE } from '@ieom/shared'
-import type { DesktopRuntimeStatePayload, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
+import type { DesktopRuntimeStatePayload, ManagerStatus, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
 
 export interface RuntimeSlice {
   currentState: STATE

@@ -21,7 +21,7 @@ import {
   withLobbyConfigDefaults,
   withOverlayStyleDefaults,
 } from '@ieom/shared'
-import type { AppConfig, Application, DesktopConfig, Scene, OverlayStyle, WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
+import type { AppConfig, Application, DesktopConfig, Manager, ManagerStatus, Scene, OverlayStyle, WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
 import type { EventConfig, AutoTrigger } from '@ieom/shared'
 
 type DesktopDatabase = Database.Database
@@ -135,8 +135,12 @@ function buildSceneDefaultSnapshot(
  * SQLite-backed ConfigService for desktop mode.
  * No user_id scoping — single-tenant model.
  */
-export class DesktopConfigService {
-  private cachedConfig: AppConfig | null = null
+export class DesktopConfigService implements Manager {
+  readonly name = 'DesktopConfigService'
+  private _status: ManagerStatus = 'idle'
+  private _cachedConfig: AppConfig | null = null
+
+  get cachedConfig(): AppConfig | null { return this._cachedConfig }
   private onConfigUpdateListener: ((config: AppConfig) => void) | null = null
 
   constructor(
@@ -145,6 +149,15 @@ export class DesktopConfigService {
   ) {
     this.seedSystemLayouts()
   }
+
+  // ── Manager interface ────────────────────────────────────────
+  /** db is opened externally via initDesktopDatabase — init just marks ready */
+  init(): void { this._status = 'idle' }
+  start(): void { this._status = 'running' }
+  stop(): void { this._status = 'stopped' }
+  /** dispose closes the db — delegates to caller in desktop mode (closeDesktopDatabase) */
+  dispose(): void { this._status = 'stopped' }
+  status(): ManagerStatus { return this._status }
 
   private seedSystemLayouts(): void {
     const upsertLayout = this.db.prepare(
@@ -168,9 +181,9 @@ export class DesktopConfigService {
   }
 
   async getForUser(_userId: string): Promise<AppConfig> {
-    if (this.cachedConfig) return this.cachedConfig
+    if (this._cachedConfig) return this._cachedConfig
     const config = this.loadFromDb()
-    this.cachedConfig = config
+    this._cachedConfig = config
     return config
   }
 
@@ -187,7 +200,7 @@ export class DesktopConfigService {
       ])
     }
 
-    this.cachedConfig = config
+    this._cachedConfig = config
 
     if (this.io) {
       this.io.emit('config:update', config)

@@ -35,10 +35,51 @@ The engine has seven distinct responsibilities:
 
 Four things, in order of how often they change:
 
-- **Events** — things the engine broadcasts (state changed, transition started, effect triggered, widget toggled)
-- **Commands** — things clients send in (change scene, toggle widget, execute keybind, apply config override)
-- **State** — a snapshot clients can request on connect to hydrate without waiting for an event
-- **Config** — the full application config, pushed on save and patchable at runtime
+- **Signals** — things the engine broadcasts (state changed, transition started, effect triggered, widget toggled). See `docs/signal-catalog.md`.
+- **Commands** — things clients send in (change scene, toggle widget, execute keybind, apply config override). See `docs/signal-catalog.md`.
+- **Queries** — snapshot requests clients make on connect to hydrate without waiting for an event. See `docs/signal-catalog.md`.
+- **Config** — the full application config, pushed on save and patchable at runtime.
+
+## Server directory structure
+
+```
+packages/server/src/
+├── kernel/
+│   ├── index.ts          # Kernel class — register(), boot(), shutdown()
+│   ├── bus.ts            # Internal event bus (KernelBus, KernelEvents)
+│   └── managers/         # All kernel managers — the engine brain
+│       ├── scene.ts      # SceneMachine — state machine
+│       ├── ambiance.ts   # AmbianceManager — widget simulation
+│       ├── scheduler.ts  # EventScheduler — time/idle triggers
+│       ├── config.ts     # DesktopConfigService — SQLite persistence
+│       ├── runtime.ts    # RuntimeStateStore — in-memory session state
+│       ├── obs.ts        # ObsBridge — OBS WebSocket bridge
+│       └── pov.ts        # POVOrchestrator — video switching
+├── transport/
+│   ├── http/             # Fastify routes (config, media, archive, room)
+│   ├── socket/           # Socket.IO handlers (all domain modules)
+│   └── webrtc/           # werift hub + overlay relay + cloud signaling
+├── db/                   # SQLite init, migrations, repositories
+├── online/               # Online room feature (composes kernel + transport)
+└── desktop-entry.ts      # Thin bootstrap — creates Kernel, registers managers
+```
+
+**Navigating by intent:**
+- "Change how ambiance works" → `kernel/managers/ambiance.ts`
+- "Add an API endpoint" → `transport/http/`
+- "Add a socket event handler" → `transport/socket/handlers/`
+- "Change how scenes transition" → `kernel/managers/scene.ts`
+- "Add a new manager" → see `docs/manager-authoring.md`
+
+## Manager lifecycle
+
+Every kernel manager implements the `Manager` interface from `@ieom/shared/contracts/manager.ts`:
+
+```
+init() → start() → (running) → stop() → dispose()
+```
+
+The `Kernel` class calls these in order during `boot()` and `shutdown()`. The entry point registers managers and calls `kernel.boot()` — it does not call lifecycle methods directly.
 
 ## The Desktop OS presentation
 

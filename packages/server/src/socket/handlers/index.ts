@@ -29,6 +29,7 @@ export function setupSocketHandlers(
   ambianceManager: AmbianceManager,
   options?: {
     getObsStatus?: () => ObsStatusPayload
+    getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
     povOrchestrator?: any
     onlineSessionManager?: any
     onlineSignalingServer?: any
@@ -42,6 +43,7 @@ export function setupSocketHandlers(
     ambianceManager,
     configService: options?.configService ?? null,
     getObsStatus: options?.getObsStatus,
+    getManagerStatuses: options?.getManagerStatuses,
 
     openWidgetIds: new Set(),
     recycleBinFull: withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig).recycleBin.fullOnStart,

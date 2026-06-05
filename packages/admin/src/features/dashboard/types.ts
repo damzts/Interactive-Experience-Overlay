@@ -21,6 +21,7 @@ export type SelectedItem =
   | { kind: 'obs' }
   | { kind: 'pov-online' }
   | { kind: 'asset-library' }
+  | { kind: 'kernel-health' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState

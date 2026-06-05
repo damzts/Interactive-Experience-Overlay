@@ -16,6 +16,7 @@ import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
 import { SchedulerPanel } from '../scheduler/SchedulerPanel'
 import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
 import { ObsPanel } from '../obs/ObsPanel'
+import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
@@ -148,6 +149,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'scheduler') return <SchedulerPanel />
   if (selected.kind === 'scene-machine') return <SceneMachinePanel />
   if (selected.kind === 'obs') return <ObsPanel />
+  if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
 
   return null
@@ -238,6 +240,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
   else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
   else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
   else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
+  else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (

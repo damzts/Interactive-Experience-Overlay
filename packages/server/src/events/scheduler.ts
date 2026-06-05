@@ -1,6 +1,6 @@
 import type { SceneMachine } from '../state/machine.js'
 import { STATE } from '@ieom/shared'
-import type { AppConfig, EventConfig, SchedulerDiagnosticsPayload } from '@ieom/shared'
+import type { AppConfig, EventConfig, Manager, ManagerStatus, SchedulerDiagnosticsPayload } from '@ieom/shared'
 
 function randBetween(minValue: number, maxValue: number) {
   return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue
@@ -13,7 +13,10 @@ function jitterMs(minutes: number) {
 
 interface QueueEntry { eventId: string; fireAt: number }
 
-export class EventScheduler {
+export class EventScheduler implements Manager {
+  readonly name = 'EventScheduler'
+  private _status: ManagerStatus = 'idle'
+
   // interval events: sorted priority queue + one timer
   private queue: QueueEntry[] = []
   private queueTimer: ReturnType<typeof setTimeout> | null = null
@@ -31,6 +34,11 @@ export class EventScheduler {
 
   constructor(private machine: SceneMachine, private getConfig: () => AppConfig) {}
 
+  // ── Manager interface ────────────────────────────────────────
+  init(): void { this._status = 'idle' }
+  dispose(): void { this.stop(); this._status = 'stopped' }
+  status(): ManagerStatus { return this._status }
+
   setDiagnosticsListener(listener?: (payload: SchedulerDiagnosticsPayload) => void) {
     this.diagnosticsListener = listener
     this.emitDiagnostics()
@@ -45,6 +53,7 @@ export class EventScheduler {
 
   start() {
     this.stop()
+    this._status = 'running'
     this.lastActivityAt = Date.now()
     this.lastProcessedAt = null
     this.lastTriggeredAt = null
@@ -61,6 +70,7 @@ export class EventScheduler {
     for (const t of this.idleTimers.values()) clearTimeout(t)
     this.idleTimers.clear()
     this.queue = []
+    this._status = 'stopped'
     this.emitDiagnostics()
   }
 

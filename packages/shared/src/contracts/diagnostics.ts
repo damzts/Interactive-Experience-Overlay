@@ -122,4 +122,6 @@ export interface AmbianceDiagnosticsPayload {
 export interface RuntimeDiagnosticsPayload {
   scheduler: SchedulerDiagnosticsPayload
   ambiance: AmbianceDiagnosticsPayload
+  /** Lifecycle status of each registered kernel manager, keyed by manager.name */
+  managers?: Record<string, import('./manager.js').ManagerStatus>
 }

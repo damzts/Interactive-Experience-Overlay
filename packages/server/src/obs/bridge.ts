@@ -1,11 +1,13 @@
 import OBSWebSocket from 'obs-websocket-js'
 import type { Server } from 'socket.io'
-import type { ObsStatusPayload } from '@ieom/shared'
+import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieom/shared'
 import type { SceneMachine } from '../state/machine.js'
 
 const OBS_RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000] as const
 
-export class ObsBridge {
+export class ObsBridge implements Manager {
+  readonly name = 'ObsBridge'
+  private _status: ManagerStatus = 'idle'
   private obs = new OBSWebSocket()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private connected = false
@@ -35,6 +37,13 @@ export class ObsBridge {
   connect(url = 'ws://localhost:4455', password = '') {
     this.updateConnection(url, password)
   }
+
+  // ── Manager interface ────────────────────────────────────────
+  init(): void { this._status = 'idle' }
+  start(): void { this._status = 'running'; this.connect() }
+  stop(): void { this._status = 'stopped'; if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null } }
+  dispose(): void { this.stop(); this.obs.disconnect() }
+  status(): ManagerStatus { return this._status }
 
   updateConnection(url = this.currentUrl, password = this.currentPassword) {
     const changed = url !== this.currentUrl || password !== this.currentPassword

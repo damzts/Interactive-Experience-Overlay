@@ -1,9 +1,8 @@
 /**
  * Desktop mode entry point for @ieom/server.
  *
- * Provides a factory function that creates a Fastify server configured for
- * the Electron desktop app: no auth, no PostgreSQL, localhost-only binding,
- * static file serving for overlay and admin UIs.
+ * Thin bootstrap: creates the Kernel, registers managers, wires transport
+ * (Fastify + Socket.IO), then delegates lifecycle to kernel.boot/shutdown.
  *
  * Requirements: 2.1, 2.2, 2.3, 2.5, 4.1, 4.2, 4.3, 4.5, 4.6
  */
@@ -22,30 +21,31 @@ import { pipeline } from 'stream/promises'
 import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 
-import { SceneMachine } from './state/machine.js'
-import { RuntimeStateStore } from './state/runtimeStateStore.js'
-import { setupSocketHandlers } from './socket/handlers.js'
-import { ObsBridge } from './obs/bridge.js'
-import { EventScheduler } from './events/scheduler.js'
-import { AmbianceManager } from './ambiance/manager.js'
-import { registerOverlayNamespace } from './socket/overlayHandlers.js'
+import { Kernel } from './kernel/index.js'
+import { SceneMachine } from './kernel/managers/scene.js'
+import { RuntimeStateStore } from './kernel/managers/runtime.js'
+import { setupSocketHandlers } from './transport/socket/handlers.js'
+import { ObsBridge } from './kernel/managers/obs.js'
+import { EventScheduler } from './kernel/managers/scheduler.js'
+import { AmbianceManager } from './kernel/managers/ambiance.js'
+import { registerOverlayNamespace } from './transport/socket/overlayHandlers.js'
 import { clearMediaCaches } from './services/MediaService.js'
-import { configRoute } from './routes/config.js'
-import { mediaRoute } from './routes/media.js'
-import { archiveRoute } from './routes/archive.js'
-import { roomRoute } from './routes/room.js'
+import { configRoute } from './transport/http/config.js'
+import { mediaRoute } from './transport/http/media.js'
+import { archiveRoute } from './transport/http/archive.js'
+import { roomRoute } from './transport/http/room.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
-import { DesktopConfigService } from './db/desktop-config-service.js'
+import { DesktopConfigService } from './kernel/managers/config.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
 import { authRoutes } from './auth/authRoutes.js'
-import { HubConnection } from './room/hub-connection.js'
-import { POVOrchestrator } from './pov/index.js'
-import { OverlayRelay } from './room/overlay-relay.js'
-import { CloudSignaling } from './room/cloud-signaling.js'
+import { HubConnection } from './transport/webrtc/hub-connection.js'
+import { POVOrchestrator } from './kernel/managers/pov.js'
+import { OverlayRelay } from './transport/webrtc/overlay-relay.js'
+import { CloudSignaling } from './transport/webrtc/cloud-signaling.js'
 import { OnlineRoomManager } from './online/manager.js'
 import { onlineRoute } from './online/routes.js'
 import { registerOnlineNamespace } from './online/namespace.js'
-import { registerJoinNamespace } from './socket/joinNamespace.js'
+import { registerJoinNamespace } from './transport/socket/joinNamespace.js'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -67,128 +67,65 @@ export interface DesktopServerOptions {
 }
 
 export interface DesktopServer {
-  /** The Fastify instance */
   app: FastifyInstance
-  /** The Socket.IO server instance */
   io: SocketIOServer
-  /** Start the server (bind to port) */
   start(): Promise<void>
-  /** Gracefully stop the server */
   stop(): Promise<void>
-  /** Get the port the server is bound to */
   getPort(): number
-  /** In-memory runtime state (scene, widgets, overlay connection) — read without touching SQLite */
-  runtimeState: import('./state/runtimeStateStore.js').RuntimeStateStore
+  runtimeState: import('./kernel/managers/runtime.js').RuntimeStateStore
 }
-
-// ── Constant desktop user ID (single-tenant, no auth) ────────────
 
 const DESKTOP_USER_ID = 'desktop'
 
 // ── Factory ──────────────────────────────────────────────────────
 
-/**
- * Create a desktop-mode Fastify server.
- *
- * This server:
- * - Binds only to 127.0.0.1 (localhost)
- * - Has NO authentication middleware
- * - Has NO CSRF protection
- * - Has NO PostgreSQL connections
- * - Serves overlay static files at `/`
- * - Serves admin static files at `/admin`
- * - Registers all API routes without auth
- * - Configures Socket.IO without auth handshake
- */
 export async function createDesktopServer(options: DesktopServerOptions): Promise<DesktopServer> {
-  const {
-    dbPath,
-    port = 3000,
-    assetsDir,
-    overlayDir,
-    adminDir,
-    cloudUrl,
-    getToken,
-  } = options
-
+  const { dbPath, port = 3000, assetsDir, overlayDir, adminDir, cloudUrl, getToken } = options
   let boundPort = port
 
-  // ── Initialize SQLite database (WAL mode, migrations, seeding) ──
+  // ── Database ─────────────────────────────────────────────────
   const db = initDesktopDatabase(dbPath)
 
-  // ── Create Fastify instance ──────────────────────────────────
+  // ── Fastify ───────────────────────────────────────────────────
   const app = Fastify({ logger: { level: 'warn' } })
-
   await app.register(fastifyCors, { origin: '*' })
   await app.register(fastifyCookie)
+  app.addHook('onRequest', async (request) => { request.userId = DESKTOP_USER_ID })
 
-  // ── Assign a fixed userId to every request (no auth) ─────────
-  app.addHook('onRequest', async (request) => {
-    request.userId = DESKTOP_USER_ID
-  })
-
-  // ── Static file serving ──────────────────────────────────────
-
-  // Admin UI at /admin
+  // ── Static files ──────────────────────────────────────────────
   if (existsSync(adminDir)) {
-    await app.register(fastifyStatic, {
-      root: adminDir,
-      prefix: '/admin/',
-      decorateReply: true,
-    })
-
-    // Serve admin's built assets at /assets/ (Vite uses absolute /assets/ paths)
+    await app.register(fastifyStatic, { root: adminDir, prefix: '/admin/', decorateReply: true })
     const adminAssetsDir = join(adminDir, 'assets')
     if (existsSync(adminAssetsDir)) {
-      await app.register(fastifyStatic, {
-        root: adminAssetsDir,
-        prefix: '/assets/',
-        decorateReply: false,
-      })
+      await app.register(fastifyStatic, { root: adminAssetsDir, prefix: '/assets/', decorateReply: false })
     }
-
-    // SPA fallback: serve index.html for /admin
-    app.get('/admin', async (_req, reply) => {
-      return reply.sendFile('index.html', adminDir)
-    })
+    app.get('/admin', async (_req, reply) => reply.sendFile('index.html', adminDir))
   }
-
-  // Media assets directory
   mkdirSync(assetsDir, { recursive: true })
-  await app.register(fastifyStatic, {
-    root: assetsDir,
-    prefix: '/media/',
-    decorateReply: false,
-  })
+  await app.register(fastifyStatic, { root: assetsDir, prefix: '/media/', decorateReply: false })
 
-  // ── File upload endpoint ─────────────────────────────────────
+  // ── File upload ───────────────────────────────────────────────
   await app.register(fastifyMultipart, { limits: { fileSize: 500 * 1024 * 1024 } })
   app.post('/api/upload/asset', async (req, reply) => {
     const data = await req.file()
     if (!data) return reply.code(400).send({ error: 'No file' })
-
-    const mime = data.mimetype
-    const subfolder = mime.startsWith('video/') ? 'video' : 'images'
+    const subfolder = data.mimetype.startsWith('video/') ? 'video' : 'images'
     const destDir = join(assetsDir, subfolder)
     mkdirSync(destDir, { recursive: true })
-
     const safeName = data.filename.replace(/[\\/]/g, '_')
-    const destPath = join(destDir, safeName)
-
-    await pipeline(data.file, createWriteStream(destPath))
+    await pipeline(data.file, createWriteStream(join(destDir, safeName)))
     clearMediaCaches()
     return reply.send({ url: `/assets/${subfolder}/${safeName}` })
   })
 
-  // ── Socket.IO server (NO auth handshake) ─────────────────────
+  // ── Socket.IO ─────────────────────────────────────────────────
   const io = new SocketIOServer(app.server, {
     cors: { origin: '*' },
     transports: ['websocket', 'polling'],
   })
 
-  // ── Desktop ConfigService (SQLite-backed, single-tenant) ──────
+  // ── Managers ──────────────────────────────────────────────────
   const configService = new DesktopConfigService(db, io)
-  // UserRepository expects an async query() interface — wrap better-sqlite3
   const dbQueryAdapter = {
     query: async (sql: string, params: unknown[] = []) => {
       const positional = sql.replace(/\$\d+/g, '?')
@@ -199,37 +136,41 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     },
   }
   const userRepository = new UserRepository(dbQueryAdapter)
-
-  // ── Scene state machine ──────────────────────────────────────
   const machine = new SceneMachine()
   const runtimeState = new RuntimeStateStore()
+  const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
+  const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
+  const obsBridge = new ObsBridge(io, machine)
+  const hubConnection = new HubConnection()
+  const povOrchestrator = new POVOrchestrator(hubConnection)
 
-  // Keep RuntimeStateStore in sync with scene machine transitions
+  // ── Kernel ────────────────────────────────────────────────────
+  const kernel = new Kernel()
+  kernel.register(configService)
+  kernel.register(runtimeState)
+  kernel.register(machine)
+  kernel.register(scheduler)
+  kernel.register(ambianceManager)
+  kernel.register(obsBridge)
+  kernel.register(povOrchestrator)
+
+  // ── Scene → RuntimeState sync ─────────────────────────────────
   machine.on('state:change', (payload: { state: import('@ieom/shared').STATE }) => {
     runtimeState.setCurrentScene(payload.state)
     runtimeState.setTransitionInProgress(false)
   })
   machine.on('transition:start', () => runtimeState.setTransitionInProgress(true))
 
-  // ── Managers ─────────────────────────────────────────────────
-  let cachedConfig: AppConfig = await configService.getForUser(DESKTOP_USER_ID)
-  const scheduler = new EventScheduler(machine, () => cachedConfig)
-  const ambianceManager = new AmbianceManager(io, () => cachedConfig)
-  const obsBridge = new ObsBridge(io, machine)
-
-  // ── Socket handlers (NO auth middleware on io.use) ───────────
+  // ── Socket handlers ───────────────────────────────────────────
   const { isOverlaySlotTaken } = setupSocketHandlers(io, machine, scheduler, ambianceManager, {
     getObsStatus: () => obsBridge.getStatus(),
+    getManagerStatuses: () => kernel.getManagerStatuses(),
     configService: configService as any,
   })
 
-  // NOTE: We intentionally do NOT call io.use(socketAuthMiddleware)
-  // This satisfies Requirement 4.3, 4.6: no socket auth in desktop mode
-
-  // ── Register overlay namespace ───────────────────────────────
   registerOverlayNamespace(io)
 
-  // ── REST routes (NO auth middleware registered) ──────────────
+  // ── REST routes ───────────────────────────────────────────────
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/overlay/status', async () => ({ slotTaken: isOverlaySlotTaken() }))
   await app.register(authRoutes, { userRepository })
@@ -237,46 +178,28 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus() })
 
-  // ── Room system (hub-and-spoke WebRTC) ───────────────────────
-  const hubConnection = new HubConnection()
-  const povOrchestrator = new POVOrchestrator(hubConnection)
+  // ── Room system ───────────────────────────────────────────────
   const overlayRelay = new OverlayRelay()
   const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator, overlayRelay)
 
-  // Wire overlay relay signaling through Socket.IO
   io.on('connection', (socket) => {
     socket.on('pov:subscribe', () => {
-      console.log('[pov-relay] overlay subscribed, creating offer')
-      overlayRelay.createOffer((event, payload) => {
-        console.log('[pov-relay] sending to overlay:', event)
-        socket.emit(event, payload)
-      }).catch(e => console.error('[pov-relay] createOffer failed:', e.message))
+      overlayRelay.createOffer((event, payload) => socket.emit(event, payload))
+        .catch(e => console.error('[pov-relay] createOffer failed:', e.message))
     })
-    socket.on('pov:answer', (payload: { sdp: string }) => {
-      console.log('[pov-relay] received answer from overlay')
-      overlayRelay.handleAnswer(payload.sdp)
-    })
-    socket.on('pov:ice-candidate', (candidate: any) => {
-      overlayRelay.handleIceCandidate(candidate)
-    })
+    socket.on('pov:answer', (payload: { sdp: string }) => overlayRelay.handleAnswer(payload.sdp))
+    socket.on('pov:ice-candidate', (candidate: any) => overlayRelay.handleIceCandidate(candidate))
   })
 
-  // Emit room status changes to all connected clients
-  cloudSignaling.onStatus((status) => {
-    io.emit('room:status' as any, status)
-  })
-
+  cloudSignaling.onStatus((status) => io.emit('room:status' as any, status))
   await app.register(roomRoute, { cloudSignaling })
 
-  // ── Online rooms (admin panel integration) ───────────────────
   const onlineManager = new OnlineRoomManager(cloudSignaling, povOrchestrator, { cloudUrl, getToken })
   registerOnlineNamespace(io, onlineManager)
   await app.register(onlineRoute, { onlineManager })
 
-  // ── LAN /join (no-cloud WebRTC for local guests) ─────────────
   registerJoinNamespace(io, hubConnection, povOrchestrator)
 
-  // Serve the join page at /join
   const joinPagePath = join(import.meta.dirname, 'join.html')
   if (existsSync(joinPagePath)) {
     const joinHtml = readFileSync(joinPagePath, 'utf8')
@@ -286,7 +209,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     })
   }
 
-  // ── OBS WebSocket bridge ─────────────────────────────────────
+  // ── OBS config sync ───────────────────────────────────────────
   const defaultObsUrl = process.env.OBS_URL ?? 'ws://localhost:4455'
   const defaultObsPassword = process.env.OBS_PASSWORD ?? ''
   let activeObsUrl = defaultObsUrl
@@ -296,15 +219,12 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   obsBridge.connect(activeObsUrl, activeObsPassword)
 
-  configService.onConfigUpdate((config) => {
-    cachedConfig = config
-
+  configService.onConfigUpdate((config: AppConfig) => {
     if (config.obs.url !== activeObsUrl || config.obs.password !== activeObsPassword) {
       activeObsUrl = config.obs.url
       activeObsPassword = config.obs.password
       obsBridge.updateConnection(activeObsUrl, activeObsPassword)
     }
-
     const nextAmbiance = withDesktopAmbianceDefaults(config.desktopAmbiance).widgetSimulation
     if (nextAmbiance.intervalSeconds !== activeAmbianceIntervalSeconds || nextAmbiance.enabled !== activeAmbianceEnabled) {
       activeAmbianceIntervalSeconds = nextAmbiance.intervalSeconds
@@ -313,49 +233,31 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     }
   })
 
-  // ── Overlay static files at root `/` ─────────────────────────
+  // ── Overlay static files ──────────────────────────────────────
   if (existsSync(overlayDir)) {
-    await app.register(fastifyStatic, {
-      root: overlayDir,
-      prefix: '/',
-      wildcard: false,
-      decorateReply: false,
-    })
+    await app.register(fastifyStatic, { root: overlayDir, prefix: '/', wildcard: false, decorateReply: false })
   }
 
-  // ── Lifecycle methods ────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────
 
   async function start(): Promise<void> {
-    // Start managers
-    scheduler.start()
-    ambianceManager.start()
-
-    // Bind to localhost only
+    await kernel.boot()
     await app.listen({ port: boundPort, host: '127.0.0.1' })
-    // Update boundPort in case port 0 was used (random port)
     const address = app.server.address()
-    if (address && typeof address === 'object') {
-      boundPort = address.port
-    }
+    if (address && typeof address === 'object') boundPort = address.port
   }
 
   async function stop(): Promise<void> {
     cloudSignaling.disconnect()
-    povOrchestrator.stop()
     overlayRelay.cleanup()
     await hubConnection.closeAll()
-    scheduler.stop()
-    ambianceManager.stop()
     io.close()
     await app.close()
+    await kernel.shutdown()
     closeDesktopDatabase(db)
   }
 
-  function getPort(): number {
-    return boundPort
-  }
-
-  return { app, io, start, stop, getPort, runtimeState }
+  return { app, io, start, stop, getPort: () => boundPort, runtimeState }
 }
 
 // ── Dev-mode self-start ──────────────────────────────────────────

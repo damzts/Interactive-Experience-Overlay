@@ -8,6 +8,7 @@ import type { HubConnection } from '../room/hub-connection.js'
 import { ParticipantRegistry, type Participant } from './participant-registry.js'
 import { createAudioScoreProcessor, type AudioScoreProcessor } from './audio-score-processor.js'
 import { POVSwitcher, type SwitchCallback } from './switcher.js'
+import type { Manager, ManagerStatus } from '@ieom/shared'
 
 export interface POVOrchestratorConfig {
   rollingWindowMs?: number
@@ -18,7 +19,9 @@ export interface POVOrchestratorConfig {
   silenceThreshold?: number
 }
 
-export class POVOrchestrator {
+export class POVOrchestrator implements Manager {
+  readonly name = 'POVOrchestrator'
+  private _status: ManagerStatus = 'idle'
   readonly participants = new Map<string, Participant>()
   readonly registry: ParticipantRegistry
   readonly switcher: POVSwitcher
@@ -75,14 +78,20 @@ export class POVOrchestrator {
     return this.switcher.activeCameraId
   }
 
-  onSwitch(cb: SwitchCallback): void {
-    this.switcher.onSwitch(cb)
-  }
-
+  // ── Manager interface ────────────────────────────────────────
+  init(): void { this._status = 'idle' }
+  start(): void { this._status = 'running' }
   stop(): void {
+    this._status = 'stopped'
     this.scoreProcessor.stop()
     for (const unsub of this.audioUnsubscribes.values()) unsub()
     this.audioUnsubscribes.clear()
+  }
+  dispose(): void { this.stop() }
+  status(): ManagerStatus { return this._status }
+
+  onSwitch(cb: SwitchCallback): void {
+    this.switcher.onSwitch(cb)
   }
 
   private startAudioLevelMonitoring(userId: string, track: any): void {
