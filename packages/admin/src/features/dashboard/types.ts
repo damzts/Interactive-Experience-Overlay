@@ -21,6 +21,10 @@ export type SelectedItem =
   | { kind: 'obs' }
   | { kind: 'pov-online' }
   | { kind: 'asset-library' }
+  | { kind: 'asset-catalog' }
+  | { kind: 'asset-events' }
+  | { kind: 'asset-sources' }
+  | { kind: 'asset-transitions' }
   | { kind: 'kernel-health' }
 
 export function itemKey(item: SelectedItem): string {

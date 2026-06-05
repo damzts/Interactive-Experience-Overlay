@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { LayoutDashboard, Monitor, Layers, Image, Globe, Settings } from 'lucide-react'
+import { LayoutDashboard, Monitor, Layers, Image, Settings } from 'lucide-react'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -9,8 +9,7 @@ import type { SidebarSection } from '../../components/organisms'
 import { DashboardContainer } from './DashboardContainer'
 import { useSidebarPersistence } from '../../hooks/useSidebarPersistence'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { NavListBox } from './NavListBox'
-import { RightPane, SettingsModal } from './RightPane'
+import { RightPane } from './RightPane'
 import type { SelectedItem } from './types'
 import { itemKey } from './types'
 
@@ -21,7 +20,6 @@ const NAV_SECTIONS: SidebarSection[] = [
   { id: 'scenes', label: 'Scenes', icon: Monitor },
   { id: 'widgets', label: 'Widgets', icon: Layers },
   { id: 'media', label: 'Media', icon: Image },
-  { id: 'online', label: 'Online', icon: Globe },
   { id: 'system', label: 'System', icon: Settings },
 ]
 
@@ -30,8 +28,6 @@ const NAV_SECTIONS: SidebarSection[] = [
 export function Dashboard() {
   // ─── Existing state (preserved) ───
   const [selected, setSelected] = useState<SelectedItem | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'general' | 'audio' | 'keybinds' | 'about'>('general')
   const applications = useAdminStore((s) => s.config.applications)
   const desktopConfig = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
 
@@ -61,21 +57,6 @@ export function Dashboard() {
   const sidebarWidth = sidebarCollapsed ? 48 : 240
 
   // ─── Existing handlers (preserved) ───
-
-  const handleSettingsToggle = () => {
-    if (settingsOpen) {
-      setSettingsOpen(false)
-      setSettingsTab('general')
-      return
-    }
-    setSettingsTab('general')
-    setSettingsOpen(true)
-  }
-
-  const handleSettingsClose = () => {
-    setSettingsOpen(false)
-    setSettingsTab('general')
-  }
 
   // Clear selection when selected app is removed
   useEffect(() => {
@@ -118,34 +99,8 @@ export function Dashboard() {
 
   const handleNavigate = useCallback((section: string) => {
     setActiveSection(section)
-    switch (section) {
-      case 'dashboard':
-        // Show the DashboardContainer view
-        setSelected(null)
-        break
-      case 'scenes':
-        // Stay on scenes — let the NavListBox handle scene selection
-        break
-      case 'widgets':
-        // Stay on widgets — let the NavListBox handle widget selection
-        break
-      case 'media':
-        // Open the asset library in RightPane
-        setSelected({ kind: 'asset-library' })
-        break
-      case 'online':
-        // Show the online rooms panel
-        setSelected({ kind: 'pov-online' })
-        break
-      case 'system':
-        // Open settings modal
-        if (!settingsOpen) {
-          setSettingsTab('general')
-          setSettingsOpen(true)
-        }
-        break
-    }
-  }, [settingsOpen])
+    setSelected(null)
+  }, [])
 
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed(!sidebarCollapsed)
@@ -195,27 +150,11 @@ export function Dashboard() {
           </div>
         ) : (
           <div className="flex h-full overflow-hidden" data-tour="navigator-content">
-            <NavListBox
-              selected={selected}
-              onSelect={handleSelect}
-              onActivate={handleActivate}
-              settingsOpen={settingsOpen}
-              onSettings={handleSettingsToggle}
-              activeSection={activeSection}
-            />
-            <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} />
+            <RightPane selected={selected} onClose={() => setSelected(null)} onSelectItem={setSelected} activeSection={activeSection} onSelect={handleSelect} onActivate={handleActivate} />
           </div>
         )}
       </div>
 
-      {/* ─── Existing modals/panels (preserved) ─── */}
-      {settingsOpen && (
-        <SettingsModal
-          tab={settingsTab}
-          onTabChange={setSettingsTab}
-          onClose={handleSettingsClose}
-        />
-      )}
     </div>
   )
 }

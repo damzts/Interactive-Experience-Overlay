@@ -6,6 +6,7 @@ import { IconGlyph } from '../../shared/ui'
 import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
+import type { AssetRecord } from '../../shared/catalog'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -60,14 +61,45 @@ function SidebarAppIcon({ app }: { app: Application }) {
   return <IconGlyph icon={app.icon} label={app.label} size={14} />
 }
 
+// ── AssetSection ───────────────────────────────────────────────────
+
+export function AssetSection({ title, items, selectedId, onSelect }: {
+  title: string
+  items: AssetRecord[]
+  selectedId?: string | null
+  onSelect: (asset: AssetRecord) => void
+}) {
+  if (items.length === 0) return null
+  const kindIcon: Record<string, string> = { image: '🖼', video: '🎬', audio: '🎵' }
+  return (
+    <div className="mb-1">
+      <div className="mt-4 mb-2 px-2.5 border-t border-white/8 pt-3">
+        <span className="inline-flex rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
+          {title}
+        </span>
+        <span className="ml-2 text-[9px] text-zinc-600">{items.length}</span>
+      </div>
+      {items.map((asset) => (
+        <SidebarBtn
+          key={asset.id}
+          icon={kindIcon[asset.kind] ?? '📄'}
+          label={asset.name}
+          active={selectedId === asset.id}
+          onClick={() => onSelect(asset)}
+          statusLabel={asset.kind.toUpperCase()}
+          statusClassName="text-zinc-600"
+        />
+      ))}
+    </div>
+  )
+}
+
 // ── NavListBox ─────────────────────────────────────────────────────
 
-export function NavListBox({ selected, onSelect, onActivate, settingsOpen, onSettings, activeSection = 'scenes' }: {
+export function NavListBox({ selected, onSelect, onActivate, activeSection = 'scenes' }: {
   selected: SelectedItem | null
   onSelect: (item: SelectedItem) => void
   onActivate: (item: SelectedItem) => void
-  settingsOpen: boolean
-  onSettings: () => void
   activeSection?: string
 }) {
   const currentState   = useAdminStore((s) => s.currentState)
@@ -202,26 +234,6 @@ export function NavListBox({ selected, onSelect, onActivate, settingsOpen, onSet
           <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
         </>}
 
-        {activeSection === 'online' && <>
-          <SectionLabel first>Online</SectionLabel>
-          <SidebarBtn icon="🌐" label="Online Rooms" active={isActive({ kind: 'pov-online' })} onClick={() => onSelect({ kind: 'pov-online' })} />
-        </>}
-
-        {activeSection === 'system' && <>
-          <SectionLabel first>System</SectionLabel>
-          <SidebarBtn icon="🖥" label="Global Lobby Theme"   active={isActive({ kind: 'lobby-theme' })}   onClick={() => onSelect({ kind: 'lobby-theme' })} />
-          <SidebarBtn icon="🎨" label="Global Desktop Theme" active={isActive({ kind: 'desktop-theme' })} onClick={() => onSelect({ kind: 'desktop-theme' })} />
-          <SidebarBtn icon="📁" label="Archive"      active={isActive({ kind: 'archive' })}      onClick={() => onSelect({ kind: 'archive' })} />
-          <SidebarBtn icon="🌌" label="Ambiance"     active={isActive({ kind: 'ambiance' })}     onClick={() => onSelect({ kind: 'ambiance' })} />
-          <SidebarBtn icon="⏱" label="Scheduler"    active={isActive({ kind: 'scheduler' })}    onClick={() => onSelect({ kind: 'scheduler' })} />
-          <SidebarBtn icon="🔄" label="Scene Machine" active={isActive({ kind: 'scene-machine' })} onClick={() => onSelect({ kind: 'scene-machine' })} />
-          <SidebarBtn icon="🎬" label="OBS"          active={isActive({ kind: 'obs' })}          onClick={() => onSelect({ kind: 'obs' })} />
-          <SidebarBtn icon="⚙" label="Kernel Health" active={isActive({ kind: 'kernel-health' })} onClick={() => onSelect({ kind: 'kernel-health' })} />
-          <SidebarBtn icon="🔊" label="Audio Engine" active={isActive({ kind: 'audio' })}        onClick={() => onSelect({ kind: 'audio' })} />
-          <SidebarBtn icon="⌨" label="Input Engine"  active={isActive({ kind: 'keybinds' })}    onClick={() => onSelect({ kind: 'keybinds' })} />
-          <SidebarBtn icon="🗂" label="Asset Library" active={isActive({ kind: 'asset-library' })} onClick={() => onSelect({ kind: 'asset-library' })} />
-          <SidebarBtn icon="⚙" label="Settings"      active={settingsOpen}   onClick={onSettings} />
-        </>}
 
       </div>
     </div>
