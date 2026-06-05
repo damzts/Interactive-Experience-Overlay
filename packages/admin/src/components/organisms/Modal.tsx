@@ -154,8 +154,8 @@ function CloseButton({ onClick }: { onClick: () => void }) {
       className={cn(
         'inline-flex items-center justify-center',
         'h-8 w-8 rounded-[var(--radius-md)]',
-        'text-[var(--color-text-muted)]',
-        'hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]',
+        'text-[var(--color-danger-400)]',
+        'hover:bg-[var(--color-danger-500)]/10 hover:text-[var(--color-danger-300)]',
         'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-default)]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-elevated)]',
       )}

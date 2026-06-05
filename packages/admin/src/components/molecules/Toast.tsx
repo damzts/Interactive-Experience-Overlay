@@ -126,9 +126,9 @@ export const Toast: FC<ToastProps> = ({
           'absolute top-[var(--space-2)] right-[var(--space-2)]',
           'inline-flex items-center justify-center',
           'h-6 w-6 rounded-[var(--radius-sm)]',
-          'text-[var(--color-text-muted)]',
-          'hover:text-[var(--color-text-primary)]',
-          'hover:bg-[var(--color-bg-surface)]',
+          'text-[var(--color-danger-400)]',
+          'hover:text-[var(--color-danger-300)]',
+          'hover:bg-[var(--color-danger-500)]/10',
           'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-default)]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)]',
         )}

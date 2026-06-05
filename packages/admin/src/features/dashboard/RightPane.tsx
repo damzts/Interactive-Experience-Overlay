@@ -241,7 +241,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
           </Btn>
         )}
         <button onClick={onClose}
-          className="ml-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] px-2.5 py-1 text-sm leading-none text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]">
+          className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
           ×
         </button>
       </div>
