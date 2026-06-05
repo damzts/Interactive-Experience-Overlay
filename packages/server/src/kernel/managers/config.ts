@@ -776,3 +776,4 @@ export class DesktopConfigService implements Manager {
     }
   }
 }
+

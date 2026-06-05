@@ -5,8 +5,8 @@
 
 import type { OnlineModeConfig, OnlineRoomStatus, ParticipantInfo, SwitchMode } from '@ieom/shared'
 import { DEFAULT_ONLINE_MODE_CONFIG } from '@ieom/shared'
-import type { CloudSignaling } from '../room/cloud-signaling.js'
-import type { POVOrchestrator } from '../pov/index.js'
+import type { CloudSignaling } from '../transport/webrtc/cloud-signaling.js'
+import type { POVOrchestrator } from '../kernel/managers/pov.js'
 import crypto from 'node:crypto'
 
 export interface OnlineRoom {

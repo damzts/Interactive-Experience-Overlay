@@ -1,0 +1,4 @@
+export { configRoute } from './config.js'
+export { mediaRoute } from './media.js'
+export { archiveRoute } from './archive.js'
+export { roomRoute } from './room.js'

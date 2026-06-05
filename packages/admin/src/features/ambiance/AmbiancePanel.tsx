@@ -128,7 +128,6 @@ export function AmbiancePanel() {
   const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance)
   const saveConfig   = useAdminStore((s) => s.saveConfig)
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
-  const simulationLeaderId = useAdminStore((s) => s.simulationLeaderId)
   const ambianceAcceptedCount = useAdminStore((s) => s.ambianceAcceptedCount)
   const ambianceRejectedCount = useAdminStore((s) => s.ambianceRejectedCount)
   const runtimeDiagnostics = useAdminStore((s) => s.runtimeDiagnostics)

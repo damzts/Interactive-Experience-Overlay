@@ -13,10 +13,8 @@ function formatObsRetry(nextRetryAt: number | null) {
 }
 
 export function SettingsPage({
-  consolePanel,
   mode = 'general',
 }: {
-  consolePanel?: React.ReactNode
   mode?: 'general' | 'about'
 }) {
   const config = useAdminStore((s) => s.config)
@@ -157,11 +155,6 @@ export function SettingsPage({
         )}
       </ConfigPanel>
 
-      {consolePanel && (
-        <ConfigPanel title="Socket Console">
-          {consolePanel}
-        </ConfigPanel>
-      )}
     </div>
   )
 }

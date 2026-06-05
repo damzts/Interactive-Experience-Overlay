@@ -10,8 +10,11 @@ export * from './domain/pov.js'
 export * from './domain/online.js'
 
 // Contracts (socket, effects, state, diagnostics, widget lifecycle)
+export * from './contracts/manager.js'
 export * from './contracts/state.js'
 export * from './contracts/effects.js'
+// socket.ts is a backward-compat barrel that re-exports signals.ts + commands.ts + queries.ts
+// Import from signals/commands/queries directly for focused access
 export * from './contracts/socket.js'
 export * from './contracts/diagnostics.js'
 export * from './contracts/online-socket.js'

@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { STATE } from '@ieom/shared'
-import type { DesktopRuntimeStatePayload, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
+import type { DesktopRuntimeStatePayload, ManagerStatus, ObsStatusPayload, RuntimeDiagnosticsPayload } from '@ieom/shared'
 
 export interface RuntimeSlice {
   currentState: STATE
@@ -10,7 +10,6 @@ export interface RuntimeSlice {
   overlayOwnerSocketId: string | null
   openWidgetIds: string[]
   recycleBinFull: boolean
-  simulationLeaderId: string | null
   ambianceAcceptedCount: number
   ambianceRejectedCount: number
   runtimeDiagnostics: RuntimeDiagnosticsPayload
@@ -22,7 +21,6 @@ export interface RuntimeSlice {
   syncDesktopRuntimeState: (payload: DesktopRuntimeStatePayload) => void
   toggleWidgetRuntimeState: (widgetId: string) => void
   setRecycleBinFull: (full: boolean) => void
-  setSimulationLeaderId: (id: string | null) => void
   setAmbianceMetrics: (payload: { accepted: number; rejected: number }) => void
   setRuntimeDiagnostics: (payload: RuntimeDiagnosticsPayload) => void
 }
@@ -43,14 +41,13 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
   overlayOwnerSocketId: null,
   openWidgetIds: [],
   recycleBinFull: false,
-  simulationLeaderId: null,
   ambianceAcceptedCount: 0,
   ambianceRejectedCount: 0,
   runtimeDiagnostics: {
     scheduler: {
-      tickMs: 5000,
+      nextFireAt: null,
       currentState: STATE.DESKTOP,
-      lastEvaluatedAt: null,
+      lastProcessedAt: null,
       lastActivityAt: Date.now(),
       lastTriggeredEventId: null,
       lastTriggeredAt: null,
@@ -69,14 +66,7 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
       pendingPhase: null,
       pendingActionId: null,
       leaderSocketId: null,
-      leaderClientKind: null,
-      leaderClientPort: null,
-      leaderClientLabel: null,
-      leaderReady: false,
-      leaderLeaseDurationMs: 0,
-      leaderLeaseExpiresAt: null,
-      leaderLastHeartbeatAt: null,
-      overlayClients: [],
+      overlayReady: false,
       history: [],
       openWidgetCount: 0,
       enabledWidgetCount: 0,
@@ -99,7 +89,6 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
         : [...state.openWidgetIds, widgetId],
     })),
   setRecycleBinFull: (full) => set({ recycleBinFull: full }),
-  setSimulationLeaderId: (id) => set({ simulationLeaderId: id }),
   setAmbianceMetrics: (payload) =>
     set({ ambianceAcceptedCount: payload.accepted, ambianceRejectedCount: payload.rejected }),
   setRuntimeDiagnostics: (payload) => set({ runtimeDiagnostics: payload }),

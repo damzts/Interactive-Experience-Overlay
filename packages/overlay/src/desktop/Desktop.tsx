@@ -455,7 +455,6 @@ export function Desktop({ apps }: DesktopProps) {
   const [windowOrder, setWindowOrder]     = useState<string[]>([])
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [draggingId, setDraggingId]       = useState<string | null>(null)
-  const [simulationLeaderId, setSimulationLeaderId] = useState<string | null>(null)
   const [overlayRuntimeStatus, setOverlayRuntimeStatus] = useState<OverlayRuntimeStatusPayload>({
     mounted: false,
     cursorReady: false,
@@ -498,7 +497,6 @@ export function Desktop({ apps }: DesktopProps) {
   const cameraPermissionState = useAppStore((s) => s.cameraPermissionState)
   const setCameraPermissionState = useAppStore((s) => s.setCameraPermissionState)
 
-  const isSimulationLeader = simulationLeaderId !== null && simulationLeaderId === socket.id;
   const overlayRuntimeReady = overlayRuntimeStatus.ready
 
   useEffect(() => {
@@ -576,31 +574,6 @@ export function Desktop({ apps }: DesktopProps) {
   }, [cameraPermissionState, overlayRuntimeReady, supportedApps])
 
   useEffect(() => {
-    // With a single overlay slot, leadership is assigned on connect and held until disconnect.
-    // No heartbeat needed — the server clears the leader on socket disconnect.
-  }, [isSimulationLeader, overlayRuntimeReady])
-
-  useEffect(() => {
-    const onLeader = (payload: { socketId: string | null }) => {
-      setSimulationLeaderId(payload.socketId)
-    }
-
-    const requestLeader = () => {
-      socket.emit('ambiance:leader:request', (payload: { socketId: string | null }) => {
-        setSimulationLeaderId(payload.socketId)
-      })
-    }
-
-    socket.on('ambiance:leader', onLeader)
-    socket.on('connect', requestLeader)
-    if (socket.connected) requestLeader()
-    return () => {
-      socket.off('ambiance:leader', onLeader)
-      socket.off('connect', requestLeader)
-    }
-  }, [])
-
-  useEffect(() => {
     const applyStartMenuState = (payload: DesktopStartMenuStatePayload) => {
       setStartMenuOpen(payload.open)
       setStartMenuActiveRoot(payload.open ? payload.activeRoot : null)
@@ -652,7 +625,7 @@ export function Desktop({ apps }: DesktopProps) {
   }, [])
 
   useEffect(() => {
-    if (!isSimulationLeader || !overlayRuntimeReady) return;
+    if (!overlayRuntimeReady) return;
 
     const runAmbianceSimulation = async (payload: AmbianceSimulationPayload) => {
       const startedAt = Date.now();
@@ -822,7 +795,7 @@ export function Desktop({ apps }: DesktopProps) {
         cursor.setVisible(false);
       }
     };
-  }, [emitStartMenuState, isSimulationLeader, overlayRuntimeReady, supportedApps]);
+  }, [emitStartMenuState, overlayRuntimeReady, supportedApps]);
 
   const themeStyle = useMemo(
     () => ({

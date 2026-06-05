@@ -13,13 +13,17 @@ import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
+import { SchedulerPanel } from '../scheduler/SchedulerPanel'
+import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
+import { ObsPanel } from '../obs/ObsPanel'
+import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
+import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
 import { WidgetLayoutPanel } from './WidgetLayoutPanel'
 import { ScenePanel, LobbyThemeEditor, DesktopThemeEditor } from './EnvEditors'
-import { SocketLogConsole } from './socketLog'
 import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 
 // ── RightPaneErrorBoundary ─────────────────────────────────────────
@@ -140,6 +144,10 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPage />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
+  if (selected.kind === 'scheduler') return <SchedulerPanel />
+  if (selected.kind === 'scene-machine') return <SceneMachinePanel />
+  if (selected.kind === 'obs') return <ObsPanel />
+  if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
 
   return null
@@ -221,10 +229,16 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     headerIcon  = '🎨'
     headerLabel = 'Desktop Theme'
     headerMeta  = 'Utility'
-  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio';    headerMeta = 'Utility' }
-  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
-  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';  headerMeta = 'Utility' }
-  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
+  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio Engine'; headerMeta = 'Engine' }
+  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Input Engine'; headerMeta = 'Engine' }
+  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';       headerMeta = 'Utility' }
+  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings';      headerMeta = 'Utility' }
+  else if (selected.kind === 'asset-library') { headerIcon = '🗂'; headerLabel = 'Asset Library'; headerMeta = 'Utility' }
+  else if (selected.kind === 'ambiance')      { headerIcon = '🌌'; headerLabel = 'Ambiance';      headerMeta = 'Engine' }
+  else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
+  else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
+  else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
+  else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (
@@ -256,7 +270,29 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
 // ── SettingsModal ──────────────────────────────────────────────────
 
-export type SettingsTab = 'general' | 'audio' | 'keybinds' | 'about'
+export type SettingsTab = 'general' | 'about'
+
+function SettingsPanel() {
+  const [tab, setTab] = useState<SettingsTab>('general')
+  return (
+    <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
+      <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
+        {(['general', 'about'] as const).map((id) => (
+          <button key={id} type="button" onClick={() => setTab(id)}
+            className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' + (
+              tab === id
+                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
+                : 'border-transparent text-zinc-500 hover:border-zinc-700/70 hover:bg-zinc-900/75 hover:text-zinc-200'
+            )}>{id}</button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {tab === 'about'    && <SettingsPage mode="about" />}
+        {tab === 'general'  && <SettingsPage />}
+      </div>
+    </div>
+  )
+}
 
 export function SettingsModal({ tab, onTabChange, onClose }: {
   tab: SettingsTab
@@ -292,9 +328,7 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
 
         <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'about'    && <SettingsPage mode="about" />}
-          {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
-          {tab === 'audio'    && <AudioPanel />}
-          {tab === 'keybinds' && <KeybindEditor />}
+          {tab === 'general'  && <SettingsPage />}
         </div>
       </div>
     </FloatingWindowShell>
