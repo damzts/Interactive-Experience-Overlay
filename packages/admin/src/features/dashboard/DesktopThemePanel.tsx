@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  DEFAULT_CONFIG,
   DEFAULT_WIDGET_THEME_PRESETS,
   withDesktopConfigDefaults,
 } from '@ieom/shared'
@@ -8,7 +7,7 @@ import type { DesktopConfig, DesktopTheme, WidgetThemeConfig } from '@ieom/share
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, ConfigChoiceButton, isSameDraft, Slider } from '../../shared/ui'
-import { Toggle, Button } from '../../components/atoms'
+import { Toggle } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
 import {
   DESKTOP_THEMES,
@@ -122,13 +121,11 @@ function DesktopConfigSections({ form, update }: {
 }
 
 export function DesktopThemeEditor() {
-  const config                   = useAdminStore((s) => s.config)
-  const saveConfig               = useAdminStore((s) => s.saveConfig)
-  const setRuntimeConfigOverride = useAdminStore((s) => s.setRuntimeConfigOverride)
-  const sourceDesktopConfig      = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
+  const config              = useAdminStore((s) => s.config)
+  const saveConfig          = useAdminStore((s) => s.saveConfig)
+  const sourceDesktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const sourceThemeDefault    = sourceDesktopConfig.globalThemeDefault
   const randomDesktopThemes   = useMemo(() => DESKTOP_THEMES.filter((e) => e.id !== 'custom'), [])
-  const factoryDesktopConfig  = useMemo(() => structuredClone(withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig)), [])
 
   const [theme,       setTheme]       = useState<DesktopTheme>(() => sourceThemeDefault.theme)
   const [appearance,  setAppearance]  = useState<ThemeAppearance>(() => structuredClone(sourceThemeDefault.appearance))
@@ -136,9 +133,7 @@ export function DesktopThemeEditor() {
   const [form,        setForm]        = useState<DesktopConfig>(() => structuredClone(sourceDesktopConfig))
   const [saving,      setSaving]      = useState(false)
   const [saved,       setSaved]       = useState(false)
-  const [factoryResetArmed, setFactoryResetArmed] = useState(false)
-  const savedTimer        = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const factoryResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const update = useCallback((updater: (d: DesktopConfig) => void) => {
     setForm((prev) => { const next = structuredClone(prev); updater(next); return next })
@@ -155,13 +150,11 @@ export function DesktopThemeEditor() {
     setAppearance(structuredClone(sourceThemeDefault.appearance))
     setWidgetTheme(structuredClone(sourceThemeDefault.widgetTheme))
     setForm(structuredClone(sourceDesktopConfig))
-    setFactoryResetArmed(false)
     setSaved(false)
   }, [config.desktopConfig])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
-    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
     postPreviewConfigPatch(null)
   }, [])
 
@@ -194,47 +187,8 @@ export function DesktopThemeEditor() {
     setSaved(false)
   }, [sourceDesktopConfig, sourceThemeDefault])
 
-  const performFactoryReset = useCallback(async () => {
-    if (!factoryResetArmed) {
-      setFactoryResetArmed(true)
-      if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
-      factoryResetTimer.current = setTimeout(() => setFactoryResetArmed(false), 3500)
-      return
-    }
-    if (factoryResetTimer.current) clearTimeout(factoryResetTimer.current)
-    setFactoryResetArmed(false)
-    setSaving(true)
-    await saveConfig({
-      desktopConfig: {
-        ...factoryDesktopConfig,
-      } as unknown as import('@ieom/shared').DesktopConfig,
-    })
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [factoryDesktopConfig, saveConfig, factoryResetArmed])
-
-  const clearAllRuntime = useCallback(() => {
-    postPreviewConfigPatch(null)
-    setRuntimeConfigOverride({})
-    socket.emit('runtime:config:override:clear', (err: string | null) => {
-      if (err) console.error('[admin] failed to clear runtime overrides', err)
-    })
-  }, [setRuntimeConfigOverride])
-
   return (
     <div className="space-y-3">
-      <div className="grid gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 p-4 lg:grid-cols-2">
-        <Button variant="danger" size="sm" onClick={() => { void performFactoryReset() }}
-          className="justify-center px-3 py-2 text-[11px] uppercase tracking-[0.16em]">
-          {factoryResetArmed ? 'Confirm Factory Reset' : 'Perform Factory Reset'}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={clearAllRuntime}
-          className="justify-center px-3 py-2 text-[11px] uppercase tracking-[0.16em]">
-          Clear All Runtime
-        </Button>
-      </div>
       <div className="space-y-0 pt-3">
         <ConfigPanel title="Desktop Theme" className="mb-4">
           <div className="space-y-4">
