@@ -72,9 +72,9 @@ export function IconGlyph({ icon, label, size = 24 }: { icon: string; label: str
   );
 }
 
-// ConfigApplyBar: wrapper for SaveBar with custom labels
-export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, alwaysShow = false }: {
-  label: string;
+// ConfigApplyBar: full-width floating save bar pinned to the bottom of its scroll container
+export function ConfigApplyBar({ dirty, saving, saved, onApply, onReset, alwaysShow = false, label: _label }: {
+  label?: string;
   dirty: boolean;
   saving: boolean;
   saved: boolean;
@@ -82,24 +82,33 @@ export function ConfigApplyBar({ label, dirty, saving, saved, onApply, onReset, 
   onReset: () => void;
   alwaysShow?: boolean;
 }) {
+  if (!alwaysShow && !dirty && !saved) return null
   return (
-    <div className="sticky top-0 z-20 -mx-5 -mt-5 mb-5 border-b border-white/8 bg-[rgba(5,5,7,0.84)] px-5 pt-5 pb-2 backdrop-blur-xl">
-      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-5 py-4.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3">
-          <SaveBar
-            dirty={dirty}
-            saving={saving}
-            saved={saved}
-            onSave={onApply}
-            onRevert={onReset}
-            alwaysShow={alwaysShow}
-            showDivider={false}
-            className="w-full"
-          />
-        </div>
+    <div className="sticky bottom-0 z-30 -mx-5 -mb-5 mt-6 border-t border-white/[0.05] bg-[rgba(4,4,6,0.25)] px-6 py-5 backdrop-blur-2xl">
+      <div className="flex items-center justify-center gap-4">
+        {saved && !dirty && (
+          <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-6 py-3">
+            <span>✅</span>
+            <span className="text-sm font-medium text-emerald-300">Saved</span>
+          </div>
+        )}
+        {(dirty || (alwaysShow && !saved)) && (
+          <>
+            <button type="button" onClick={onApply} disabled={saving || !dirty}
+              className="flex flex-1 max-w-xs items-center justify-center gap-2.5 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-8 py-3.5 text-base font-semibold text-amber-200 transition-colors hover:border-amber-400/50 hover:bg-amber-500/20 disabled:opacity-40">
+              <span>💾</span>
+              <span>{saving ? 'Saving…' : 'Save'}</span>
+            </button>
+            <button type="button" onClick={onReset} disabled={!dirty}
+              className="flex flex-1 max-w-[160px] items-center justify-center gap-2.5 rounded-2xl border border-zinc-600/30 bg-zinc-800/20 px-6 py-3.5 text-base font-medium text-zinc-400 transition-colors hover:border-zinc-500/50 hover:bg-zinc-700/20 disabled:opacity-40">
+              <span>↩︎</span>
+              <span>Restore</span>
+            </button>
+          </>
+        )}
       </div>
     </div>
-  );
+  )
 }
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 
@@ -567,27 +576,25 @@ export function SaveBar({
   return (
     <div className={`space-y-2 ${showDivider ? 'mt-4 border-t border-white/8 pt-3' : ''} ${className}`.trim()}>
       {(dirty || alwaysShow) && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex gap-2">
           <button type="button" onClick={onSave} disabled={saving || !dirty}
-            className="flex flex-col items-center gap-1 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-4 text-amber-200 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 disabled:opacity-40">
-            <span className="text-lg">💾</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">{saving ? 'Saving…' : 'Save'}</span>
-            <span className="text-[9px] text-amber-300/60">Apply &amp; write to database</span>
+            className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-5 py-2.5 text-sm font-medium text-amber-200 transition-colors hover:border-amber-400/50 hover:bg-amber-500/20 disabled:opacity-40">
+            <span>💾</span>
+            <span>{saving ? 'Saving…' : 'Save'}</span>
           </button>
           {onRevert && (
             <button type="button" onClick={onRevert} disabled={!dirty}
-              className="flex flex-col items-center gap-1 rounded-xl border border-zinc-600/40 bg-zinc-800/40 px-5 py-4 text-zinc-300 transition-colors hover:border-zinc-500/60 hover:bg-zinc-700/40 disabled:opacity-40">
-              <span className="text-lg">↩︎</span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">Restore</span>
-              <span className="text-[9px] text-zinc-500">Revert unsaved changes</span>
+              className="flex items-center gap-2 rounded-xl border border-zinc-600/30 bg-zinc-800/30 px-5 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:border-zinc-500/50 hover:bg-zinc-700/30 disabled:opacity-40">
+              <span>↩︎</span>
+              <span>Restore</span>
             </button>
           )}
         </div>
       )}
       {saved && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4">
-          <span className="text-base">✅</span>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Saved successfully</span>
+        <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5">
+          <span className="text-sm">✅</span>
+          <span className="text-[11px] font-medium text-emerald-300">Saved</span>
         </div>
       )}
     </div>

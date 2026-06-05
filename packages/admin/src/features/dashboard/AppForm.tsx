@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
 import {
   DEFAULT_RECYCLE_BIN_SETTINGS,
   DEFAULT_STICKY_NOTES_SETTINGS,
@@ -68,31 +68,12 @@ function Notice({ tone = 'info', children, className = '' }: { tone?: 'info' | '
   )
 }
 
-// ── Shared utility for model display ─────────────────────────────────
-
-function summarizeTransitionModel(steps?: any[]) {
-  if (!steps?.length) return 'none'
-  const ids = steps.map((step: any) => step.id).join(' -> ')
-  return `${steps.length} step${steps.length === 1 ? '' : 's'}: ${ids}`
-}
-
-function formatIconPositionModel(position?: { x: number; y: number }) {
-  if (!position) return 'unset'
-  return `x: ${Math.round(position.x)}, y: ${Math.round(position.y)}`
-}
-
-function ModelField({ field, value, mono = false }: { field: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2">
-      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">{field}</div>
-      <div className={`text-[11px] text-[var(--color-text-primary)] break-all ${mono ? 'font-mono' : ''}`}>{value}</div>
-    </div>
-  )
-}
-
 // ── AppForm ───────────────────────────────────────────────────────────
 
-export function AppForm({ app, onDelete }: { app: Application; onDelete: () => void }) {
+export type AppFormHandle = { apply: () => Promise<void>; reset: () => void; dirty: boolean }
+
+export const AppForm = forwardRef<AppFormHandle, { app: Application; onDelete: () => void; embedded?: boolean; onDirtyChange?: (dirty: boolean) => void }>(
+function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const config               = useAdminStore((s) => s.config)
   const persistedConfig      = useAdminStore((s) => s.persistedConfig)
   const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
@@ -345,6 +326,10 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
     setSaved(false)
   }
 
+  useImperativeHandle(ref, () => ({ apply, reset, dirty }), [apply, dirty])
+
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+
   const useCurrentWidgetValues = () => {
     if (form.appType !== 'widget') return
     setWidgetPosition(liveWidgetPosition)
@@ -367,7 +352,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
 
   return (
     <div className="space-y-3">
-      <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="space-y-0 pt-3">
 
         {form.appType === 'widget' && (
@@ -765,28 +749,6 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
             </div>
           </ConfigPanel>
         )}
-
-        <ConfigPanel title="Application Model" className="mb-4">
-          <div className="space-y-3">
-            <div className="grid gap-2 md:grid-cols-2">
-              <ModelField field="id" value={form.id} mono />
-              <ModelField field="appType" value={form.appType} mono />
-              <ModelField field="label" value={form.label || 'untitled'} />
-              <ModelField field="icon" value={form.icon || 'unset'} mono />
-              <ModelField field="iconSize" value={form.iconSize ?? 'normal'} mono />
-              {form.appType === 'scene' && <ModelField field="targetSceneId" value={form.targetSceneId || 'none'} mono />}
-              {form.appType === 'widget' && widgetSource && <ModelField field="widgetSource" value={widgetSource} mono />}
-              {form.appType === 'widget' && widgetComponent && <ModelField field="widgetComponent" value={widgetComponent} mono />}
-              <ModelField field="iconPosition" value={formatIconPositionModel(form.iconPosition)} mono />
-              {supportsSceneTransitions && (
-                <>
-                  <ModelField field="introTransitions" value={summarizeTransitionModel(form.introTransitions)} />
-                  <ModelField field="exitTransitions"  value={summarizeTransitionModel(form.exitTransitions)} />
-                </>
-              )}
-            </div>
-          </div>
-        </ConfigPanel>
       </div>
 
       <button onClick={onDelete} disabled={isProtectedSystemWidget}
@@ -797,9 +759,10 @@ export function AppForm({ app, onDelete }: { app: Application; onDelete: () => v
         )}>
         {isProtectedSystemWidget ? 'Protected' : 'Remove'}
       </button>
+      {!embedded && <ConfigApplyBar label="Application Configuration" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />}
     </div>
   )
-}
+})
 
 // ── Extracted components ──────────────────────────────────────────────
 // NewWidgetForm   → ./NewWidgetForm.tsx

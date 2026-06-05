@@ -134,8 +134,6 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
 
   return (
     <div className="space-y-4">
-      <ConfigApplyBar label={layout.label} dirty={dirty} saving={saving} saved={saved}
-        onApply={() => void persistLayout(layout)} onReset={() => setLayout(structuredClone(sourceLayout))} alwaysShow />
       <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'1rem'}}>
         <ConfigSectionPanel label="Layout Configuration" first>
           <div className="space-y-4">
@@ -182,6 +180,8 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
           </div>
         </ConfigSectionPanel>
       </div>
+      <ConfigApplyBar label={layout.label} dirty={dirty} saving={saving} saved={saved}
+        onApply={() => void persistLayout(layout)} onReset={() => setLayout(structuredClone(sourceLayout))} alwaysShow />
     </div>
   )
 }

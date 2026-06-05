@@ -266,7 +266,6 @@ export function AmbiancePanel() {
       <ConfigPageIntro title="Desktop Ambiance">
         Control desktop ambiance.
       </ConfigPageIntro>
-      <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       <div className="space-y-6 pt-3">
       <ConfigPanel title="Widget Simulation" collapsible>
         <div className="space-y-4">
@@ -509,6 +508,7 @@ export function AmbiancePanel() {
       </ConfigPanel>
 
       </div>
+      <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
     </div>
   )
 }

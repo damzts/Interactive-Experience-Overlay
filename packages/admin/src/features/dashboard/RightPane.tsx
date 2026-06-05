@@ -21,7 +21,9 @@ import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
 import { WidgetLayoutPanel } from './WidgetLayoutPanel'
-import { ScenePanel, LobbyThemeEditor, DesktopThemeEditor } from './EnvEditors'
+import { ScenePanel } from './ScenePanel'
+import { LobbyThemeEditor } from './LobbyThemePanel'
+import { DesktopThemeEditor } from './DesktopThemePanel'
 import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 import { SettingsPanel } from './SettingsPanel'
 import { SidebarBtn, SectionLabel, NavListBox } from './NavListBox'
@@ -88,15 +90,10 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'scene') {
     const app = applications.find((a) => a.targetSceneId === selected.sceneState)
     return (
-      <div className="space-y-5">
-        <ScenePanel sceneId={selected.sceneState} />
-        {app && (
-          <AppForm app={app} onDelete={() => {
-            saveConfig({ applications: applications.filter((a) => a.id !== app.id) })
-            onDeleted()
-          }} />
-        )}
-      </div>
+      <ScenePanel sceneId={selected.sceneState} app={app} onDelete={app ? () => {
+        saveConfig({ applications: applications.filter((a) => a.id !== app.id) })
+        onDeleted()
+      } : undefined} />
     )
   }
 
