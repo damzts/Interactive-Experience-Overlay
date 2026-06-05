@@ -1,0 +1,298 @@
+/* ============================================================
+   IEOM Admin Panel — Animation Keyframes & Utility Classes
+   ============================================================
+   All animations use CSS custom properties from the token system
+   defined in admin.css. Import this file alongside admin.css.
+
+   Animations respect prefers-reduced-motion via the global rule
+   in admin.css which forces animation-duration to 0.01ms.
+   ============================================================ */
+
+/* ============================================================
+   Keyframe Definitions
+   ============================================================ */
+
+/* ─── Page Transition: Crossfade ─── */
+@keyframes page-crossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Card Entrance: Slide Up + Fade In ─── */
+@keyframes card-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Modal Entrance: Scale Up + Fade In ─── */
+@keyframes modal-scale-up {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ─── Modal Backdrop: Fade In ─── */
+@keyframes backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Modal Exit: Scale Down + Fade Out ─── */
+@keyframes modal-scale-down {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* ─── Skeleton Shimmer: Continuous Loading Animation ─── */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ─── Toast Slide-In: From Top-Right Corner ─── */
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ─── Toast Slide-Out: Exit to Top-Right ─── */
+@keyframes toast-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* ─── Sidebar Item Fade-In: Staggered Entrance ─── */
+@keyframes sidebar-item-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ─── Button Press: Scale Down ─── */
+@keyframes button-press {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ─── Pulse: Attention Indicator ─── */
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* ─── Fade In: Generic opacity entrance (tooltips, popovers) ─── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Highlight Flash: Brief Element Highlight ─── */
+@keyframes highlight-flash {
+  0% {
+    background-color: rgba(34, 211, 238, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* ─── Save Success Pulse: Warm Amber/Gold Feedback ─── */
+@keyframes save-success-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(245, 158, 11, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+/* ============================================================
+   Utility Classes
+   ============================================================ */
+
+/* ─── Page Transition ─── */
+.animate-page-crossfade {
+  animation: page-crossfade 200ms var(--ease-default) both;
+  animation-duration: var(--duration-fast);
+}
+
+/* ─── Card Entrance (Staggered) ─── */
+.animate-card-entrance {
+  animation: card-slide-up var(--duration-fast) var(--ease-out) both;
+}
+
+.animate-card-entrance:nth-child(1) { animation-delay: 0ms; }
+.animate-card-entrance:nth-child(2) { animation-delay: 30ms; }
+.animate-card-entrance:nth-child(3) { animation-delay: 60ms; }
+.animate-card-entrance:nth-child(4) { animation-delay: 90ms; }
+.animate-card-entrance:nth-child(5) { animation-delay: 120ms; }
+.animate-card-entrance:nth-child(6) { animation-delay: 150ms; }
+.animate-card-entrance:nth-child(7) { animation-delay: 180ms; }
+.animate-card-entrance:nth-child(8) { animation-delay: 210ms; }
+.animate-card-entrance:nth-child(9) { animation-delay: 240ms; }
+.animate-card-entrance:nth-child(10) { animation-delay: 270ms; }
+
+/* ─── Modal Entrance ─── */
+.animate-modal-enter {
+  animation: modal-scale-up var(--duration-normal) var(--ease-out) both;
+}
+
+.animate-modal-exit {
+  animation: modal-scale-down var(--duration-fast) var(--ease-default) both;
+}
+
+/* ─── Modal Backdrop ─── */
+.animate-backdrop-enter {
+  animation: backdrop-fade-in var(--duration-normal) var(--ease-default) both;
+}
+
+.animate-backdrop-exit {
+  animation: page-crossfade var(--duration-fast) var(--ease-default) reverse both;
+}
+
+/* ─── Skeleton Shimmer ─── */
+.animate-skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-surface) 25%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s var(--ease-default) infinite;
+}
+
+/* ─── Toast Slide-In ─── */
+.animate-toast-enter {
+  animation: toast-slide-in var(--duration-normal) var(--ease-spring) both;
+}
+
+.animate-toast-exit {
+  animation: toast-slide-out var(--duration-fast) var(--ease-default) both;
+}
+
+/* ─── Sidebar Staggered Fade-In ─── */
+.animate-sidebar-item {
+  animation: sidebar-item-fade-in var(--duration-fast) var(--ease-out) both;
+}
+
+.animate-sidebar-item:nth-child(1) { animation-delay: 0ms; }
+.animate-sidebar-item:nth-child(2) { animation-delay: 50ms; }
+.animate-sidebar-item:nth-child(3) { animation-delay: 100ms; }
+.animate-sidebar-item:nth-child(4) { animation-delay: 150ms; }
+.animate-sidebar-item:nth-child(5) { animation-delay: 200ms; }
+.animate-sidebar-item:nth-child(6) { animation-delay: 250ms; }
+.animate-sidebar-item:nth-child(7) { animation-delay: 300ms; }
+.animate-sidebar-item:nth-child(8) { animation-delay: 350ms; }
+.animate-sidebar-item:nth-child(9) { animation-delay: 400ms; }
+.animate-sidebar-item:nth-child(10) { animation-delay: 450ms; }
+
+/* ─── Button Press ─── */
+.animate-button-press:active {
+  transform: scale(0.97);
+  transition: transform 50ms var(--ease-default);
+}
+
+.animate-button-press {
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+
+/* ─── Pulse Ring (Status Indicators) ─── */
+.animate-pulse-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: pulse-ring 1.5s var(--ease-out) infinite;
+  border: 2px solid currentColor;
+}
+
+/* ─── Highlight Flash (Search Target) ─── */
+.animate-highlight-flash {
+  animation: highlight-flash 1s var(--ease-default) both;
+}
+
+/* ─── Save Success Pulse (Amber/Gold Feedback) ─── */
+.animate-save-success {
+  animation: save-success-pulse 600ms var(--ease-out) both;
+}
+
+/* ─── Sidebar Collapse/Expand ─── */
+.animate-sidebar-collapse {
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+/* ─── Hover Elevation ─── */
+.animate-hover-elevation {
+  transition: box-shadow var(--duration-fast) var(--ease-default);
+}
+
+.animate-hover-elevation:hover {
+  box-shadow: var(--shadow-lg);
+}

@@ -1,0 +1,529 @@
+@import "tailwindcss";
+
+/* ============================================================
+   IEOM Admin Panel — Design Token System (CSS Custom Properties)
+   ============================================================
+   All visual values are centralized here. Components reference
+   these variables instead of hardcoded colors, spacing, or timing.
+   Changing a token value propagates across the entire UI.
+   ============================================================ */
+
+
+:root {
+  /* ─── Base Palette ─── */
+  --color-bg-base: #09090b;
+  --color-bg-surface: #18181b;
+  --color-bg-elevated: #27272a;
+  --color-bg-overlay: rgba(9, 9, 11, 0.85);
+
+  /* ─── Primary — Cyan (Trust, Technology, Reliability) ─── */
+  --color-primary-50: #ecfeff;
+  --color-primary-100: #cffafe;
+  --color-primary-200: #a5f3fc;
+  --color-primary-300: #67e8f9;
+  --color-primary-400: #22d3ee;
+  --color-primary-500: #06b6d4;
+  --color-primary-600: #0891b2;
+  --color-primary-700: #0e7490;
+
+  /* ─── Accent — Amber/Gold (Achievement, Motivation, Warmth) ─── */
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+
+  /* ─── Success — Emerald (Progress, Health, Completion) ─── */
+  --color-success-50: #ecfdf5;
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+
+  /* ─── Danger — Red (Errors, Destructive Actions) ─── */
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+
+  /* ─── Creative — Violet (Premium, Inspiration) ─── */
+  --color-creative-400: #a78bfa;
+  --color-creative-500: #8b5cf6;
+  --color-creative-600: #7c3aed;
+
+  /* ─── Neutral — Text, Borders, Backgrounds ─── */
+  --color-text-primary: #f4f4f5;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-border-default: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* ─── Spacing (4px base grid) ─── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ─── Typography ─── */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  /* ─── Legacy Admin Font Scale (mapped to token system) ─── */
+  --admin-font-kicker: 0.625rem;
+  --admin-font-meta: 0.6875rem;
+  --admin-font-body: var(--text-xs);
+  --admin-font-title: var(--text-sm);
+  --admin-font-display: 0.9375rem;
+
+  /* ─── Legacy Admin Semantic Aliases ─── */
+  --admin-bg: var(--color-bg-base);
+  --admin-surface: var(--color-bg-overlay);
+  --admin-surface-strong: rgba(15, 15, 18, 0.92);
+  --admin-border: var(--color-border-default);
+  --admin-border-strong: rgba(34, 211, 238, 0.16);
+  --admin-accent: var(--color-primary-400);
+  --admin-accent-soft: rgba(34, 211, 238, 0.12);
+  --admin-text-soft: var(--color-text-secondary);
+
+  /* ─── Elevation (Shadows) ─── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.6);
+
+  /* ─── Radii ─── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ─── Motion ─── */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* ============================================================
+   Reduced Motion — Animation Safety
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Base Layer
+   ============================================================ */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 32%),
+      radial-gradient(circle at top right, rgba(244, 114, 182, 0.12), transparent 28%),
+      radial-gradient(circle at 50% 0%, rgba(250, 204, 21, 0.07), transparent 28%),
+      linear-gradient(180deg, var(--color-bg-base) 0%, var(--color-bg-base) 42%, #0b0b10 100%);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  input, textarea, select {
+    background-color: rgba(9, 9, 11, 0.82);
+    border: 1px solid rgba(82, 82, 91, 0.85);
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    color: var(--color-text-primary);
+    padding: 0.5rem 0.75rem;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    width: 100%;
+    transition:
+      border-color var(--duration-fast) var(--ease-default),
+      background-color var(--duration-fast) var(--ease-default),
+      box-shadow var(--duration-fast) var(--ease-default);
+  }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--color-primary-500);
+    box-shadow:
+      0 0 0 1px rgba(34, 211, 238, 0.28),
+      0 0 0 4px rgba(8, 145, 178, 0.08);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  input[type="range"] {
+    background: transparent;
+    padding: 0;
+    height: 20px;
+  }
+
+  input[type="color"] {
+    padding: 2px;
+    height: var(--space-8);
+    width: var(--space-12);
+    cursor: pointer;
+  }
+
+  input[type="checkbox"] {
+    width: var(--space-4);
+    height: var(--space-4);
+    cursor: pointer;
+    accent-color: var(--color-primary-500);
+  }
+
+  /* ─── Focus Ring (keyboard navigation only) ─── */
+  :where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--color-primary-400);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================================
+   Component Layer
+   ============================================================ */
+@layer components {
+  /* ─── App Shell ─── */
+  .admin-app-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .admin-app-shell::before,
+  .admin-app-shell::after {
+    content: '';
+    position: absolute;
+    inset: auto;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .admin-app-shell::before {
+    top: -12rem;
+    left: -10rem;
+    width: 28rem;
+    height: 28rem;
+    border-radius: var(--radius-full);
+    background: radial-gradient(circle, rgba(34, 211, 238, 0.18), transparent 68%);
+    filter: blur(18px);
+  }
+
+  .admin-app-shell::after {
+    right: -8rem;
+    bottom: -10rem;
+    width: 26rem;
+    height: 26rem;
+    border-radius: var(--radius-full);
+    background: radial-gradient(circle, rgba(244, 114, 182, 0.16), transparent 68%);
+    filter: blur(24px);
+  }
+
+  /* ─── Shell Panels ─── */
+  .admin-shell-panel {
+    background: linear-gradient(180deg, rgba(15, 15, 18, 0.9), rgba(9, 9, 11, 0.86));
+    border: 1px solid var(--color-border-default);
+    box-shadow:
+      var(--shadow-xl),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(18px);
+  }
+
+  .admin-shell-panel--strong {
+    background: linear-gradient(180deg, rgba(18, 18, 22, 0.94), rgba(11, 11, 14, 0.92));
+    border-color: var(--admin-border-strong);
+  }
+
+  .admin-shell-panel--soft {
+    background: linear-gradient(180deg, rgba(13, 13, 16, 0.82), rgba(9, 9, 11, 0.7));
+  }
+
+  /* ─── Login Animations ─── */
+  .login-shell {
+    animation: admin-login-shell-in var(--duration-slow) var(--ease-out) both;
+  }
+
+  .login-panel {
+    animation: admin-login-panel-in 560ms var(--ease-out) both;
+  }
+
+  .login-card {
+    animation: admin-login-card-in 620ms var(--ease-out) both;
+    animation-delay: 80ms;
+  }
+
+  .login-chip {
+    animation: admin-login-chip-pulse 8s ease-in-out infinite;
+  }
+
+  /* ─── Typography Overrides ─── */
+  .admin-shell [class*="text-[8px]"],
+  .admin-shell [class*="text-[9px]"] {
+    font-size: var(--admin-font-kicker) !important;
+    line-height: 1.35 !important;
+  }
+
+  .admin-shell [class*="text-[10px]"],
+  .admin-shell [class*="text-[11px]"] {
+    font-size: var(--admin-font-meta) !important;
+    line-height: 1.45 !important;
+  }
+
+  .admin-shell [class~="text-xs"] {
+    font-size: var(--admin-font-body) !important;
+    line-height: 1.5 !important;
+  }
+
+  .admin-shell [class~="text-sm"] {
+    font-size: var(--admin-font-title) !important;
+    line-height: 1.45 !important;
+  }
+
+  .admin-text-kicker {
+    font-size: var(--admin-font-kicker) !important;
+    line-height: 1.35 !important;
+  }
+
+  .admin-text-meta {
+    font-size: var(--admin-font-meta) !important;
+    line-height: 1.45 !important;
+  }
+
+  .admin-text-body {
+    font-size: var(--admin-font-body) !important;
+    line-height: 1.5 !important;
+  }
+
+  .admin-text-title {
+    font-size: var(--admin-font-title) !important;
+    line-height: 1.4 !important;
+  }
+
+  .admin-text-display {
+    font-size: var(--admin-font-display) !important;
+    line-height: 1.3 !important;
+  }
+
+  /* ─── Inline Code ─── */
+  .admin-inline-code {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    background: rgba(8, 145, 178, 0.08);
+    border-radius: var(--radius-sm);
+    padding: 0.05rem 0.4rem;
+    color: var(--color-primary-200);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  /* ─── Kicker Badge ─── */
+  .admin-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(34, 211, 238, 0.18);
+    background: rgba(8, 145, 178, 0.08);
+    color: var(--color-primary-200);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* ─── Hero Section ─── */
+  .admin-hero {
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border-default);
+    background:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.12), transparent 34%),
+      radial-gradient(circle at bottom right, rgba(244, 114, 182, 0.09), transparent 28%),
+      linear-gradient(180deg, rgba(15, 15, 18, 0.92), rgba(9, 9, 11, 0.9));
+    box-shadow: var(--shadow-xl);
+    backdrop-filter: blur(18px);
+  }
+
+  .admin-hero-grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .admin-hero-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-default);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  /* ─── Panel Titles ─── */
+  .admin-panel-title {
+    color: var(--color-text-primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .admin-panel-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 0.74rem;
+    line-height: 1.45;
+  }
+
+  /* ─── Config Table ─── */
+  .admin-config-table {
+    overflow: hidden;
+    border: 1px solid rgba(39, 39, 42, 0.82);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(9, 9, 11, 0.72), rgba(24, 24, 27, 0.66));
+  }
+
+  .admin-config-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .admin-config-table thead {
+    background: rgba(9, 9, 11, 0.78);
+  }
+
+  .admin-config-table th {
+    padding: 0.8rem 0.95rem;
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .admin-config-table td {
+    padding: 0.9rem 0.95rem;
+    vertical-align: top;
+  }
+
+  .admin-config-table tbody tr {
+    border-top: 1px solid rgba(39, 39, 42, 0.75);
+  }
+
+  .admin-config-table tbody tr:hover {
+    background: rgba(24, 24, 27, 0.35);
+  }
+
+  .admin-config-table--compact th,
+  .admin-config-table--compact td {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg-surface); }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+/* ============================================================
+   Glow Helpers
+   ============================================================ */
+.glow-cyan  { box-shadow: 0 0 12px rgba(6, 182, 212, 0.4); }
+.glow-red   { box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
+
+.admin-glow-cyan {
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.14),
+    0 0 20px rgba(34, 211, 238, 0.12);
+}
+
+.admin-glow-pink {
+  box-shadow:
+    0 0 0 1px rgba(244, 114, 182, 0.12),
+    0 0 18px rgba(244, 114, 182, 0.1);
+}
+
+/* ─── Divider ─── */
+.admin-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border-default), transparent);
+}
+
+/* ============================================================
+   Keyframe Animations
+   ============================================================ */
+@keyframes admin-login-shell-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes admin-login-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes admin-login-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes admin-login-chip-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.08);
+  }
+}

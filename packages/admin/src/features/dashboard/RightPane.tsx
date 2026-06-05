@@ -1,4 +1,4 @@
-import { Component, useState, type ReactNode } from 'react'
+import { Component, type ReactNode } from 'react'
 import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
@@ -9,14 +9,10 @@ import {
 } from '../../shared/ui'
 import { SettingsPage } from '../settings/SettingsPage'
 import { ArchivePanel } from '../archive/ArchivePanel'
-import { KeybindsPage } from '../keybinds/KeybindsPage'
+import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
-import { SchedulerPanel } from '../scheduler/SchedulerPanel'
-import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
-import { ObsPanel } from '../obs/ObsPanel'
-import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
@@ -140,14 +136,10 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'lobby-theme')   return <LobbyThemeEditor />
   if (selected.kind === 'desktop-theme') return <DesktopThemeEditor />
   if (selected.kind === 'audio')    return <AudioPanel />
-  if (selected.kind === 'keybinds') return <KeybindsPage />
+  if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'archive')  return <ArchivePanel />
-  if (selected.kind === 'settings') return <SettingsPanel />
-  if (selected.kind === 'asset-library') return <AssetLibraryPanel />
+  if (selected.kind === 'settings') return <SettingsPage />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
-  if (selected.kind === 'scheduler') return <SchedulerPanel />
-  if (selected.kind === 'scene-machine') return <SceneMachinePanel />
-  if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
 
   return null
@@ -172,7 +164,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
   if (!selected) {
     return (
-      <div className="flex-1 min-w-0 overflow-y-auto border-l border-zinc-800 bg-zinc-950/95">
+      <div className="flex-1 min-w-0 overflow-y-auto bg-[var(--color-bg-base)]">
           <ConfigCard className="text-left">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
             <div className="text-[10px] text-zinc-400 leading-relaxed">
@@ -229,36 +221,31 @@ export function RightPane({ selected, onClose, onSelectItem }: {
     headerIcon  = '🎨'
     headerLabel = 'Desktop Theme'
     headerMeta  = 'Utility'
-  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio Engine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Input Engine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';       headerMeta = 'Utility' }
-  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings';      headerMeta = 'Utility' }
-  else if (selected.kind === 'asset-library') { headerIcon = '🗂'; headerLabel = 'Asset Library'; headerMeta = 'Utility' }
-  else if (selected.kind === 'ambiance')      { headerIcon = '🌌'; headerLabel = 'Ambiance';      headerMeta = 'Engine' }
-  else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
-  else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
+  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio';    headerMeta = 'Utility' }
+  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Keybinds'; headerMeta = 'Utility' }
+  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';  headerMeta = 'Utility' }
+  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings'; headerMeta = 'Utility' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/95">
-      <div className="flex shrink-0 items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/70 px-3 py-2.5 backdrop-blur-sm">
+    <div className="flex flex-1 min-w-0 flex-col overflow-hidden bg-[var(--color-bg-base)]">
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
         <span className="text-sm shrink-0">{headerIcon}</span>
         <span className="flex-1 min-w-0">
-          <span className="block text-xs font-semibold text-zinc-200 truncate">{headerLabel}</span>
-          {headerMeta && <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{headerMeta}</span>}
+          <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
+          {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
         </span>
         {actionFn && (
-          <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-2.5 py-1 text-xs">
+          <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-3 py-1.5 text-xs">
             {actionLabel}
           </Btn>
         )}
         <button onClick={onClose}
-          className="ml-0.5 rounded-md border border-zinc-800/80 bg-zinc-950/60 px-2 py-0.5 text-sm leading-none text-zinc-500 transition-colors hover:border-zinc-700/80 hover:text-zinc-100">
+          className="ml-1 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] px-2.5 py-1 text-sm leading-none text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]">
           ×
         </button>
       </div>
-      <div style={{padding: '2rem', display:'flex', flexDirection:'column', gap:'1.5rem'}} className="flex-1 overflow-y-auto bg-zinc-950/55">
+      <div className="flex-1 overflow-y-auto p-5">
         <RightPaneErrorBoundary>
           <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
         </RightPaneErrorBoundary>
@@ -269,29 +256,7 @@ export function RightPane({ selected, onClose, onSelectItem }: {
 
 // ── SettingsModal ──────────────────────────────────────────────────
 
-export type SettingsTab = 'general' | 'about'
-
-function SettingsPanel() {
-  const [tab, setTab] = useState<SettingsTab>('general')
-  return (
-    <div className="flex flex-1 min-h-0 flex-col p-4 space-y-3">
-      <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
-        {(['general', 'about'] as const).map((id) => (
-          <button key={id} type="button" onClick={() => setTab(id)}
-            className={'flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ' + (
-              tab === id
-                ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
-                : 'border-transparent text-zinc-500 hover:border-zinc-700/70 hover:bg-zinc-900/75 hover:text-zinc-200'
-            )}>{id}</button>
-        ))}
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {tab === 'about'    && <SettingsPage mode="about" />}
-        {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
-      </div>
-    </div>
-  )
-}
+export type SettingsTab = 'general' | 'audio' | 'keybinds' | 'about'
 
 export function SettingsModal({ tab, onTabChange, onClose }: {
   tab: SettingsTab
@@ -306,6 +271,8 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
         <div className="flex gap-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/55 p-1.5">
           {([
             ['general', 'General'],
+            ['audio', 'Audio'],
+            ['keybinds', 'Keybinds'],
             ['about', 'About'],
           ] as const).map(([id, label]) => (
             <button
@@ -326,6 +293,8 @@ export function SettingsModal({ tab, onTabChange, onClose }: {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'about'    && <SettingsPage mode="about" />}
           {tab === 'general'  && <SettingsPage consolePanel={<SocketLogConsole variant="settings" />} />}
+          {tab === 'audio'    && <AudioPanel />}
+          {tab === 'keybinds' && <KeybindEditor />}
         </div>
       </div>
     </FloatingWindowShell>

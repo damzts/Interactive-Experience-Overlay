@@ -1,18 +1,36 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_EVENT_DEFS, EVENT_PRESET_OPTIONS, createEventPreset, type EventDef, type EventPresetId } from './eventPresets'
 import { EventsTabContent, EventsTabSidebar } from './EventsTab'
 import { SourcesTabContent, SourcesTabSidebar } from './SourcesTab'
 import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
-import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
+import { Button } from '../../components/atoms'
+import { Card } from '../../components/molecules'
+import { ConfigPanel } from '../../components/organisms'
 import { AssetSelectionInput } from './AssetLibrary'
+import { AssetLibraryModal } from './AssetLibraryModal'
 import { SOURCE_CATALOG, findSourceCatalogEntry, getSafeSceneSources } from '../../shared/sourceCatalog'
 import { TRANSITION_ICONS, TRANSITION_OPTIONS, encodeMediaTransitionValue, getMediaTransitionLabel, strToStep } from '../../shared/transitionLibrary'
 import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { MediaEntry, SourcePreset } from '@ieom/shared'
 
-export function AssetLibraryPanel() {
+/** Notice component for informational/warning messages within config panels */
+function Notice({ tone = 'info', children, className = '' }: { tone?: 'info' | 'warning' | 'danger' | 'success'; children: ReactNode; className?: string }) {
+  const toneStyles: Record<string, string> = {
+    info: 'border-[var(--color-primary-400)]/25 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-100)]',
+    warning: 'border-[var(--color-accent-400)]/30 bg-[var(--color-accent-500)]/12 text-[var(--color-accent-100)]',
+    danger: 'border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/12 text-[var(--color-danger-400)]',
+    success: 'border-[var(--color-success-400)]/30 bg-[var(--color-success-500)]/12 text-[var(--color-success-400)]',
+  }
+  return (
+    <div className={`rounded-[var(--radius-lg)] border px-3 py-2.5 text-sm shadow-[var(--shadow-sm)] backdrop-blur ${toneStyles[tone]} ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
+export function AssetLibraryPanel({ isOpen, onHide, onClose }: { isOpen: boolean; onHide: () => void; onClose: () => void }) {
   const config = useAdminStore((state) => state.config)
   const mediaLibrary = useAdminStore((state) => state.config.mediaLibrary ?? [])
   const eventDefs = useAdminStore((state) => (state.config.events ?? DEFAULT_EVENT_DEFS) as EventDef[])
@@ -398,6 +416,7 @@ export function AssetLibraryPanel() {
 
   const handleTriggerEvent = (def: EventDef) => {
     socket.emit('event:preview', def)
+    onHide()
   }
 
   const assetLibraryTabs = [
@@ -408,30 +427,18 @@ export function AssetLibraryPanel() {
   ] as const
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden p-5 sm:p-6">
-      <div className="grid w-full h-full min-h-0 gap-5 grid-cols-[320px_minmax(0,1fr)]">
-        <ConfigCard className="min-h-0 overflow-hidden p-4 sm:p-5">
-          <div className="flex h-full min-h-0 flex-col gap-4">
-            <div className="grid gap-1.5">
-              {assetLibraryTabs.map((entry) => (
-                <button key={entry.id} type="button" onClick={() => setTab(entry.id as typeof tab)}
-                  className={'rounded-xl border px-3 py-3 text-left transition-colors ' + (tab === entry.id
-                    ? 'border-cyan-400/35 bg-cyan-500/14 text-cyan-100'
-                    : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200')}>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base leading-none">{entry.icon}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{entry.label}</div>
-                      <div className="text-[10px] text-zinc-500">{entry.meta}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+    <AssetLibraryModal
+      isOpen={isOpen}
+      onClose={onClose}
+      tabs={assetLibraryTabs}
+      activeTab={tab}
+      onTabChange={(nextTab) => setTab(nextTab as typeof tab)}
+      sidebarChildren={(
+        <>
           {tab === 'catalog' && (
             <>
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Search</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Search</div>
                 <input
                   type="text"
                   value={catalogSearch}
@@ -442,31 +449,32 @@ export function AssetLibraryPanel() {
               </div>
 
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Type Filter</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Type Filter</div>
                 <div className="flex flex-wrap gap-1.5">
                   {(['all', 'image', 'video', 'audio'] as const).map((kind) => (
-                    <Btn
+                    <Button
                       key={kind}
                       type="button"
-                      variant={catalogKindFilter === kind ? 'active' : 'default'}
+                      variant={catalogKindFilter === kind ? 'secondary' : 'ghost'}
+                      size="sm"
                       onClick={() => setCatalogKindFilter(kind)}
                       className="px-2.5 py-1 text-[10px] uppercase tracking-wide"
                     >
                       {kind}
-                    </Btn>
+                    </Button>
                   ))}
                 </div>
               </div>
 
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-                {catalogError && <ConfigNotice tone="danger">{catalogError}</ConfigNotice>}
-                {catalogLoading && <ConfigNotice tone="info">Loading asset catalog...</ConfigNotice>}
+                {catalogError && <Notice tone="danger">{catalogError}</Notice>}
+                {catalogLoading && <Notice tone="info">Loading asset catalog...</Notice>}
                 {!catalogLoading && catalogFolderGroups.length === 0 && (
-                  <ConfigNotice tone="info">No assets match this filter.</ConfigNotice>
+                  <Notice tone="info">No assets match this filter.</Notice>
                 )}
                 {catalogFolderGroups.map((group) => (
                   <div key={group.folder} className="space-y-1.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{group.folder}</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">{group.folder}</div>
                     <div className="space-y-1">
                       {group.items.map((asset) => {
                         const active = selectedCatalogAsset?.id === asset.id
@@ -475,14 +483,14 @@ export function AssetLibraryPanel() {
                             key={asset.id}
                             type="button"
                             onClick={() => setSelectedCatalogAssetId(asset.id)}
-                            className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
+                            className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
                               active
-                                ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
-                                : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
+                                ? 'border-[var(--color-primary-400)]/35 bg-[var(--color-primary-500)]/12 text-[var(--color-text-primary)]'
+                                : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]/50 text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]'
                             )}
                           >
                             <div className="truncate text-[12px] font-medium">{asset.name}</div>
-                            <div className="truncate text-[10px] text-zinc-500">{asset.relativePath || asset.url}</div>
+                            <div className="truncate text-[10px] text-[var(--color-text-muted)]">{asset.relativePath || asset.url}</div>
                           </button>
                         )
                       })}
@@ -517,7 +525,7 @@ export function AssetLibraryPanel() {
           {tab === 'transitions' && (
             <>
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Search</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Search</div>
                 <input
                   type="text"
                   value={transitionSearch}
@@ -528,19 +536,19 @@ export function AssetLibraryPanel() {
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <ConfigCard className="p-3 text-left">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">System</div>
-                  <div className="mt-1 text-lg font-semibold text-zinc-100">{filteredSystemTransitions.length}</div>
-                </ConfigCard>
-                <ConfigCard className="p-3 text-left">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Saved</div>
-                  <div className="mt-1 text-lg font-semibold text-zinc-100">{filteredTransitionLibrary.length}</div>
-                </ConfigCard>
+                <Card variant="default" padding="sm" className="text-left">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">System</div>
+                  <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{filteredSystemTransitions.length}</div>
+                </Card>
+                <Card variant="default" padding="sm" className="text-left">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Saved</div>
+                  <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{filteredTransitionLibrary.length}</div>
+                </Card>
               </div>
 
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">System Transitions</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">System Transitions</div>
                   {filteredSystemTransitions.length ? filteredSystemTransitions.map((transition) => {
                     const active = selectedTransition?.kind === 'system' && selectedTransition.entry.id === transition.id
                     return (
@@ -548,24 +556,24 @@ export function AssetLibraryPanel() {
                         key={transition.id}
                         type="button"
                         onClick={() => setSelectedTransitionKey(`system:${transition.id}`)}
-                        className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
+                        className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
                           active
-                            ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
-                            : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
+                            ? 'border-[var(--color-primary-400)]/35 bg-[var(--color-primary-500)]/12 text-[var(--color-text-primary)]'
+                            : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]/50 text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]'
                         )}
                       >
                         <div className="flex items-center gap-2">
                           <span>{TRANSITION_ICONS[transition.id]}</span>
                           <span className="truncate text-[12px] font-medium">{transition.label}</span>
                         </div>
-                        <div className="truncate text-[10px] text-zinc-500">{transition.id}</div>
+                        <div className="truncate text-[10px] text-[var(--color-text-muted)]">{transition.id}</div>
                       </button>
                     )
-                  }) : <ConfigNotice tone="info">No system transitions match this filter.</ConfigNotice>}
+                  }) : <Notice tone="info">No system transitions match this filter.</Notice>}
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">User Transitions</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">User Transitions</div>
                   {filteredTransitionLibrary.length ? filteredTransitionLibrary.map((entry) => {
                     const active = selectedTransition?.kind === 'user' && selectedTransition.entry.id === entry.id
                     return (
@@ -573,44 +581,45 @@ export function AssetLibraryPanel() {
                         key={entry.id}
                         type="button"
                         onClick={() => setSelectedTransitionKey(`user:${entry.id}`)}
-                        className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
+                        className={'w-full rounded-lg border px-3 py-2 text-left transition-colors ' + (
                           active
-                            ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
-                            : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
+                            ? 'border-[var(--color-primary-400)]/35 bg-[var(--color-primary-500)]/12 text-[var(--color-text-primary)]'
+                            : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]/50 text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]'
                         )}
                       >
                         <div className="truncate text-[12px] font-medium">{getMediaTransitionLabel(entry)}</div>
-                        <div className="truncate text-[10px] text-zinc-500">{entry.url}</div>
+                        <div className="truncate text-[10px] text-[var(--color-text-muted)]">{entry.url}</div>
                       </button>
                     )
-                  }) : <ConfigNotice tone="info">No user transitions match this filter.</ConfigNotice>}
+                  }) : <Notice tone="info">No user transitions match this filter.</Notice>}
                 </div>
               </div>
             </>
           )}
-          </div>
-        </ConfigCard>
-        <div className="min-w-0 min-h-0 overflow-y-auto pr-1">
+        </>
+      )}
+      contentChildren={(
+        <>
           {tab === 'catalog' && (
             <div className="space-y-4">
               {selectedCatalogAsset ? (
-                <ConfigCard className="space-y-4 p-5 sm:p-6">
+                <Card variant="elevated" padding="lg" className="space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <div className="text-lg font-semibold text-zinc-100">{selectedCatalogAsset.name}</div>
-                      <div className="mt-1 font-mono text-xs text-zinc-500">{selectedCatalogAsset.relativePath || selectedCatalogAsset.url}</div>
+                      <div className="text-lg font-semibold text-[var(--color-text-primary)]">{selectedCatalogAsset.name}</div>
+                      <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">{selectedCatalogAsset.relativePath || selectedCatalogAsset.url}</div>
                     </div>
                     <div className="flex gap-2">
-                      <Btn type="button" onClick={() => void refreshCatalog()} className="px-3 py-1.5 text-xs">Refresh</Btn>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => void refreshCatalog()}>Refresh</Button>
                       {(selectedCatalogAsset.source === 'saved' || selectedCatalogAsset.source === 'filesystem') && (
-                        <Btn type="button" variant="danger" onClick={() => { void handleDeleteCatalogAsset(selectedCatalogAsset) }} className="px-3 py-1.5 text-xs">
+                        <Button type="button" variant="danger" size="sm" onClick={() => { void handleDeleteCatalogAsset(selectedCatalogAsset) }}>
                           Delete
-                        </Btn>
+                        </Button>
                       )}
                     </div>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_320px]">
-                    <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/70 p-4">
+                    <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/70 p-4">
                       {selectedCatalogAsset.kind === 'image' && (
                         <img src={selectedCatalogAsset.url} alt={selectedCatalogAsset.name} className="max-h-[70vh] w-full object-contain" />
                       )}
@@ -618,35 +627,35 @@ export function AssetLibraryPanel() {
                         <video src={selectedCatalogAsset.url} className="max-h-[70vh] w-full rounded-xl bg-black object-contain" controls muted playsInline preload="metadata" />
                       )}
                       {selectedCatalogAsset.kind === 'audio' && (
-                        <div className="w-full max-w-xl space-y-5 rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-6 text-center">
+                        <div className="w-full max-w-xl space-y-5 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)]/70 p-6 text-center">
                           <div className="text-5xl">🎵</div>
-                          <div className="text-sm text-zinc-400">Audio preview</div>
+                          <div className="text-sm text-[var(--color-text-secondary)]">Audio preview</div>
                           <audio src={selectedCatalogAsset.url} controls className="w-full" preload="metadata" />
                         </div>
                       )}
                     </div>
-                    <ConfigCard className="space-y-3 p-4">
+                    <Card variant="default" padding="md" className="space-y-3">
                       <div>
-                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Folder</div>
-                        <div className="mt-1 text-sm text-zinc-100">{selectedCatalogAsset.folder}</div>
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Folder</div>
+                        <div className="mt-1 text-sm text-[var(--color-text-primary)]">{selectedCatalogAsset.folder}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Source</div>
-                        <div className="mt-1 text-sm text-zinc-100">{selectedCatalogAsset.source}</div>
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Source</div>
+                        <div className="mt-1 text-sm text-[var(--color-text-primary)]">{selectedCatalogAsset.source}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Kind</div>
-                        <div className="mt-1 text-sm text-zinc-100">{selectedCatalogAsset.kind}</div>
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Kind</div>
+                        <div className="mt-1 text-sm text-[var(--color-text-primary)]">{selectedCatalogAsset.kind}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">URL</div>
-                        <div className="mt-1 break-all font-mono text-xs text-zinc-400">{selectedCatalogAsset.url}</div>
+                        <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">URL</div>
+                        <div className="mt-1 break-all font-mono text-xs text-[var(--color-text-secondary)]">{selectedCatalogAsset.url}</div>
                       </div>
-                    </ConfigCard>
+                    </Card>
                   </div>
-                </ConfigCard>
+                </Card>
               ) : (
-                <ConfigNotice tone="info" className="py-8 text-center">Select an asset from the left column to preview it.</ConfigNotice>
+                <Notice tone="info" className="py-8 text-center">Select an asset from the left column to preview it.</Notice>
               )}
             </div>
           )}
@@ -681,64 +690,65 @@ export function AssetLibraryPanel() {
           {tab === 'transitions' && (
             <div className="space-y-4 pt-0.5">
               {selectedTransition ? (
-                <ConfigCard className="space-y-4 p-5 sm:p-6">
+                <Card variant="elevated" padding="lg" className="space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-lg font-semibold text-zinc-100">
+                      <div className="text-lg font-semibold text-[var(--color-text-primary)]">
                         {selectedTransition.kind === 'system' ? selectedTransition.entry.label : getMediaTransitionLabel(selectedTransition.entry)}
                       </div>
-                      <div className="mt-1 font-mono text-xs text-zinc-500">
+                      <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">
                         {selectedTransition.kind === 'system' ? selectedTransition.entry.id : selectedTransition.entry.url}
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Btn
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="md"
                         onClick={() => selectedTransition.kind === 'system'
                           ? socket.emit('transition:preview', [{ id: selectedTransition.entry.id }])
                           : socket.emit('transition:preview', [strToStep(encodeMediaTransitionValue(selectedTransition.entry))])}
-                        className="px-4 py-2 text-sm"
                       >
                         Test Transition
-                      </Btn>
+                      </Button>
                       {selectedTransition.kind === 'user' && (
-                        <Btn
+                        <Button
                           type="button"
                           variant="danger"
+                          size="md"
                           onClick={() => { void handleDeleteMediaEntry(selectedTransition.entry.id) }}
-                          className="px-4 py-2 text-sm"
                         >
                           Delete
-                        </Btn>
+                        </Button>
                       )}
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <ConfigCard className="p-3 text-left">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Type</div>
-                      <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedTransition.kind === 'system' ? 'System' : selectedTransition.entry.type}</div>
-                    </ConfigCard>
-                    <ConfigCard className="p-3 text-left">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Origin</div>
-                      <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedTransition.kind === 'system' ? 'Built-in transition' : 'Saved media entry'}</div>
-                    </ConfigCard>
-                    <ConfigCard className="p-3 text-left">
-                      <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Duration</div>
-                      <div className="mt-1 text-sm font-semibold text-zinc-100">{selectedTransition.kind === 'user' && selectedTransition.entry.duration != null ? `${selectedTransition.entry.duration}s` : 'Default'}</div>
-                    </ConfigCard>
+                    <Card variant="default" padding="sm" className="text-left">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Type</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedTransition.kind === 'system' ? 'System' : selectedTransition.entry.type}</div>
+                    </Card>
+                    <Card variant="default" padding="sm" className="text-left">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Origin</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedTransition.kind === 'system' ? 'Built-in transition' : 'Saved media entry'}</div>
+                    </Card>
+                    <Card variant="default" padding="sm" className="text-left">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Duration</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedTransition.kind === 'user' && selectedTransition.entry.duration != null ? `${selectedTransition.entry.duration}s` : 'Default'}</div>
+                    </Card>
                   </div>
-                </ConfigCard>
+                </Card>
               ) : (
-                <ConfigNotice tone="info" className="py-6 text-center">Select a transition from the left column.</ConfigNotice>
+                <Notice tone="info" className="py-6 text-center">Select a transition from the left column.</Notice>
               )}
 
-              <ConfigSectionPanel label="Create User Transition">
+              <ConfigPanel title="Create User Transition">
                 <div className="space-y-3">
-                  <ConfigNotice>
+                  <Notice>
                     Save an image or video as a reusable user transition.
-                  </ConfigNotice>
+                  </Notice>
 
-                  <ConfigCard className="space-y-3 p-4">
+                  <Card variant="default" padding="md" className="space-y-3">
                     <input
                       type="text"
                       value={name}
@@ -770,33 +780,34 @@ export function AssetLibraryPanel() {
                           placeholder="4.0"
                           className="w-28 text-sm font-mono"
                         />
-                        <span className="text-xs text-zinc-600">sec display duration</span>
+                        <span className="text-xs text-[var(--color-text-muted)]">sec display duration</span>
                       </div>
                     )}
 
                     <div className="flex gap-2">
-                      <Btn
+                      <Button
                         type="button"
                         variant="primary"
+                        size="md"
                         onClick={() => void handleSave()}
                         disabled={!url}
-                        className="flex-1 text-sm"
+                        fullWidth
                       >
                         Save Transition
-                      </Btn>
+                      </Button>
                       {(name || url || durStr) && (
-                        <Btn type="button" onClick={resetForm} className="px-4 text-sm">
+                        <Button type="button" variant="ghost" size="md" onClick={resetForm}>
                           Reset
-                        </Btn>
+                        </Button>
                       )}
                     </div>
-                  </ConfigCard>
+                  </Card>
                 </div>
-              </ConfigSectionPanel>
+              </ConfigPanel>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    />
   )
 }

@@ -3,7 +3,9 @@ import { STATE, withDesktopConfigDefaults } from '@ieom/shared'
 import type { Application } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
-import { Btn, ConfigSectionPanel, IconGlyph } from '../../shared/ui'
+import { IconGlyph } from '../../shared/ui'
+import { Button } from '../../components/atoms'
+import { ConfigPanel } from '../../components/organisms'
 import type { UserWidgetBaseComponent } from './widgetHelpers'
 import { buildUserWidgetId, findFirstSceneSource } from './widgetHelpers'
 
@@ -71,14 +73,14 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   }
 
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:'1.25rem',paddingTop:'0.25rem'}}>
-      <ConfigSectionPanel label="Create Widget" first>
-        <div className="space-y-4">
-          <div className="text-[10px] text-zinc-400 leading-relaxed">
+    <div className="space-y-0 pt-1">
+      <ConfigPanel title="Create Widget" className="mb-4">
+        <div className="space-y-3">
+          <div className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed">
             New widgets are stored as user widget records. Choose the base component first, then create the widget and continue configuring it from the standard widget editor.
           </div>
           <div>
-            <div className="text-[10px] text-zinc-500 mb-1.5">Base Component</div>
+            <div className="text-[10px] text-[var(--color-text-muted)] mb-1.5">Base Component</div>
             <div className="grid grid-cols-2 gap-2">
               {USER_WIDGET_COMPONENT_OPTIONS.map((option) => {
                 const active = option.id === widgetComponent
@@ -90,30 +92,30 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
                       if (!icon.trim() || icon === currentMeta?.icon) setIcon(option.icon)
                     }}
                     className={'rounded border px-3 py-3 text-left transition-colors ' + (
-                      active ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200' : 'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900/60'
+                      active ? 'border-[var(--color-primary-400)]/40 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-200)]' : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-base)]/60'
                     )}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-base">{option.icon}</span>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">{option.label}</span>
                     </div>
-                    <div className="text-[10px] leading-relaxed text-zinc-500">{option.description}</div>
+                    <div className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{option.description}</div>
                   </button>
                 )
               })}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Label</div>
+            <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Label</div>
             <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={defaultLabel} className="w-full text-xs" />
           </div>
           <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Generated ID</div>
-            <input type="text" value={previewId} readOnly className="w-full text-xs font-mono text-zinc-500 cursor-default select-all" />
+            <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Generated ID</div>
+            <input type="text" value={previewId} readOnly className="w-full text-xs font-mono text-[var(--color-text-muted)] cursor-default select-all" />
           </div>
           <div>
-            <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
+            <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Icon</div>
             <div className="flex gap-2 items-center">
-              <div className="w-11 h-11 flex items-center justify-center bg-zinc-800 rounded border border-zinc-700 overflow-hidden shrink-0">
+              <div className="w-11 h-11 flex items-center justify-center bg-[var(--color-bg-elevated)] rounded border border-[var(--color-border-strong)] overflow-hidden shrink-0">
                 <IconGlyph icon={icon || componentMeta.icon} label={nextLabel} size={32} />
               </div>
               <div className="flex-1 min-w-0">
@@ -125,20 +127,20 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
             </div>
           </div>
           {widgetComponent === 'source' && (
-            <div className="rounded border border-zinc-800 bg-zinc-900/40 px-5 py-4 text-[10px] leading-relaxed text-zinc-400">
+            <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
               {firstSourceReference
                 ? `Initial binding will use ${firstSourceReference.sceneId} / ${firstSourceReference.sourceId}. You can change this immediately after creation.`
                 : 'No scene sources are available yet. The widget will still be created, but you will need to bind it to a source from the widget editor later.'}
             </div>
           )}
-          {error && <div className="rounded border border-red-900/60 bg-red-950/30 px-5 py-4 text-[10px] text-red-300">{error}</div>}
+          {error && <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{error}</div>}
           <div className="flex justify-end">
-            <Btn variant="primary" onClick={() => { void handleCreate() }} disabled={creating}>
+            <Button variant="primary" size="sm" onClick={() => { void handleCreate() }} disabled={creating}>
               {creating ? 'Creating...' : 'Create Widget'}
-            </Btn>
+            </Button>
           </div>
         </div>
-      </ConfigSectionPanel>
+      </ConfigPanel>
     </div>
   )
 }

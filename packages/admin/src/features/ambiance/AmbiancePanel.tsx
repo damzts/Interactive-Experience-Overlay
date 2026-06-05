@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { withDesktopAmbianceDefaults, type DesktopAmbianceConfig, type Application } from '@ieom/shared'
-import { Toggle, Slider, isSameDraft, IconGlyph, ConfigApplyBar, ConfigCard, ConfigNotice, ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
+import { Slider, isSameDraft, IconGlyph, ConfigApplyBar, ConfigPageIntro } from '../../shared/ui'
+import { Toggle, Button } from '../../components/atoms'
+import { Card } from '../../components/molecules'
+import { ConfigPanel } from '../../components/organisms'
 import { socket } from '../../socket/client'
 
 function createDefaultBehavior(enabled = false): DesktopAmbianceConfig['widgetSimulation']['behaviors'][string] {
@@ -25,6 +28,16 @@ function formatRelativeTime(timestamp: number | null) {
   return `${hours}h ago`
 }
 
+function formatFutureTime(timestamp: number | null) {
+  if (!timestamp) return 'Not scheduled'
+  const diffMs = timestamp - Date.now()
+  if (diffMs <= 0) return 'Due now'
+  const seconds = Math.ceil(diffMs / 1000)
+  if (seconds < 60) return `In ${seconds}s`
+  const minutes = Math.ceil(seconds / 60)
+  return `In ${minutes}m`
+}
+
 function formatDateTime(timestamp: number | null) {
   if (!timestamp) return 'Never'
   return new Date(timestamp).toLocaleTimeString([], {
@@ -32,6 +45,21 @@ function formatDateTime(timestamp: number | null) {
     minute: '2-digit',
     second: '2-digit',
   })
+}
+
+/** Notice component for informational/warning messages within config panels */
+function Notice({ tone = 'info', children }: { tone?: 'info' | 'warning' | 'danger' | 'success'; children: React.ReactNode }) {
+  const toneStyles: Record<string, string> = {
+    info: 'border-[var(--color-primary-400)]/25 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-100)]',
+    warning: 'border-[var(--color-accent-400)]/30 bg-[var(--color-accent-500)]/12 text-[var(--color-accent-100)]',
+    danger: 'border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/12 text-[var(--color-danger-400)]',
+    success: 'border-[var(--color-success-400)]/30 bg-[var(--color-success-500)]/12 text-[var(--color-success-400)]',
+  }
+  return (
+    <div className={`rounded-[var(--radius-lg)] border px-3 py-2.5 text-sm shadow-[var(--shadow-sm)] backdrop-blur ${toneStyles[tone]}`}>
+      {children}
+    </div>
+  )
 }
 
 function WidgetBehaviorEditor({
@@ -44,23 +72,24 @@ function WidgetBehaviorEditor({
   onChange: (updater: (draft: DesktopAmbianceConfig['widgetSimulation']['behaviors'][string]) => void) => void
 }) {
   return (
-    <ConfigCard>
+    <Card variant="default" padding="sm">
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800/80 bg-zinc-900/80">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-base)]">
           <IconGlyph icon={app.icon} label={app.label} />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-zinc-100">{app.label}</div>
+          <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{app.label}</div>
         </div>
         <div className="flex-1" />
         <Toggle
           checked={behavior.enabled}
           onChange={(checked) => onChange((d) => { d.enabled = checked })}
+          size="md"
           label={behavior.enabled ? 'Enabled' : 'Disabled'}
         />
       </div>
       {behavior.enabled && (
-        <div className="space-y-2 border-t border-zinc-800/80 pt-3">
+        <div className="space-y-2 border-t border-[var(--color-border-default)] pt-3">
           <Slider
             label="Open Chance"
             value={behavior.openChance}
@@ -90,7 +119,7 @@ function WidgetBehaviorEditor({
           />
         </div>
       )}
-    </ConfigCard>
+    </Card>
   )
 }
 
@@ -188,6 +217,8 @@ export function AmbiancePanel() {
   const simConfig = form.widgetSimulation
   const scheduler = runtimeDiagnostics.scheduler
   const ambiance = runtimeDiagnostics.ambiance
+  const activeAutoEvents = scheduler.events.filter((eventDef) => eventDef.enabled)
+
   const requestOverlayResync = useCallback(() => {
     setResyncing(true)
     socket.emit('overlay:force-resync', { reason: 'admin-panel-manual-resync' })
@@ -237,12 +268,12 @@ export function AmbiancePanel() {
         Control desktop ambiance.
       </ConfigPageIntro>
       <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
-      <div className="space-y-0 pt-3">
-      <ConfigSectionPanel label="Widget Simulation" first>
+      <div className="space-y-6 pt-3">
+      <ConfigPanel title="Widget Simulation" collapsible>
         <div className="space-y-4">
-          <ConfigNotice>
+          <Notice>
             Adjust cadence and widget behavior.
-          </ConfigNotice>
+          </Notice>
           <Toggle
             checked={simConfig.enabled}
             onChange={(checked) => {
@@ -251,33 +282,34 @@ export function AmbiancePanel() {
                 ensureWidgetBehaviors(true)
               }
             }}
+            size="md"
             label="Enable Widget Simulation"
           />
-          <ConfigCard>
+          <Card variant="default" padding="md">
             <div className="mb-4 grid gap-4 md:grid-cols-2">
               <div>
-                <div className="mb-1 text-xs text-zinc-400">Evaluation Interval</div>
+                <div className="mb-1 text-xs text-[var(--color-text-secondary)]">Evaluation Interval</div>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
                     value={simConfig.intervalSeconds}
                     onChange={(e) => update('widgetSimulation', (d) => { d.intervalSeconds = Number(e.target.value) })}
-                    className="w-28 text-sm"
+                    className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-500)] focus:ring-2 focus:ring-[var(--color-primary-400)]/25"
                     min={1}
                   />
-                  <span className="text-xs text-zinc-500">seconds</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">seconds</span>
                 </div>
-                <div className="mt-1 text-[10px] text-zinc-600">
+                <div className="mt-1 text-[10px] text-[var(--color-text-muted)]">
                   Action cadence.
                 </div>
               </div>
               <div>
-                <div className="mb-1 text-xs text-zinc-400">Max Open Widgets</div>
+                <div className="mb-1 text-xs text-[var(--color-text-secondary)]">Max Open Widgets</div>
                 <input
                   type="number"
                   value={simConfig.maxOpenWidgets ?? 2}
                   onChange={(e) => update('widgetSimulation', (d) => { d.maxOpenWidgets = Math.max(1, Math.min(6, Number(e.target.value) || 2)) })}
-                  className="w-28 text-sm"
+                  className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-500)] focus:ring-2 focus:ring-[var(--color-primary-400)]/25"
                   min={1}
                   max={6}
                 />
@@ -292,94 +324,126 @@ export function AmbiancePanel() {
               onChange={(val) => update('widgetSimulation', (d) => { d.openWhileOneOpenChance = val })}
               unit="%"
             />
-          </ConfigCard>
+          </Card>
           {!simConfig.enabled && (
-            <ConfigNotice tone="info">
+            <Notice tone="info">
               Enable widget simulation to expose cadence and per-widget behavior controls.
-            </ConfigNotice>
+            </Notice>
           )}
         </div>
-      </ConfigSectionPanel>
-      <ConfigSectionPanel label="Ambiance Runtime">
+      </ConfigPanel>
+
+      <ConfigPanel title="Scheduler Queue" collapsible>
+        {activeAutoEvents.length === 0 ? (
+          <Notice tone="info">No auto-events are enabled.</Notice>
+        ) : (
+          <div className="space-y-2">
+            {activeAutoEvents.map((eventDef) => (
+              <Card variant="default" padding="sm" key={eventDef.id}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium text-[var(--color-text-primary)]">{eventDef.label}</div>
+                    <div className="text-[10px] text-[var(--color-text-muted)]">{eventDef.mode === 'interval' ? `Interval every ~${eventDef.intervalMin}m` : `Idle after ${eventDef.idleMin}m`}</div>
+                  </div>
+                  <div className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${eventDef.due ? 'bg-[var(--color-accent-500)]/15 text-[var(--color-accent-200)]' : 'bg-[var(--color-primary-500)]/10 text-[var(--color-primary-200)]'}`}>
+                    {eventDef.mode === 'interval' ? formatFutureTime(eventDef.nextRunAt) : (eventDef.idleTriggered ? 'Idle fired' : 'Waiting')}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </ConfigPanel>
+
+      <ConfigPanel title="Ambiance Runtime" collapsible>
         <div className="space-y-3">
           <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={requestOverlayResync}
-              className="rounded-md border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
+              disabled={resyncing}
             >
               {resyncing ? 'Resyncing...' : 'Force Resync'}
-            </button>
+            </Button>
           </div>
-          <ConfigCard className="space-y-2">
+          <Card variant="default" padding="md" className="space-y-2">
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Status</span>
-              <span className={ambiance.enabled ? 'text-emerald-300' : 'text-zinc-500'}>{ambiance.enabled ? 'Enabled' : 'Disabled'}</span>
+              <span className="text-[var(--color-text-secondary)]">Status</span>
+              <span className={ambiance.enabled ? 'text-[var(--color-success-400)]' : 'text-[var(--color-text-muted)]'}>{ambiance.enabled ? 'Enabled' : 'Disabled'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Leader</span>
-              <span className="text-right text-zinc-100">
+              <span className="text-[var(--color-text-secondary)]">Leader</span>
+              <span className="text-right text-[var(--color-text-primary)]">
                 {ambiance.leaderSocketId
                   ? ambiance.leaderSocketId.slice(0, 8)
                   : 'No overlay leader'}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Pending phase</span>
-              <span className="text-zinc-100">{ambiance.pendingPhase ?? 'Idle'}</span>
+              <span className="text-[var(--color-text-secondary)]">Pending phase</span>
+              <span className="text-[var(--color-text-primary)]">{ambiance.pendingPhase ?? 'Idle'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Leader ready</span>
-              <span className={ambiance.leaderReady ? 'text-emerald-300' : 'text-amber-300'}>{ambiance.leaderReady ? 'Ready' : 'Not ready'}</span>
+              <span className="text-[var(--color-text-secondary)]">Leader ready</span>
+              <span className={ambiance.leaderReady ? 'text-[var(--color-success-400)]' : 'text-[var(--color-accent-400)]'}>{ambiance.leaderReady ? 'Ready' : 'Not ready'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Widgets in pool</span>
-              <span className="text-zinc-100">{ambiance.enabledWidgetCount}</span>
+              <span className="text-[var(--color-text-secondary)]">Widgets in pool</span>
+              <span className="text-[var(--color-text-primary)]">{ambiance.enabledWidgetCount}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Open / max</span>
-              <span className="text-zinc-100">{ambiance.openWidgetCount} / {ambiance.maxOpenWidgets}</span>
+              <span className="text-[var(--color-text-secondary)]">Open / max</span>
+              <span className="text-[var(--color-text-primary)]">{ambiance.openWidgetCount} / {ambiance.maxOpenWidgets}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-zinc-400">Accepted / rejected</span>
-              <span className="text-zinc-100">{ambianceAcceptedCount} / {ambianceRejectedCount}</span>
+              <span className="text-[var(--color-text-secondary)]">Accepted / rejected</span>
+              <span className="text-[var(--color-text-primary)]">{ambianceAcceptedCount} / {ambianceRejectedCount}</span>
             </div>
-            <div className="rounded-lg border border-zinc-800/70 bg-zinc-900/55 px-5 py-4 text-[11px] text-zinc-400">
+            <div className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-3 py-2 text-[11px] text-[var(--color-text-secondary)]">
               {ambiance.lastSkipReason ? `Last skip: ${ambiance.lastSkipReason}` : 'No skip reason.'}
             </div>
-            <div className="border-t border-zinc-800/70 pt-2">
+            <div className="border-t border-[var(--color-border-default)] pt-2">
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3 text-sm">
                   <div className="min-w-0">
-                    <div className="text-zinc-400">Last activity</div>
-                    <div className="text-[11px] text-zinc-500">{scheduler.currentState}</div>
+                    <div className="text-[var(--color-text-secondary)]">Scheduler tick</div>
+                    <div className="text-[11px] text-[var(--color-text-muted)]">Eval {formatRelativeTime(scheduler.lastEvaluatedAt)}</div>
                   </div>
-                  <div className="text-right text-zinc-100">{formatRelativeTime(scheduler.lastActivityAt)}</div>
+                  <div className="text-right text-[var(--color-text-primary)]">{Math.round(scheduler.tickMs / 1000)}s</div>
                 </div>
                 <div className="flex items-start justify-between gap-3 text-sm">
                   <div className="min-w-0">
-                    <div className="text-zinc-400">Ambiance loop</div>
-                    <div className="text-[11px] text-zinc-500">Tick {formatRelativeTime(ambiance.lastTickAt)}</div>
+                    <div className="text-[var(--color-text-secondary)]">Last activity</div>
+                    <div className="text-[11px] text-[var(--color-text-muted)]">{scheduler.currentState}</div>
                   </div>
-                  <div className="text-right text-zinc-100">{ambiance.intervalSeconds}s</div>
+                  <div className="text-right text-[var(--color-text-primary)]">{formatRelativeTime(scheduler.lastActivityAt)}</div>
                 </div>
                 <div className="flex items-start justify-between gap-3 text-sm">
                   <div className="min-w-0">
-                    <div className="text-zinc-400">Last sim action</div>
-                    <div className="text-[11px] text-zinc-500">{formatRelativeTime(ambiance.lastActionAt)}</div>
+                    <div className="text-[var(--color-text-secondary)]">Ambiance loop</div>
+                    <div className="text-[11px] text-[var(--color-text-muted)]">Tick {formatRelativeTime(ambiance.lastTickAt)}</div>
                   </div>
-                  <div className="text-right text-zinc-100">{ambiance.lastAction ? `${ambiance.lastAction} ${ambiance.lastActionWidgetId ?? ''}`.trim() : 'None yet'}</div>
+                  <div className="text-right text-[var(--color-text-primary)]">{ambiance.intervalSeconds}s</div>
+                </div>
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="text-[var(--color-text-secondary)]">Last sim action</div>
+                    <div className="text-[11px] text-[var(--color-text-muted)]">{formatRelativeTime(ambiance.lastActionAt)}</div>
+                  </div>
+                  <div className="text-right text-[var(--color-text-primary)]">{ambiance.lastAction ? `${ambiance.lastAction} ${ambiance.lastActionWidgetId ?? ''}`.trim() : 'None yet'}</div>
                 </div>
               </div>
             </div>
-          </ConfigCard>
+          </Card>
         </div>
-      </ConfigSectionPanel>
-      <ConfigSectionPanel label="Widget Behaviors">
+      </ConfigPanel>
+
+      <ConfigPanel title="Widget Behaviors" collapsible>
         {simConfig.enabled ? (
           <div className="space-y-4">
             {widgetApps.length === 0 ? (
-              <ConfigNotice tone="info">No widgets are available yet. Create a widget before configuring simulated behavior.</ConfigNotice>
+              <Notice tone="info">No widgets are available yet. Create a widget before configuring simulated behavior.</Notice>
             ) : (
               <div className="space-y-3">
                 {widgetApps.map((app) => (
@@ -394,57 +458,57 @@ export function AmbiancePanel() {
             )}
           </div>
         ) : (
-          <ConfigNotice tone="info">
+          <Notice tone="info">
             Enable widget simulation to expose cadence and per-widget behavior controls.
-          </ConfigNotice>
+          </Notice>
         )}
-      </ConfigSectionPanel>
-      <ConfigSectionPanel label="Ambiance History">
+      </ConfigPanel>
+
+      <ConfigPanel title="Ambiance History" collapsible>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="flex-1 text-[10px] text-zinc-500">Lifecycle log</div>
-            <span className="rounded-full border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-[10px] font-mono text-zinc-500">
+            <div className="flex-1 text-[10px] text-[var(--color-text-muted)]">Lifecycle log</div>
+            <span className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-1 text-[10px] font-mono text-[var(--color-text-muted)]">
               {ambiance.history.length} entr{ambiance.history.length === 1 ? 'y' : 'ies'}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={copyHistory}
               disabled={!ambiance.history.length}
-              className="rounded-md border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
-              title="Copy the full ambiance history to the clipboard"
             >
               {historyCopyState === 'copied' ? 'Copied' : historyCopyState === 'error' ? 'Copy Failed' : 'Copy All'}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
               onClick={clearHistory}
               disabled={!ambiance.history.length}
-              className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-red-200 transition hover:border-red-400/50 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-              title="Clear the ambiance history"
             >
               Clear
-            </button>
+            </Button>
           </div>
           {ambiance.history.length === 0 ? (
-            <ConfigNotice tone="info">No lifecycle events recorded yet.</ConfigNotice>
+            <Notice tone="info">No lifecycle events recorded yet.</Notice>
           ) : (
-            <div className="max-h-[28rem] space-y-2 overflow-y-auto rounded-lg border border-zinc-800/70 bg-zinc-900/55 p-3">
+            <div className="max-h-[28rem] space-y-2 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-base)] p-3">
               {ambiance.history.slice(0, 50).map((entry) => (
-                <ConfigCard key={entry.id}>
-                  <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                <Card variant="default" padding="sm" key={entry.id}>
+                  <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.12em] text-[var(--color-text-muted)]">
                     <span>{entry.type}</span>
                     <span>{formatDateTime(entry.timestamp)}</span>
                   </div>
-                  <div className="mt-1 text-sm text-zinc-100">{entry.message}</div>
-                  <div className="mt-1 text-[11px] text-zinc-500">
+                  <div className="mt-1 text-sm text-[var(--color-text-primary)]">{entry.message}</div>
+                  <div className="mt-1 text-[11px] text-[var(--color-text-muted)]">
                     {[entry.widgetId, entry.action, entry.leaderSocketId ? entry.leaderSocketId.slice(0, 8) : null].filter(Boolean).join(' · ') || 'No extra metadata'}
                   </div>
-                </ConfigCard>
+                </Card>
               ))}
             </div>
           )}
         </div>
-      </ConfigSectionPanel>
+      </ConfigPanel>
+
       </div>
     </div>
   )
