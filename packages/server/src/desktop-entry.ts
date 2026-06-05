@@ -138,14 +138,15 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const userRepository = new UserRepository(dbQueryAdapter)
   const machine = new SceneMachine()
   const runtimeState = new RuntimeStateStore()
+
+  // ── Kernel ────────────────────────────────────────────────────
+  const kernel = new Kernel()
+
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
   const obsBridge = new ObsBridge(io, machine)
   const hubConnection = new HubConnection()
   const povOrchestrator = new POVOrchestrator(hubConnection)
-
-  // ── Kernel ────────────────────────────────────────────────────
-  const kernel = new Kernel()
   kernel.register(configService)
   kernel.register(runtimeState)
   kernel.register(machine, { after: ['DesktopConfigService'] })
