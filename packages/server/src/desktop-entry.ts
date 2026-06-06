@@ -183,6 +183,9 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // ── Room system ───────────────────────────────────────────────
   const overlayRelay = new OverlayRelay()
+  // Start WebRTC freeze detection (monitorea tracks congelados cada 2s)
+  hubConnection.startFreezeDetection()
+
   const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator, overlayRelay)
 
   io.on('connection', (socket) => {
