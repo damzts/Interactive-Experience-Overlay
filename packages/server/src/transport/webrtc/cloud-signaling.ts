@@ -135,7 +135,7 @@ export class CloudSignaling {
 
     // Build WebSocket URL: ws(s)://host/api/ws/rooms/:roomId?token=***
     const base = cloudUrl.replace(/^http/, 'ws')
-    const url = `${base}/api/ws/rooms/${roomId}?token=${enco…n)}`
+    const url = `${base}/api/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
 
     const ws = new WebSocket(url)
     this.ws = ws
