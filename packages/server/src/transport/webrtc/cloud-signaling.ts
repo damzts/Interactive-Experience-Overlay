@@ -45,6 +45,7 @@ export class CloudSignaling {
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private reconnectAttempt = 0
   private intentionalClose = false
+  private connCounter = 0
   private pendingCandidates = new Map<string, Record<string, unknown>[]>()
   /** Participantes que sabemos que están en la sala (para re-negociar tras reconexión WS) */
   private knownParticipants = new Set<string>()
@@ -133,6 +134,11 @@ export class CloudSignaling {
     if (!this.config) return
     const { cloudUrl, token, roomId } = this.config
 
+    // Connection counter para detectar sockets stale
+    // Cuando disconnect()+openSocket() se llaman en secuencia, el close
+    // asíncrono del socket viejo no debe afectar al nuevo.
+    const connId = ++this.connCounter
+
     // Build WebSocket URL: ws(s)://host/api/ws/rooms/:roomId?token=***
     const base = cloudUrl.replace(/^http/, 'ws')
     const url = `${base}/api/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
@@ -140,26 +146,27 @@ export class CloudSignaling {
     const ws = new WebSocket(url)
     this.ws = ws
 
+    const isStale = () => this.connCounter !== connId
+
     ws.on('open', () => {
-      if (this.ws !== ws) return // stale socket
+      if (isStale()) return
       this.reconnectAttempt = 0
       console.log('[cloud-signaling] connected to room:', roomId)
       this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
       this.emitStatus()
-
-      // ── Iniciar ping periódico ────────────────────────────────────────
       this.startPingTimer()
     })
 
     ws.on('message', (data: WebSocket.Data) => {
-      if (this.ws !== ws) return
+      if (isStale()) return
       let msg: WsMessage
       try { msg = JSON.parse(data.toString()) }
       catch { return }
       this.handleMessage(msg)
     })
 
-    this.ws.on('close', () => {
+    ws.on('close', () => {
+      if (isStale()) return // <-- CRÍTICO: no nullificar el socket nuevo
       console.log('[cloud-signaling] disconnected')
       this.ws = null
       this.stopPingTimer()
@@ -167,7 +174,8 @@ export class CloudSignaling {
       if (!this.intentionalClose) this.scheduleReconnect()
     })
 
-    this.ws.on('error', (err) => {
+    ws.on('error', (err) => {
+      if (isStale()) return
       console.log('[cloud-signaling] error:', (err as any).message ?? err)
     })
   }
