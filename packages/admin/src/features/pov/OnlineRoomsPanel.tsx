@@ -24,16 +24,29 @@ type OnlineSocket = Socket<OnlineServerToAdminEvents, OnlineClientToServerEvents
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+/** Cloud API origin (where participants join rooms via browser) */
+const CLOUD_ORIGIN = import.meta.env.VITE_API_ORIGIN as string || 'https://ieom.danhub.dev'
+
 function formatTimestamp(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * Build the cloud-hosted join URL that remote participants open in their browser.
+ * Points to the cloud service which handles WebRTC signaling relay.
+ */
 function buildJoinUrl(roomCode: string): string {
-  return `${window.location.origin}/online/room/${roomCode}`
+  return `${CLOUD_ORIGIN}/room/${roomCode}`
 }
 
-function buildOverlayUrl(roomCode: string): string {
-  return `${window.location.origin}/online/overlay/${roomCode}`
+/**
+ * Build the LAN join URL for participants on the same local network.
+ * Points to the local server's /join page (no cloud required).
+ */
+function buildLanJoinUrl(): string {
+  // In production the server runs on port 3000; in dev Vite proxies /join
+  const serverOrigin = import.meta.env.VITE_OVERLAY_RUNTIME_ORIGIN as string || 'http://localhost:3000'
+  return `${serverOrigin}/join`
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -162,12 +175,14 @@ function ParticipantRow({
 function RoomCard({
   room,
   onClose,
+  onRejoin,
   onModeSet,
   onSelect,
   socket: onlineSocket,
 }: {
   room: OnlineRoomStatus
   onClose: (roomCode: string) => void
+  onRejoin: (roomCode: string) => void
   onModeSet: (roomCode: string, mode: SwitchMode) => void
   onSelect: (roomCode: string, participantId: string) => void
   socket: OnlineSocket | null
@@ -175,19 +190,25 @@ function RoomCard({
   const [expanded, setExpanded] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [selecting, setSelecting] = useState(false)
+  const [rejoining, setRejoining] = useState(false)
 
   const joinUrl = buildJoinUrl(room.roomCode)
-  const overlayUrl = buildOverlayUrl(room.roomCode)
+  const lanJoinUrl = buildLanJoinUrl()
 
   const handleSelect = useCallback(
     (participantId: string) => {
       setSelecting(true)
       onSelect(room.roomCode, participantId)
-      // Reset selecting after a short delay (ack will update state)
       setTimeout(() => setSelecting(false), 1000)
     },
     [room.roomCode, onSelect],
   )
+
+  const handleRejoin = useCallback(() => {
+    setRejoining(true)
+    onRejoin(room.roomCode)
+    setTimeout(() => setRejoining(false), 3000)
+  }, [room.roomCode, onRejoin])
 
   const handleClose = useCallback(() => {
     if (!confirmClose) {
@@ -249,6 +270,19 @@ function RoomCard({
           {room.mode === 'automatic' ? '⚡ Auto' : '✋ Manual'}
         </Button>
 
+        {/* Rejoin button (for idle rooms) */}
+        {room.status === 'idle' && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleRejoin}
+            disabled={rejoining}
+            className="text-[10px] px-2 py-0.5"
+          >
+            {rejoining ? '🔄 Rejoining…' : '🔌 Rejoin'}
+          </Button>
+        )}
+
         {/* Close button */}
         {confirmClose ? (
           <div className="flex items-center gap-1">
@@ -269,14 +303,14 @@ function RoomCard({
       {/* URLs row */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
-          <span className="text-[10px] text-[var(--color-text-muted)]">Join:</span>
-          <span className="text-[10px] font-mono text-[var(--color-text-secondary)] max-w-[200px] truncate">{joinUrl}</span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">☁️ Cloud Join:</span>
+          <span className="text-[10px] font-mono text-[var(--color-text-secondary)] max-w-[220px] truncate" title={joinUrl}>{joinUrl}</span>
           <CopyButton text={joinUrl} label="Copy" />
         </div>
         <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
-          <span className="text-[10px] text-[var(--color-text-muted)]">OBS Source:</span>
-          <span className="text-[10px] font-mono text-[var(--color-text-secondary)] max-w-[200px] truncate">{overlayUrl}</span>
-          <CopyButton text={overlayUrl} label="Copy" />
+          <span className="text-[10px] text-[var(--color-text-muted)]">🏠 LAN Join:</span>
+          <span className="text-[10px] font-mono text-[var(--color-text-secondary)] max-w-[200px] truncate" title={lanJoinUrl}>{lanJoinUrl}</span>
+          <CopyButton text={lanJoinUrl} label="Copy" />
         </div>
       </div>
 
@@ -493,6 +527,18 @@ export function OnlineRoomsPanel() {
     // Room will be removed via the pov-online:room:closed event
   }, [])
 
+  // ── Rejoin room (reactivate idle room) ───────────────────────────
+
+  const handleRejoinRoom = useCallback((roomCode: string) => {
+    const sock = socketRef.current
+    if (!sock) return
+    sock.emit('pov-online:room:rejoin' as any, { roomCode }, (response: { ok: boolean; error?: string }) => {
+      if (!response.ok) {
+        setError(response.error || 'Failed to rejoin room')
+      }
+    })
+  }, [])
+
   // ── Set mode ─────────────────────────────────────────────────────
 
   const handleModeSet = useCallback((roomCode: string, mode: SwitchMode) => {
@@ -601,6 +647,7 @@ export function OnlineRoomsPanel() {
                   key={room.roomCode}
                   room={room}
                   onClose={handleCloseRoom}
+                  onRejoin={handleRejoinRoom}
                   onModeSet={handleModeSet}
                   onSelect={handleSelect}
                   socket={socketRef.current}

@@ -81,10 +81,22 @@ export class OnlineRoomManager {
 
     // Listen for participant join/leave from cloud signaling
     this.cloudSignaling.onStatus((status) => {
+      if (!status.roomId) return
+      // Match room by roomCode — try exact match first, then look for any active room
+      // (in single-room mode there's typically only one room active)
+      let targetRoom: OnlineRoom | undefined
       for (const room of this.rooms.values()) {
         if (room.roomCode === status.roomId) {
-          this.syncParticipants(room, status.participants)
+          targetRoom = room
+          break
         }
+      }
+      // Fallback: if only one room exists and hub is connected, assume it's the target
+      if (!targetRoom && this.rooms.size === 1 && status.connected) {
+        targetRoom = this.rooms.values().next().value
+      }
+      if (targetRoom) {
+        this.syncParticipants(targetRoom, status.participants)
       }
     })
   }
@@ -169,7 +181,7 @@ export class OnlineRoomManager {
     this.rooms.set(roomCode, room)
     this.emit('pov-online:room:created', {
       roomCode,
-      joinUrl: `/online/room/${roomCode}`,
+      joinUrl: `${this.cloudUrl}/room/${roomCode}`,
       createdAt: room.createdAt,
     })
     return { ok: true, roomCode }
@@ -186,6 +198,17 @@ export class OnlineRoomManager {
     this.hubRoomId = null
     this.cloudSignaling.disconnect()
     this.emit('pov-online:room:closed', { roomCode })
+
+    // Delete the room from the cloud so it doesn't reappear on next sync
+    const token = this.getToken()
+    if (token) {
+      fetch(`${this.cloudUrl}/api/rooms/${roomCode}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch((e) => {
+        console.log('[online] Failed to delete room from cloud:', e.message)
+      })
+    }
   }
 
   setMode(roomCode: string, mode: SwitchMode): void {
@@ -193,6 +216,31 @@ export class OnlineRoomManager {
     if (!room) return
     room.mode = mode
     this.pov.switcher.setMode(mode)
+  }
+
+  /** Reconnect the hub to an existing idle room so it can receive participants again */
+  async rejoinRoom(roomCode: string): Promise<{ ok: boolean; error?: string }> {
+    const room = this.rooms.get(roomCode)
+    if (!room) return { ok: false, error: 'room_not_found' }
+
+    const token = this.getToken()
+    if (!token) return { ok: false, error: 'not_authenticated' }
+
+    // If hub is already connected to this room, nothing to do
+    if (this.hubRoomId === roomCode && this.cloudSignaling.isConnected()) {
+      return { ok: true }
+    }
+
+    // Disconnect from any current room first
+    if (this.hubRoomId && this.hubRoomId !== roomCode) {
+      this.cloudSignaling.disconnect()
+    }
+
+    // Reconnect to this room
+    this.hubRoomId = roomCode
+    await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+    console.log('[online] Rejoined room as hub:', roomCode)
+    return { ok: true }
   }
 
   selectParticipant(roomCode: string, participantId: string): { ok: boolean; error?: string } {
@@ -216,6 +264,14 @@ export class OnlineRoomManager {
       if (!res.ok) { console.log('[online] syncFromCloud: cloud returned', res.status); return }
       const cloudRooms = await res.json() as Array<{ id: string; createdAt: string; participantCount: number; hubConnected: boolean }>
       console.log('[online] syncFromCloud: found', cloudRooms.length, 'rooms')
+
+      // Remove local rooms that no longer exist on cloud
+      for (const [code] of this.rooms) {
+        if (!cloudRooms.some((cr) => cr.id === code)) {
+          this.rooms.delete(code)
+        }
+      }
+
       for (const cr of cloudRooms) {
         if (!this.rooms.has(cr.id)) {
           const room: OnlineRoom = {
@@ -228,11 +284,13 @@ export class OnlineRoomManager {
           }
           this.rooms.set(cr.id, room)
         }
-        // Reconnect as hub if not already connected
-        if (!this.hubRoomId) {
-          this.hubRoomId = cr.id
-          await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: cr.id })
-        }
+      }
+
+      // Reconnect hub to the first room if not already connected
+      if (!this.hubRoomId && cloudRooms.length > 0) {
+        const firstRoom = cloudRooms[0]
+        this.hubRoomId = firstRoom.id
+        await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
       }
     } catch (e: any) { console.log('[online] syncFromCloud error:', e.message) }
   }

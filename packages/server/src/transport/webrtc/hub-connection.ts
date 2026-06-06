@@ -80,28 +80,15 @@ export class HubConnection {
     this.participants.set(userId, media)
 
     // ── Track events ────────────────────────────────────────────────────
-    pc.ontrack = (event) => {
-      const track = event.track
+    pc.onTrack.subscribe((track) => {
       if (track.kind === 'audio') {
         media.audioTrack = track
       } else if (track.kind === 'video') {
         media.videoTrack = track
         media.lastVideoPacketMs = Date.now()
-
-        // Monitorear mute del track (video se detiene del lado del sender)
-        track.onmute = () => {
-          console.log(`[hub-connection] ${userId} video track muted`)
-          media.videoMuted = true
-          for (const cb of this.trackMutedCallbacks) cb(userId, 'video')
-        }
-        track.onunmute = () => {
-          console.log(`[hub-connection] ${userId} video track unmuted`)
-          media.videoMuted = false
-          media.lastVideoPacketMs = Date.now()
-        }
       }
       for (const cb of this.trackCallbacks) cb(userId, track.kind as 'audio' | 'video', track)
-    }
+    })
 
     // ── ICE candidate events ────────────────────────────────────────────
     pc.onIceCandidate.subscribe((candidate) => {
@@ -111,7 +98,7 @@ export class HubConnection {
     })
 
     // ── ICE connection state monitoring ─────────────────────────────────
-    pc.onIceConnectionStateChange.subscribe(() => {
+    pc.iceConnectionStateChange.subscribe(() => {
       const state = pc.iceConnectionState
       media.iceState = state
       console.log(`[hub-connection] ${userId} ICE state: ${state}`)
@@ -122,7 +109,7 @@ export class HubConnection {
       }
     })
 
-    pc.onConnectionStateChange.subscribe(() => {
+    pc.connectionStateChange.subscribe(() => {
       const state = pc.connectionState
       console.log(`[hub-connection] ${userId} connection state: ${state}`)
       if (state === 'failed') {

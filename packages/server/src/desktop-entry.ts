@@ -204,7 +204,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   registerOnlineNamespace(io, onlineManager)
   await app.register(onlineRoute, { onlineManager })
 
-  registerJoinNamespace(io, hubConnection, povOrchestrator)
+  registerJoinNamespace(io, hubConnection, povOrchestrator, onlineManager)
 
   const joinPagePath = join(import.meta.dirname, 'join.html')
   if (existsSync(joinPagePath)) {

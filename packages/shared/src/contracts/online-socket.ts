@@ -180,6 +180,10 @@ export interface OnlineClientToServerEvents {
     ack: (response: { ok: boolean; roomCode?: string; joinUrl?: string; error?: string }) => void
   ) => void
   'pov-online:room:close': (payload: OnlineRoomClosePayload) => void
+  'pov-online:room:rejoin': (
+    payload: { roomCode: string },
+    ack: (response: { ok: boolean; error?: string }) => void
+  ) => void
   'pov-online:mode:set': (payload: OnlineModeSetPayload) => void
   'pov-online:select': (
     payload: OnlineSelectPayload,

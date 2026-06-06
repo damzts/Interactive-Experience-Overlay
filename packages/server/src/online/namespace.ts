@@ -38,7 +38,7 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
     socket.on('pov-online:room:create', (ack) => {
       manager.createRoom().then((result) => {
         if (result.ok) {
-          ack({ ok: true, roomCode: result.roomCode, joinUrl: `/online/room/${result.roomCode}` })
+          ack({ ok: true, roomCode: result.roomCode, joinUrl: result.roomCode })
         } else {
           ack({ ok: false, error: result.error })
         }
@@ -49,6 +49,14 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
 
     socket.on('pov-online:room:close', (payload: OnlineRoomClosePayload) => {
       manager.closeRoom(payload.roomCode)
+    })
+
+    socket.on('pov-online:room:rejoin', (payload: { roomCode: string }, ack: (response: { ok: boolean; error?: string }) => void) => {
+      manager.rejoinRoom(payload.roomCode).then((result) => {
+        ack(result)
+      }).catch((e: Error) => {
+        ack({ ok: false, error: e.message })
+      })
     })
 
     socket.on('pov-online:mode:set', (payload: OnlineModeSetPayload) => {

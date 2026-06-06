@@ -14,6 +14,7 @@ import type { Server, Socket } from 'socket.io'
 import type { RTCIceCandidateInit } from 'werift'
 import type { HubConnection } from '../webrtc/hub-connection.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
+import type { OnlineRoomManager } from '../../online/manager.js'
 
 /** Unique participant ID derived from the socket ID. */
 function participantId(socketId: string): string {
@@ -24,6 +25,7 @@ export function registerJoinNamespace(
   io: Server,
   hubConnection: HubConnection,
   povOrchestrator: POVOrchestrator,
+  onlineManager?: OnlineRoomManager,
 ): void {
   const nsp = io.of('/join')
 
@@ -63,9 +65,19 @@ export function registerJoinNamespace(
 
         // Register with POV pipeline (idempotent — ignore if already added)
         if (!addedToPov) {
-          povOrchestrator.addParticipant(userId, `LAN Guest (${socket.id.slice(0, 6)})`)
+          const displayName = `LAN Guest (${socket.id.slice(0, 6)})`
+          povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
           console.log(`[join] ${userId} added to POV pipeline`)
+
+          // Also register with OnlineRoomManager so admin panel sees this participant
+          if (onlineManager) {
+            const rooms = onlineManager.getRooms()
+            if (rooms.length > 0) {
+              // Add to the first active room (LAN participants don't specify a room)
+              onlineManager.addParticipant(rooms[0].roomCode, userId, displayName)
+            }
+          }
         }
       } catch (err: any) {
         pendingAnswer = false
@@ -87,7 +99,16 @@ export function registerJoinNamespace(
     socket.on('disconnect', () => {
       console.log(`[join] LAN participant disconnected: ${userId}`)
       void hubConnection.removeParticipant(userId)
-      if (addedToPov) povOrchestrator.removeParticipant(userId)
+      if (addedToPov) {
+        povOrchestrator.removeParticipant(userId)
+        // Also remove from OnlineRoomManager
+        if (onlineManager) {
+          const rooms = onlineManager.getRooms()
+          for (const room of rooms) {
+            onlineManager.removeParticipant(room.roomCode, userId)
+          }
+        }
+      }
     })
   })
 }
