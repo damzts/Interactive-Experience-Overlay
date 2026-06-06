@@ -46,10 +46,21 @@ export class HubConnection {
   private readonly FREEZE_TIMEOUT_MS = 3_000
 
   async handleOffer(userId: string, sdp: string): Promise<string> {
+    try {
+      return await this._handleOffer(userId, sdp)
+    } catch (err) {
+      console.error(`[hub-connection] handleOffer(${userId}) crashed:`, (err as Error).message)
+      console.error((err as Error).stack)
+      // Never let werift exceptions bubble up — return empty answer
+      return ''
+    }
+  }
+
+  private async _handleOffer(userId: string, sdp: string): Promise<string> {
     // On re-offer, close old PC silently (don't fire removal callbacks)
     const existing = this.participants.get(userId)
     if (existing) {
-      await existing.pc.close()
+      try { await existing.pc.close() } catch { /* ignore */ }
       this.participants.delete(userId)
     }
 
@@ -127,23 +138,29 @@ export class HubConnection {
   }
 
   async handleIceCandidate(userId: string, candidate: RTCIceCandidateInit): Promise<void> {
-    const media = this.participants.get(userId)
-    if (!media) return
     try {
-      await media.pc.addIceCandidate(candidate)
-    } catch {
-      // Ignorar candidatos obsoletos
+      const media = this.participants.get(userId)
+      if (!media) return
+      try {
+        await media.pc.addIceCandidate(candidate)
+      } catch {
+        // Ignorar candidatos obsoletos
+      }
+    } catch (err) {
+      console.error(`[hub-connection] handleIceCandidate(${userId}) crashed:`, (err as Error).message)
     }
   }
 
   async removeParticipant(userId: string): Promise<void> {
-    const media = this.participants.get(userId)
-    if (!media) return
     try {
-      await media.pc.close()
-    } catch { /* ignore */ }
-    this.participants.delete(userId)
-    for (const cb of this.removedCallbacks) cb(userId)
+      const media = this.participants.get(userId)
+      if (!media) return
+      try { await media.pc.close() } catch { /* ignore */ }
+      this.participants.delete(userId)
+      for (const cb of this.removedCallbacks) cb(userId)
+    } catch (err) {
+      console.error(`[hub-connection] removeParticipant(${userId}) crashed:`, (err as Error).message)
+    }
   }
 
   // ── Getters ────────────────────────────────────────────────────────

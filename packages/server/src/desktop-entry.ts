@@ -244,7 +244,21 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     await app.register(fastifyStatic, { root: overlayDir, prefix: '/', wildcard: false, decorateReply: false })
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────
+  // ── Global crash handler ────────────────────────────────────────
+// Evita que excepciones no capturadas de werift/WSLR maten el proceso
+process.on('uncaughtException', (err) => {
+  console.error('[crash] Uncaught exception:', err.message)
+  console.error(err.stack)
+  // No terminamos el proceso — werift puede fallar sin matar la app
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[crash] Unhandled rejection:', (reason as Error).message)
+  console.error((reason as Error).stack)
+  // No terminamos el proceso
+})
+
+// ── Lifecycle ─────────────────────────────────────────────────
 
   async function start(): Promise<void> {
     await kernel.boot()
