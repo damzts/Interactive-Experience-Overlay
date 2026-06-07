@@ -25,11 +25,12 @@
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
-    "@types/sql.js": "^1.4.11",
-    "electron": "^42.2.0",
+    "electron": "^41.7.1",
     "electron-builder": "^25.1.8",
     "fast-check": "^3.22.0",
+    "node-abi": "^4.31.0",
     "typescript": "^5.5.2",
     "vitest": "^2.1.8"
   }

@@ -10,87 +10,26 @@
  */
 
 import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import initSqlJs from 'sql.js';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface SimpleSqlDb {
-  run(sql: string, params?: unknown[]): void;
-  get(sql: string, params?: unknown[]): Record<string, unknown> | undefined;
-  exec(sql: string): void;
-  close(): void;
-  export(): Uint8Array;
-}
+import Database from 'better-sqlite3';
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-let db: SimpleSqlDb | null = null;
-let currentDbPath: string = '';
+let db: Database.Database | null = null;
 
 // ---------------------------------------------------------------------------
-// Database Helpers
+// Public API
 // ---------------------------------------------------------------------------
-
-function wrapSqlJs(sqlDb: any): SimpleSqlDb {
-  return {
-    run(sql: string, params?: unknown[]) {
-      sqlDb.run(sql, params);
-    },
-    get(sql: string, params?: unknown[]): Record<string, unknown> | undefined {
-      const stmt = sqlDb.prepare(sql);
-      if (params) stmt.bind(params);
-      if (stmt.step()) {
-        const cols = stmt.getColumnNames();
-        const values = stmt.get();
-        const row: Record<string, unknown> = {};
-        cols.forEach((col: string, i: number) => { row[col] = values[i]; });
-        stmt.free();
-        return row;
-      }
-      stmt.free();
-      return undefined;
-    },
-    exec(sql: string) {
-      sqlDb.run(sql);
-    },
-    close() {
-      sqlDb.close();
-    },
-    export() {
-      return sqlDb.export();
-    },
-  };
-}
-
-function persistDb(): void {
-  if (!db) return;
-  const data = db.export();
-  writeFileSync(currentDbPath, Buffer.from(data));
-}
 
 /**
  * Open (or reuse) a connection to the SQLite database for app settings.
  * The `app_settings` table is expected to already exist (created by server migrations).
  */
-export async function openAppSettingsDb(dbPath: string): Promise<void> {
+export function openAppSettingsDb(dbPath: string): void {
   if (db) return;
-  currentDbPath = dbPath;
-
-  const SQL = await initSqlJs();
-
-  if (existsSync(dbPath)) {
-    const buffer = readFileSync(dbPath);
-    const sqlDb = new SQL.Database(buffer);
-    db = wrapSqlJs(sqlDb);
-  } else {
-    const sqlDb = new SQL.Database();
-    db = wrapSqlJs(sqlDb);
-  }
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
 }
 
 /**
@@ -98,7 +37,6 @@ export async function openAppSettingsDb(dbPath: string): Promise<void> {
  */
 export function closeAppSettingsDb(): void {
   if (db) {
-    persistDb();
     db.close();
     db = null;
   }
@@ -116,7 +54,6 @@ export function closeAppSettingsDb(): void {
  * since `wasOpenedAtLogin` is not reliably supported on all Linux desktop environments.
  */
 export function isAutoLaunched(): boolean {
-  // Check Electron's built-in detection (works on macOS and Windows)
   const loginSettings = app.getLoginItemSettings();
   if (loginSettings.wasOpenedAtLogin) {
     return true;
@@ -140,22 +77,14 @@ export function isAutoLaunched(): boolean {
  * Also persists the preference to the SQLite `app_settings` table.
  */
 export function setLaunchAtStartup(enabled: boolean): void {
-  // Update OS login item settings
   app.setLoginItemSettings({
     openAtLogin: enabled,
     openAsHidden: true,
-    // On Linux, pass --hidden arg so we can detect auto-launch
     args: enabled ? ['--hidden'] : [],
   });
 
-  // Persist preference to database
   if (!db) return;
-
-  db.run(
-    'INSERT OR REPLACE INTO app_settings (id, launch_at_startup) VALUES (1, ?)',
-    [enabled ? 1 : 0]
-  );
-  persistDb();
+  db.prepare('INSERT OR REPLACE INTO app_settings (id, launch_at_startup) VALUES (1, ?)').run(enabled ? 1 : 0);
 }
 
 /**
@@ -164,10 +93,6 @@ export function setLaunchAtStartup(enabled: boolean): void {
  */
 export function getLaunchAtStartup(): boolean {
   if (!db) return false;
-
-  const row = db.get('SELECT launch_at_startup FROM app_settings WHERE id = 1');
-
-  if (!row) return false;
-
-  return (row.launch_at_startup as number) === 1;
+  const row = db.prepare('SELECT launch_at_startup FROM app_settings WHERE id = 1').get() as { launch_at_startup: number } | undefined;
+  return row?.launch_at_startup === 1;
 }
