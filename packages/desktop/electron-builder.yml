@@ -19,7 +19,7 @@ extraResources:
   - from: "../overlay/dist"
     to: "overlay"
 
-asar: false
+asar: true
 
 asarUnpack:
   - "**/node_modules/@shinyoshiaki/**"
@@ -47,7 +47,7 @@ win:
       arch:
         - x64
   icon: build/icon.ico
-  signAndEditExecutable: false
+  signAndEditExecutable: true
   publisherName: IEOM
 
 nsis:

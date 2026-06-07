@@ -26,6 +26,9 @@ exports.default = async function afterPack(context) {
         fs.cpSync(resolvedSrc, target, { recursive: true });
         console.log('  • afterPack: copied binary-data/src/node_modules (resolved)');
       }
-    } catch {}
+    } catch (err) {
+      console.error('[afterPack] Failed to resolve binary-data/src/node_modules:', err);
+      throw err;
+    }
   }
 };
