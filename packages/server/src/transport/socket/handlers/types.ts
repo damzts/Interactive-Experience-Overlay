@@ -8,11 +8,11 @@ import type {
   ObsStatusPayload,
 } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
-import type { SceneMachine } from '../../kernel/managers/scene.js'
-import type { EventScheduler } from '../../kernel/managers/scheduler.js'
-import type { AmbianceManager } from '../../kernel/managers/ambiance.js'
-import type { KernelBus } from '../../kernel/bus.js'
-import type { RuntimeStateStore } from '../../kernel/managers/runtime.js'
+import type { SceneMachine } from '../../../kernel/managers/scene.js'
+import type { EventScheduler } from '../../../kernel/managers/scheduler.js'
+import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
+import type { KernelBus } from '../../../kernel/bus.js'
+import type { RuntimeStateStore } from '../../../kernel/managers/runtime.js'
 
 export type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 export type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>

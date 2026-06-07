@@ -141,4 +141,10 @@ export interface ClientToServerEvents {
   'transition:preview': (steps: TransitionStep[]) => void
   /** Immediate panic reset — clears all state to safe defaults */
   'panic': () => void
+
+  // ── Queries (request/response via callback) ──────────────────────
+  /** Request current scene state */
+  'state:request': (callback: (state: STATE) => void) => void
+  /** Request desktop runtime state snapshot */
+  'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
 }

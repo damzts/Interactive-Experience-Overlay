@@ -15,7 +15,7 @@ import {
   type WidgetThemeConfig,
   type DesktopConfig,
 } from '@ieom/shared'
-import type { TransitionStartPayload } from '../../kernel/managers/scene.js'
+import type { TransitionStartPayload } from '../../../kernel/managers/scene.js'
 import type { HandlerContext, AppSocket } from './types.js'
 import {
   applyRuntimeConfigOverride,
