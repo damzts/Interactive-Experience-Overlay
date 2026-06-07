@@ -1,17 +1,21 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { ObsStatusPayload } from '@ieom/shared'
+import type { ObsBridge } from '../../kernel/managers/obs.js'
 
 interface ArchiveRouteOptions extends FastifyPluginOptions {
   getObsStatus?: () => ObsStatusPayload
+  obsBridge?: ObsBridge
 }
 
 export async function archiveRoute(app: FastifyInstance, options: ArchiveRouteOptions) {
-  // OBS connection test endpoint
+  const { obsBridge, getObsStatus } = options
+
+  // ── Connection test ──────────────────────────────────────────
+
   app.get('/api/obs/test', async (req, reply) => {
-    // request.userId is available from auth middleware on protected routes
     const _userId = req.userId
 
-    const status = options.getObsStatus?.()
+    const status = getObsStatus?.()
     if (!status) {
       return reply.code(200).send({ connected: false, message: 'OBS bridge status is unavailable.' })
     }
@@ -30,5 +34,36 @@ export async function archiveRoute(app: FastifyInstance, options: ArchiveRouteOp
       message: `Disconnected from ${status.url}.${errorText}${retryText}`.trim(),
     })
   })
-}
 
+  // ── Virtual Cam toggle ───────────────────────────────────────
+
+  app.post('/api/obs/virtualcam', async (req, reply) => {
+    if (!obsBridge) return reply.code(503).send({ error: 'obs_bridge_unavailable' })
+    const result = await obsBridge.toggleVirtualCam()
+    return reply.code(result.ok ? 200 : 500).send(result)
+  })
+
+  // ── Start / Stop streaming ───────────────────────────────────
+
+  app.post('/api/obs/stream/start', async (req, reply) => {
+    if (!obsBridge) return reply.code(503).send({ error: 'obs_bridge_unavailable' })
+    const body = req.body as { rtmpUrl?: string; streamKey?: string } | null
+    const result = await obsBridge.startStreaming(body?.rtmpUrl, body?.streamKey)
+    return reply.code(result.ok ? 200 : 500).send(result)
+  })
+
+  app.post('/api/obs/stream/stop', async (req, reply) => {
+    if (!obsBridge) return reply.code(503).send({ error: 'obs_bridge_unavailable' })
+    const result = await obsBridge.stopStreaming()
+    return reply.code(result.ok ? 200 : 500).send(result)
+  })
+
+  // ── Browser Source auto-setup ────────────────────────────────
+
+  app.post('/api/obs/setup-source', async (req, reply) => {
+    if (!obsBridge) return reply.code(503).send({ error: 'obs_bridge_unavailable' })
+    const body = req.body as { sourceName?: string; width?: number; height?: number } | null
+    const result = await obsBridge.ensureOverlaySource(body?.sourceName, body?.width, body?.height)
+    return reply.code(result.ok ? 200 : 500).send(result)
+  })
+}

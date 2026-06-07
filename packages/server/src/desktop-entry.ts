@@ -190,7 +190,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(authRoutes, { userRepository })
   await app.register(configRoute, { machine, configService: configService as any })
   await app.register(mediaRoute)
-  await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus() })
+  await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
 
   // ── Room system ───────────────────────────────────────────────
   const overlayRelay = new OverlayRelay()

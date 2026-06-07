@@ -55,6 +55,9 @@ export interface ObsStatusPayload {
   retryDelayMs: number | null
   nextRetryAt: number | null
   lastError: string | null
+  virtualCamActive: boolean
+  streaming: boolean
+  overlaySourceAdded: boolean
 }
 
 // ── Scheduler diagnostics ─────────────────────────────────────────
