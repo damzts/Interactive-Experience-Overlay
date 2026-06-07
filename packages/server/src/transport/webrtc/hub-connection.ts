@@ -19,11 +19,16 @@ import {
 export interface ParticipantMedia {
   userId: string
   pc: RTCPeerConnection
+  **_stale: boolean /** Marca para descartar media durante re-offer */**
   audioTrack: MediaStreamTrack | null
   videoTrack: MediaStreamTrack | null
   iceState: 'new' | 'checking' | 'connected' | 'completed' | 'failed' | 'disconnected' | 'closed'
   lastVideoPacketMs: number
   videoMuted: boolean
+}
+
+function markStale(media: ParticipantMedia): void {
+  media._stale = true
 }
 
 export type TrackCallback = (userId: string, kind: 'audio' | 'video', track: MediaStreamTrack) => void
@@ -60,6 +65,7 @@ export class HubConnection {
     // On re-offer, close old PC silently (don't fire removal callbacks)
     const existing = this.participants.get(userId)
     if (existing) {
+      markStale(existing)
       try { await existing.pc.close() } catch { /* ignore */ }
       this.participants.delete(userId)
     }
@@ -71,6 +77,7 @@ export class HubConnection {
     const media: ParticipantMedia = {
       userId,
       pc,
+      _stale: false,
       audioTrack: null,
       videoTrack: null,
       iceState: 'new',
@@ -205,6 +212,7 @@ export class HubConnection {
     this.freezeMonitorTimer = setInterval(() => {
       const now = Date.now()
       for (const [_userId, media] of this.participants) {
+        if (media._stale) continue
         if (!media.videoTrack) continue
         if (media.videoMuted) continue
         if (media.iceState === 'failed' || media.iceState === 'disconnected') continue

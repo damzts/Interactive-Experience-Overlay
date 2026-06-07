@@ -45,7 +45,11 @@ export class OverlayRelay {
    * Debounce negotiation by 100ms so video track is available in the first offer.
    */
   private scheduleNegotiate(): void {
-    if (this.negotiateTimer || this.offered) return
+    if (this.offered) return
+    if (this.negotiateTimer) {
+      clearTimeout(this.negotiateTimer)
+      this.negotiateTimer = null
+    }
     this.negotiateTimer = setTimeout(() => {
       this.negotiateTimer = null
       void this.doNegotiate()
@@ -66,10 +70,18 @@ export class OverlayRelay {
   }
 
   async handleAnswer(sdp: string): Promise<void> {
-    if (!this.pc) return
-    await this.pc.setRemoteDescription({ type: 'answer', sdp })
-    this.connected = true
-    console.log('[overlay-relay] connected to overlay')
+    if (!this.pc) {
+      console.warn('[overlay-relay] handleAnswer ignored — no pc')
+      return
+    }
+    try {
+      await this.pc.setRemoteDescription({ type: 'answer', sdp })
+      this.connected = true
+      console.log('[overlay-relay] connected to overlay')
+    } catch (err) {
+      console.error('[overlay-relay] handleAnswer failed:', err)
+      throw err
+    }
 
     // If track changed while negotiating (re-offer created new track objects), replace now
     if (this.videoTrack && this.videoTrack !== this.offeredVideoTrack) {

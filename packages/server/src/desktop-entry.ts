@@ -193,8 +193,20 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
       overlayRelay.createOffer((event, payload) => socket.emit(event, payload))
         .catch(e => console.error('[pov-relay] createOffer failed:', e.message))
     })
-    socket.on('pov:answer', (payload: { sdp: string }) => overlayRelay.handleAnswer(payload.sdp))
-    socket.on('pov:ice-candidate', (candidate: any) => overlayRelay.handleIceCandidate(candidate))
+    socket.on('pov:answer', async (payload: { sdp: string }) => {
+      try {
+        await overlayRelay.handleAnswer(payload.sdp)
+      } catch (err) {
+        console.error('[pov-relay] handleAnswer error:', err)
+      }
+    })
+    socket.on('pov:ice-candidate', async (candidate: any) => {
+      try {
+        await overlayRelay.handleIceCandidate(candidate)
+      } catch (err) {
+        console.error('[pov-relay] ice-candidate error:', err)
+      }
+    })
   })
 
   cloudSignaling.onStatus((status) => io.emit('room:status' as any, status))
