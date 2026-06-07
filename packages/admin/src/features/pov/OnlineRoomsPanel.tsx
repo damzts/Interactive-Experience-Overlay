@@ -13,6 +13,7 @@ import type {
   OnlineClientToServerEvents,
 } from '@ieom/shared'
 import { getOnlineConfig, updateOnlineConfig, getOnlineRooms, provideAuthToken } from '../../api/onlineApi'
+import { getStoredAuthToken } from '../../auth/sessionToken'
 import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
@@ -420,7 +421,7 @@ export function OnlineRoomsPanel() {
     const onlineSocket: OnlineSocket = io(`${window.location.origin}/online`, {
       forceNew: true,
       autoConnect: true,
-      auth: { clientType: 'admin' },
+      auth: { clientType: 'admin', ...(getStoredAuthToken() ? { token: getStoredAuthToken() } : {}) },
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     })

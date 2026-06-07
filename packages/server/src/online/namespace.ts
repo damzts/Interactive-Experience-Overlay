@@ -7,6 +7,7 @@ import type { Server as SocketIOServer } from 'socket.io'
 import logger from '../lib/logger.js'
 import type { OnlineRoomManager } from './manager.js'
 import type { AdminRelay } from '../transport/webrtc/admin-relay.js'
+import { verifyAccessToken } from '../auth/jwt.js'
 import type {
   OnlineClientToServerEvents,
   OnlineServerToClientEvents,
@@ -21,6 +22,31 @@ type OnlineNamespace = ReturnType<
   SocketIOServer<OnlineClientToServerEvents, OnlineServerToClientEvents, OnlineInterServerEvents, OnlineSocketData>['of']
 >
 
+/**
+ * Validates the admin token or JWT Bearer token on socket handshake.
+ * Only admin roles are checked — player/overlay roles pass through.
+ * Returns true if valid, false otherwise.
+ */
+function validateAdminToken(auth: Record<string, unknown>): boolean {
+  const role = (auth?.clientType as string) ?? 'player'
+  if (role !== 'admin') return true // non-admin roles bypass
+
+  const token = (auth?.token as string)?.trim()
+  if (!token) return false
+
+  // Check overlay admin token (env var)
+  const adminToken = process.env['OVERLAY_ADMIN_TOKEN']?.trim()
+  if (adminToken && token === adminToken) return true
+
+  // Check JWT Bearer token (for OAuth-authenticated users)
+  try {
+    verifyAccessToken(token)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function registerOnlineNamespace(
   io: SocketIOServer,
   manager: OnlineRoomManager,
@@ -32,6 +58,16 @@ export function registerOnlineNamespace(
   // Forward manager events to all connected admin sockets
   manager.onEvent((event, payload) => {
     nsp.emit(event as keyof OnlineServerToClientEvents, payload as any)
+  })
+
+  // Middleware: validate admin token on connect
+  nsp.use((socket, next) => {
+    const auth = socket.handshake.auth as Record<string, unknown>
+    if (!validateAdminToken(auth)) {
+      logger.warn(`[online] Rejected admin connection from ${socket.id}: invalid token`)
+      return next(new Error('unauthorized'))
+    }
+    next()
   })
 
   nsp.on('connection', (socket) => {

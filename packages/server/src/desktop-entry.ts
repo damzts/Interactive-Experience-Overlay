@@ -40,6 +40,7 @@ import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
 import { authRoutes } from './auth/authRoutes.js'
+import { registerAuthMiddleware } from './auth/authMiddleware.js'
 import { HubConnection } from './transport/webrtc/hub-connection.js'
 import { POVOrchestrator } from './kernel/managers/pov.js'
 import { OverlayRelay } from './transport/webrtc/overlay-relay.js'
@@ -92,7 +93,15 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(fastifyCors, { origin: '*' })
   await app.register(fastifyCookie)
-  app.addHook('onRequest', async (request) => { request.userId = DESKTOP_USER_ID })
+
+  // Auth: if OVERLAY_ADMIN_TOKEN is set, protected routes require it.
+  // In local dev (no token), blanket-assign 'desktop' user for backward compat.
+  const adminToken = process.env['OVERLAY_ADMIN_TOKEN']?.trim()
+  if (adminToken) {
+    registerAuthMiddleware(app)
+  } else {
+    app.addHook('onRequest', async (request) => { request.userId = DESKTOP_USER_ID })
+  }
 
   // ── Static files ──────────────────────────────────────────────
   if (existsSync(adminDir)) {
