@@ -97,21 +97,25 @@ export class POVOrchestrator implements Manager {
   private startAudioLevelMonitoring(userId: string, track: any): void {
     this.stopAudioLevelMonitoring(userId)
 
-    const sub = track.onReceiveRtp.subscribe((packet: any) => {
-      const payload = packet.payload as Buffer
-      if (!payload || payload.length === 0) return
-      let sum = 0
-      const len = Math.min(payload.length, 160)
-      for (let i = 0; i < len; i++) {
-        const sample = (payload[i] - 128) / 128
-        sum += sample * sample
-      }
-      const rms = Math.sqrt(sum / len)
-      const level = Math.min(1, rms * 3)
-      this.scoreProcessor.reportLevel(userId, level, Date.now())
-    })
+    try {
+      const sub = track.onReceiveRtp.subscribe((packet: any) => {
+        const payload = packet.payload as Buffer
+        if (!payload || payload.length === 0) return
+        let sum = 0
+        const len = Math.min(payload.length, 160)
+        for (let i = 0; i < len; i++) {
+          const sample = (payload[i] - 128) / 128
+          sum += sample * sample
+        }
+        const rms = Math.sqrt(sum / len)
+        const level = Math.min(1, rms * 3)
+        this.scoreProcessor.reportLevel(userId, level, Date.now())
+      })
 
-    this.audioUnsubscribes.set(userId, () => sub.unSubscribe())
+      this.audioUnsubscribes.set(userId, () => sub.unSubscribe())
+    } catch (err) {
+      console.warn(`[pov] audio level monitoring unavailable for ${userId}:`, err)
+    }
   }
 
   private stopAudioLevelMonitoring(userId: string): void {

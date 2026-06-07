@@ -90,11 +90,8 @@ export class OnlineRoomManager {
           break
         }
       }
-      // Fallback: if only one room exists and hub is connected, assume it's the target
-      if (!targetRoom && this.rooms.size === 1 && status.connected) {
-        targetRoom = this.rooms.values().next().value
-        console.log(`[online] onStatus: using fallback room ${targetRoom?.roomCode}`)
-      }
+      // Fallback eliminado — ahora onStatus siempre incluye roomId correcto
+      // desde CloudSignaling. Si no hay match, es un estado stale de conexión anterior.
       if (targetRoom) {
         this.syncParticipants(targetRoom, status.participants, status.participantNames)
       } else {

@@ -66,6 +66,21 @@ export function appendSlugSuffix(baseSlug: string): string {
 
 const MAX_SLUG_RETRIES = 5
 
+/**
+ * Type guard para errores de constraint UNIQUE de PostgreSQL.
+ * Verifica el código de error 23505 sin depender de la estructura interna de pg.
+ */
+function isUniqueConstraintError(
+  err: unknown,
+  column?: string
+): err is Error & Record<string, unknown> {
+  if (!(err instanceof Error)) return false
+  const pgErr = err as Record<string, unknown>
+  if (pgErr.code !== '23505') return false
+  if (column && typeof pgErr.constraint === 'string' && !pgErr.constraint.includes(column)) return false
+  return true
+}
+
 export class UserRepository {
   constructor(private pool: QueryableDb) {}
 
@@ -104,7 +119,7 @@ export class UserRepository {
            RETURNING *`, [profile.googleId, profile.email, profile.name, profile.picture, slug])
         return rowToRecord(result.rows[0])
       } catch (error) {
-        if (error instanceof Error && 'code' in error && (error as any).code === '23505' && 'constraint' in error && String((error as any).constraint).includes('slug')) {
+        if (isUniqueConstraintError(error, 'slug')) {
           slug = appendSlugSuffix(baseSlug)
           retries++
         } else {
