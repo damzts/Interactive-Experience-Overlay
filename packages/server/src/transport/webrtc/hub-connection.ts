@@ -19,7 +19,7 @@ import {
 export interface ParticipantMedia {
   userId: string
   pc: RTCPeerConnection
-  **_stale: boolean /** Marca para descartar media durante re-offer */**
+  _stale: boolean /** Marca para descartar media durante re-offer */
   audioTrack: MediaStreamTrack | null
   videoTrack: MediaStreamTrack | null
   iceState: 'new' | 'checking' | 'connected' | 'completed' | 'failed' | 'disconnected' | 'closed'
