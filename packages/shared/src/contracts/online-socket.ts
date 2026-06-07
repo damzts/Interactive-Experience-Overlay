@@ -189,6 +189,10 @@ export interface OnlineClientToServerEvents {
     payload: OnlineSelectPayload,
     ack: (response: { ok: boolean; error?: string }) => void
   ) => void
+  'pov-online:kick': (
+    payload: { roomCode: string; participantId: string },
+    ack: (response: { ok: boolean; error?: string }) => void
+  ) => void
   'pov-online:overlay:subscribe': (payload: OnlineOverlaySubscribePayload) => void
 }
 

@@ -48,7 +48,7 @@
     button:hover { background: #4c6ef5 }
     button:disabled { background: #333; color: #666; cursor: default }
     .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center }
-    select {
+    select, input[type="text"] {
       padding: 0.4rem 0.6rem;
       border-radius: 6px;
       border: 1px solid #333;
@@ -56,10 +56,35 @@
       color: #e0e0f0;
       font-size: 0.85rem;
     }
+    input[type="text"] {
+      width: min(240px, 100%);
+      padding: 0.5rem 0.8rem;
+      font-size: 1rem;
+      text-align: center;
+    }
+    input[type="text"]::placeholder { color: #555 }
+    .name-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .name-section label {
+      font-size: 0.8rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
   </style>
 </head>
 <body>
   <h1>Join Stream</h1>
+
+  <div class="name-section">
+    <label for="display-name">Your name</label>
+    <input type="text" id="display-name" placeholder="Enter your name…" maxlength="30" autocomplete="off" />
+  </div>
+
   <video id="preview" autoplay muted playsinline></video>
   <div class="controls">
     <select id="camera-select"><option>Loading cameras…</option></select>
@@ -75,6 +100,7 @@
     const joinBtn = document.getElementById('join-btn')
     const leaveBtn = document.getElementById('leave-btn')
     const cameraSelect = document.getElementById('camera-select')
+    const displayNameInput = document.getElementById('display-name')
 
     let localStream = null
     let pc = null
@@ -85,10 +111,14 @@
       statusEl.className = kind
     }
 
+    function getDisplayName() {
+      const name = displayNameInput.value.trim()
+      return name || ('Guest-' + Math.random().toString(36).slice(2, 6))
+    }
+
     // Enumerate cameras
     async function populateCameras() {
       try {
-        // Need a temporary permission grant to enumerate labels
         const tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
         tmp.getTracks().forEach(t => t.stop())
         const devices = await navigator.mediaDevices.enumerateDevices()
@@ -118,13 +148,18 @@
     })
 
     joinBtn.addEventListener('click', async () => {
+      const displayName = getDisplayName()
       joinBtn.disabled = true
+      displayNameInput.disabled = true
       setStatus('Requesting camera/mic…')
       try {
         await startPreview()
         setStatus('Connecting to hub…')
 
-        socket = io('/join', { transports: ['websocket'] })
+        socket = io('/join', {
+          transports: ['websocket'],
+          auth: { displayName },
+        })
 
         socket.on('connect', async () => {
           setStatus('Creating WebRTC connection…')
@@ -146,7 +181,7 @@
 
         socket.on('answer', async (sdp) => {
           await pc.setRemoteDescription({ type: 'answer', sdp })
-          setStatus('Connected', 'connected')
+          setStatus('Connected as ' + displayName, 'connected')
           joinBtn.disabled = true
           leaveBtn.disabled = false
         })
@@ -164,9 +199,15 @@
           setStatus('Disconnected')
           cleanup()
         })
+
+        socket.on('kicked', (data) => {
+          setStatus(data.reason || 'You were removed from the room', 'error')
+          cleanup()
+        })
       } catch (err) {
         setStatus(err.message || 'Failed to access camera', 'error')
         joinBtn.disabled = false
+        displayNameInput.disabled = false
       }
     })
 
@@ -182,6 +223,7 @@
       preview.srcObject = null
       joinBtn.disabled = false
       leaveBtn.disabled = true
+      displayNameInput.disabled = false
     }
   </script>
 </body>

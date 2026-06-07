@@ -68,6 +68,15 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
       ack(result)
     })
 
+    socket.on('pov-online:kick', (payload: { roomCode: string; participantId: string }, ack: (response: { ok: boolean; error?: string }) => void) => {
+      const room = manager.getRoom(payload.roomCode)
+      if (!room) { ack({ ok: false, error: 'room_not_found' }); return }
+      manager.removeParticipant(payload.roomCode, payload.participantId)
+      // Emit kick event so joinNamespace can disconnect LAN participants
+      manager.emitKick(payload.roomCode, payload.participantId)
+      ack({ ok: true })
+    })
+
     // ── Player events ────────────────────────────────────────────
 
     socket.on('pov-online:audio-level', (payload) => {

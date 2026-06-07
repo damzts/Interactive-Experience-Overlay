@@ -29,7 +29,7 @@ interface WsMessage {
   targetUserId?: string
 }
 
-export type RoomStatusCallback = (status: { connected: boolean; participants: string[]; roomId: string | null }) => void
+export type RoomStatusCallback = (status: { connected: boolean; participants: string[]; participantNames: Map<string, string>; roomId: string | null }) => void
 
 const RECONNECT_BASE_MS = 1000
 const RECONNECT_MAX_MS = 30000
@@ -186,8 +186,9 @@ export class CloudSignaling {
         const participants = msg.payload['participants'] as string[] | undefined
         if (participants) {
           for (const userId of participants) {
-            this.participantNames.set(userId, userId)
-            this.pov.addParticipant(userId, userId)
+            const name = `Guest-${userId.slice(0, 6)}`
+            this.participantNames.set(userId, name)
+            this.pov.addParticipant(userId, name)
             this.knownParticipants.add(userId)
           }
         }
@@ -197,8 +198,14 @@ export class CloudSignaling {
 
       case 'participant-joined': {
         const userId = msg.payload['userId'] as string
-        const displayName = (msg.payload['userEmail'] as string) ?? userId
+        // Prefer displayName/userName over email for privacy
+        const rawName = (msg.payload['displayName'] as string)
+          ?? (msg.payload['userName'] as string)
+          ?? (msg.payload['name'] as string)
+        // If name looks like an email or is missing, use a generic guest name
+        const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
         if (userId) {
+          console.log(`[cloud-signaling] participant joined: ${userId} (${displayName})`)
           this.participantNames.set(userId, displayName)
           this.pov.addParticipant(userId, displayName)
           this.knownParticipants.add(userId)
@@ -223,6 +230,17 @@ export class CloudSignaling {
         const sdp = msg.payload['sdp'] as string
         const userId = msg.senderId
         if (sdp && userId) {
+          // Auto-register participant if we haven't seen a participant-joined event
+          if (!this.knownParticipants.has(userId)) {
+            const rawName = (msg.payload['displayName'] as string) ?? (msg.payload['userName'] as string)
+            const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
+            console.log(`[cloud-signaling] auto-registering participant from offer: ${userId} (${displayName})`)
+            this.participantNames.set(userId, displayName)
+            this.pov.addParticipant(userId, displayName)
+            this.knownParticipants.add(userId)
+            this.emitStatus()
+          }
+
           console.log(`[cloud-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
           this.pendingCandidates.set(userId, [])
           this.hub.handleOffer(userId, sdp).then(answerSdp => {
@@ -324,16 +342,29 @@ export class CloudSignaling {
     return this.ws?.readyState === WebSocket.OPEN
   }
 
-  getStatus(): { connected: boolean; participants: string[]; roomId: string | null } {
+  getStatus(): { connected: boolean; participants: string[]; participantNames: Map<string, string>; roomId: string | null } {
     return {
       connected: this.isConnected(),
       participants: [...this.participantNames.keys()],
+      participantNames: new Map(this.participantNames),
       roomId: this.config?.roomId ?? null,
     }
   }
 
   onStatus(cb: RoomStatusCallback): void {
     this.statusCallbacks.push(cb)
+  }
+
+  /** Tell the cloud to kick a participant (cloud will disconnect their WS + notify them) */
+  kickParticipant(userId: string): void {
+    this.send({
+      type: 'kick-participant',
+      payload: { userId },
+      senderId: 'self',
+      timestamp: new Date().toISOString(),
+      targetUserId: userId,
+    })
+    console.log(`[cloud-signaling] sent kick for ${userId}`)
   }
 
   private emitStatus(): void {

@@ -28,14 +28,32 @@ export function registerJoinNamespace(
   onlineManager?: OnlineRoomManager,
 ): void {
   const nsp = io.of('/join')
+  /** Map userId → socket for kick support */
+  const participantSockets = new Map<string, Socket>()
+
+  // Allow external code to kick a LAN participant by userId
+  if (onlineManager) {
+    onlineManager.onEvent((event, payload) => {
+      if (event === 'pov-online:participant:kicked') {
+        const { participantId: kickedId } = payload as { participantId: string }
+        const sock = participantSockets.get(kickedId)
+        if (sock) {
+          sock.emit('kicked', { reason: 'You have been removed from the room by the host.' })
+          setTimeout(() => sock.disconnect(true), 500)
+        }
+      }
+    })
+  }
 
   nsp.on('connection', (socket: Socket) => {
     const userId = participantId(socket.id)
+    const displayName = (socket.handshake.auth as { displayName?: string })?.displayName || `LAN Guest (${socket.id.slice(0, 6)})`
     let addedToPov = false
     // Track pending ICE candidates for the current offer cycle
     let pendingAnswer = false
     let buffered: any[] = []
 
+    participantSockets.set(userId, socket)
     console.log(`[join] LAN participant connected: ${userId} (${socket.id})`)
 
     // Register per-participant ICE candidate listener once
@@ -65,10 +83,9 @@ export function registerJoinNamespace(
 
         // Register with POV pipeline (idempotent — ignore if already added)
         if (!addedToPov) {
-          const displayName = `LAN Guest (${socket.id.slice(0, 6)})`
           povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
-          console.log(`[join] ${userId} added to POV pipeline`)
+          console.log(`[join] ${userId} (${displayName}) added to POV pipeline`)
 
           // Also register with OnlineRoomManager so admin panel sees this participant
           if (onlineManager) {
@@ -98,6 +115,7 @@ export function registerJoinNamespace(
 
     socket.on('disconnect', () => {
       console.log(`[join] LAN participant disconnected: ${userId}`)
+      participantSockets.delete(userId)
       void hubConnection.removeParticipant(userId)
       if (addedToPov) {
         povOrchestrator.removeParticipant(userId)

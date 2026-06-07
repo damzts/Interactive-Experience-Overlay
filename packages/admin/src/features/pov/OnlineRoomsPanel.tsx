@@ -106,11 +106,13 @@ function ParticipantRow({
   participant,
   isActive,
   onSelect,
+  onKick,
   selecting,
 }: {
   participant: ParticipantInfo
   isActive: boolean
   onSelect: (id: string) => void
+  onKick: (id: string) => void
   selecting: boolean
 }) {
   const scorePercent = Math.round(participant.activityScore * 100)
@@ -141,11 +143,19 @@ function ParticipantRow({
         </span>
       )}
 
-      {/* Activity score bar */}
-      <div className="w-16 shrink-0">
-        <div className="h-1.5 w-full rounded-full bg-[var(--color-bg-elevated)]/80 overflow-hidden">
+      {/* Activity score bar (VU meter) */}
+      <div className="w-20 shrink-0">
+        <div className="h-2 w-full rounded-full bg-[var(--color-bg-elevated)]/80 overflow-hidden">
           <div
-            className="h-full rounded-full bg-[var(--color-primary-400)]/70 transition-all duration-300"
+            className={`h-full rounded-full transition-all duration-150 ${
+              scorePercent > 60
+                ? 'bg-[var(--color-success-400)]'
+                : scorePercent > 30
+                  ? 'bg-[var(--color-primary-400)]'
+                  : scorePercent > 5
+                    ? 'bg-[var(--color-accent-400)]/70'
+                    : 'bg-[var(--color-text-muted)]/30'
+            }`}
             style={{ width: `${scorePercent}%` }}
           />
         </div>
@@ -153,7 +163,7 @@ function ParticipantRow({
 
       {/* Score value */}
       <span className="w-8 shrink-0 text-right text-[10px] font-mono text-[var(--color-text-muted)]">
-        {participant.activityScore.toFixed(2)}
+        {scorePercent}%
       </span>
 
       {/* Manual select button */}
@@ -165,6 +175,17 @@ function ParticipantRow({
         className="text-[10px] px-2 py-0.5"
       >
         {isActive ? '● Live' : 'Select'}
+      </Button>
+
+      {/* Kick button */}
+      <Button
+        variant="danger"
+        size="sm"
+        onClick={() => onKick(participant.id)}
+        className="text-[10px] px-1.5 py-0.5"
+        title="Remove participant"
+      >
+        ✕
       </Button>
     </div>
   )
@@ -178,6 +199,7 @@ function RoomCard({
   onRejoin,
   onModeSet,
   onSelect,
+  onKick,
   socket: onlineSocket,
 }: {
   room: OnlineRoomStatus
@@ -185,6 +207,7 @@ function RoomCard({
   onRejoin: (roomCode: string) => void
   onModeSet: (roomCode: string, mode: SwitchMode) => void
   onSelect: (roomCode: string, participantId: string) => void
+  onKick: (roomCode: string, participantId: string) => void
   socket: OnlineSocket | null
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -202,6 +225,13 @@ function RoomCard({
       setTimeout(() => setSelecting(false), 1000)
     },
     [room.roomCode, onSelect],
+  )
+
+  const handleKick = useCallback(
+    (participantId: string) => {
+      onKick(room.roomCode, participantId)
+    },
+    [room.roomCode, onKick],
   )
 
   const handleRejoin = useCallback(() => {
@@ -246,6 +276,19 @@ function RoomCard({
           }`}
         >
           {room.status}
+        </span>
+
+        {/* Hub connection indicator */}
+        <span
+          className={`shrink-0 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
+            room.hubConnected
+              ? 'border border-[var(--color-success-400)]/30 bg-[var(--color-success-500)]/12 text-[var(--color-success-400)]'
+              : 'border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/12 text-[var(--color-danger-400)]'
+          }`}
+          title={room.hubConnected ? 'Hub connected to cloud room' : 'Hub disconnected — participants cannot join'}
+        >
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${room.hubConnected ? 'bg-[var(--color-success-400)]' : 'bg-[var(--color-danger-400)]'}`} />
+          {room.hubConnected ? 'Hub' : 'No Hub'}
         </span>
 
         {/* Participant count */}
@@ -332,6 +375,7 @@ function RoomCard({
                   participant={p}
                   isActive={p.id === room.activePlayerId}
                   onSelect={handleSelect}
+                  onKick={handleKick}
                   selecting={selecting}
                 />
               ))}
@@ -355,9 +399,17 @@ export function OnlineRoomsPanel() {
   const [savingConfig, setSavingConfig] = useState(false)
   const [configSaved, setConfigSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [activityLog, setActivityLog] = useState<Array<{ id: number; time: number; icon: string; text: string }>>([])
 
   const socketRef = useRef<OnlineSocket | null>(null)
   const mountedRef = useRef(true)
+  const logIdRef = useRef(0)
+
+  const pushLog = useCallback((icon: string, text: string) => {
+    const id = ++logIdRef.current
+    setActivityLog((prev) => [{ id, time: Date.now(), icon, text }, ...prev].slice(0, 50))
+  }, [])
 
   // ── Connect to /online namespace on mount ────────────────────────
 
@@ -375,8 +427,8 @@ export function OnlineRoomsPanel() {
     socketRef.current = onlineSocket
 
     // ── Connection state ─────────────────────────────────────────
-    onlineSocket.on('connect', () => { if (mountedRef.current) setSocketConnected(true) })
-    onlineSocket.on('disconnect', () => { if (mountedRef.current) setSocketConnected(false) })
+    onlineSocket.on('connect', () => { if (mountedRef.current) { setSocketConnected(true); pushLog('🟢', 'Connected to server') } })
+    onlineSocket.on('disconnect', () => { if (mountedRef.current) { setSocketConnected(false); pushLog('🔴', 'Disconnected from server') } })
 
     // ── Event listeners ──────────────────────────────────────────
 
@@ -391,13 +443,16 @@ export function OnlineRoomsPanel() {
         participants: [],
         activePlayerId: null,
         mode: 'automatic',
+        hubConnected: true,
       }
       setRooms((prev) => [...prev, newRoom])
+      pushLog('🏠', `Room ${payload.roomCode} created`)
     })
 
     onlineSocket.on('pov-online:room:closed', (payload: OnlineRoomClosedPayload) => {
       if (!mountedRef.current) return
       setRooms((prev) => prev.filter((r) => r.roomCode !== payload.roomCode))
+      pushLog('🚪', `Room ${payload.roomCode} closed`)
     })
 
     onlineSocket.on('pov-online:participant:joined', (payload: OnlineParticipantJoinedPayload) => {
@@ -409,11 +464,17 @@ export function OnlineRoomsPanel() {
           if (exists) return room
           return {
             ...room,
+            status: 'active',
+            hubConnected: true,
             participantCount: room.participantCount + 1,
             participants: [...room.participants, payload.participant],
           }
         }),
       )
+      // Show toast notification
+      setToast(`🎥 ${payload.participant.displayName} joined the room`)
+      setTimeout(() => { if (mountedRef.current) setToast(null) }, 4000)
+      pushLog('🎥', `${payload.participant.displayName} joined`)
     })
 
     onlineSocket.on('pov-online:participant:left', (payload: OnlineParticipantLeftPayload) => {
@@ -428,6 +489,7 @@ export function OnlineRoomsPanel() {
           }
         }),
       )
+      pushLog('👋', `${payload.participantId.slice(0, 8)}… left`)
     })
 
     onlineSocket.on('pov-online:scores', (payload: OnlineScoresPayload) => {
@@ -454,6 +516,7 @@ export function OnlineRoomsPanel() {
           return { ...room, activePlayerId: payload.newId }
         }),
       )
+      pushLog('🔄', `POV → ${payload.newId.slice(0, 8)}… (${payload.reason})`)
     })
 
     onlineSocket.on('pov-online:status', (payload: OnlineRoomStatus) => {
@@ -462,6 +525,11 @@ export function OnlineRoomsPanel() {
         const idx = prev.findIndex((r) => r.roomCode === payload.roomCode)
         if (idx === -1) return [...prev, payload]
         const updated = [...prev]
+        // Log status changes
+        const old = updated[idx]
+        if (old.hubConnected !== payload.hubConnected) {
+          pushLog(payload.hubConnected ? '🟢' : '🔴', `Hub ${payload.hubConnected ? 'connected' : 'disconnected'} (${payload.roomCode})`)
+        }
         updated[idx] = payload
         return updated
       })
@@ -563,6 +631,18 @@ export function OnlineRoomsPanel() {
     })
   }, [])
 
+  // ── Kick participant ─────────────────────────────────────────────
+
+  const handleKick = useCallback((roomCode: string, participantId: string) => {
+    const sock = socketRef.current
+    if (!sock) return
+    sock.emit('pov-online:kick' as any, { roomCode, participantId }, (response: { ok: boolean; error?: string }) => {
+      if (!response.ok) {
+        setError(response.error || 'Failed to kick participant')
+      }
+    })
+  }, [])
+
   // ── Config save ──────────────────────────────────────────────────
 
   const handleSaveConfig = useCallback(async () => {
@@ -623,6 +703,11 @@ export function OnlineRoomsPanel() {
           ✖ {error}
         </Notice>
       )}
+      {toast && (
+        <Notice tone="info" className="mb-3">
+          {toast}
+        </Notice>
+      )}
 
       <div className="space-y-6 pt-3">
         {/* Active Rooms */}
@@ -650,8 +735,28 @@ export function OnlineRoomsPanel() {
                   onRejoin={handleRejoinRoom}
                   onModeSet={handleModeSet}
                   onSelect={handleSelect}
+                  onKick={handleKick}
                   socket={socketRef.current}
                 />
+              ))}
+            </div>
+          )}
+        </ConfigPanel>
+
+        {/* Activity Feed */}
+        <ConfigPanel title="Activity Log" collapsible>
+          {activityLog.length === 0 ? (
+            <Notice tone="info">No activity yet. Events will appear here in real time.</Notice>
+          ) : (
+            <div className="max-h-48 overflow-y-auto space-y-0.5">
+              {activityLog.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-2 rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/50">
+                  <span className="shrink-0">{entry.icon}</span>
+                  <span className="flex-1 min-w-0 truncate">{entry.text}</span>
+                  <span className="shrink-0 text-[9px] text-[var(--color-text-muted)] font-mono">
+                    {new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
               ))}
             </div>
           )}

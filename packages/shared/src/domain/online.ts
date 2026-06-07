@@ -48,6 +48,7 @@ export interface OnlineRoomStatus {
   participants: ParticipantInfo[]
   activePlayerId: string | null
   mode: SwitchMode
+  hubConnected: boolean
 }
 
 // ── Defaults ─────────────────────────────────────────────────────

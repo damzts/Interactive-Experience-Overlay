@@ -204,6 +204,13 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   registerOnlineNamespace(io, onlineManager)
   await app.register(onlineRoute, { onlineManager })
 
+  // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
+  setTimeout(() => {
+    onlineManager.syncFromCloud().catch((e) => {
+      console.log('[online] auto-sync on startup failed:', (e as Error).message)
+    })
+  }, 2000) // Small delay to let auth token settle
+
   registerJoinNamespace(io, hubConnection, povOrchestrator, onlineManager)
 
   const joinPagePath = join(import.meta.dirname, 'join.html')

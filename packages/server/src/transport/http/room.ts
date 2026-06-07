@@ -28,7 +28,12 @@ export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
   })
 
   app.get('/api/room/status', async () => {
-    return cloudSignaling.getStatus()
+    const status = cloudSignaling.getStatus()
+    return {
+      connected: status.connected,
+      participants: status.participants,
+      roomId: status.roomId,
+    }
   })
 }
 

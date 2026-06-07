@@ -7,7 +7,6 @@ import type { OnlineModeConfig, OnlineRoomStatus, ParticipantInfo, SwitchMode } 
 import { DEFAULT_ONLINE_MODE_CONFIG } from '@ieom/shared'
 import type { CloudSignaling } from '../transport/webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../kernel/managers/pov.js'
-import crypto from 'node:crypto'
 
 export interface OnlineRoom {
   roomCode: string
@@ -82,8 +81,8 @@ export class OnlineRoomManager {
     // Listen for participant join/leave from cloud signaling
     this.cloudSignaling.onStatus((status) => {
       if (!status.roomId) return
+      console.log(`[online] onStatus: roomId=${status.roomId}, participants=${status.participants.length}, rooms=${[...this.rooms.keys()].join(',')}`)
       // Match room by roomCode — try exact match first, then look for any active room
-      // (in single-room mode there's typically only one room active)
       let targetRoom: OnlineRoom | undefined
       for (const room of this.rooms.values()) {
         if (room.roomCode === status.roomId) {
@@ -94,9 +93,12 @@ export class OnlineRoomManager {
       // Fallback: if only one room exists and hub is connected, assume it's the target
       if (!targetRoom && this.rooms.size === 1 && status.connected) {
         targetRoom = this.rooms.values().next().value
+        console.log(`[online] onStatus: using fallback room ${targetRoom?.roomCode}`)
       }
       if (targetRoom) {
-        this.syncParticipants(targetRoom, status.participants)
+        this.syncParticipants(targetRoom, status.participants, status.participantNames)
+      } else {
+        console.log(`[online] onStatus: no matching room found for ${status.roomId}`)
       }
     })
   }
@@ -240,6 +242,8 @@ export class OnlineRoomManager {
     this.hubRoomId = roomCode
     await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
     console.log('[online] Rejoined room as hub:', roomCode)
+    // Emit updated status so admin UI reflects the connection
+    this.emit('pov-online:status', this.toStatus(room))
     return { ok: true }
   }
 
@@ -291,6 +295,9 @@ export class OnlineRoomManager {
         const firstRoom = cloudRooms[0]
         this.hubRoomId = firstRoom.id
         await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
+        // Emit status so admin UI sees hub connected
+        const room = this.rooms.get(firstRoom.id)
+        if (room) this.emit('pov-online:status', this.toStatus(room))
       }
     } catch (e: any) { console.log('[online] syncFromCloud error:', e.message) }
   }
@@ -304,6 +311,7 @@ export class OnlineRoomManager {
     const room = this.rooms.get(roomCode)
     if (!room) return
     if (room.participants.size >= this.config.maxPlayersPerRoom) return
+    console.log(`[online] addParticipant: ${id} (${displayName}) → room ${roomCode}`)
     const participant: ParticipantInfo = {
       id,
       displayName,
@@ -331,11 +339,21 @@ export class OnlineRoomManager {
     }
   }
 
-  private syncParticipants(room: OnlineRoom, participantIds: string[]): void {
+  /** Emit kick event so transport layers (LAN join namespace) can force-disconnect the participant */
+  emitKick(roomCode: string, participantId: string): void {
+    this.emit('pov-online:participant:kicked', { roomCode, participantId })
+    // Also tell the cloud to kick this participant (for cloud-connected users)
+    this.cloudSignaling.kickParticipant(participantId)
+  }
+
+  private syncParticipants(room: OnlineRoom, participantIds: string[], names?: Map<string, string>): void {
     const currentIds = new Set(room.participants.keys())
     const newIds = new Set(participantIds)
     for (const id of newIds) {
-      if (!currentIds.has(id)) this.addParticipant(room.roomCode, id, id)
+      if (!currentIds.has(id)) {
+        const displayName = names?.get(id) ?? id
+        this.addParticipant(room.roomCode, id, displayName)
+      }
     }
     for (const id of currentIds) {
       if (!newIds.has(id)) this.removeParticipant(room.roomCode, id)
@@ -352,6 +370,7 @@ export class OnlineRoomManager {
       participants: [...room.participants.values()],
       activePlayerId: room.activePlayerId,
       mode: room.mode,
+      hubConnected: this.hubRoomId === room.roomCode && this.cloudSignaling.isConnected(),
     }
   }
 }
