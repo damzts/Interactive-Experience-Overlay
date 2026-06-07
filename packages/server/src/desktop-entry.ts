@@ -314,8 +314,10 @@ process.on('unhandledRejection', (reason) => {
 
 // ── Dev-mode self-start ──────────────────────────────────────────
 
-const isDev = process.argv[1]?.endsWith('desktop-entry.ts') || process.argv[1]?.endsWith('desktop-entry.js')
-if (isDev && !process.env.IEOM_NO_AUTOSTART) {
+const NODE_ENV = process.env.NODE_ENV ?? 'development'
+const isDevScript = process.argv[1]?.endsWith('desktop-entry.ts') || process.argv[1]?.endsWith('desktop-entry.js')
+const shouldAutoStart = isDevScript && NODE_ENV !== 'production' && !process.env.IEOM_NO_AUTOSTART
+if (shouldAutoStart) {
   const monorepo = join(import.meta.dirname, '..', '..', '..')
   const dataDir = join(monorepo, 'data')
   mkdirSync(dataDir, { recursive: true })
