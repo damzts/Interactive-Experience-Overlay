@@ -7,6 +7,7 @@ import type { OnlineModeConfig, OnlineRoomStatus, ParticipantInfo, SwitchMode } 
 import { DEFAULT_ONLINE_MODE_CONFIG } from '@ieom/shared'
 import type { CloudSignaling } from '../transport/webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../kernel/managers/pov.js'
+import { CircuitBreaker } from '../lib/cloud-circuit-breaker.js'
 import logger from '../lib/logger.js'
 
 export interface OnlineRoom {
@@ -32,6 +33,12 @@ export class OnlineRoomManager {
   private cloudUrl: string
   private getToken: () => string | null
   private hubRoomId: string | null = null
+
+  private circuitBreaker = new CircuitBreaker({
+    failureThreshold: 3,
+    resetTimeoutMs: 15_000,
+    requestTimeoutMs: 8_000,
+  })
 
   constructor(
     private cloudSignaling: CloudSignaling,
@@ -147,11 +154,11 @@ export class OnlineRoomManager {
       return { ok: false, error: 'not_authenticated' }
     }
 
-    // Create room on cloud API
+    // Create room on cloud API (via circuit breaker)
     let roomCode: string
     try {
       logger.info({ value: this.cloudUrl }, '[online] Creating room on cloud')
-      const res = await fetch(`${this.cloudUrl}/api/rooms`, {
+      const res = await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
       })
@@ -165,6 +172,10 @@ export class OnlineRoomManager {
       if (!roomCode) return { ok: false, error: 'invalid_cloud_response' }
       logger.info({ err: roomCode }, '[online] Room created on cloud')
     } catch (e: any) {
+      if (e.name === 'CircuitOpenError') {
+        logger.warn('[online] Circuit open, skipping cloud room creation')
+        return { ok: false, error: 'cloud_unreachable_circuit_open' }
+      }
       logger.error('[online] Failed to create room:', e.message, e.cause ?? '')
       return { ok: false, error: e.name === 'AbortError' ? 'cloud_timeout' : (e.message ?? 'cloud_unreachable') }
     }
@@ -205,12 +216,13 @@ export class OnlineRoomManager {
     // Delete the room from the cloud so it doesn't reappear on next sync
     const token = this.getToken()
     if (token) {
-      fetch(`${this.cloudUrl}/api/rooms/${roomCode}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      }).catch((e) => {
-        logger.info({ err: e.message }, '[online] Failed to delete room from cloud')
-      })
+      this.circuitBreaker.tryOrFallback(
+        () => this.circuitBreaker.call(`${this.cloudUrl}/api/rooms/${roomCode}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(() => {}),
+        undefined,
+      )
     }
   }
 
@@ -263,7 +275,7 @@ export class OnlineRoomManager {
     const token = this.getToken()
     if (!token) { logger.info('[online] syncFromCloud: no token'); return }
     try {
-      const res = await fetch(`${this.cloudUrl}/api/rooms`, {
+      const res = await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
       if (!res.ok) { logger.info({ value: res.status }, '[online] syncFromCloud: cloud returned'); return }
