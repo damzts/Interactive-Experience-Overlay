@@ -128,6 +128,10 @@ export interface OnlineServerToAdminEvents {
   'pov-online:scores': (payload: OnlineScoresPayload) => void
   'pov-online:switch': (payload: OnlineSwitchPayload) => void
   'pov-online:status': (payload: OnlineRoomStatus) => void
+  'admin:offer': (payload: AdminStreamOfferPayload) => void
+  'admin:ice-candidate': (payload: AdminStreamIceCandidatePayload) => void
+  'admin:stream-removed': (payload: AdminStreamRemovedPayload) => void
+  'admin:stream-status': (payload: AdminStreamInfo[]) => void
 }
 
 /** Events the server sends to player clients on the /online namespace */
@@ -194,9 +198,47 @@ export interface OnlineClientToServerEvents {
     ack: (response: { ok: boolean; error?: string }) => void
   ) => void
   'pov-online:overlay:subscribe': (payload: OnlineOverlaySubscribePayload) => void
+  'admin:answer': (payload: AdminStreamAnswerPayload) => void
+  'admin:ice-candidate': (payload: AdminStreamIceCandidatePayload) => void
 }
 
 /** Inter-server events for the /online namespace */
+// ── Admin WebRTC stream relay events ──────────────────────────
+
+/** Info about one participant's video stream */
+export interface AdminStreamInfo {
+  userId: string
+  displayName: string
+  hasVideo: boolean
+  hasAudio: boolean
+}
+
+/** Server → admin: new WebRTC offer for a participant's stream */
+export interface AdminStreamOfferPayload {
+  userId: string
+  sdp: string
+  displayName: string
+  hasAudio: boolean
+  hasVideo: boolean
+}
+
+/** Admin → server: answer to a stream offer */
+export interface AdminStreamAnswerPayload {
+  userId: string
+  sdp: string
+}
+
+/** Admin → server: ICE candidate for a participant's stream */
+export interface AdminStreamIceCandidatePayload {
+  userId: string
+  candidate: unknown
+}
+
+/** Server → admin: a participant's stream was removed */
+export interface AdminStreamRemovedPayload {
+  userId: string
+}
+
 export interface OnlineInterServerEvents {}
 
 /** Socket data for the /online namespace */

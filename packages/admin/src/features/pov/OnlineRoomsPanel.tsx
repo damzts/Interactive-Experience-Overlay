@@ -17,6 +17,7 @@ import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import { ConfigPanel } from '../../components/organisms'
+import { AdminStreamGrid } from './AdminStreamGrid'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -741,6 +742,9 @@ export function OnlineRoomsPanel() {
               ))}
             </div>
           )}
+
+          {/* Video stream grid — shows all participant streams across rooms */}
+          <AdminStreamGrid socket={socketRef.current as any} />
         </ConfigPanel>
 
         {/* Activity Feed */}

@@ -6,6 +6,7 @@
 import type { Server as SocketIOServer } from 'socket.io'
 import logger from '../lib/logger.js'
 import type { OnlineRoomManager } from './manager.js'
+import type { AdminRelay } from '../transport/webrtc/admin-relay.js'
 import type {
   OnlineClientToServerEvents,
   OnlineServerToClientEvents,
@@ -20,7 +21,11 @@ type OnlineNamespace = ReturnType<
   SocketIOServer<OnlineClientToServerEvents, OnlineServerToClientEvents, OnlineInterServerEvents, OnlineSocketData>['of']
 >
 
-export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomManager): void {
+export function registerOnlineNamespace(
+  io: SocketIOServer,
+  manager: OnlineRoomManager,
+  adminRelay?: AdminRelay,
+): void {
   const nsp: OnlineNamespace = io.of('/online') as unknown as OnlineNamespace
   logger.info('[online] /online namespace registered')
 
@@ -109,10 +114,31 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
       ack({ ok: true, participantId })
     })
 
+    // ── Admin WebRTC stream relay ────────────────────────────
+
+    if (role === 'admin' && adminRelay) {
+      adminRelay.setSocket(socket as any)
+
+      ;(socket as any).on('admin:answer', (payload: { userId: string; sdp: string }) => {
+        adminRelay!.handleAnswer(payload.userId, payload.sdp).catch((e) =>
+          logger.error({ err: e }, '[admin-relay] answer error'),
+        )
+      })
+
+      ;(socket as any).on('admin:ice-candidate', (payload: { userId: string; candidate: unknown }) => {
+        adminRelay!.handleIceCandidate(payload.userId, payload.candidate as any).catch((e) =>
+          logger.error({ err: e }, '[admin-relay] ice-candidate error'),
+        )
+      })
+    }
+
     socket.on('disconnect', () => {
       const { roomCode, participantId } = socket.data
       if (roomCode && participantId) {
         manager.removeParticipant(roomCode, participantId)
+      }
+      if (role === 'admin' && adminRelay) {
+        adminRelay.clearSocket()
       }
     })
   })

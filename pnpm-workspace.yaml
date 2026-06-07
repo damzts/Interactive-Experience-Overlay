@@ -1,9 +1,10 @@
-packages:
-  - 'packages/shared'
-  - 'packages/server'
-  - 'packages/admin'
-  - 'packages/overlay'
-  - 'packages/desktop'
 allowBuilds:
-  esbuild: true
   better-sqlite3: true
+  electron: true
+  esbuild: true
+packages:
+- packages/shared
+- packages/server
+- packages/admin
+- packages/overlay
+- packages/desktop

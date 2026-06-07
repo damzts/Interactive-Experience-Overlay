@@ -22,6 +22,7 @@ import logger from './lib/logger.js'
 import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
 
+import { AdminRelay } from './transport/webrtc/admin-relay.js'
 import { Kernel } from './kernel/index.js'
 import { SceneMachine } from './kernel/managers/scene.js'
 import { RuntimeStateStore } from './kernel/managers/runtime.js'
@@ -214,7 +215,9 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(roomRoute, { cloudSignaling })
 
   const onlineManager = new OnlineRoomManager(cloudSignaling, povOrchestrator, { cloudUrl, getToken })
-  registerOnlineNamespace(io, onlineManager)
+  const adminRelay = new AdminRelay()
+  adminRelay.bindHub(hubConnection)
+  registerOnlineNamespace(io, onlineManager, adminRelay)
   await app.register(onlineRoute, { onlineManager })
 
   // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
