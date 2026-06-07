@@ -7,7 +7,7 @@
  *   - Sources: overlay sources rendered in the Desktop context (e.g. builtin:effects)
  *   - Desktop: OS chrome — themes, icons, widgets, screensaver (via DesktopThemeEditor)
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE } from '@ieom/shared'
 import type { Scene, SourceInstance } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -32,6 +32,9 @@ export function DesktopRuntimePanel() {
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dirty = !isSameDraft(sources, baseSources)
+
+  // Cleanup savedTimer on unmount
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
   const apply = useCallback(async () => {
     setSaving(true)

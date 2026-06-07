@@ -6,7 +6,7 @@
  *   - Sources: overlay sources rendered on top of the 3D room
  *   - 3D Room: lighting, fog, world, atmosphere, props (via LobbyThemeEditor)
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE, withOverlayStyleDefaults } from '@ieom/shared'
 import type { Scene, SourceInstance } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -32,6 +32,9 @@ export function LobbyRuntimePanel() {
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dirty = !isSameDraft(sources, baseSources)
+
+  // Cleanup savedTimer on unmount
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
   const apply = useCallback(async () => {
     setSaving(true)

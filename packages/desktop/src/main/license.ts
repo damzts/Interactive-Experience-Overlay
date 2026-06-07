@@ -255,7 +255,7 @@ export function getLicenseTier(): LicenseTier {
 export function startLicenseRevalidation(): void {
   if (revalidationTimer) clearInterval(revalidationTimer);
   revalidationTimer = setInterval(() => { validateLicense(); }, REVALIDATION_INTERVAL_MS);
-  setupConnectivityListeners();
+
 }
 
 /**
@@ -273,21 +273,4 @@ export function closeLicenseDb(): void {
   if (db) { db.close(); db = null; }
 }
 
-// ---------------------------------------------------------------------------
-// Connectivity listeners
-// ---------------------------------------------------------------------------
 
-function setupConnectivityListeners(): void {
-  setInterval(() => {
-    const windows = BrowserWindow.getAllWindows();
-    if (windows.length > 0 && !windows[0].isDestroyed()) {
-      windows[0].webContents
-        .executeJavaScript('navigator.onLine')
-        .then((online: boolean) => {
-          if (online && !isOnline) handleOnline();
-          else if (!online && isOnline) handleOffline();
-        })
-        .catch(() => {});
-    }
-  }, 30_000);
-}

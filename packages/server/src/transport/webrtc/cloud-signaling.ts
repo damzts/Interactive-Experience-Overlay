@@ -44,6 +44,7 @@ export class CloudSignaling {
   private participantNames = new Map<string, string>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
+  private freezeRecoveryTimers = new Set<ReturnType<typeof setTimeout>>()
   private reconnectAttempt = 0
   private intentionalClose = false
   private connCounter = 0
@@ -101,14 +102,10 @@ export class CloudSignaling {
       this.frozenParticipants.add(userId)
 
       // Dar chance a que el participante se recupere solo
-      setTimeout(() => {
+      const t = setTimeout(() => {
+        this.freezeRecoveryTimers.delete(t)
         if (!this.frozenParticipants.has(userId)) return
         logger.info(`[cloud-signaling] initiating recovery for frozen participant ${userId}`)
-
-        // Forzar re-negociación: el hub envía una notificación al participante
-        // En este modelo, el hub no puede iniciar re-negociación — el participante
-        // debe ofrecer de nuevo. Pero notificamos al sistema para que lo maneje.
-        // Alternativa: si el WS está vivo, pedir un ICE restart
         this.send({
           type: 'ice-restart-request',
           payload: { userId },
@@ -116,9 +113,9 @@ export class CloudSignaling {
           timestamp: new Date().toISOString(),
           targetUserId: userId,
         })
-
         this.frozenParticipants.delete(userId)
       }, FREEZE_RECOVERY_DELAY_MS)
+      this.freezeRecoveryTimers.add(t)
     })
   }
 
@@ -331,6 +328,8 @@ export class CloudSignaling {
     this.stopPingTimer()
     this.hub.stopFreezeDetection()
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+    for (const t of this.freezeRecoveryTimers) clearTimeout(t)
+    this.freezeRecoveryTimers.clear()
     if (this.ws) { this.ws.close(); this.ws = null }
     this.participantNames.clear()
     this.knownParticipants.clear()
