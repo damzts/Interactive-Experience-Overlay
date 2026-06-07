@@ -5,6 +5,8 @@ import type {
   WidgetSimulationIntentPayload,
 } from '@ieom/shared'
 import type { HandlerContext, AppSocket } from './types.js'
+import logger from '../../../lib/logger.js';
+
 
 export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket): void {
   socket.on('ambiance:history:clear', () => {
@@ -26,7 +28,7 @@ export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket)
     if (socket.id !== ctx.overlaySocketId) return
     ctx.ambianceManager.markSimulationCompleted(payload.actionId, payload)
     if (!payload.ok) {
-      console.warn(`[ambiance] Simulation failure: ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
+      logger.warn({}, `[ambiance] Simulation failure: ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
     }
   })
 

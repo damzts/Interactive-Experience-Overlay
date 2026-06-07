@@ -2,6 +2,8 @@ import type { Server } from 'socket.io'
 import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type { AppConfig, Manager, ManagerStatus } from '@ieom/shared'
 import type {
+import logger from '../../lib/logger.js';
+
   AmbianceDiagnosticsPayload,
   AmbianceHistoryEntry,
   AmbianceSimulationDonePayload,
@@ -115,7 +117,7 @@ export class AmbianceManager implements Manager {
 
     if (!config.widgetSimulation.enabled) {
       this.lastSkipReason = 'simulation disabled'
-      console.log('[ambiance] AI simulation manager stopped (disabled in config).')
+      logger.log('[ambiance] AI simulation manager stopped (disabled in config).')
       this.emitDiagnostics()
       return
     }
@@ -123,7 +125,7 @@ export class AmbianceManager implements Manager {
     const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
     this.lastSkipReason = null
     this.tickTimer = setInterval(() => this.tick(), intervalMs)
-    console.log(`[ambiance] AI simulation manager started. Ticking every ${intervalMs / 1000}s.`)
+    logger.log({}, `[ambiance] AI simulation manager started. Ticking every ${intervalMs / 1000}s.`)
     this.emitDiagnostics()
   }
 
@@ -131,7 +133,7 @@ export class AmbianceManager implements Manager {
     if (this.tickTimer) {
       clearInterval(this.tickTimer)
       this.tickTimer = null
-      console.log('[ambiance] AI simulation manager stopped.')
+      logger.log('[ambiance] AI simulation manager stopped.')
     }
     this._status = 'stopped'
     this.clearSimulationInFlight()

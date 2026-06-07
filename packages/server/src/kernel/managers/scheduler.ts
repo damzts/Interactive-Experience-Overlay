@@ -2,6 +2,8 @@ import type { SceneMachine } from './scene.js'
 import { STATE } from '@ieom/shared'
 import type { AppConfig, EventConfig, Manager, ManagerStatus, SchedulerDiagnosticsPayload } from '@ieom/shared'
 import type { KernelBus } from '../bus.js'
+import logger from '../../lib/logger.js';
+
 
 function randBetween(minValue: number, maxValue: number) {
   return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue
@@ -63,7 +65,7 @@ export class EventScheduler implements Manager {
     this.idleTriggered.clear()
     this.buildQueue()
     this.restartIdleTimers()
-    console.log('[scheduler] event scheduler started (ISR mode)')
+    logger.log('[scheduler] event scheduler started (ISR mode)')
   }
 
   stop() {

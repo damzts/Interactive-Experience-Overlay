@@ -16,6 +16,8 @@
 
 import type { Manager } from '@ieom/shared'
 import { KernelBus } from './bus.js'
+import logger from '../lib/logger.js';
+
 
 export { KernelBus } from './bus.js'
 export type { KernelEvents } from './bus.js'
@@ -99,7 +101,7 @@ export class Kernel {
     for (const name of this.bootOrder) {
       await this.managers.get(name)!.start()
     }
-    console.log(`[kernel] booted (${this.bootOrder.length} managers: ${this.bootOrder.join(' → ')})`)
+    logger.log({}, `[kernel] booted (${this.bootOrder.length} managers: ${this.bootOrder.join(' → ')})`)
   }
 
   /**
@@ -114,6 +116,6 @@ export class Kernel {
       await this.managers.get(name)!.dispose()
     }
     this.bus.removeAllListeners()
-    console.log('[kernel] shutdown complete')
+    logger.log('[kernel] shutdown complete')
   }
 }

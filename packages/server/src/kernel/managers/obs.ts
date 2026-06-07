@@ -2,6 +2,8 @@ import OBSWebSocket from 'obs-websocket-js'
 import type { Server } from 'socket.io'
 import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieom/shared'
 import type { SceneMachine } from './scene.js'
+import logger from '../../lib/logger.js';
+
 
 const OBS_RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000] as const
 
@@ -26,7 +28,7 @@ export class ObsBridge implements Manager {
     this.obs.on('ConnectionClosed', () => {
       if (this.connected) {
         this.connected = false
-        console.log('[obs] connection closed')
+        logger.log('[obs] connection closed')
       }
       this.lastError = 'Connection closed'
       this.emitStatus()
@@ -99,7 +101,7 @@ export class ObsBridge implements Manager {
       this.retryDelayMs = null
       this.nextRetryAt = null
       this.lastError = null
-      console.log(`[obs] connected to OBS WebSocket (${this.currentUrl})`)
+      logger.log({}, `[obs] connected to OBS WebSocket (${this.currentUrl})`)
       this.emitStatus()
       this.setupListeners()
     } catch (err) {
@@ -120,7 +122,7 @@ export class ObsBridge implements Manager {
     this.reconnectAttempt += 1
     this.retryDelayMs = delayMs
     this.nextRetryAt = Date.now() + delayMs
-    console.log(`[obs] not connected${this.lastError ? ` (${this.lastError})` : ''} — retry ${this.reconnectAttempt} scheduled in ${Math.round(delayMs / 1000)}s`)
+    logger.log({}, `[obs] not connected${this.lastError ? ` (${this.lastError})` : ''} — retry ${this.reconnectAttempt} scheduled in ${Math.round(delayMs / 1000)}s`)
     this.emitStatus()
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null

@@ -10,6 +10,7 @@
  * - Detección de video congelado via freeze monitor (cada 2s)
  */
 
+import logger from '../../lib/logger.js';
 import {
   RTCPeerConnection,
   type RTCIceCandidateInit,
@@ -54,8 +55,8 @@ export class HubConnection {
     try {
       return await this._handleOffer(userId, sdp)
     } catch (err) {
-      console.error(`[hub-connection] handleOffer(${userId}) crashed:`, (err as Error).message)
-      console.error((err as Error).stack)
+      logger.error({ userId: userId }, '[hub-connection] handleOffer({userId}) crashed:')
+      logger.error({ msg: (err as Error).stack })
       // Never let werift exceptions bubble up — return empty answer
       return ''
     }
@@ -108,17 +109,17 @@ export class HubConnection {
     pc.iceConnectionStateChange.subscribe(() => {
       const state = pc.iceConnectionState
       media.iceState = state
-      console.log(`[hub-connection] ${userId} ICE state: ${state}`)
+      logger.log({}, `[hub-connection] ${userId} ICE state: ${state}`)
 
       if (state === 'failed') {
-        console.log(`[hub-connection] ${userId} ICE failed — notifying upstream`)
+        logger.log({}, `[hub-connection] ${userId} ICE failed — notifying upstream`)
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
     })
 
     pc.connectionStateChange.subscribe(() => {
       const state = pc.connectionState
-      console.log(`[hub-connection] ${userId} connection state: ${state}`)
+      logger.log({}, `[hub-connection] ${userId} connection state: ${state}`)
       if (state === 'failed') {
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
@@ -141,7 +142,7 @@ export class HubConnection {
         // Ignorar candidatos obsoletos
       }
     } catch (err) {
-      console.error(`[hub-connection] handleIceCandidate(${userId}) crashed:`, (err as Error).message)
+      logger.error({ userId: userId }, '[hub-connection] handleIceCandidate({userId}) crashed:')
     }
   }
 
@@ -153,7 +154,7 @@ export class HubConnection {
       this.participants.delete(userId)
       for (const cb of this.removedCallbacks) cb(userId)
     } catch (err) {
-      console.error(`[hub-connection] removeParticipant(${userId}) crashed:`, (err as Error).message)
+      logger.error({ userId: userId }, '[hub-connection] removeParticipant({userId}) crashed:')
     }
   }
 
@@ -219,7 +220,7 @@ export class HubConnection {
 
         // Si no hay actividad de video en FREEZE_TIMEOUT_MS, marcar como mute
         if (now - media.lastVideoPacketMs > this.FREEZE_TIMEOUT_MS) {
-          console.log(`[hub-connection] ${_userId} video frozen (no packets for ${this.FREEZE_TIMEOUT_MS}ms)`)
+          logger.log({}, `[hub-connection] ${_userId} video frozen (no packets for ${this.FREEZE_TIMEOUT_MS}ms)`)
           media.videoMuted = true
           for (const cb of this.trackMutedCallbacks) cb(_userId, 'video')
         }

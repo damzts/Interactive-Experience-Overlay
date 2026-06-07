@@ -46,6 +46,8 @@ import { OnlineRoomManager } from './online/manager.js'
 import { onlineRoute } from './online/routes.js'
 import { registerOnlineNamespace } from './online/namespace.js'
 import { registerJoinNamespace } from './transport/socket/joinNamespace.js'
+import logger from '../lib/logger.js';
+
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -191,20 +193,20 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   io.on('connection', (socket) => {
     socket.on('pov:subscribe', () => {
       overlayRelay.createOffer((event, payload) => socket.emit(event, payload))
-        .catch(e => console.error('[pov-relay] createOffer failed:', e.message))
+        logger.error({ e }, '[pov-relay] createOffer failed:')
     })
     socket.on('pov:answer', async (payload: { sdp: string }) => {
       try {
         await overlayRelay.handleAnswer(payload.sdp)
       } catch (err) {
-        console.error('[pov-relay] handleAnswer error:', err)
+        logger.error({ err }, '[pov-relay] handleAnswer error:')
       }
     })
     socket.on('pov:ice-candidate', async (candidate: any) => {
       try {
         await overlayRelay.handleIceCandidate(candidate)
       } catch (err) {
-        console.error('[pov-relay] ice-candidate error:', err)
+        logger.error({ err }, '[pov-relay] ice-candidate error:')
       }
     })
   })
@@ -219,7 +221,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
   setTimeout(() => {
     onlineManager.syncFromCloud().catch((e) => {
-      console.log('[online] auto-sync on startup failed:', (e as Error).message)
+      logger.log({ (e as Error) }, '[online] auto-sync on startup failed:')
     })
   }, 2000) // Small delay to let auth token settle
 
@@ -266,14 +268,14 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // ── Global crash handler ────────────────────────────────────────
 // Evita que excepciones no capturadas de werift/WSLR maten el proceso
 process.on('uncaughtException', (err) => {
-  console.error('[crash] Uncaught exception:', err.message)
-  console.error(err.stack)
+  logger.error({ err }, '[crash] Uncaught exception:')
+  logger.error({ msg: err.stack })
   // No terminamos el proceso — werift puede fallar sin matar la app
 })
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[crash] Unhandled rejection:', (reason as Error).message)
-  console.error((reason as Error).stack)
+  logger.error({ (reason as Error) }, '[crash] Unhandled rejection:')
+  logger.error({ msg: (reason as Error).stack })
   // No terminamos el proceso
 })
 
@@ -314,9 +316,9 @@ if (isDev && !process.env.IEOM_NO_AUTOSTART) {
     adminDir: join(monorepo, 'packages', 'admin', 'dist'),
   }).then(async (server) => {
     await server.start()
-    console.log(`[server] listening on http://localhost:${server.getPort()}`)
+    logger.log({}, `[server] listening on http://localhost:${server.getPort()}`)
   }).catch((err) => {
-    console.error('[server] failed to start:', err)
+    logger.error({ err }, '[server] failed to start:')
     process.exit(1)
   })
 }

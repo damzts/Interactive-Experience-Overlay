@@ -9,6 +9,8 @@ import { ParticipantRegistry, type Participant } from '../../pov/participant-reg
 import { createAudioScoreProcessor, type AudioScoreProcessor } from '../../pov/audio-score-processor.js'
 import { POVSwitcher, type SwitchCallback } from '../../pov/switcher.js'
 import type { Manager, ManagerStatus } from '@ieom/shared'
+import logger from '../../lib/logger.js';
+
 
 export interface POVOrchestratorConfig {
   rollingWindowMs?: number
@@ -114,7 +116,7 @@ export class POVOrchestrator implements Manager {
 
       this.audioUnsubscribes.set(userId, () => sub.unSubscribe())
     } catch (err) {
-      console.warn(`[pov] audio level monitoring unavailable for ${userId}:`, err)
+      logger.warn({ userId: userId }, '[pov] audio level monitoring unavailable for {userId}:')
     }
   }
 

@@ -6,6 +6,8 @@
 import type { Server as SocketIOServer } from 'socket.io'
 import type { OnlineRoomManager } from './manager.js'
 import type {
+import logger from '../lib/logger.js';
+
   OnlineClientToServerEvents,
   OnlineServerToClientEvents,
   OnlineInterServerEvents,
@@ -21,7 +23,7 @@ type OnlineNamespace = ReturnType<
 
 export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomManager): void {
   const nsp: OnlineNamespace = io.of('/online') as unknown as OnlineNamespace
-  console.log('[online] /online namespace registered')
+  logger.log('[online] /online namespace registered')
 
   // Forward manager events to all connected admin sockets
   manager.onEvent((event, payload) => {
@@ -31,7 +33,7 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
   nsp.on('connection', (socket) => {
     const role = (socket.handshake.auth as { clientType?: string })?.clientType ?? 'player'
     socket.data.role = role as 'admin' | 'player' | 'overlay'
-    console.log(`[online] ${role} connected: ${socket.id}`)
+    logger.log({}, `[online] ${role} connected: ${socket.id}`)
 
     // ── Admin events ─────────────────────────────────────────────
 

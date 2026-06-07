@@ -4,6 +4,7 @@
  * and uses replaceTrack for subsequent track changes.
  */
 
+import logger from '../../lib/logger.js';
 import {
   RTCPeerConnection,
   MediaStreamTrack,
@@ -71,15 +72,15 @@ export class OverlayRelay {
 
   async handleAnswer(sdp: string): Promise<void> {
     if (!this.pc) {
-      console.warn('[overlay-relay] handleAnswer ignored — no pc')
+      logger.warn('[overlay-relay] handleAnswer ignored — no pc')
       return
     }
     try {
       await this.pc.setRemoteDescription({ type: 'answer', sdp })
       this.connected = true
-      console.log('[overlay-relay] connected to overlay')
+      logger.log('[overlay-relay] connected to overlay')
     } catch (err) {
-      console.error('[overlay-relay] handleAnswer failed:', err)
+      logger.error({ err }, '[overlay-relay] handleAnswer failed:')
       throw err
     }
 

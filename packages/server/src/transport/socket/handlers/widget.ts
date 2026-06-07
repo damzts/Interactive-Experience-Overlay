@@ -2,6 +2,8 @@ import { mergeAppConfig } from '@ieom/shared'
 import type { WidgetSimulationCommandPayload } from '@ieom/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 import { applyRuntimeConfigOverride } from './runtimeOverride.js'
+import logger from '../../../lib/logger.js';
+
 
 // ── Core widget runtime helpers (used by scene.ts too) ───────────
 
@@ -108,7 +110,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     if (socket.id !== ctx.overlaySocketId) {
       ctx.runtimeState.incrementRejected()
       ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
-      console.warn(`[ambiance] Ignored simulated toggle from non-leader ${socket.id} for ${widgetId}`)
+      logger.warn({}, `[ambiance] Ignored simulated toggle from non-leader ${socket.id} for ${widgetId}`)
       return
     }
     ctx.runtimeState.incrementAccepted()
@@ -120,7 +122,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     if (socket.id !== ctx.overlaySocketId) {
       ctx.runtimeState.incrementRejected()
       ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
-      console.warn(`[ambiance] Ignored simulated action from non-leader ${socket.id} for ${payload.widgetId}`)
+      logger.warn({}, `[ambiance] Ignored simulated action from non-leader ${socket.id} for ${payload.widgetId}`)
       return
     }
     ctx.runtimeState.incrementAccepted()

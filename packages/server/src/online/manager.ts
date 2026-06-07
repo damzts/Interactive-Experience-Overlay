@@ -7,6 +7,8 @@ import type { OnlineModeConfig, OnlineRoomStatus, ParticipantInfo, SwitchMode } 
 import { DEFAULT_ONLINE_MODE_CONFIG } from '@ieom/shared'
 import type { CloudSignaling } from '../transport/webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../kernel/managers/pov.js'
+import logger from '../lib/logger.js';
+
 
 export interface OnlineRoom {
   roomCode: string
@@ -81,7 +83,7 @@ export class OnlineRoomManager {
     // Listen for participant join/leave from cloud signaling
     this.cloudSignaling.onStatus((status) => {
       if (!status.roomId) return
-      console.log(`[online] onStatus: roomId=${status.roomId}, participants=${status.participants.length}, rooms=${[...this.rooms.keys()].join(',')}`)
+      logger.log({}, `[online] onStatus: roomId=${status.roomId}, participants=${status.participants.length}, rooms=${[...this.rooms.keys()].join(',')}`)
       // Match room by roomCode — try exact match first, then look for any active room
       let targetRoom: OnlineRoom | undefined
       for (const room of this.rooms.values()) {
@@ -95,7 +97,7 @@ export class OnlineRoomManager {
       if (targetRoom) {
         this.syncParticipants(targetRoom, status.participants, status.participantNames)
       } else {
-        console.log(`[online] onStatus: no matching room found for ${status.roomId}`)
+        logger.log({}, `[online] onStatus: no matching room found for ${status.roomId}`)
       }
     })
   }
@@ -105,7 +107,7 @@ export class OnlineRoomManager {
   }
 
   setToken(token: string): void {
-    console.log('[online] Token set (length:', token.length, ')')
+    logger.log('[online] Token set (length:', token.length, ')')
     this.getToken = () => token
   }
 
@@ -146,22 +148,22 @@ export class OnlineRoomManager {
     // Create room on cloud API
     let roomCode: string
     try {
-      console.log('[online] Creating room on cloud:', this.cloudUrl)
+      logger.log({ this }, '[online] Creating room on cloud:')
       const res = await fetch(`${this.cloudUrl}/api/rooms`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string }
-        console.log('[online] Cloud error:', res.status, body)
+        logger.log({ res ,  body }, '[online] Cloud error:')
         return { ok: false, error: body.error ?? `cloud_error_${res.status}` }
       }
       const data = await res.json() as { room?: { id: string }; roomId?: string }
       roomCode = data.room?.id ?? data.roomId ?? ''
       if (!roomCode) return { ok: false, error: 'invalid_cloud_response' }
-      console.log('[online] Room created on cloud:', roomCode)
+      logger.log({ roomCode }, '[online] Room created on cloud:')
     } catch (e: any) {
-      console.error('[online] Failed to create room:', e.message, e.cause ?? '')
+      logger.error({ e ,  e }, '[online] Failed to create room:')
       return { ok: false, error: e.name === 'AbortError' ? 'cloud_timeout' : (e.message ?? 'cloud_unreachable') }
     }
 
@@ -205,7 +207,7 @@ export class OnlineRoomManager {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       }).catch((e) => {
-        console.log('[online] Failed to delete room from cloud:', e.message)
+        logger.log({ e }, '[online] Failed to delete room from cloud:')
       })
     }
   }
@@ -238,7 +240,7 @@ export class OnlineRoomManager {
     // Reconnect to this room
     this.hubRoomId = roomCode
     await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
-    console.log('[online] Rejoined room as hub:', roomCode)
+    logger.log({ roomCode }, '[online] Rejoined room as hub:')
     // Emit updated status so admin UI reflects the connection
     this.emit('pov-online:status', this.toStatus(room))
     return { ok: true }
@@ -257,14 +259,14 @@ export class OnlineRoomManager {
 
   async syncFromCloud(): Promise<void> {
     const token = this.getToken()
-    if (!token) { console.log('[online] syncFromCloud: no token'); return }
+    logger.log({ msg: '[online] syncFromCloud: no token'); return } })
     try {
       const res = await fetch(`${this.cloudUrl}/api/rooms`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
-      if (!res.ok) { console.log('[online] syncFromCloud: cloud returned', res.status); return }
+      logger.log({ res }, '[online] syncFromCloud: cloud returned')
       const cloudRooms = await res.json() as Array<{ id: string; createdAt: string; participantCount: number; hubConnected: boolean }>
-      console.log('[online] syncFromCloud: found', cloudRooms.length, 'rooms')
+      logger.log({ { cloudRooms }, 'rooms' }, '[online] syncFromCloud: found')
 
       // Remove local rooms that no longer exist on cloud
       for (const [code] of this.rooms) {
@@ -296,7 +298,7 @@ export class OnlineRoomManager {
         const room = this.rooms.get(firstRoom.id)
         if (room) this.emit('pov-online:status', this.toStatus(room))
       }
-    } catch (e: any) { console.log('[online] syncFromCloud error:', e.message) }
+    logger.log({ e }, '[online] syncFromCloud error:')
   }
 
   getRoom(roomCode: string): OnlineRoomStatus | undefined {
@@ -308,7 +310,7 @@ export class OnlineRoomManager {
     const room = this.rooms.get(roomCode)
     if (!room) return
     if (room.participants.size >= this.config.maxPlayersPerRoom) return
-    console.log(`[online] addParticipant: ${id} (${displayName}) → room ${roomCode}`)
+    logger.log({}, `[online] addParticipant: ${id} (${displayName}) → room ${roomCode}`)
     const participant: ParticipantInfo = {
       id,
       displayName,

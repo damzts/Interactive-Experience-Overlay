@@ -6,6 +6,8 @@
 import Database from 'better-sqlite3'
 import { existsSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import logger from '../lib/logger.js';
+
 
 export type DesktopDatabase = Database.Database
 
@@ -298,12 +300,12 @@ function runMigrations(db: DesktopDatabase): void {
   if (pending.length === 0) return
 
   for (const migration of pending) {
-    console.log(`[desktop-db] Applying migration ${migration.version}: ${migration.name}`)
+    logger.log({}, `[desktop-db] Applying migration ${migration.version}: ${migration.name}`)
     db.transaction(() => {
       migration.up(db)
       db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(migration.version, migration.name)
     })()
-    console.log(`[desktop-db] Migration ${migration.version} applied.`)
+    logger.log({}, `[desktop-db] Migration ${migration.version} applied.`)
   }
 }
 
@@ -324,8 +326,8 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
 export function closeDesktopDatabase(db: DesktopDatabase): void {
   try {
     db.close()
-    console.log('[desktop-db] Database closed.')
+    logger.log('[desktop-db] Database closed.')
   } catch (e) {
-    console.error('[desktop-db] Error closing database:', e)
+    logger.error({ err }, '[desktop-db] Error closing database:')
   }
 }

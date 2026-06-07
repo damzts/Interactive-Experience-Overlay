@@ -15,6 +15,8 @@ import type { RTCIceCandidateInit } from 'werift'
 import type { HubConnection } from '../webrtc/hub-connection.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
 import type { OnlineRoomManager } from '../../online/manager.js'
+import logger from '../../lib/logger.js';
+
 
 /** Unique participant ID derived from the socket ID. */
 function participantId(socketId: string): string {
@@ -54,7 +56,7 @@ export function registerJoinNamespace(
     let buffered: any[] = []
 
     participantSockets.set(userId, socket)
-    console.log(`[join] LAN participant connected: ${userId} (${socket.id})`)
+    logger.log({}, `[join] LAN participant connected: ${userId} (${socket.id})`)
 
     // Register per-participant ICE candidate listener once
     hubConnection.onIceCandidate((id, candidate) => {
@@ -85,7 +87,7 @@ export function registerJoinNamespace(
         if (!addedToPov) {
           povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
-          console.log(`[join] ${userId} (${displayName}) added to POV pipeline`)
+          logger.log({}, `[join] ${userId} (${displayName}) added to POV pipeline`)
 
           // Also register with OnlineRoomManager so admin panel sees this participant
           if (onlineManager) {
@@ -99,7 +101,7 @@ export function registerJoinNamespace(
       } catch (err: any) {
         pendingAnswer = false
         buffered = []
-        console.error(`[join] offer handling failed for ${userId}:`, err.message)
+        logger.error({ userId: userId }, '[join] offer handling failed for {userId}:')
         socket.emit('error', { message: 'Offer processing failed' })
       }
     })
@@ -114,7 +116,7 @@ export function registerJoinNamespace(
     })
 
     socket.on('disconnect', () => {
-      console.log(`[join] LAN participant disconnected: ${userId}`)
+      logger.log({}, `[join] LAN participant disconnected: ${userId}`)
       participantSockets.delete(userId)
       void hubConnection.removeParticipant(userId)
       if (addedToPov) {

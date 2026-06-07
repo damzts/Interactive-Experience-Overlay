@@ -21,6 +21,8 @@ import { registerAmbianceHandlers } from './ambiance.js'
 import { registerDesktopHandlers } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
+import logger from '../../../lib/logger.js';
+
 
 export function setupSocketHandlers(
   io: IO,
@@ -84,7 +86,7 @@ export function setupSocketHandlers(
   io.on('connection', (socket: AppSocket) => {
     const clientType = getSocketClientType(socket)
     ctx.socketClientTypes.set(socket.id, clientType)
-    console.log(`[socket] connected: ${socket.id} (${clientType})`)
+    logger.log({}, `[socket] connected: ${socket.id} (${clientType})`)
 
     if (clientType === 'overlay') {
       if (ctx.overlaySocketId && io.sockets.sockets.has(ctx.overlaySocketId)) {
@@ -127,7 +129,7 @@ export function setupSocketHandlers(
     registerDiagnosticsHandlers(ctx, socket)
 
     socket.on('disconnect', () => {
-      console.log(`[socket] disconnected: ${socket.id}`)
+      logger.log({}, `[socket] disconnected: ${socket.id}`)
       ctx.socketClientTypes.delete(socket.id)
       if (socket.id === ctx.overlaySocketId) {
         ctx.overlaySocketId = null
