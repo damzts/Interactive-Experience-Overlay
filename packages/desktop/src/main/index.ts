@@ -11,6 +11,19 @@ import { initConnectivityMonitor, cleanupConnectivityMonitor } from './connectiv
 import { isAutoLaunched, openAppSettingsDb, closeAppSettingsDb } from './startup.js';
 
 // ---------------------------------------------------------------------------
+// Crash Handlers — ensure the process exits on fatal errors
+// ---------------------------------------------------------------------------
+process.on('uncaughtException', (err) => {
+  console.error('[IEOM] Uncaught exception:', err);
+  app.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[IEOM] Unhandled rejection:', reason);
+  app.exit(1);
+});
+
+// ---------------------------------------------------------------------------
 // Single-Instance Lock
 // ---------------------------------------------------------------------------
 // If another instance is already running, focus its window and quit this one.
@@ -53,7 +66,7 @@ if (!gotLock) {
     // Open app settings DB (the server creates the DB file during startup)
     try {
       const dbPath = path.join(app.getPath('userData'), 'ieom.db');
-      await openAppSettingsDb(dbPath);
+      openAppSettingsDb(dbPath);
     } catch {
       // If the database isn't ready yet, startup settings will use defaults
     }
@@ -111,10 +124,20 @@ if (!gotLock) {
   // ---------------------------------------------------------------------------
   // Graceful Shutdown
   // ---------------------------------------------------------------------------
-  app.on('before-quit', async () => {
+  let isQuitting = false;
+  app.on('before-quit', (event) => {
+    if (isQuitting) return;
+    isQuitting = true;
+    event.preventDefault();
+
     cleanupAutoUpdater();
     cleanupConnectivityMonitor();
     closeAppSettingsDb();
-    await stopServer();
+
+    // Hard kill after 5s if graceful stop hangs
+    setTimeout(() => process.exit(0), 5000).unref();
+
+    stopServer()
+      .finally(() => process.exit(0));
   });
 }

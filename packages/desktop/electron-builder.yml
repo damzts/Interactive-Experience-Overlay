@@ -9,6 +9,21 @@ directories:
 files:
   - dist/**/*
   - package.json
+  - node_modules/**
+
+afterPack: ./build/afterPack.cjs
+
+extraResources:
+  - from: "../admin/dist"
+    to: "admin"
+  - from: "../overlay/dist"
+    to: "overlay"
+
+asar: false
+
+asarUnpack:
+  - "**/node_modules/@shinyoshiaki/**"
+  - "**/node_modules/better-sqlite3/**"
 
 extraMetadata:
   main: dist/main/index.js
@@ -32,10 +47,7 @@ win:
       arch:
         - x64
   icon: build/icon.ico
-  # Code signing - set CSC_LINK and CSC_KEY_PASSWORD env vars in CI
-  # sign: custom-sign.js  # Uncomment for custom signing script
-  signingHashAlgorithms:
-    - sha256
+  signAndEditExecutable: false
   publisherName: IEOM
 
 nsis:

@@ -32,7 +32,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.20.0",
-    "@types/sql.js": "^1.4.11",
     "@types/ws": "^8.5.10",
     "tsx": "^4.15.6",
     "typescript": "^5.5.2"

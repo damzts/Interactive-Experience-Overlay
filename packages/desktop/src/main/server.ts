@@ -98,8 +98,12 @@ export async function startServer(): Promise<void> {
     : path.resolve(app.getAppPath(), '..', '..');
 
   const assetsDir = path.join(appRoot, 'assets');
-  const overlayDir = path.join(appRoot, 'packages', 'overlay', 'dist');
-  const adminDir = path.join(appRoot, 'packages', 'admin', 'dist');
+  const overlayDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'overlay')
+    : path.join(appRoot, 'packages', 'overlay', 'dist');
+  const adminDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'admin')
+    : path.join(appRoot, 'packages', 'admin', 'dist');
 
   try {
     // Create and start the server with a timeout

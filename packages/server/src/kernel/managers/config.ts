@@ -124,6 +124,28 @@ export class DesktopConfigService implements Manager {
     private db: DesktopDatabase,
     private io: SocketIOServer | null = null,
   ) {
+    // Ensure required tables exist (guards against incomplete migrations)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS widget_layouts (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'user',
+        description TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS widget_layout_items (
+        layout_id TEXT NOT NULL REFERENCES widget_layouts(id) ON DELETE CASCADE,
+        widget_id TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        x REAL NOT NULL DEFAULT 0,
+        y REAL NOT NULL DEFAULT 0,
+        width REAL NOT NULL DEFAULT 400,
+        height REAL NOT NULL DEFAULT 300,
+        focus_priority INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (layout_id, widget_id)
+      )
+    `)
     this.seedSystemLayouts()
   }
 

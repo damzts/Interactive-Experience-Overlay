@@ -9,8 +9,7 @@
  * Requirements: 13.3, 13.4
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import initSqlJs from 'sql.js';
+import Database from 'better-sqlite3';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,57 +23,11 @@ export interface WindowBounds {
   isMaximized: boolean;
 }
 
-interface SimpleSqlDb {
-  run(sql: string, params?: unknown[]): void;
-  get(sql: string, params?: unknown[]): Record<string, unknown> | undefined;
-  close(): void;
-  export(): Uint8Array;
-}
-
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-let db: SimpleSqlDb | null = null;
-let currentDbPath: string = '';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function wrapSqlJs(sqlDb: any): SimpleSqlDb {
-  return {
-    run(sql: string, params?: unknown[]) {
-      sqlDb.run(sql, params);
-    },
-    get(sql: string, params?: unknown[]): Record<string, unknown> | undefined {
-      const stmt = sqlDb.prepare(sql);
-      if (params) stmt.bind(params);
-      if (stmt.step()) {
-        const cols = stmt.getColumnNames();
-        const values = stmt.get();
-        const row: Record<string, unknown> = {};
-        cols.forEach((col: string, i: number) => { row[col] = values[i]; });
-        stmt.free();
-        return row;
-      }
-      stmt.free();
-      return undefined;
-    },
-    close() {
-      sqlDb.close();
-    },
-    export() {
-      return sqlDb.export();
-    },
-  };
-}
-
-function persistDb(): void {
-  if (!db) return;
-  const data = db.export();
-  writeFileSync(currentDbPath, Buffer.from(data));
-}
+let db: Database.Database | null = null;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -84,20 +37,10 @@ function persistDb(): void {
  * Open (or reuse) a connection to the SQLite database for window state.
  * The `window_state` table is expected to already exist (created by server migrations).
  */
-export async function openWindowStateDb(dbPath: string): Promise<void> {
+export function openWindowStateDb(dbPath: string): void {
   if (db) return;
-  currentDbPath = dbPath;
-
-  const SQL = await initSqlJs();
-
-  if (existsSync(dbPath)) {
-    const buffer = readFileSync(dbPath);
-    const sqlDb = new SQL.Database(buffer);
-    db = wrapSqlJs(sqlDb);
-  } else {
-    const sqlDb = new SQL.Database();
-    db = wrapSqlJs(sqlDb);
-  }
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
 }
 
 /**
@@ -105,7 +48,6 @@ export async function openWindowStateDb(dbPath: string): Promise<void> {
  */
 export function closeWindowStateDb(): void {
   if (db) {
-    persistDb();
     db.close();
     db = null;
   }
@@ -118,16 +60,18 @@ export function closeWindowStateDb(): void {
 export function loadWindowBounds(): WindowBounds | null {
   if (!db) return null;
 
-  const row = db.get('SELECT x, y, width, height, is_maximized FROM window_state WHERE id = 1');
+  const row = db.prepare('SELECT x, y, width, height, is_maximized FROM window_state WHERE id = 1').get() as
+    | { x: number | null; y: number | null; width: number; height: number; is_maximized: number }
+    | undefined;
 
   if (!row) return null;
 
   return {
-    x: row.x as number | null,
-    y: row.y as number | null,
-    width: row.width as number,
-    height: row.height as number,
-    isMaximized: (row.is_maximized as number) === 1,
+    x: row.x,
+    y: row.y,
+    width: row.width,
+    height: row.height,
+    isMaximized: row.is_maximized === 1,
   };
 }
 
@@ -137,9 +81,7 @@ export function loadWindowBounds(): WindowBounds | null {
 export function saveWindowBounds(bounds: WindowBounds): void {
   if (!db) return;
 
-  db.run(
-    'INSERT OR REPLACE INTO window_state (id, x, y, width, height, is_maximized) VALUES (1, ?, ?, ?, ?, ?)',
-    [bounds.x, bounds.y, bounds.width, bounds.height, bounds.isMaximized ? 1 : 0]
-  );
-  persistDb();
+  db.prepare(
+    'INSERT OR REPLACE INTO window_state (id, x, y, width, height, is_maximized) VALUES (1, ?, ?, ?, ?, ?)'
+  ).run(bounds.x, bounds.y, bounds.width, bounds.height, bounds.isMaximized ? 1 : 0);
 }

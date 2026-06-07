@@ -229,6 +229,56 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 5,
+    name: 'ensure_all_core_tables_and_columns',
+    up: (db) => {
+      // Ensure tables that may be missing from pre-migration databases
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS widget_layouts (
+          id TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          icon TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL DEFAULT 'user',
+          description TEXT,
+          sort_order INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS widget_layout_items (
+          layout_id TEXT NOT NULL REFERENCES widget_layouts(id) ON DELETE CASCADE,
+          widget_id TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 0,
+          x REAL NOT NULL DEFAULT 0,
+          y REAL NOT NULL DEFAULT 0,
+          width REAL NOT NULL DEFAULT 400,
+          height REAL NOT NULL DEFAULT 300,
+          focus_priority INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (layout_id, widget_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS source_presets (
+          id TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          plugin_type TEXT NOT NULL,
+          config_json TEXT NOT NULL DEFAULT '{}',
+          default_position_json TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS source_transitions (
+          id TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          type TEXT NOT NULL,
+          params_json TEXT NOT NULL DEFAULT '{}'
+        );
+      `)
+
+      // Ensure sort_order column on widget_layouts if table existed without it
+      const cols = db.prepare("PRAGMA table_info(widget_layouts)").all() as { name: string }[]
+      if (!cols.some(c => c.name === 'sort_order')) {
+        db.exec("ALTER TABLE widget_layouts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+      }
+    },
+  },
 ]
 
 function runMigrations(db: DesktopDatabase): void {

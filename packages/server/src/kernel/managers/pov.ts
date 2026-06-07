@@ -4,7 +4,7 @@
  * When the switcher decides to switch, notifies listeners (overlay relay).
  */
 
-import type { HubConnection } from '../transport/webrtc/hub-connection.js'
+import type { HubConnection } from '../../transport/webrtc/hub-connection.js'
 import { ParticipantRegistry, type Participant } from '../../pov/participant-registry.js'
 import { createAudioScoreProcessor, type AudioScoreProcessor } from '../../pov/audio-score-processor.js'
 import { POVSwitcher, type SwitchCallback } from '../../pov/switcher.js'

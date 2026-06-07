@@ -413,7 +413,38 @@ You could build a terminal overlay, a 3D world, a pure CSS art piece — as long
 ```bash
 pnpm dev              # Run kernel + overlay + admin in dev mode
 pnpm dev:desktop      # Build all then run Electron (hardware) app
+pnpm build:desktop    # Build all packages for desktop distribution
+
+# Package distributables (run from packages/desktop/)
+# cd packages\desktop
+pnpm package:win      # Windows NSIS installer (.exe)
+pnpm package:mac      # macOS DMG (.dmg)
+pnpm package:linux    # Linux AppImage
 ```
+
+Output lands in `packages/desktop/release/`.
+
+---
+
+## Networking: Dev vs Packaged
+
+In **dev mode** (`pnpm dev`), each package runs its own process:
+
+| Port | Process | What it serves |
+|------|---------|----------------|
+| 3000 | `@ieom/server` | Kernel: HTTP API + Socket.IO + static overlay |
+| 3001 | `@ieom/overlay` (Vite) | Overlay dev server (HMR) |
+| 3002 | `@ieom/admin` (Vite) | Admin dev server (HMR) |
+
+In the **Electron app** (packaged), there is only **one port**:
+
+| Port | What it serves |
+|------|----------------|
+| 3000 | Everything — kernel API, Socket.IO, admin UI (`/admin`), overlay UI (`/`) |
+
+The kernel serves admin and overlay as static files from `extraResources`. There is no Vite, no port 3001, no port 3002. The Electron window loads `http://localhost:3000/admin` directly from the embedded kernel.
+
+This mirrors the computer analogy: in production, the kernel is the only running process. The "shell" (admin) and "userspace" (overlay) are just static assets it serves — not independent services.
 
 ---
 

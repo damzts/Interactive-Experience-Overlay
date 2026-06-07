@@ -341,7 +341,7 @@ export async function createAdminWindow(): Promise<void> {
 
   // Open the window state database connection
   try {
-    await openWindowStateDb(getDbPath());
+    openWindowStateDb(getDbPath());
   } catch {
     // If the database isn't ready yet, we'll use defaults
   }
@@ -442,13 +442,8 @@ export async function createAdminWindow(): Promise<void> {
   // ---------------------------------------------------------------------------
   // Event: close — hide instead of destroy (minimize to tray)
   // ---------------------------------------------------------------------------
-  adminWindow.on('close', (event) => {
-    // Prevent the window from being destroyed; hide it instead.
-    // The app stays alive in the system tray.
-    if (adminWindow && !adminWindow.isDestroyed()) {
-      event.preventDefault();
-      adminWindow.hide();
-    }
+  adminWindow.on('close', () => {
+    app.quit();
   });
 
   // ---------------------------------------------------------------------------
