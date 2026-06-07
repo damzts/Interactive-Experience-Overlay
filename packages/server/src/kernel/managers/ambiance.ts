@@ -1,9 +1,8 @@
 import type { Server } from 'socket.io'
 import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type { AppConfig, Manager, ManagerStatus } from '@ieom/shared'
+import logger from '../../lib/logger.js'
 import type {
-import logger from '../../lib/logger.js';
-
   AmbianceDiagnosticsPayload,
   AmbianceHistoryEntry,
   AmbianceSimulationDonePayload,

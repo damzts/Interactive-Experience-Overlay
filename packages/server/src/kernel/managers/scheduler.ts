@@ -1,9 +1,8 @@
+﻿import logger from '../../lib/logger.js'
 import type { SceneMachine } from './scene.js'
 import { STATE } from '@ieom/shared'
 import type { AppConfig, EventConfig, Manager, ManagerStatus, SchedulerDiagnosticsPayload } from '@ieom/shared'
 import type { KernelBus } from '../bus.js'
-import logger from '../../lib/logger.js';
-
 
 function randBetween(minValue: number, maxValue: number) {
   return Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue

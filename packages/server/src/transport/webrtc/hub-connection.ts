@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WebRTC hub connection manager using werift.
  * Manages N peer connections from browser participants.
  * Each participant sends their camera/mic; the server receives all streams.
@@ -6,21 +6,21 @@
  * == Cambios implementados ==
  * - Monitoreo de ICE connection state (detecta failed y reconecta)
  * - Monitoreo de tracks (onmute/onunmute para detectar video congelado)
- * - Callbacks para reconexión de participantes (onIceFailed)
- * - Detección de video congelado via freeze monitor (cada 2s)
+ * - Callbacks para reconexi�n de participantes (onIceFailed)
+ * - Detecci�n de video congelado via freeze monitor (cada 2s)
  */
 
-import logger from '../../lib/logger.js';
 import {
   RTCPeerConnection,
   type RTCIceCandidateInit,
   type MediaStreamTrack,
 } from 'werift'
+import logger from '../../lib/logger.js'
 
 export interface ParticipantMedia {
   userId: string
   pc: RTCPeerConnection
-  _stale: boolean /** Marca para descartar media durante re-offer */
+  _stale: boolean
   audioTrack: MediaStreamTrack | null
   videoTrack: MediaStreamTrack | null
   iceState: 'new' | 'checking' | 'connected' | 'completed' | 'failed' | 'disconnected' | 'closed'
@@ -46,7 +46,7 @@ export class HubConnection {
   private iceCandidateCallbacks: IceCandidateCallback[] = []
   private iceFailedCallbacks: IceFailedCallback[] = []
 
-  // ── Monitoreo periódico de tracks congelados ──────────────────────────────
+  // -- Monitoreo peri�dico de tracks congelados ------------------------------
   private freezeMonitorTimer: ReturnType<typeof setInterval> | null = null
   /** Si un track no recibe paquetes en este ms, se considera congelado */
   private readonly FREEZE_TIMEOUT_MS = 3_000
@@ -55,9 +55,9 @@ export class HubConnection {
     try {
       return await this._handleOffer(userId, sdp)
     } catch (err) {
-      logger.error({ userId: userId }, '[hub-connection] handleOffer({userId}) crashed:')
-      logger.error({ stack: (err as Error).stack })
-      // Never let werift exceptions bubble up — return empty answer
+      logger.error({ err }, `[hub-connection] handleOffer(${userId}) crashed`)
+      if ((err as Error).stack) logger.error({ stack: (err as Error).stack }, "stack trace")
+      // Never let werift exceptions bubble up � return empty answer
       return ''
     }
   }
@@ -87,7 +87,7 @@ export class HubConnection {
     }
     this.participants.set(userId, media)
 
-    // ── Track events ────────────────────────────────────────────────────
+    // -- Track events ----------------------------------------------------
     pc.onTrack.subscribe((track) => {
       if (track.kind === 'audio') {
         media.audioTrack = track
@@ -98,28 +98,29 @@ export class HubConnection {
       for (const cb of this.trackCallbacks) cb(userId, track.kind as 'audio' | 'video', track)
     })
 
-    // ── ICE candidate events ────────────────────────────────────────────
+    // -- ICE candidate events --------------------------------------------
     pc.onIceCandidate.subscribe((candidate) => {
       if (candidate) {
         for (const cb of this.iceCandidateCallbacks) cb(userId, candidate.toJSON())
       }
     })
 
-    // ── ICE connection state monitoring ─────────────────────────────────
+    // -- ICE connection state monitoring ---------------------------------
     pc.iceConnectionStateChange.subscribe(() => {
       const state = pc.iceConnectionState
       media.iceState = state
-      logger.info({ userId, state }, 'ICE state')
-        if (state === 'failed') {
-        logger.info({ userId }, 'ICE failed - notifying upstream')
+      logger.info(`[hub-connection] ${userId} ICE state: ${state}`)
+
+      if (state === 'failed') {
+        logger.info(`[hub-connection] ${userId} ICE failed � notifying upstream`)
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
     })
 
     pc.connectionStateChange.subscribe(() => {
       const state = pc.connectionState
-      logger.info({ userId, state }, 'connection state')
-        if (state === 'failed') {
+      logger.info(`[hub-connection] ${userId} connection state: ${state}`)
+      if (state === 'failed') {
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
     })
@@ -141,7 +142,7 @@ export class HubConnection {
         // Ignorar candidatos obsoletos
       }
     } catch (err) {
-      logger.error({ userId: userId }, '[hub-connection] handleIceCandidate({userId}) crashed:')
+      logger.error({ err }, `[hub-connection] handleIceCandidate(${userId}) crashed`)
     }
   }
 
@@ -153,11 +154,11 @@ export class HubConnection {
       this.participants.delete(userId)
       for (const cb of this.removedCallbacks) cb(userId)
     } catch (err) {
-      logger.error({ userId: userId }, '[hub-connection] removeParticipant({userId}) crashed:')
+      logger.error({ err }, `[hub-connection] removeParticipant(${userId}) crashed`)
     }
   }
 
-  // ── Getters ────────────────────────────────────────────────────────
+  // -- Getters --------------------------------------------------------
   getAudioTrack(userId: string): MediaStreamTrack | null {
     return this.participants.get(userId)?.audioTrack ?? null
   }
@@ -180,7 +181,7 @@ export class HubConnection {
     return { iceState: m.iceState, videoMuted: m.videoMuted, lastVideoPacketMs: m.lastVideoPacketMs }
   }
 
-  // ── Callbacks ──────────────────────────────────────────────────────
+  // -- Callbacks ------------------------------------------------------
   onTrack(cb: TrackCallback): void {
     this.trackCallbacks.push(cb)
   }
@@ -201,10 +202,10 @@ export class HubConnection {
     this.iceFailedCallbacks.push(cb)
   }
 
-  // ── Freeze detection ───────────────────────────────────────────────
+  // -- Freeze detection -----------------------------------------------
   /**
-   * Inicia monitoreo periódico de tracks de video.
-   * Cada 2s revisa si el video dejó de paquetes entrantes.
+   * Inicia monitoreo peri�dico de tracks de video.
+   * Cada 2s revisa si el video dej� de paquetes entrantes.
    * Si detecta congelamiento, notifica a los callbacks de trackMuted.
    */
   startFreezeDetection(): void {
@@ -219,7 +220,7 @@ export class HubConnection {
 
         // Si no hay actividad de video en FREEZE_TIMEOUT_MS, marcar como mute
         if (now - media.lastVideoPacketMs > this.FREEZE_TIMEOUT_MS) {
-          logger.info({ userId: _userId, timeout: this.FREEZE_TIMEOUT_MS }, 'video frozen (no packets)')
+          logger.info(`[hub-connection] ${_userId} video frozen (no packets for ${this.FREEZE_TIMEOUT_MS}ms)`)
           media.videoMuted = true
           for (const cb of this.trackMutedCallbacks) cb(_userId, 'video')
         }
@@ -234,7 +235,7 @@ export class HubConnection {
     }
   }
 
-  // ── Cleanup ────────────────────────────────────────────────────────
+  // -- Cleanup --------------------------------------------------------
   async closeAll(): Promise<void> {
     this.stopFreezeDetection()
     for (const userId of [...this.participants.keys()]) {

@@ -1,12 +1,11 @@
-import type {
+﻿import type {
   AmbianceSimulationAcceptedPayload,
   AmbianceSimulationStartedPayload,
   AmbianceSimulationDonePayload,
   WidgetSimulationIntentPayload,
 } from '@ieom/shared'
+import logger from '../../../lib/logger.js'
 import type { HandlerContext, AppSocket } from './types.js'
-import logger from '../../../lib/logger.js';
-
 
 export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket): void {
   socket.on('ambiance:history:clear', () => {
@@ -28,7 +27,8 @@ export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket)
     if (socket.id !== ctx.overlaySocketId) return
     ctx.ambianceManager.markSimulationCompleted(payload.actionId, payload)
     if (!payload.ok) {
-      logger.warn({ widgetId: payload.widgetId, action: payload.action, actionId: payload.actionId }, 'Simulation failure')    }
+      logger.warn(`[ambiance] Simulation failure: ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
+    }
   })
 
   socket.on('cursor:mirror', (payload) => {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LAN /join namespace — local WebRTC signaling without cloud dependency.
  *
  * Guests on the same network open http://<host-ip>:3000/join in a browser,
@@ -15,8 +15,7 @@ import type { RTCIceCandidateInit } from 'werift'
 import type { HubConnection } from '../webrtc/hub-connection.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
 import type { OnlineRoomManager } from '../../online/manager.js'
-import logger from '../../lib/logger.js';
-
+import logger from '../../lib/logger.js'
 
 /** Unique participant ID derived from the socket ID. */
 function participantId(socketId: string): string {
@@ -56,7 +55,8 @@ export function registerJoinNamespace(
     let buffered: any[] = []
 
     participantSockets.set(userId, socket)
-    logger.info({ userId: userId, socket: socket.id }, 'LAN participant connected: {userId} ({socket})')
+    logger.info(`[join] LAN participant connected: ${userId} (${socket.id})`)
+
     // Register per-participant ICE candidate listener once
     hubConnection.onIceCandidate((id, candidate) => {
       if (id !== userId) return
@@ -86,7 +86,8 @@ export function registerJoinNamespace(
         if (!addedToPov) {
           povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
-          logger.info({ userId: userId, displayName: displayName }, '{userId} ({displayName}) added to POV pipeline')
+          logger.info(`[join] ${userId} (${displayName}) added to POV pipeline`)
+
           // Also register with OnlineRoomManager so admin panel sees this participant
           if (onlineManager) {
             const rooms = onlineManager.getRooms()
@@ -99,7 +100,7 @@ export function registerJoinNamespace(
       } catch (err: any) {
         pendingAnswer = false
         buffered = []
-        logger.error({ userId: userId }, '[join] offer handling failed for {userId}:')
+        logger.error(`[join] offer handling failed for ${userId}:`, err.message)
         socket.emit('error', { message: 'Offer processing failed' })
       }
     })
@@ -114,7 +115,8 @@ export function registerJoinNamespace(
     })
 
     socket.on('disconnect', () => {
-      logger.info({ userId }, 'LAN participant disconnected')      participantSockets.delete(userId)
+      logger.info(`[join] LAN participant disconnected: ${userId}`)
+      participantSockets.delete(userId)
       void hubConnection.removeParticipant(userId)
       if (addedToPov) {
         povOrchestrator.removeParticipant(userId)
@@ -129,5 +131,4 @@ export function registerJoinNamespace(
     })
   })
 }
-
 

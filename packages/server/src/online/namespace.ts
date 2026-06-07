@@ -1,13 +1,12 @@
-/**
+﻿/**
  * /online Socket.IO namespace — handles admin events for room management
  * and broadcasts room status updates.
  */
 
 import type { Server as SocketIOServer } from 'socket.io'
+import logger from '../lib/logger.js'
 import type { OnlineRoomManager } from './manager.js'
 import type {
-import logger from '../lib/logger.js';
-
   OnlineClientToServerEvents,
   OnlineServerToClientEvents,
   OnlineInterServerEvents,
@@ -33,7 +32,8 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
   nsp.on('connection', (socket) => {
     const role = (socket.handshake.auth as { clientType?: string })?.clientType ?? 'player'
     socket.data.role = role as 'admin' | 'player' | 'overlay'
-    logger.info({ socketId: socket.id }, 'socket disconnected')
+    logger.info(`[online] ${role} connected: ${socket.id}`)
+
     // ── Admin events ─────────────────────────────────────────────
 
     socket.on('pov-online:room:create', (ack) => {

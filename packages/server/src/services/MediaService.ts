@@ -1,8 +1,7 @@
+﻿import logger from '../lib/logger.js'
 import { readdirSync, existsSync, statSync, unlinkSync, rmdirSync } from 'fs'
 import { join, dirname, extname, normalize, relative } from 'path'
 import { fileURLToPath } from 'url'
-import logger from '../lib/logger.js';
-
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -101,8 +100,8 @@ export class MediaService {
     if (this.mediaCache) return this.mediaCache
 
     if (!existsSync(this.gamesDir)) {
-      logger.warn({ gamesDir: this.gamesDir }, 'games directory not found')
-        return (this.mediaCache = { games: {}, total: 0 })
+      logger.warn({ dir: this.gamesDir }, '[media] games directory not found')
+      return (this.mediaCache = { games: {}, total: 0 })
     }
 
     const games: Record<string, string[]> = {}
@@ -131,7 +130,7 @@ export class MediaService {
       }
     }
 
-    logger.info({ games: Object.keys(games).length, total, gamesDir: this.gamesDir }, 'media scan complete')
+    logger.info(`[media] scanned ${Object.keys(games).length} games, ${total} images from ${this.gamesDir}`)
     return (this.mediaCache = { games, total })
   }
 

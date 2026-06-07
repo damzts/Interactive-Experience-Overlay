@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cloud signaling client — connects to ieom-api's /ws/rooms/:roomId as the hub.
  * Uses native WebSocket (ws) instead of Socket.IO for minimal overhead.
  * Routes WebRTC signaling between browser participants and the local HubConnection.
@@ -11,11 +11,10 @@
  */
 
 import WebSocket from 'ws'
+import logger from '../../lib/logger.js'
 import type { HubConnection } from './hub-connection.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
 import type { OverlayRelay } from './overlay-relay.js'
-import logger from '../../lib/logger.js';
-
 
 export interface CloudSignalingConfig {
   cloudUrl: string
@@ -89,7 +88,7 @@ export class CloudSignaling {
 
     // ── Detectar ICE failure → intentar re-negociación ─────────────────
     this.hub.onIceFailed((userId) => {
-      logger.warn({ userId }, 'ICE failed for ${userId}, will re-negotiate')
+      logger.info(`[cloud-signaling] ICE failed for ${userId}, will re-negotiate`)
       // Si el WS aún está vivo, el participante puede re-conectar por su lado
       // Si no, esperamos a que re-conecte al WS y reciba nueva offer
       this.frozenParticipants.add(userId)
@@ -98,13 +97,13 @@ export class CloudSignaling {
     // ── Detectar video congelado → recovery ─────────────────────────────
     this.hub.onTrackMuted((userId, kind) => {
       if (kind !== 'video') return
-      logger.warn({ userId }, '${userId} video frozen/muted, scheduling recovery')
-        this.frozenParticipants.add(userId)
+      logger.info(`[cloud-signaling] ${userId} video frozen/muted, scheduling recovery`)
+      this.frozenParticipants.add(userId)
 
       // Dar chance a que el participante se recupere solo
       setTimeout(() => {
         if (!this.frozenParticipants.has(userId)) return
-        logger.info({ userId }, 'initiating recovery for frozen participant ${userId}')
+        logger.info(`[cloud-signaling] initiating recovery for frozen participant ${userId}`)
 
         // Forzar re-negociación: el hub envía una notificación al participante
         // En este modelo, el hub no puede iniciar re-negociación — el participante
@@ -153,8 +152,8 @@ export class CloudSignaling {
     ws.on('open', () => {
       if (isStale()) return
       this.reconnectAttempt = 0
-      logger.info({ roomId }, '[cloud-signaling] connected to room:')
-        this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
+      logger.info({ value: roomId }, '[cloud-signaling] connected to room')
+      this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
       this.emitStatus()
       this.startPingTimer()
     })
@@ -170,7 +169,7 @@ export class CloudSignaling {
     ws.on('close', () => {
       if (isStale()) return // <-- CRÍTICO: no nullificar el socket nuevo
       logger.info('[cloud-signaling] disconnected')
-        this.ws = null
+      this.ws = null
       this.stopPingTimer()
       this.emitStatus()
       if (!this.intentionalClose) this.scheduleReconnect()
@@ -178,7 +177,7 @@ export class CloudSignaling {
 
     ws.on('error', (err) => {
       if (isStale()) return
-      logger.info({ (err as any) }, '[cloud-signaling] error:')
+      logger.info('[cloud-signaling] error:', (err as any).message ?? err)
     })
   }
 
@@ -207,8 +206,8 @@ export class CloudSignaling {
         // If name looks like an email or is missing, use a generic guest name
         const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
         if (userId) {
-          logger.info({ userId, displayName }, 'participant joined')
-        this.participantNames.set(userId, displayName)
+          logger.info(`[cloud-signaling] participant joined: ${userId} (${displayName})`)
+          this.participantNames.set(userId, displayName)
           this.pov.addParticipant(userId, displayName)
           this.knownParticipants.add(userId)
           this.emitStatus()
@@ -236,14 +235,14 @@ export class CloudSignaling {
           if (!this.knownParticipants.has(userId)) {
             const rawName = (msg.payload['displayName'] as string) ?? (msg.payload['userName'] as string)
             const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
-            logger.info({ userId, displayName }, 'auto-registering participant from offer')
-        this.participantNames.set(userId, displayName)
+            logger.info(`[cloud-signaling] auto-registering participant from offer: ${userId} (${displayName})`)
+            this.participantNames.set(userId, displayName)
             this.pov.addParticipant(userId, displayName)
             this.knownParticipants.add(userId)
             this.emitStatus()
           }
 
-          logger.info({ userId, reOffer: this.hub.hasParticipant(userId) }, 'received offer')
+          logger.info(`[cloud-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
           this.pendingCandidates.set(userId, [])
           this.hub.handleOffer(userId, sdp).then(answerSdp => {
             this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
@@ -255,7 +254,7 @@ export class CloudSignaling {
             }
             // Si este participante estaba congelado, marcar como recuperado
             this.frozenParticipants.delete(userId)
-          logger.error({ e }, '[cloud-signaling] offer handling failed:')
+          }).catch(e => logger.error({ err: e }, '[cloud-signaling] offer handling failed'))
         }
         break
       }
@@ -319,8 +318,8 @@ export class CloudSignaling {
     if (this.reconnectTimer) return
     const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.reconnectAttempt, RECONNECT_MAX_MS)
     this.reconnectAttempt++
-    logger.info({ delay, attempt: this.reconnectAttempt }, 'scheduling reconnect')
-        this.reconnectTimer = setTimeout(() => {
+    logger.info(`[cloud-signaling] scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempt})`)
+    this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.openSocket()
     }, delay)
@@ -366,7 +365,7 @@ export class CloudSignaling {
       timestamp: new Date().toISOString(),
       targetUserId: userId,
     })
-    logger.info({ userId }, 'sent kick')
+    logger.info(`[cloud-signaling] sent kick for ${userId}`)
   }
 
   private emitStatus(): void {

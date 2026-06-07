@@ -75,7 +75,7 @@ function isUniqueConstraintError(
   column?: string
 ): err is Error & Record<string, unknown> {
   if (!(err instanceof Error)) return false
-  const pgErr = err as Record<string, unknown>
+  const pgErr = err as unknown as Record<string, unknown>
   if (pgErr.code !== '23505') return false
   if (column && typeof pgErr.constraint === 'string' && !pgErr.constraint.includes(column)) return false
   return true

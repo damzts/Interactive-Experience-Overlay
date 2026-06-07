@@ -1,9 +1,10 @@
-/**
+﻿/**
  * Socket.IO handler orchestrator.
  *
  * Each domain module registers its own event listeners.
  * Shared mutable state is passed via HandlerContext.
  */
+import logger from '../../../lib/logger.js'
 import {
   DEFAULT_CONFIG,
   withDesktopConfigDefaults,
@@ -21,8 +22,6 @@ import { registerAmbianceHandlers } from './ambiance.js'
 import { registerDesktopHandlers } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
-import logger from '../../../lib/logger.js';
-
 
 export function setupSocketHandlers(
   io: IO,
@@ -86,8 +85,9 @@ export function setupSocketHandlers(
   io.on('connection', (socket: AppSocket) => {
     const clientType = getSocketClientType(socket)
     ctx.socketClientTypes.set(socket.id, clientType)
-    logger.info({ socketId: socket.id, clientType }, 'socket connected')
-        if (clientType === 'overlay') {
+    logger.info(`[socket] connected: ${socket.id} (${clientType})`)
+
+    if (clientType === 'overlay') {
       if (ctx.overlaySocketId && io.sockets.sockets.has(ctx.overlaySocketId)) {
         socket.emit('overlay:rejected', { reason: 'View is already opened, close that before opening new one' })
         setTimeout(() => socket.disconnect(true), 1000)
@@ -128,7 +128,8 @@ export function setupSocketHandlers(
     registerDiagnosticsHandlers(ctx, socket)
 
     socket.on('disconnect', () => {
-      logger.info({ socketId: socket.id }, 'socket disconnected')      ctx.socketClientTypes.delete(socket.id)
+      logger.info(`[socket] disconnected: ${socket.id}`)
+      ctx.socketClientTypes.delete(socket.id)
       if (socket.id === ctx.overlaySocketId) {
         ctx.overlaySocketId = null
         ctx.runtimeState.resetSimulationMetrics()

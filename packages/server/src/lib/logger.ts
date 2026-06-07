@@ -1,6 +1,4 @@
-import pino from 'pino';
-import logger from './lib/logger.js';
-
+﻿import pino from 'pino';
 
 /**
  * Shared structured logger for @ieom/server (overlay/desktop hub).

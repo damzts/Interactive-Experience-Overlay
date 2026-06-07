@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Desktop mode entry point for @ieom/server.
  *
  * Thin bootstrap: creates the Kernel, registers managers, wires transport
@@ -17,6 +17,7 @@ import { Server as SocketIOServer } from 'socket.io'
 import { existsSync, mkdirSync, createWriteStream, readFileSync } from 'fs'
 import { join } from 'path'
 import { pipeline } from 'stream/promises'
+import logger from './lib/logger.js'
 
 import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieom/shared'
 import type { AppConfig } from '@ieom/shared'
@@ -46,8 +47,6 @@ import { OnlineRoomManager } from './online/manager.js'
 import { onlineRoute } from './online/routes.js'
 import { registerOnlineNamespace } from './online/namespace.js'
 import { registerJoinNamespace } from './transport/socket/joinNamespace.js'
-import logger from '../lib/logger.js';
-
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -193,7 +192,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   io.on('connection', (socket) => {
     socket.on('pov:subscribe', () => {
       overlayRelay.createOffer((event, payload) => socket.emit(event, payload))
-        logger.error({ e }, '[pov-relay] createOffer failed:')
+        .catch(e => logger.error('[pov-relay] createOffer failed:', e.message))
     })
     socket.on('pov:answer', async (payload: { sdp: string }) => {
       try {
@@ -221,7 +220,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
   setTimeout(() => {
     onlineManager.syncFromCloud().catch((e) => {
-      logger.error({ err: e }, '[online] auto-sync on startup failed:')
+      logger.info({ err: (e as Error).message }, '[online] auto-sync on startup failed')
     })
   }, 2000) // Small delay to let auth token settle
 
@@ -269,13 +268,13 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 // Evita que excepciones no capturadas de werift/WSLR maten el proceso
 process.on('uncaughtException', (err) => {
   logger.error({ err }, '[crash] Uncaught exception:')
-  logger.error({ stack: err.stack })
+  if (err.stack) logger.error(err.stack)
   // No terminamos el proceso — werift puede fallar sin matar la app
 })
 
 process.on('unhandledRejection', (reason) => {
-  logger.error({ err: reason }, '[crash] Unhandled rejection:')
-  logger.error({ stack: (reason as Error).stack })
+  logger.error({ reason }, '[crash] Unhandled rejection:')
+  if ((reason as Error).stack) logger.error((reason as Error).stack)
   // No terminamos el proceso
 })
 
@@ -316,9 +315,9 @@ if (isDev && !process.env.IEOM_NO_AUTOSTART) {
     adminDir: join(monorepo, 'packages', 'admin', 'dist'),
   }).then(async (server) => {
     await server.start()
-    logger.info({ port: server.getPort() }, 'server listening')
+    logger.info(`[server] listening on http://localhost:${server.getPort()}`)
   }).catch((err) => {
-    logger.error({ err }, '[server] failed to start:')
+    logger.error({ err }, '[server] failed to start')
     process.exit(1)
   })
 }

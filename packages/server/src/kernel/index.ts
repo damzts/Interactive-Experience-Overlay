@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Kernel — the central orchestrator of @ieom/server.
  *
  * Owns a registry of named managers and an internal event bus.
@@ -14,10 +14,9 @@
  *   await kernel.shutdown()
  */
 
+import logger from '../lib/logger.js'
 import type { Manager } from '@ieom/shared'
 import { KernelBus } from './bus.js'
-import logger from '../lib/logger.js';
-
 
 export { KernelBus } from './bus.js'
 export type { KernelEvents } from './bus.js'
@@ -101,7 +100,7 @@ export class Kernel {
     for (const name of this.bootOrder) {
       await this.managers.get(name)!.start()
     }
-    logger.info({ count: this.bootOrder.length, order: this.bootOrder.join(' -> ') }, 'kernel booted')
+    logger.info(`[kernel] booted (${this.bootOrder.length} managers: ${this.bootOrder.join(' → ')})`)
   }
 
   /**

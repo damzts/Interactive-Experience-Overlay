@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Local WebRTC relay from server to overlay.
  * Creates a sendonly PeerConnection, offers it to the overlay via Socket.IO,
  * and uses replaceTrack for subsequent track changes.
  */
 
-import logger from '../../lib/logger.js';
+import logger from '../../lib/logger.js'
 import {
   RTCPeerConnection,
   MediaStreamTrack,
@@ -73,14 +73,14 @@ export class OverlayRelay {
   async handleAnswer(sdp: string): Promise<void> {
     if (!this.pc) {
       logger.warn('[overlay-relay] handleAnswer ignored — no pc')
-        return
+      return
     }
     try {
       await this.pc.setRemoteDescription({ type: 'answer', sdp })
       this.connected = true
       logger.info('[overlay-relay] connected to overlay')
     } catch (err) {
-      logger.error({ err }, '[overlay-relay] handleAnswer failed:')
+      logger.error({ err: err }, '[overlay-relay] handleAnswer failed')
       throw err
     }
 
@@ -129,4 +129,3 @@ export class OverlayRelay {
     this.offeredVideoTrack = null
   }
 }
-
