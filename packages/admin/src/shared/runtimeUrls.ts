@@ -17,8 +17,12 @@ export function getApiOrigin(): string {
   }
   if (import.meta.env.VITE_API_ORIGIN) return import.meta.env.VITE_API_ORIGIN
   const location = getWindowLocation()
-  if (location && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    return location.origin
+  if (location) {
+    // When served by the kernel (e.g. Electron at /admin), use same-origin
+    if (location.pathname.startsWith('/admin')) return location.origin
+    if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      return location.origin
+    }
   }
   return buildOrigin(import.meta.env.VITE_API_PORT || '3100')
 }
