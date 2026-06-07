@@ -7,6 +7,7 @@
 import type { HubConnection } from '../../transport/webrtc/hub-connection.js'
 import { ParticipantRegistry, type Participant } from '../../pov/participant-registry.js'
 import { createAudioScoreProcessor, type AudioScoreProcessor } from '../../pov/audio-score-processor.js'
+import { createMotionDetector, type MotionAware } from '../../pov/motion-detector.js'
 import { POVSwitcher, type SwitchCallback } from '../../pov/switcher.js'
 import type { Manager, ManagerStatus } from '@ieom/shared'
 import logger from '../../lib/logger.js';
@@ -19,6 +20,8 @@ export interface POVOrchestratorConfig {
   cooldownMs?: number
   activityThreshold?: number
   silenceThreshold?: number
+  /** Weight of motion score vs audio score (0-1). Default: 0.3 */
+  motionWeight?: number
 }
 
 export class POVOrchestrator implements Manager {
@@ -28,7 +31,11 @@ export class POVOrchestrator implements Manager {
   readonly registry: ParticipantRegistry
   readonly switcher: POVSwitcher
   readonly scoreProcessor: AudioScoreProcessor
+  readonly motionDetector: MotionAware
   private audioUnsubscribes = new Map<string, () => void>()
+  private videoUnsubscribes = new Map<string, () => void>()
+  /** Combined score: audio score + motion weight * motion score */
+  motionWeight: number
 
   constructor(private hub: HubConnection, config?: POVOrchestratorConfig) {
     this.registry = new ParticipantRegistry(this.participants)
@@ -38,10 +45,28 @@ export class POVOrchestrator implements Manager {
       silenceThreshold: config?.silenceThreshold ?? 0.05,
     })
     this.scoreProcessor = createAudioScoreProcessor()
+    this.motionDetector = createMotionDetector({
+      rollingWindowMs: config?.rollingWindowMs ?? 2000,
+    })
+    this.motionWeight = config?.motionWeight ?? 0.3
 
-    this.scoreProcessor.onScoresUpdated((scores) => {
-      for (const [id, score] of scores) this.registry.updateActivityScore(id, score)
-      this.switcher.evaluateScores(scores)
+    // Combine audio + motion scores into a single composite score
+    const motionScores = new Map<string, number>()
+    this.motionDetector.subscribe((userId, level) => {
+      motionScores.set(userId, level)
+    })
+
+    this.scoreProcessor.onScoresUpdated((audioScores) => {
+      // Composite: audio + motion (weighted)
+      const combined = new Map<string, number>()
+      const allIds = new Set([...audioScores.keys(), ...motionScores.keys()])
+      for (const id of allIds) {
+        const audio = audioScores.get(id) ?? 0
+        const motion = motionScores.get(id) ?? 0
+        combined.set(id, audio + motion * this.motionWeight)
+      }
+      for (const [id, score] of combined) this.registry.updateActivityScore(id, score)
+      this.switcher.evaluateScores(combined)
     })
 
     this.scoreProcessor.start({
@@ -52,6 +77,7 @@ export class POVOrchestrator implements Manager {
 
     hub.onTrack((userId, kind, track) => {
       if (kind === 'audio') this.startAudioLevelMonitoring(userId, track)
+      if (kind === 'video') this.startMotionDetection(userId, track)
     })
 
     hub.onParticipantRemoved((userId) => {
@@ -70,7 +96,9 @@ export class POVOrchestrator implements Manager {
 
   removeParticipant(userId: string): void {
     this.stopAudioLevelMonitoring(userId)
+    this.stopMotionDetection(userId)
     this.scoreProcessor.removeParticipant(userId)
+    this.motionDetector.removeParticipant(userId)
     const wasActive = this.switcher.activeCameraId === userId
     this.participants.delete(userId)
     if (wasActive) this.switcher.handleDisconnect(userId)
@@ -94,6 +122,25 @@ export class POVOrchestrator implements Manager {
 
   onSwitch(cb: SwitchCallback): void {
     this.switcher.onSwitch(cb)
+  }
+
+  private startMotionDetection(userId: string, track: any): void {
+    this.stopMotionDetection(userId)
+    try {
+      const sub = track.onReceiveRtp.subscribe((packet: any) => {
+        const payload = packet.payload as Buffer
+        if (!payload || payload.length === 0) return
+        this.motionDetector.reportMotionLevel(userId, payload.length, Date.now())
+      })
+      this.videoUnsubscribes.set(userId, () => sub.unSubscribe())
+    } catch (err) {
+      logger.warn({ userId }, '[pov] motion detection unavailable for {userId}')
+    }
+  }
+
+  private stopMotionDetection(userId: string): void {
+    const unsub = this.videoUnsubscribes.get(userId)
+    if (unsub) { unsub(); this.videoUnsubscribes.delete(userId) }
   }
 
   private startAudioLevelMonitoring(userId: string, track: any): void {
