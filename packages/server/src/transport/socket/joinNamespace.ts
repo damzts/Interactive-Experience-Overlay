@@ -56,8 +56,7 @@ export function registerJoinNamespace(
     let buffered: any[] = []
 
     participantSockets.set(userId, socket)
-    logger.log({}, `[join] LAN participant connected: ${userId} (${socket.id})`)
-
+    logger.info({ userId: userId, socket: socket.id }, 'LAN participant connected: {userId} ({socket})')
     // Register per-participant ICE candidate listener once
     hubConnection.onIceCandidate((id, candidate) => {
       if (id !== userId) return
@@ -87,8 +86,7 @@ export function registerJoinNamespace(
         if (!addedToPov) {
           povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
-          logger.log({}, `[join] ${userId} (${displayName}) added to POV pipeline`)
-
+          logger.info({ userId: userId, displayName: displayName }, '{userId} ({displayName}) added to POV pipeline')
           // Also register with OnlineRoomManager so admin panel sees this participant
           if (onlineManager) {
             const rooms = onlineManager.getRooms()
@@ -116,8 +114,7 @@ export function registerJoinNamespace(
     })
 
     socket.on('disconnect', () => {
-      logger.log({}, `[join] LAN participant disconnected: ${userId}`)
-      participantSockets.delete(userId)
+      logger.info({ userId }, 'LAN participant disconnected')      participantSockets.delete(userId)
       void hubConnection.removeParticipant(userId)
       if (addedToPov) {
         povOrchestrator.removeParticipant(userId)

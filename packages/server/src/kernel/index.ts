@@ -101,7 +101,7 @@ export class Kernel {
     for (const name of this.bootOrder) {
       await this.managers.get(name)!.start()
     }
-    logger.log({}, `[kernel] booted (${this.bootOrder.length} managers: ${this.bootOrder.join(' → ')})`)
+    logger.info({ count: this.bootOrder.length, order: this.bootOrder.join(' -> ') }, 'kernel booted')
   }
 
   /**
@@ -116,6 +116,6 @@ export class Kernel {
       await this.managers.get(name)!.dispose()
     }
     this.bus.removeAllListeners()
-    logger.log('[kernel] shutdown complete')
+    logger.info('[kernel] shutdown complete')
   }
 }

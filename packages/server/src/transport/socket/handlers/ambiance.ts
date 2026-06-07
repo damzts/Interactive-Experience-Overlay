@@ -28,8 +28,7 @@ export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket)
     if (socket.id !== ctx.overlaySocketId) return
     ctx.ambianceManager.markSimulationCompleted(payload.actionId, payload)
     if (!payload.ok) {
-      logger.warn({}, `[ambiance] Simulation failure: ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
-    }
+      logger.warn({ widgetId: payload.widgetId, action: payload.action, actionId: payload.actionId }, 'Simulation failure')    }
   })
 
   socket.on('cursor:mirror', (payload) => {

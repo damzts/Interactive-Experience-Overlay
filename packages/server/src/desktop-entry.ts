@@ -221,7 +221,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
   setTimeout(() => {
     onlineManager.syncFromCloud().catch((e) => {
-      logger.log({ (e as Error) }, '[online] auto-sync on startup failed:')
+      logger.error({ err: e }, '[online] auto-sync on startup failed:')
     })
   }, 2000) // Small delay to let auth token settle
 
@@ -269,13 +269,13 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 // Evita que excepciones no capturadas de werift/WSLR maten el proceso
 process.on('uncaughtException', (err) => {
   logger.error({ err }, '[crash] Uncaught exception:')
-  logger.error({ msg: err.stack })
+  logger.error({ stack: err.stack })
   // No terminamos el proceso — werift puede fallar sin matar la app
 })
 
 process.on('unhandledRejection', (reason) => {
-  logger.error({ (reason as Error) }, '[crash] Unhandled rejection:')
-  logger.error({ msg: (reason as Error).stack })
+  logger.error({ err: reason }, '[crash] Unhandled rejection:')
+  logger.error({ stack: (reason as Error).stack })
   // No terminamos el proceso
 })
 
@@ -316,7 +316,7 @@ if (isDev && !process.env.IEOM_NO_AUTOSTART) {
     adminDir: join(monorepo, 'packages', 'admin', 'dist'),
   }).then(async (server) => {
     await server.start()
-    logger.log({}, `[server] listening on http://localhost:${server.getPort()}`)
+    logger.info({ port: server.getPort() }, 'server listening')
   }).catch((err) => {
     logger.error({ err }, '[server] failed to start:')
     process.exit(1)

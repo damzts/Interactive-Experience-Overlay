@@ -23,7 +23,7 @@ type OnlineNamespace = ReturnType<
 
 export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomManager): void {
   const nsp: OnlineNamespace = io.of('/online') as unknown as OnlineNamespace
-  logger.log('[online] /online namespace registered')
+  logger.info('[online] /online namespace registered')
 
   // Forward manager events to all connected admin sockets
   manager.onEvent((event, payload) => {
@@ -33,8 +33,7 @@ export function registerOnlineNamespace(io: SocketIOServer, manager: OnlineRoomM
   nsp.on('connection', (socket) => {
     const role = (socket.handshake.auth as { clientType?: string })?.clientType ?? 'player'
     socket.data.role = role as 'admin' | 'player' | 'overlay'
-    logger.log({}, `[online] ${role} connected: ${socket.id}`)
-
+    logger.info({ socketId: socket.id }, 'socket disconnected')
     // ── Admin events ─────────────────────────────────────────────
 
     socket.on('pov-online:room:create', (ack) => {

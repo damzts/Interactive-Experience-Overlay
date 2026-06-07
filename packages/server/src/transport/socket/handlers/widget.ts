@@ -110,8 +110,8 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     if (socket.id !== ctx.overlaySocketId) {
       ctx.runtimeState.incrementRejected()
       ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
-      logger.warn({}, `[ambiance] Ignored simulated toggle from non-leader ${socket.id} for ${widgetId}`)
-      return
+      logger.info({ socketId: socket.id }, 'socket disconnected')
+        return
     }
     ctx.runtimeState.incrementAccepted()
     ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
@@ -122,8 +122,8 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     if (socket.id !== ctx.overlaySocketId) {
       ctx.runtimeState.incrementRejected()
       ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
-      logger.warn({}, `[ambiance] Ignored simulated action from non-leader ${socket.id} for ${payload.widgetId}`)
-      return
+      logger.info({ socketId: socket.id }, 'socket disconnected')
+        return
     }
     ctx.runtimeState.incrementAccepted()
     ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })

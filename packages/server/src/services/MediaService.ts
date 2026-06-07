@@ -101,8 +101,8 @@ export class MediaService {
     if (this.mediaCache) return this.mediaCache
 
     if (!existsSync(this.gamesDir)) {
-      logger.warn({ this }, '[media] games directory not found at')
-      return (this.mediaCache = { games: {}, total: 0 })
+      logger.warn({ gamesDir: this.gamesDir }, 'games directory not found')
+        return (this.mediaCache = { games: {}, total: 0 })
     }
 
     const games: Record<string, string[]> = {}
@@ -131,7 +131,7 @@ export class MediaService {
       }
     }
 
-    logger.log({}, `[media] scanned ${Object.keys(games).length} games, ${total} images from ${this.gamesDir}`)
+    logger.info({ games: Object.keys(games).length, total, gamesDir: this.gamesDir }, 'media scan complete')
     return (this.mediaCache = { games, total })
   }
 

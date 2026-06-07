@@ -300,13 +300,11 @@ function runMigrations(db: DesktopDatabase): void {
   if (pending.length === 0) return
 
   for (const migration of pending) {
-    logger.log({}, `[desktop-db] Applying migration ${migration.version}: ${migration.name}`)
-    db.transaction(() => {
+    logger.info({ version: migration.version, name: migration.name }, 'Applying migration')    db.transaction(() => {
       migration.up(db)
       db.prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)').run(migration.version, migration.name)
     })()
-    logger.log({}, `[desktop-db] Migration ${migration.version} applied.`)
-  }
+    logger.info({ version: migration.version }, 'Migration applied')  }
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -326,7 +324,7 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
 export function closeDesktopDatabase(db: DesktopDatabase): void {
   try {
     db.close()
-    logger.log('[desktop-db] Database closed.')
+    logger.info('[desktop-db] Database closed.')
   } catch (e) {
     logger.error({ err }, '[desktop-db] Error closing database:')
   }

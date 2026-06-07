@@ -117,7 +117,7 @@ export class AmbianceManager implements Manager {
 
     if (!config.widgetSimulation.enabled) {
       this.lastSkipReason = 'simulation disabled'
-      logger.log('[ambiance] AI simulation manager stopped (disabled in config).')
+      logger.info('[ambiance] AI simulation manager stopped (disabled in config).')
       this.emitDiagnostics()
       return
     }
@@ -125,15 +125,15 @@ export class AmbianceManager implements Manager {
     const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
     this.lastSkipReason = null
     this.tickTimer = setInterval(() => this.tick(), intervalMs)
-    logger.log({}, `[ambiance] AI simulation manager started. Ticking every ${intervalMs / 1000}s.`)
-    this.emitDiagnostics()
+    logger.info({ intervalSec: intervalMs / 1000 }, 'AI simulation manager started')
+        this.emitDiagnostics()
   }
 
   stop() {
     if (this.tickTimer) {
       clearInterval(this.tickTimer)
       this.tickTimer = null
-      logger.log('[ambiance] AI simulation manager stopped.')
+      logger.info('[ambiance] AI simulation manager stopped.')
     }
     this._status = 'stopped'
     this.clearSimulationInFlight()

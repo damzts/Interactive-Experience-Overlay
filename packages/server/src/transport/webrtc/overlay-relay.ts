@@ -73,12 +73,12 @@ export class OverlayRelay {
   async handleAnswer(sdp: string): Promise<void> {
     if (!this.pc) {
       logger.warn('[overlay-relay] handleAnswer ignored — no pc')
-      return
+        return
     }
     try {
       await this.pc.setRemoteDescription({ type: 'answer', sdp })
       this.connected = true
-      logger.log('[overlay-relay] connected to overlay')
+      logger.info('[overlay-relay] connected to overlay')
     } catch (err) {
       logger.error({ err }, '[overlay-relay] handleAnswer failed:')
       throw err

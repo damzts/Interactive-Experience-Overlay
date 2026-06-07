@@ -56,7 +56,7 @@ export class HubConnection {
       return await this._handleOffer(userId, sdp)
     } catch (err) {
       logger.error({ userId: userId }, '[hub-connection] handleOffer({userId}) crashed:')
-      logger.error({ msg: (err as Error).stack })
+      logger.error({ stack: (err as Error).stack })
       // Never let werift exceptions bubble up — return empty answer
       return ''
     }
@@ -109,18 +109,17 @@ export class HubConnection {
     pc.iceConnectionStateChange.subscribe(() => {
       const state = pc.iceConnectionState
       media.iceState = state
-      logger.log({}, `[hub-connection] ${userId} ICE state: ${state}`)
-
-      if (state === 'failed') {
-        logger.log({}, `[hub-connection] ${userId} ICE failed — notifying upstream`)
+      logger.info({ userId, state }, 'ICE state')
+        if (state === 'failed') {
+        logger.info({ userId }, 'ICE failed - notifying upstream')
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
     })
 
     pc.connectionStateChange.subscribe(() => {
       const state = pc.connectionState
-      logger.log({}, `[hub-connection] ${userId} connection state: ${state}`)
-      if (state === 'failed') {
+      logger.info({ userId, state }, 'connection state')
+        if (state === 'failed') {
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
     })
@@ -220,7 +219,7 @@ export class HubConnection {
 
         // Si no hay actividad de video en FREEZE_TIMEOUT_MS, marcar como mute
         if (now - media.lastVideoPacketMs > this.FREEZE_TIMEOUT_MS) {
-          logger.log({}, `[hub-connection] ${_userId} video frozen (no packets for ${this.FREEZE_TIMEOUT_MS}ms)`)
+          logger.info({ userId: _userId, timeout: this.FREEZE_TIMEOUT_MS }, 'video frozen (no packets)')
           media.videoMuted = true
           for (const cb of this.trackMutedCallbacks) cb(_userId, 'video')
         }

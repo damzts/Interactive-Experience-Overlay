@@ -65,7 +65,7 @@ export class EventScheduler implements Manager {
     this.idleTriggered.clear()
     this.buildQueue()
     this.restartIdleTimers()
-    logger.log('[scheduler] event scheduler started (ISR mode)')
+    logger.info('[scheduler] event scheduler started (ISR mode)')
   }
 
   stop() {

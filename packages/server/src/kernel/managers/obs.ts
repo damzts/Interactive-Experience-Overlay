@@ -28,7 +28,7 @@ export class ObsBridge implements Manager {
     this.obs.on('ConnectionClosed', () => {
       if (this.connected) {
         this.connected = false
-        logger.log('[obs] connection closed')
+        logger.info('[obs] connection closed')
       }
       this.lastError = 'Connection closed'
       this.emitStatus()
@@ -101,8 +101,8 @@ export class ObsBridge implements Manager {
       this.retryDelayMs = null
       this.nextRetryAt = null
       this.lastError = null
-      logger.log({}, `[obs] connected to OBS WebSocket (${this.currentUrl})`)
-      this.emitStatus()
+      logger.info({ url: this.currentUrl }, 'connected to OBS WebSocket')
+        this.emitStatus()
       this.setupListeners()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -122,7 +122,7 @@ export class ObsBridge implements Manager {
     this.reconnectAttempt += 1
     this.retryDelayMs = delayMs
     this.nextRetryAt = Date.now() + delayMs
-    logger.log({}, `[obs] not connected${this.lastError ? ` (${this.lastError})` : ''} — retry ${this.reconnectAttempt} scheduled in ${Math.round(delayMs / 1000)}s`)
+    logger.info({ lastError: this.lastError || null, attempt: this.reconnectAttempt, delaySec: Math.round(delayMs / 1000) }, 'OBS not connected, scheduling retry')
     this.emitStatus()
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
