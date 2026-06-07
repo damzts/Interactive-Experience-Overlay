@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { TransitionStep } from '@ieom/shared'
 import type gsap from 'gsap'
+import { resolvePlugin } from '../plugins/registry'
 import { lobbyToDesktop }   from '../transitions/LobbyToDesktop'
 import { desktopToLobby }   from '../transitions/DesktopToLobby'
 import { lobbyToGameplay }  from '../transitions/LobbyToGameplay'
@@ -18,20 +19,13 @@ import { runVideoOverlay }  from '../transitions/VideoOverlay'
 
 type TransitionFn = (onComplete: () => void) => gsap.core.Timeline
 
-/**
- * All registered GSAP transitions. Keys are self-documenting names describing
- * the visual effect — not the states they were originally designed for.
- * Any key can be assigned to any scene's introTransitions / exitTransitions.
- */
 const TRANSITION_MAP: Record<string, TransitionFn> = {
-  // ── Scene transitions ──────────────────────────────────────────────
-  'zoom-in':       lobbyToDesktop,   // camera rushes into CRT screen
-  'zoom-out':      desktopToLobby,   // screen shrinks back to 3D room
-  'win98-loading': lobbyToGameplay,  // Win98 progress dialog + bar
-  'crt-wipe':      gameplayToLobby,  // CRT static fills screen then clears
-  'channel-sweep': lobbyToTV,        // TV channel-change scan-line sweep
-  'boot-sequence': playBootSequence, // BIOS POST text + progress bar
-  // ── Universal transitions ──────────────────────────────────────────
+  'zoom-in':       lobbyToDesktop,
+  'zoom-out':      desktopToLobby,
+  'win98-loading': lobbyToGameplay,
+  'crt-wipe':      gameplayToLobby,
+  'channel-sweep': lobbyToTV,
+  'boot-sequence': playBootSequence,
   'fade':          fadeTransition,
   'glitch-burst':  glitchBurst,
   'static-burst':  staticBurst,
@@ -39,45 +33,40 @@ const TRANSITION_MAP: Record<string, TransitionFn> = {
   'wipe-right':    wipeRight,
 }
 
-/**
- * Run a `media:type:url[||dur=N]` step.
- *
- * Duration parsing: server strings use `||dur=N`, step.duration overrides.
- * Returns the effective duration in seconds.
- */
 function runMediaStep(step: TransitionStep): number {
-  const rest     = step.id.slice(6)         // strip leading 'media:'
-  const sepIdx   = rest.indexOf(':')
-  const mtype    = rest.slice(0, sepIdx)
-  const after    = rest.slice(sepIdx + 1)
-  const parts    = after.split('||')
-  const url      = parts[0] ?? ''
-  const durPart  = parts.slice(1).find(p => p.startsWith('dur='))
-  const segDur   = durPart ? parseFloat(durPart.slice(4)) : undefined
+  const rest    = step.id.slice(6)
+  const sepIdx  = rest.indexOf(':')
+  const mtype   = rest.slice(0, sepIdx)
+  const after   = rest.slice(sepIdx + 1)
+  const parts   = after.split('||')
+  const url     = parts[0] ?? ''
+  const durPart = parts.slice(1).find(p => p.startsWith('dur='))
+  const segDur  = durPart ? parseFloat(durPart.slice(4)) : undefined
   const duration = step.duration ?? segDur ?? 4
-
-  if (mtype === 'video') {
-    runVideoOverlay({ src: url, duration, opacity: 1 })
-  } else {
-    runImageOverlay({ src: url, duration, opacity: 1 })
-  }
+  if (mtype === 'video') runVideoOverlay({ src: url, duration, opacity: 1 })
+  else runImageOverlay({ src: url, duration, opacity: 1 })
   return duration
 }
 
-/** Invisible component — watches pendingTransition and runs GSAP pipelines */
+interface ActivePlugin {
+  id: string
+  plugin: string
+  config: Record<string, unknown>
+}
+
+/** Watches pendingTransition and runs the GSAP + plugin pipeline. */
 export function TransitionEngine() {
-  const pendingTransition  = useAppStore((s) => s.pendingTransition)
-  const activeTimeline     = useRef<gsap.core.Timeline | null>(null)
-  /** Used to cancel a pending setTimeout when the transition is killed */
-  const mediaTimer         = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingTransition = useAppStore((s) => s.pendingTransition)
+  const activeTimeline    = useRef<gsap.core.Timeline | null>(null)
+  const timerRef          = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [activePlugins, setActivePlugins] = useState<ActivePlugin[]>([])
 
   useEffect(() => {
     if (!pendingTransition) return
 
     activeTimeline.current?.kill()
-    if (mediaTimer.current != null) { clearTimeout(mediaTimer.current); mediaTimer.current = null }
+    if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
 
-    /** Flush the buffered visual state (scene content swap). */
     const applyState = () => {
       const store = useAppStore.getState()
       if (store.pendingVisualState != null) {
@@ -86,64 +75,70 @@ export function TransitionEngine() {
       }
     }
 
-    /** Finish the whole transition sequence. */
-    const complete = () => {
-      applyState()
-      useAppStore.getState().clearPendingTransition()
-    }
+    const complete = () => { applyState(); useAppStore.getState().clearPendingTransition() }
 
-    /**
-     * Sequential pipeline runner.
-     * Plays each TransitionStep in order; calls `onComplete` after the last step.
-     *
-     * Supports:
-     *  - GSAP keys (looked up in TRANSITION_MAP)
-     *  - `media:video:<url>` / `media:image:<url>` overlay players
-     *  - `step.duration` overrides the timeline duration for GSAP steps
-     */
     const runPipeline = (steps: TransitionStep[], onComplete: () => void, idx = 0): void => {
       if (idx >= steps.length) { onComplete(); return }
-
       const step = steps[idx]
       const next = () => runPipeline(steps, onComplete, idx + 1)
 
+      if (step.plugin) {
+        const id = `__tp_${Date.now()}`
+        const duration = step.duration ?? 2
+        setActivePlugins((prev) => [...prev, { id, plugin: step.plugin!, config: step.pluginConfig ?? {} }])
+        timerRef.current = setTimeout(() => {
+          setActivePlugins((prev) => prev.filter((p) => p.id !== id))
+          next()
+        }, duration * 1000)
+        return
+      }
+
       if (step.id.startsWith('media:')) {
-        // Media overlay: fire + forget, advance after duration
-        const dur = runMediaStep(step)
-        mediaTimer.current = setTimeout(next, dur * 1000)
+        timerRef.current = setTimeout(next, runMediaStep(step) * 1000)
         return
       }
 
       const fn = TRANSITION_MAP[step.id]
-      if (!fn) {
-        // Unknown key — skip silently
-        next()
-        return
-      }
-
+      if (!fn) { next(); return }
       const tl = fn(next)
       if (step.duration && step.duration > 0) tl.duration(step.duration)
       activeTimeline.current = tl
     }
 
     const { exit, intro } = pendingTransition
-
     if (exit.length > 0 || intro.length > 0) {
-      // Standard pipeline:
-      //  1. Play all exit steps in sequence
-      //  2. Swap scene content (applyState)
-      //  3. Play all intro steps in sequence
-      //  4. Complete
-      runPipeline(exit, () => {
-        applyState()
-        runPipeline(intro, complete)
-      })
+      runPipeline(exit, () => { applyState(); runPipeline(intro, complete) })
     } else {
-      // No transitions defined — instant cut
       complete()
     }
   }, [pendingTransition])
 
-  return null
+  // Render active plugin-based transition components at z:50 (above desktop, below GSAP layer)
+  return (
+    <>
+      {activePlugins.map((p) => (
+        <PluginTransitionMount key={p.id} plugin={p.plugin} config={p.config} />
+      ))}
+    </>
+  )
 }
 
+function PluginTransitionMount({ plugin, config }: { plugin: string; config: Record<string, unknown> }) {
+  const [Renderer, setRenderer] = useState<React.ComponentType<import('../plugins/registry').PluginProps> | null>(null)
+
+  useEffect(() => {
+    resolvePlugin(plugin).then((def) => { if (def) setRenderer(() => def.Renderer) })
+  }, [plugin])
+
+  if (!Renderer) return null
+
+  const NOOP = () => {}
+  const NOOP_SIGNAL = () => () => {}
+  const bounds = { x: 0, y: 0, width: 1920, height: 1080 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, pointerEvents: 'none' }}>
+      <Renderer config={config} bounds={bounds} emit={NOOP} onSignal={NOOP_SIGNAL} />
+    </div>
+  )
+}

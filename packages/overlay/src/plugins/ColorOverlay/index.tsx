@@ -1,4 +1,4 @@
-export function ColorOverlayRenderer({ config }: { config: Record<string, unknown> }) {
+export function ColorOverlayRenderer({ config }: import('../registry').PluginProps) {
   return (
     <div
       style={{

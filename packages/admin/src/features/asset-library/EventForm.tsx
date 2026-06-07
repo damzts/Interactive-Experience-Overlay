@@ -59,7 +59,7 @@ export function EventForm({
 }) {
   const config = useAdminStore((s) => s.config)
   const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
-  const widgetApps = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
+  const widgetApps = useMemo(() => config.applications, [config.applications])
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const [collapsedActionIndexes, setCollapsedActionIndexes] = useState<number[]>([])
   const [collapsedEffectIndexes, setCollapsedEffectIndexes] = useState<number[]>([])

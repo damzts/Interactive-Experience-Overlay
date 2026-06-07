@@ -7,7 +7,6 @@ import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
 import type { AssetRecord } from '../../shared/catalog'
-import { createScene as createSceneApi } from '../../api/configApi'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -105,35 +104,22 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
 }) {
   const currentState   = useAdminStore((s) => s.currentState)
   const saveConfig     = useAdminStore((s) => s.saveConfig)
-  const setConfig      = useAdminStore((s) => s.setConfig)
   const applications   = useAdminStore((s) => s.config.applications)
   const scenes         = useAdminStore((s) => s.config.scenes)
   const desktopConfig  = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
   const openWidgetIds  = useAdminStore((s) => s.openWidgetIds)
 
-  const sceneApps        = applications.filter((a) => (a.appType ?? 'scene') === 'scene')
-  const widgetApps       = applications.filter((a) => a.appType === 'widget')
-  const systemWidgetApps = widgetApps.filter((app) => getWidgetSource(app) === 'system')
-  const userWidgetApps   = widgetApps.filter((app) => getWidgetSource(app) === 'user')
-  const decorationApps   = applications.filter((a) => a.appType === 'decoration')
+  const systemWidgetApps = applications.filter((app) => getWidgetSource(app) === 'system')
+  const userWidgetApps   = applications.filter((app) => getWidgetSource(app) === 'user')
   const persistedWidgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const systemWidgetLayouts    = persistedWidgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts      = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
   const orderedWidgetLayouts   = [...systemWidgetLayouts, ...userWidgetLayouts]
 
-  const userSceneEntries: Array<{ app: Application; scene: Scene }> = []
-  const seenSceneIds = new Set<string>()
-  sceneApps.forEach((app) => {
-    const scene = scenes[app.targetSceneId]
-    if (!scene || scene.id === STATE.LOBBY || scene.id === STATE.DESKTOP || seenSceneIds.has(scene.id)) return
-    seenSceneIds.add(scene.id)
-    userSceneEntries.push({ app, scene })
-  })
-
   const captureCurrentLayout = async () => {
-    if (widgetApps.length === 0) return
+    if (applications.length === 0) return
     const nextUserLayoutNumber = userWidgetLayouts.length + 1
-    const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${nextUserLayoutNumber}`, widgetApps, desktopConfig, openWidgetIds)
+    const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${nextUserLayoutNumber}`, applications, desktopConfig, openWidgetIds)
     await saveConfig({
       widgetLayouts: [...persistedWidgetLayouts, nextLayout],
     })
@@ -147,46 +133,35 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
       <div className="flex-1 overflow-y-auto pb-2 pr-1">
 
         {activeSection === 'scenes' && <>
-          <SectionLabel first>Scenes</SectionLabel>
-          <SidebarBtn icon="🖥" label="Lobby"
+          <SectionLabel first>Runtimes</SectionLabel>
+          <SidebarBtn icon="🌐" label="Lobby"
             live={currentState === STATE.LOBBY}
             active={isActive({ kind: 'env', envState: STATE.LOBBY })}
             onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })}
             onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
-          <SidebarBtn icon="💾" label="Desktop"
+          <SidebarBtn icon="🖥" label="Desktop"
             live={currentState === STATE.DESKTOP}
             active={isActive({ kind: 'env', envState: STATE.DESKTOP })}
             onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })}
             onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.DESKTOP })} />
-          {userSceneEntries.length > 0 && (
-            <div className="px-2.5 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-700">User Scenes</div>
-          )}
-          {userSceneEntries.map(({ app, scene }) => (
-            <SidebarBtn key={scene.id} icon={<SidebarAppIcon app={app} />} label={scene.label}
-              live={currentState === scene.id}
-              active={isActive({ kind: 'scene', sceneState: scene.id })}
-              onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}
-              onDoubleClick={() => onActivate({ kind: 'scene', sceneState: scene.id })} />
-          ))}
+
+          <SectionLabel>Scenes</SectionLabel>
+          {Object.values(scenes)
+            .filter((s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP)
+            .map((scene) => (
+              <SidebarBtn key={scene.id} icon="🎬" label={scene.label}
+                live={currentState === scene.id}
+                active={isActive({ kind: 'scene', sceneState: scene.id })}
+                onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}
+                onDoubleClick={() => onActivate({ kind: 'scene', sceneState: scene.id })} />
+            ))}
           <AddBtn label="New Scene" onClick={async () => {
             const sceneId = 'SCENE_' + Date.now()
-            const a: Application = {
-              id: 'app-' + Date.now(), label: 'New App', icon: '🎮', appType: 'scene',
-              targetSceneId: sceneId, transitionType: 'desktop-to-gameplay',
-            }
             const newScene: Scene = {
-              id: sceneId, label: 'New App', backgroundOpaque: false, sources: [],
-              style: { background: { type: 'none', color: '#000000', gradient: '', imageUrl: '', videoUrl: '', pattern: 'none', opacity: 0, blur: 0 }, effects: { crt: false, noise: false, vignette: false, flicker: false, chromatic: false, scanlineOpacity: 0, noiseOpacity: 0, vignetteStrength: 0 }, particles: { enabled: false, preset: 'none', density: 0.25, speed: 0.25 }, fontFamily: 'default', accentColor: '#00ff41', textColor: '#ffffff' },
+              id: sceneId, label: 'New Scene', backgroundOpaque: false, sources: [],
             }
-            try {
-              const updatedConfig = await createSceneApi(a, newScene)
-              setConfig(updatedConfig)
-              onSelect({ kind: 'app', appId: a.id })
-            } catch {
-              // fallback: dual-key save if server endpoint not available
-              saveConfig({ applications: [...applications, a], scenes: { ...scenes, [sceneId]: newScene } })
-              onSelect({ kind: 'app', appId: a.id })
-            }
+            await saveConfig({ scenes: { ...scenes, [sceneId]: newScene } })
+            onSelect({ kind: 'scene', sceneState: sceneId })
           }} />
         </>}
 
@@ -210,23 +185,6 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
               onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
           ))}
           <AddBtn label="New Widget" onClick={() => onSelect({ kind: 'widget-create' })} />
-
-          <SectionLabel>Decorations</SectionLabel>
-          {decorationApps.map((app) => (
-            <SidebarBtn key={app.id} icon={<SidebarAppIcon app={app} />} label={app.label}
-              live={false}
-              active={isActive({ kind: 'app', appId: app.id })}
-              onClick={() => onSelect({ kind: 'app', appId: app.id })}
-              onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
-          ))}
-          <AddBtn label="New Decoration" onClick={() => {
-            const a: Application = {
-              id: 'decor-' + Date.now(), label: 'New Decoration', icon: '🖼',
-              appType: 'decoration', targetSceneId: STATE.DESKTOP, transitionType: 'instant',
-            }
-            saveConfig({ applications: [...applications, a] })
-            onSelect({ kind: 'app', appId: a.id })
-          }} />
 
           <SectionLabel>Widget Layouts</SectionLabel>
           {orderedWidgetLayouts.map((layout) => (

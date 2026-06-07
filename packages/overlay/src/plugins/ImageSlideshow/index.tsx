@@ -6,7 +6,7 @@ interface SlideState {
   showB: boolean
 }
 
-export function ImageSlideshowRenderer({ config }: { config: Record<string, unknown> }) {
+export function ImageSlideshowRenderer({ config }: import('../registry').PluginProps) {
   const intervalMs = (Number(config.interval) || 8) * 1000
   const doShuffle = config.shuffle !== false
 

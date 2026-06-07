@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
-import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigApplyBar, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayCanvas } from '../../shared/ui'
 import { normalizeWidgetLayoutsForEditor } from './widgetHelpers'
@@ -84,10 +83,10 @@ function WidgetCanvas({
 
 // ── WidgetLayoutPanel ─────────────────────────────────────────────────
 
-export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDeleted: () => void }) {
+export function WidgetLayoutPanel({ layoutId }: { layoutId: string }) {
   const config      = useAdminStore((s) => s.config)
   const saveConfig  = useAdminStore((s) => s.saveConfig)
-  const widgetApps  = useMemo(() => config.applications.filter((app) => app.appType === 'widget'), [config.applications])
+  const widgetApps  = useMemo(() => config.applications, [config.applications])
   const sourceLayouts = useMemo(() => normalizeWidgetLayoutsForEditor(config.widgetLayouts, widgetApps, null), [config.widgetLayouts, widgetApps])
   const sourceLayout = useMemo(() => sourceLayouts.find((l) => l.id === layoutId) ?? null, [layoutId, sourceLayouts])
 
@@ -120,14 +119,6 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const updateLayout = (updater: (draft: WidgetLayoutDefinition) => void) => {
     setLayout((prev) => { if (!prev) return prev; const next = structuredClone(prev); updater(next); return next })
     setSaved(false)
-  }
-
-  const deleteLayout = async () => {
-    if (layout.source === 'system') return
-    setSaving(true)
-    await saveConfig({ widgetLayouts: sourceLayouts.filter((entry) => entry.id !== layoutId) })
-    setSaving(false)
-    onDeleted()
   }
 
   return (
@@ -165,16 +156,6 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
                 if (row) Object.assign(row, patch)
               })}
             />
-
-            <Btn type="button" variant="primary" onClick={() => socket.emit('widget:layout:apply', layout.id)} className="w-full px-2.5 py-1 text-[10px]">
-              Test Layout
-            </Btn>
-
-            {layout.source !== 'system' && (
-              <Btn type="button" variant="danger" onClick={() => { void deleteLayout() }} className="w-full px-2.5 py-1 text-[10px]">
-                Delete Layout
-              </Btn>
-            )}
           </div>
         </ConfigSectionPanel>
       </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { STATE, withDesktopConfigDefaults } from '@ieom/shared'
+import { withDesktopConfigDefaults } from '@ieom/shared'
 import type { Application } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
@@ -45,18 +45,14 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
     setCreating(true)
     setError('')
     try {
-      const existingZIndices = applications.filter((a) => a.appType === 'widget').map((a) => a.zIndexDefault ?? 0)
+      const existingZIndices = applications.map((a) => a.zIndexDefault ?? 0)
       const nextDefaultZIndex = Math.max(-1, ...existingZIndices) + 1
       const nextWidget: Application = {
         id: previewId,
         label: nextLabel,
         icon: icon.trim() || componentMeta.icon,
-        appType: 'widget',
-        targetSceneId: STATE.DESKTOP,
         widgetSource: 'user',
         widgetComponent,
-        transitionType: 'instant',
-        iconSize: 'normal',
         zIndexDefault: nextDefaultZIndex,
         ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
         ...(widgetComponent === 'source' && firstSourceReference ? { sourceWidgetSettings: firstSourceReference } : {}),

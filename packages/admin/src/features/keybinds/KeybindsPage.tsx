@@ -43,7 +43,7 @@ export function KeybindsPage() {
     const scenes = Object.values(config.scenes).map((s) => ({
       id: `scene:${s.id}`, label: s.label, icon: '🎬', action: `scene:${s.id}`,
     }))
-    const widgets = config.applications.filter((a) => a.appType === 'widget').map((a) => ({
+    const widgets = config.applications.map((a) => ({
       id: `widget:${a.id}`, label: a.label, icon: typeof a.icon === 'string' ? a.icon : '🪟', action: `widget:${a.id}`,
     }))
     const events = (config.sourceEvents ?? []).map((e) => ({

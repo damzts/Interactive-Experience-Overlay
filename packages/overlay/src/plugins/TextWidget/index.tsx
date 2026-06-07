@@ -7,7 +7,7 @@ const FONT_MAP: Record<string, string> = {
   serif: 'serif',
 }
 
-export function TextWidgetRenderer({ config }: { config: Record<string, unknown> }) {
+export function TextWidgetRenderer({ config }: import('../registry').PluginProps) {
   const content = String(config.content ?? '')
   const fontKey = String(config.font ?? 'monospace')
   const fontSize = Number(config.fontSize) || 16

@@ -1,30 +1,60 @@
 import type { ComponentType } from 'react'
-import { ImageSlideshowRenderer } from './ImageSlideshow'
-import { CRTEffectRenderer }      from './CRTEffect'
-import { TextWidgetRenderer }     from './TextWidget'
-import { SolidColorRenderer }     from './SolidColor'
-import { ColorOverlayRenderer }   from './ColorOverlay'
-import { ImageStaticRenderer }    from './ImageStatic'
-import { VideoLoopRenderer }      from './VideoLoop'
-import { VignetteRenderer }       from './Vignette'
-import { NoiseGrainRenderer }     from './NoiseGrain'
-import { ClockWidgetRenderer }    from './ClockWidget'
-import { CameraRenderer }         from './Camera'
 
-export interface PluginDefinition {
-  Renderer: ComponentType<{ config: Record<string, unknown> }>
+export interface PluginProps {
+  config: Record<string, unknown>
+  bounds: { x: number; y: number; width: number; height: number }
+  /** Fire a DOM-bus event for inter-source IPC */
+  emit: (event: string, data: unknown) => void
+  /** Subscribe to a DOM-bus event; returns unsubscribe fn */
+  onSignal: (event: string, handler: (data: unknown) => void) => () => void
 }
 
-export const pluginRegistry: Record<string, PluginDefinition> = {
-  'image-slideshow': { Renderer: ImageSlideshowRenderer },
-  'crt-effect':      { Renderer: CRTEffectRenderer      },
-  'text-widget':     { Renderer: TextWidgetRenderer     },
-  'solid-color':     { Renderer: SolidColorRenderer     },
-  'color-overlay':   { Renderer: ColorOverlayRenderer   },
-  'image-static':    { Renderer: ImageStaticRenderer    },
-  'video-loop':      { Renderer: VideoLoopRenderer      },
-  'vignette':        { Renderer: VignetteRenderer       },
-  'noise-grain':     { Renderer: NoiseGrainRenderer     },
-  'clock-widget':    { Renderer: ClockWidgetRenderer    },
-  'camera':          { Renderer: CameraRenderer         },
+export interface PluginDefinition {
+  Renderer: ComponentType<PluginProps>
+  /** JSON Schema for admin UI generation */
+  configSchema?: Record<string, unknown>
+  /** Signal names this plugin subscribes to */
+  signalSubscriptions?: string[]
+  /** Requests animation-frame ticks via RAF */
+  animated?: boolean
+  /** Called on unmount for WebGL / audio cleanup */
+  dispose?: () => void
+}
+
+/** Lazy manifest — each entry is an async factory resolved on first use */
+export type PluginManifest = Record<string, () => Promise<PluginDefinition>>
+
+export const pluginManifest: PluginManifest = {
+  'image-slideshow': () => import('./ImageSlideshow').then((m) => ({ Renderer: m.ImageSlideshowRenderer })),
+  'crt-effect':      () => import('./CRTEffect').then((m) => ({ Renderer: m.CRTEffectRenderer })),
+  'text-widget':     () => import('./TextWidget').then((m) => ({ Renderer: m.TextWidgetRenderer })),
+  'solid-color':     () => import('./SolidColor').then((m) => ({ Renderer: m.SolidColorRenderer })),
+  'color-overlay':   () => import('./ColorOverlay').then((m) => ({ Renderer: m.ColorOverlayRenderer })),
+  'image-static':    () => import('./ImageStatic').then((m) => ({ Renderer: m.ImageStaticRenderer })),
+  'video-loop':      () => import('./VideoLoop').then((m) => ({ Renderer: m.VideoLoopRenderer })),
+  'vignette':        () => import('./Vignette').then((m) => ({ Renderer: m.VignetteRenderer })),
+  'noise-grain':     () => import('./NoiseGrain').then((m) => ({ Renderer: m.NoiseGrainRenderer })),
+  'clock-widget':    () => import('./ClockWidget').then((m) => ({ Renderer: m.ClockWidgetRenderer })),
+  'camera':          () => import('./Camera').then((m) => ({ Renderer: m.CameraRenderer })),
+  // Builtin tier sources — wrap legacy layer components as plugins
+  'builtin:background': () => import('./builtins/Background').then((m) => ({ Renderer: m.BuiltinBackgroundRenderer })),
+  'builtin:particles':  () => import('./builtins/Particles').then((m) => ({ Renderer: m.BuiltinParticlesRenderer })),
+  'builtin:effects':    () => import('./builtins/Effects').then((m) => ({ Renderer: m.BuiltinEffectsRenderer })),
+}
+
+/** Cache: resolved definitions keyed by plugin id */
+const cache = new Map<string, PluginDefinition>()
+
+export async function resolvePlugin(id: string): Promise<PluginDefinition | null> {
+  if (cache.has(id)) return cache.get(id)!
+  const factory = pluginManifest[id]
+  if (!factory) return null
+  const def = await factory()
+  cache.set(id, def)
+  return def
+}
+
+/** Register a new plugin at runtime (e.g. from a remote module) */
+export function registerPlugin(id: string, factory: () => Promise<PluginDefinition>): void {
+  pluginManifest[id] = factory
 }

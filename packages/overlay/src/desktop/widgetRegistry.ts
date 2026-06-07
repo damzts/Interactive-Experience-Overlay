@@ -71,10 +71,10 @@ export function getDesktopWidgetRenderer(componentType?: WidgetComponentType | n
 }
 
 export function warnMissingDesktopWidgetRegistration(
-  app: Pick<Application, 'id' | 'label' | 'appType' | 'widgetComponent'>,
+  app: Pick<Application, 'id' | 'label' | 'widgetComponent'>,
   componentType?: WidgetComponentType | null,
 ): boolean {
-  if (app.appType !== 'widget' || !componentType || componentType === 'generic') return false
+  if (!componentType || componentType === 'generic') return false
   const key = `${app.id}:${componentType}`
   if (missingWidgetWarnings.has(key)) return false
   missingWidgetWarnings.add(key)

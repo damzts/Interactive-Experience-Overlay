@@ -138,17 +138,25 @@ But userspace is **alive**. Widgets are autonomous apps that can:
 
 ### Layer Stack (rendering order, bottom → top)
 
-The overlay composites multiple layers to produce the final frame:
+The overlay composites multiple tiers via `SceneCompositor`. Each tier is a
+`SceneLayer` that renders its sources through `SourceRenderer`:
 
-| Layer | What it renders | Driven by |
-|-------|----------------|-----------|
-| **BackgroundLayer** | Scene background (gradient, image, video) | Kernel config |
-| **ParticlesLayer** | Particle effects (tsParticles) | Kernel config |
-| **LayerStack** | Plugin sources (slideshow, CRT, video, map) | Kernel config |
-| **LobbyScene** | 3D environment (Three.js) — only in LOBBY state | Kernel state |
-| **Desktop** | Windows, taskbar, icons, widgets | Kernel signals + local state |
-| **CSSEffectsLayer** | Post-processing (CRT, vignette, noise, grain) | Kernel config |
-| **TransitionLayer** | GSAP-animated transition elements | Kernel signals |
+| Tier | z-index | What it renders | Default plugin |
+|------|---------|----------------|----------------|
+| `background` | 0 | Scene background (gradient, image, video) | `builtin:background` |
+| `particles` | 1 | Particle effects (tsParticles) | `builtin:particles` |
+| `content` | 5 | Plugin sources (slideshow, CRT, video, map, widgets) | user-defined |
+| `post` | 30 | Post-processing effects (CRT, vignette, noise) | `builtin:effects` |
+| `transition` | 50 | GSAP-animated transition elements (ephemeral) | plugin-based |
+
+Sources within a tier support: `blendMode`, `opacity`, `maskSourceId`,
+`transition`, and `conditions` (afterSeconds, whenWidgetsOpen, whenOverride).
+
+`showDesktop` on a `Scene` drives a `data-desktop` attribute on `#overlay-root`.
+CSS gates the desktop layer on this attribute — no scene-level style override needed.
+
+The `LobbyScene` (Three.js 3D room) is a special-case render for the LOBBY
+runtime, rendered inside a content-tier source.
 
 ### State in Userspace
 
@@ -165,18 +173,21 @@ The overlay maintains its own state via Zustand, split into domain slices:
 
 ### Widget Apps
 
-Widgets are **isolated applications** running inside userspace. They are:
+All applications in IEOM are **widgets** — there is no decoration or scene-app
+concept. A widget is a draggable window rendered on the desktop layer.
+
+Widgets are:
 - **Lazy-loaded** — dynamic import on first open, cached after
 - **Autonomous** — manage their own internal state, lifecycle, and side effects
 - **Kernel-unaware** — they never import the socket directly; they receive events through the DOM CustomEvent bus
 - **Composable** — a widget can be as simple as a static React component or as complex as a full app with its own API connections
 
-**To add a new widget (app):**
+**To add a new widget:**
 1. Create the component in `packages/overlay/src/desktop/`
 2. Add one line to the manifest in `widgetRegistry.ts`
 3. Add the `WidgetComponentType` string to `packages/shared/src/domain/application.ts`
 
-No other files need to change. This is the "install an app" experience.
+No other files need to change.
 
 ### Widget Communication (IPC)
 
@@ -309,7 +320,7 @@ Like a real computer, the system has two kinds of memory:
 
 | Store | What lives here | Persists? |
 |-------|----------------|-----------|
-| `DesktopConfigService` (SQLite) | Scenes (`scenes`), applications with widget geometry (`applications`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`) | ✅ Yes |
+| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`) | ✅ Yes |
 | `RuntimeStateStore` (in-memory) | Current scene, open widgets, overlay connected, ambiance leader | ❌ No |
 | `HandlerContext` (socket closure) | Runtime config overrides, simulation metrics, overlay slot | ❌ No |
 
@@ -392,7 +403,7 @@ These rules apply everywhere. Break them and things fall apart:
 5. **Unidirectional data flow for rendering.** Kernel → signal → store → React render. No upward data flow for display.
 6. **Single overlay instance.** Deterministic state requires one consumer.
 7. **Shared package has zero runtime.** Types and constants only. No side effects, no instantiation.
-8. **Each admin panel owns exactly one DB table.** A panel that writes to multiple tables indicates a schema or abstraction problem. Widget geometry lives on `applications`; scene transitions live on `scenes`; layout presets live on `widget_layouts`. No cross-table saves from the client.
+8. **Each admin panel owns exactly one DB table.** A panel that writes to multiple tables indicates a schema or abstraction problem. Widget geometry lives on `widgets`; scene transitions live on `scenes`; layout presets live on `widget_layouts`. No cross-table saves from the client.
 
 ---
 

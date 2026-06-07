@@ -76,15 +76,6 @@ export function resolvePipelines(cfg: AppConfig, fromState: STATE, toState: STAT
     return steps.length ? steps : undefined
   }
 
-  for (const app of cfg.applications) {
-    if (app.targetSceneId === toState && !intro) {
-      intro = app.introTransitions?.length ? app.introTransitions : stepFromString(app.introTransition)
-    }
-    if (app.targetSceneId === fromState && !exit) {
-      exit = app.exitTransitions?.length ? app.exitTransitions : stepFromString(app.exitTransition)
-    }
-  }
-
   if (!intro) {
     const targetScene = cfg.scenes[toState]
     intro = resolveNames(targetScene?.onEntry)

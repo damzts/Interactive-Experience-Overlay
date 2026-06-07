@@ -7,7 +7,7 @@ const FONT_MAP: Record<string, string> = {
   serif:           'serif',
 }
 
-export function ClockWidgetRenderer({ config }: { config: Record<string, unknown> }) {
+export function ClockWidgetRenderer({ config }: import('../registry').PluginProps) {
   const format   = String(config.format   ?? '24h')
   const color    = String(config.color    ?? '#00ff41')
   const fontSize = Number(config.fontSize ?? 28)

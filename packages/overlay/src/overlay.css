@@ -74,20 +74,20 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
   pointer-events: none;
 }
 
-/* ── State-controlled desktop visibility ───────────────────────── */
+/* ── Desktop visibility ─────────────────────────────────────────── */
 /* LOBBY = 3D room — background darkens to deep space */
 .state-lobby {
   background: #05050f;
 }
 
-/* Desktop (Win98 2D layer) is visible in DESKTOP state. LOBBY uses the 3D room. */
-.state-desktop #desktop-layer {
+/* Desktop (Win98 2D layer) is visible when scene sets showDesktop: true */
+#overlay-root[data-desktop="true"] #desktop-layer {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* Particles render above the desktop canvas in desktop state */
-.state-desktop #particles-layer {
+/* Particles render above the desktop canvas when desktop is visible */
+#overlay-root[data-desktop="true"] #particles-layer {
   z-index: 21;
 }
 

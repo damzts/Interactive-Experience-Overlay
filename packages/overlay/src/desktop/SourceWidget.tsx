@@ -1,9 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { resolveSourceInstance } from '@ieom/shared'
 import { useAppStore } from '../store/useAppStore'
-import { pluginRegistry } from '../plugins/registry'
+import { resolvePlugin, type PluginDefinition } from '../plugins/registry'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
+
+// Stable no-ops for the desktop preview context
+const NOOP_EMIT = () => {}
+const NOOP_SIGNAL = () => () => {}
 
 interface DesktopWidgetProps {
   appId?: string
@@ -48,8 +52,15 @@ export function SourceWidget({ appId, onClose, onMinimize, onFocus, windowState 
     const entry = scene?.sources.find((candidate) => candidate.id === sourceId)
     return entry ? resolveSourceInstance(entry, sourcePresets) : null
   }, [scene, sourceId, sourcePresets])
-  const plugin = source ? pluginRegistry[source.pluginType] : null
-  const Renderer = plugin?.Renderer
+
+  const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(null)
+  useEffect(() => {
+    if (!source?.pluginType) { setPluginDef(null); return }
+    resolvePlugin(source.pluginType).then(setPluginDef)
+  }, [source?.pluginType])
+
+  const Renderer = pluginDef?.Renderer
+  const bounds = source ? source.position : { x: 0, y: 0, width: 400, height: 300 }
 
   return (
     <DesktopWindow
@@ -82,23 +93,23 @@ export function SourceWidget({ appId, onClose, onMinimize, onFocus, windowState 
         <SourceWidgetPlaceholder
           icon="⚠"
           title="Scene not found"
-          detail={`The configured scene \"${sceneId}\" is no longer available.`}
+          detail={`The configured scene "${sceneId}" is no longer available.`}
         />
       ) : !source ? (
         <SourceWidgetPlaceholder
           icon="⚠"
           title="Source not found"
-          detail={`The configured source \"${sourceId}\" is no longer present in ${scene.label}.`}
+          detail={`The configured source "${sourceId}" is no longer present in ${scene.label}.`}
         />
       ) : !Renderer ? (
         <SourceWidgetPlaceholder
           icon="⚠"
           title="Unsupported source"
-          detail={`No renderer is registered for plugin type \"${source.pluginType}\".`}
+          detail={`No renderer is registered for plugin type "${source.pluginType}".`}
         />
       ) : (
         <div className="widget-panel widget-source-canvas">
-          <Renderer config={source.config} />
+          <Renderer config={source.config ?? {}} bounds={bounds} emit={NOOP_EMIT} onSignal={NOOP_SIGNAL} />
         </div>
       )}
     </DesktopWindow>

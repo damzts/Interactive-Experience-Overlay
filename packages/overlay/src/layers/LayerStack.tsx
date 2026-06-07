@@ -1,5 +1,9 @@
+/**
+ * @deprecated Use SceneLayer + SourceRenderer instead.
+ * Kept for reference; no longer imported by App.tsx.
+ */
 import type { SourceInstance } from '@ieom/shared'
-import { pluginRegistry } from '../plugins/registry'
+import { SourceRenderer } from './SourceRenderer'
 
 interface LayerStackProps {
   sources: SourceInstance[]
@@ -8,33 +12,9 @@ interface LayerStackProps {
 export function LayerStack({ sources }: LayerStackProps) {
   return (
     <>
-      {sources.map((source) => {
-        const plugin = pluginRegistry[source.pluginType ?? '']
-        if (!plugin) {
-          console.warn(`[LayerStack] Unknown plugin type: ${source.pluginType}`)
-          return null
-        }
-
-        const { x, y, width, height } = source.position
-        const { Renderer } = plugin
-
-        return (
-          <div
-            key={source.id}
-            style={{
-              position: 'absolute',
-              left: x,
-              top: y,
-              width,
-              height,
-              zIndex: source.zIndex,
-              overflow: 'hidden',
-            }}
-          >
-            <Renderer config={source.config ?? {}} />
-          </div>
-        )
-      })}
+      {sources.map((source) => (
+        <SourceRenderer key={source.id} source={source} />
+      ))}
     </>
   )
 }

@@ -42,7 +42,7 @@ function shouldBlockCameraCapture() {
  *   opacity      — 0.0–1.0, default 1.
  *   objectFit    — 'cover' | 'contain', default 'cover'.
  */
-export function CameraRenderer({ config }: { config: Record<string, unknown> }) {
+export function CameraRenderer({ config }: import('../registry').PluginProps) {
   const deviceLabel = String(config.deviceLabel ?? 'default')
   const mirror      = config.mirror !== false
   const shape       = String(config.shape ?? 'rectangle')

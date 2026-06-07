@@ -55,7 +55,7 @@ function boolToInt(value: boolean | undefined): number {
 
 const REQUIRED_DESKTOP_APP_IDS = new Set(
   DEFAULT_CONFIG.applications
-    .filter((app) => app.id === 'recycle-bin' || (app.appType === 'widget' && app.widgetSource === 'system'))
+    .filter((app) => app.widgetSource === 'system')
     .map((app) => app.id),
 )
 
@@ -65,35 +65,6 @@ function getSeedAppSource(app: Application) {
 
 function getSeedSceneSource(sceneId: string, scene: Scene) {
   return DEFAULT_CONFIG.scenes[sceneId] ?? scene
-}
-
-function buildApplicationDefaultSnapshot(app: Application): NonNullable<Application['defaultConfig']> {
-  const source = getSeedAppSource(app)
-  return {
-    id: source.id,
-    label: source.label,
-    icon: source.icon,
-    appType: source.appType,
-    targetSceneId: source.targetSceneId,
-    widgetSource: source.widgetSource,
-    widgetComponent: source.widgetComponent,
-    transitionType: source.transitionType,
-    iconPosition: source.iconPosition ? clone(source.iconPosition) : undefined,
-    iconSize: source.iconSize,
-    launchPipeline: source.launchPipeline ? clone(source.launchPipeline) : undefined,
-    gallerySettings: source.gallerySettings ? clone(source.gallerySettings) : undefined,
-    cameraSettings: source.cameraSettings ? clone(source.cameraSettings) : undefined,
-    sourceWidgetSettings: source.sourceWidgetSettings ? clone(source.sourceWidgetSettings) : undefined,
-    stickyNotesSettings: source.stickyNotesSettings ? clone(source.stickyNotesSettings) : undefined,
-    recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
-    widgetDefaults: source.appType === 'widget'
-      ? {
-          windowSize: source.windowSize ? clone(source.windowSize) : undefined,
-          defaultZIndex: source.zIndexDefault,
-          themeOverride: source.themeOverride ? clone(source.themeOverride) : undefined,
-        }
-      : undefined,
-  }
 }
 
 function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<Scene['defaultConfig']> {
@@ -235,7 +206,7 @@ export class DesktopConfigService implements Manager {
       sources_json: string | null; style_json: string | null;
       lobby_config_json: string | null;
       on_entry_json: string | null; on_exit_json: string | null;
-      music_track: string | null;
+      music_track: string | null; show_desktop: number | null;
     }>
 
     const scenes: Record<string, Scene> = {}
@@ -250,17 +221,16 @@ export class DesktopConfigService implements Manager {
         onEntry: parseJson<string[]>(row.on_entry_json, []),
         onExit: parseJson<string[]>(row.on_exit_json, []),
         musicTrack: row.music_track ?? undefined,
+        showDesktop: row.show_desktop === 1,
       }
     }
     return scenes
   }
 
   private loadApplications(): Application[] {
-    const rows = this.db.prepare('SELECT * FROM applications').all() as Array<{
-      id: string; label: string; icon: string; app_type: string;
-      target_scene_id: string; widget_source: string | null;
-      widget_component: string | null; icon_position_x: number | null;
-      icon_position_y: number | null; icon_size: string | null;
+    const rows = this.db.prepare('SELECT * FROM widgets').all() as Array<{
+      id: string; label: string; icon: string;
+      widget_source: string | null; widget_component: string | null;
       window_x: number | null; window_y: number | null;
       window_width: number | null; window_height: number | null;
       z_index_default: number | null; z_index_current: number | null;
@@ -273,14 +243,8 @@ export class DesktopConfigService implements Manager {
         id: row.id,
         label: row.label,
         icon: row.icon,
-        appType: row.app_type as Application['appType'],
-        targetSceneId: row.target_scene_id,
         widgetSource: row.widget_source as Application['widgetSource'] | undefined,
         widgetComponent: row.widget_component as Application['widgetComponent'] | undefined,
-        iconPosition: row.icon_position_x != null && row.icon_position_y != null
-          ? { x: row.icon_position_x, y: row.icon_position_y }
-          : undefined,
-        iconSize: row.icon_size as Application['iconSize'] | undefined,
         windowPosition: row.window_x != null && row.window_y != null
           ? { x: row.window_x, y: row.window_y }
           : undefined,
@@ -464,8 +428,8 @@ export class DesktopConfigService implements Manager {
   private saveScenes(scenes: Record<string, Scene>): void {
     this.db.prepare('DELETE FROM scenes').run()
     const insert = this.db.prepare(`
-      INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, show_desktop)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const scene of Object.values(scenes)) {
       insert.run(
@@ -478,31 +442,26 @@ export class DesktopConfigService implements Manager {
         JSON.stringify(scene.onEntry ?? []),
         JSON.stringify(scene.onExit ?? []),
         scene.musicTrack ?? null,
+        boolToInt(scene.showDesktop ?? false),
       )
     }
   }
 
   private saveApplications(applications: Application[]): void {
-    this.db.prepare('DELETE FROM applications').run()
+    this.db.prepare('DELETE FROM widgets').run()
     const insert = this.db.prepare(`
-      INSERT INTO applications (id, label, icon, app_type, target_scene_id, widget_source, widget_component,
-        icon_position_x, icon_position_y, icon_size,
+      INSERT INTO widgets (id, label, icon, widget_source, widget_component,
         window_x, window_y, window_width, window_height, z_index_default, z_index_current,
         settings_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    // Server-side label sync: when a scene-type app saves, update its linked scene label
-    const updateSceneLabel = this.db.prepare('UPDATE scenes SET label = ? WHERE id = ?')
 
     for (const app of applications) {
       const settings: Record<string, unknown> = {}
-      if (app.transitionType) settings.transitionType = app.transitionType
-      if (app.launchPipeline) settings.launchPipeline = app.launchPipeline
       if (app.gallerySettings) settings.gallerySettings = app.gallerySettings
       if (app.cameraSettings) settings.cameraSettings = app.cameraSettings
       if (app.sourceWidgetSettings) settings.sourceWidgetSettings = app.sourceWidgetSettings
       if (app.stickyNotesSettings) settings.stickyNotesSettings = app.stickyNotesSettings
-      if (app.recycleBinSettings) settings.recycleBinSettings = app.recycleBinSettings
       if (app.themeOverride) settings.themeOverride = app.themeOverride
       if (app.onlineStreamSettings) settings.onlineStreamSettings = app.onlineStreamSettings
 
@@ -510,13 +469,8 @@ export class DesktopConfigService implements Manager {
         app.id,
         app.label,
         app.icon ?? '',
-        app.appType,
-        app.targetSceneId ?? '',
         app.widgetSource ?? null,
         app.widgetComponent ?? null,
-        app.iconPosition?.x ?? null,
-        app.iconPosition?.y ?? null,
-        app.iconSize ?? null,
         app.windowPosition?.x ?? null,
         app.windowPosition?.y ?? null,
         app.windowSize?.width ?? null,
@@ -525,11 +479,6 @@ export class DesktopConfigService implements Manager {
         app.zIndexCurrent ?? null,
         Object.keys(settings).length > 0 ? JSON.stringify(settings) : null,
       )
-
-      // Task 7: sync linked scene label server-side
-      if (app.appType === 'scene' && app.targetSceneId) {
-        updateSceneLabel.run(app.label, app.targetSceneId)
-      }
     }
   }
 
@@ -662,10 +611,6 @@ export class DesktopConfigService implements Manager {
 
     applications = withApplicationListDefaults(applications)
     const desktopConfig = withDesktopConfigDefaults(next.desktopConfig)
-    applications = applications.map((app) => ({
-      ...app,
-      defaultConfig: app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app),
-    }))
 
     const scenes: AppConfig['scenes'] = {
       ...next.scenes,
@@ -703,37 +648,20 @@ export class DesktopConfigService implements Manager {
     }
   }
 
-  // ── Atomic scene creation (Task 9) ───────────────────────────
+  // ── Atomic scene creation ────────────────────────────────────
 
-  createScene(app: Application, scene: Scene): AppConfig {
+  createScene(_app: Application, scene: Scene): AppConfig {
     this.db.transaction(() => {
-      // Insert scene
       this.db.prepare(`
-        INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, show_desktop)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         scene.id, scene.label, boolToInt(scene.backgroundOpaque),
         JSON.stringify(scene.sources ?? []),
         scene.style ? JSON.stringify(scene.style) : null,
-        null,
-        JSON.stringify([]), JSON.stringify([]), null,
-      )
-      // Insert application
-      this.db.prepare(`
-        INSERT INTO applications (id, label, icon, app_type, target_scene_id, widget_source, widget_component,
-          icon_position_x, icon_position_y, icon_size, window_x, window_y, window_width, window_height,
-          z_index_default, z_index_current, settings_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        app.id, app.label, app.icon ?? '', app.appType, app.targetSceneId ?? '',
-        null, null,
-        app.iconPosition?.x ?? null, app.iconPosition?.y ?? null, app.iconSize ?? null,
-        null, null, null, null, null, null,
-        app.transitionType ? JSON.stringify({ transitionType: app.transitionType }) : null,
+        null, JSON.stringify([]), JSON.stringify([]), null, 0,
       )
     })()
-
-    // Invalidate cache so next read returns fresh data
     this._cachedConfig = null
     return this.withConfigDefaults(this.loadFromDb())
   }

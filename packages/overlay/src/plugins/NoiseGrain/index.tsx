@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 /** Animated film grain via a small tiled canvas — refreshes at ~20fps. */
-export function NoiseGrainRenderer({ config }: { config: Record<string, unknown> }) {
+export function NoiseGrainRenderer({ config }: import('../registry').PluginProps) {
   const opacity  = Number(config.opacity ?? 0.08)
   const animated = config.animated !== false
   const canvasRef = useRef<HTMLCanvasElement>(null)

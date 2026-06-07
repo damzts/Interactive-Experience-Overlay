@@ -77,7 +77,7 @@ export function KeybindEditor() {
       detail: 'Scene',
     }))
     const widgetOptions = config.applications
-      .filter((app) => app.appType === 'widget')
+      .filter((app) => !!app.widgetComponent)
       .map((app) => ({
         value: `widget:${app.id}`,
         label: `Toggle ${app.label}`,

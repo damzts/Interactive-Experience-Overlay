@@ -85,7 +85,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const config      = useAdminStore((s) => s.config)
   const sourceMedia = useAdminStore((s) => s.config.sourceMedia ?? [])
   const eventDefs   = useAdminStore((s) => (s.config.sourceEvents ?? DEFAULT_EVENT_DEFS) as EventDef[])
-  const widgetIds   = useAdminStore((s) => s.config.applications.filter((a) => a.appType === 'widget').map((a) => a.id))
+  const widgetIds   = useAdminStore((s) => s.config.applications.map((a) => a.id))
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const saveConfig  = useAdminStore((s) => s.saveConfig)
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useAssetCatalog()

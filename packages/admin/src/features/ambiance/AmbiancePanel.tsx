@@ -142,7 +142,7 @@ export function AmbiancePanel() {
   const [resyncing, setResyncing] = useState(false)
   const [historyCopyState, setHistoryCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const widgetApps = useMemo(() => allApps.filter((app) => app.appType === 'widget'), [allApps])
+  const widgetApps = allApps
 
   const dirty = !isSameDraft(form, sourceConfig)
 

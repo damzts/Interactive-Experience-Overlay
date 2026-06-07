@@ -2,6 +2,8 @@ import { Component, type ReactNode } from 'react'
 import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
+import { LobbyRuntimePanel } from './LobbyRuntimePanel'
+import { DesktopRuntimePanel } from './DesktopRuntimePanel'
 import {
   Btn, ConfigCard, ConfigNotice,
   IconGlyph,
@@ -22,8 +24,6 @@ import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
 import { WidgetLayoutPanel } from './WidgetLayoutPanel'
 import { ScenePanel } from './ScenePanel'
-import { LobbyThemeEditor } from './LobbyThemePanel'
-import { DesktopThemeEditor } from './DesktopThemePanel'
 import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 import { SettingsPanel } from './SettingsPanel'
 import { SidebarBtn, SectionLabel, NavListBox } from './NavListBox'
@@ -80,48 +80,26 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   const applications  = useAdminStore((s) => s.config.applications)
 
   if (selected.kind === 'env') {
-    const isLobby = selected.envState === STATE.LOBBY
-    return (
-        <ScenePanel sceneId={selected.envState} />
-    )
+    return selected.envState === STATE.LOBBY
+      ? <LobbyRuntimePanel />
+      : <DesktopRuntimePanel />
   }
 
   if (selected.kind === 'scene') {
-    const app = applications.find((a) => a.targetSceneId === selected.sceneState)
-    return (
-      <ScenePanel sceneId={selected.sceneState} app={app} onDelete={app ? () => {
-        saveConfig({ applications: applications.filter((a) => a.id !== app.id) })
-        onDeleted()
-      } : undefined} />
-    )
+    return <ScenePanel sceneId={selected.sceneState} />
   }
 
   if (selected.kind === 'app') {
     const app = applications.find((a) => a.id === selected.appId)
     if (!app) return <div className="text-zinc-600 text-xs italic p-4">App not found.</div>
 
-    if (app.appType === 'widget') {
-      return (
-        <AppForm app={app} onDelete={() => {
-          if (isSystemWidget(app)) return
-          saveConfig({
-            applications: applications.filter((a) => a.id !== selected.appId),
-          })
-          onDeleted()
-        }} />
-      )
-    }
-
-    if (app.appType === 'decoration') {
-      return (
-        <AppForm app={app} onDelete={() => {
-          saveConfig({ applications: applications.filter((a) => a.id !== selected.appId) })
-          onDeleted()
-        }} />
-      )
-    }
-
-    return null
+    return (
+      <AppForm app={app} onDelete={() => {
+        if (isSystemWidget(app)) return
+        saveConfig({ applications: applications.filter((a) => a.id !== selected.appId) })
+        onDeleted()
+      }} />
+    )
   }
 
   if (selected.kind === 'widget-create') {
@@ -129,11 +107,9 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   }
 
   if (selected.kind === 'widget-layout') {
-    return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
+    return <WidgetLayoutPanel layoutId={selected.layoutId} />
   }
 
-  if (selected.kind === 'lobby-theme')   return <LobbyThemeEditor />
-  if (selected.kind === 'desktop-theme') return <DesktopThemeEditor />
   if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'archive')  return <ArchivePanel />
@@ -157,8 +133,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 
 const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
   { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
-  { icon: '🖥', label: 'Global Lobby Theme', kind: 'lobby-theme' },
-  { icon: '🎨', label: 'Desktop Theme & Icons', kind: 'desktop-theme' },
   { icon: '🔄', label: 'Scene Machine',      kind: 'scene-machine' },
   { icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
@@ -182,9 +156,10 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
 }) {
   const currentState  = useAdminStore((s) => s.currentState)
   const setLastError  = useAdminStore((s) => s.setLastError)
+  const scenes        = useAdminStore((s) => s.config.scenes)
   const applications  = useAdminStore((s) => s.config.applications)
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
-
+  const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
   const triggerScene = (state: string) => {
     setLastError(null)
     socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
@@ -227,7 +202,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           <ConfigCard className="text-left">
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
             <div className="text-[10px] text-zinc-400 leading-relaxed">
-              Scene = runtime state. Application = transition signal. Widget = open desktop thing. Decoration = render-only desktop thing.
+              Scene = compositor content. Widget = desktop window. Runtime = lifecycle manager (Lobby, Desktop).
             </div>
           </ConfigCard>
         </div>
@@ -261,9 +236,11 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   } else if (selected.kind === 'app') {
     const app   = applications.find((a) => a.id === selected.appId)
     headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
-    headerLabel = app?.label ?? 'Application'
-    headerMeta  = app?.appType === 'widget' ? 'Widget' : 'Decoration'
-    actionLabel = app?.appType === 'widget' ? '▶ Open' : ''
+    headerLabel = app?.label ?? 'Widget'
+    headerMeta  = 'Widget'
+    const isOpen = app ? openWidgetIds.includes(app.id) : false
+    actionLabel = isOpen ? '● Open' : '▶ Open'
+    actionFn    = app ? () => socket.emit('widget:toggle', app.id) : null
   } else if (selected.kind === 'widget-create') {
     headerIcon  = '+'
     headerLabel = 'New Widget'
@@ -273,6 +250,8 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     headerIcon  = layout?.icon ?? '📐'
     headerLabel = layout?.label ?? 'Widget Layout'
     headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
+    actionLabel = '▶ Test'
+    actionFn    = () => socket.emit('widget:layout:apply', selected.layoutId)
   } else if (selected.kind === 'lobby-theme') {
     headerIcon  = '🖥'
     headerLabel = 'Lobby Theme'
@@ -326,6 +305,30 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
             <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
             {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
           </span>
+          {selected.kind === 'scene' && (
+            <button
+              onClick={async () => {
+                const { [selected.sceneState]: _, ...remainingScenes } = scenes
+                await saveConfig({ scenes: remainingScenes })
+                onClose()
+              }}
+              className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
+              Delete
+            </button>
+          )}
+          {selected.kind === 'widget-layout' && (() => {
+            const layout = widgetLayouts.find((l) => l.id === selected.layoutId)
+            return layout?.source !== 'system' ? (
+              <button
+                onClick={async () => {
+                  await useAdminStore.getState().saveConfig({ widgetLayouts: widgetLayouts.filter((l) => l.id !== selected.layoutId) })
+                  onClose()
+                }}
+                className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
+                Delete
+              </button>
+            ) : null
+          })()}
           {actionFn && (
             <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-3 py-1.5 text-xs">
               {actionLabel}

@@ -24,6 +24,45 @@ export type CatalogEntry = {
 }
 
 export const SOURCE_CATALOG: CatalogEntry[] = [
+  // ── Builtin tier sources ────────────────────────────────────────
+  {
+    type: 'builtin:background', label: 'Background', icon: '🖼', desc: 'Solid color, gradient, image, video, or pattern background',
+    defaultConfig: { type: 'color', color: '#0a0a0f', opacity: 1, blur: 0 },
+    fields: [
+      { key: 'type', label: 'Type', type: 'select', options: ['none', 'color', 'gradient', 'image-url', 'video-url', 'pattern'] },
+      { key: 'color', label: 'Color', type: 'color' },
+      { key: 'gradient', label: 'Gradient CSS', type: 'text' },
+      { key: 'imageUrl', label: 'Image URL', type: 'text', assetKinds: ['image'] },
+      { key: 'videoUrl', label: 'Video URL', type: 'text', assetKinds: ['video'] },
+      { key: 'pattern', label: 'Pattern', type: 'select', options: ['none', 'grid', 'dots', 'diagonal', 'honeycomb', 'circuit', 'topography'] },
+      { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'blur', label: 'Blur (px)', type: 'number', min: 0, max: 20, step: 0.5 },
+    ],
+  },
+  {
+    type: 'builtin:particles', label: 'Particles', icon: '✨', desc: 'Animated particle system (stars, snow, matrix, fireflies, ash)',
+    defaultConfig: { enabled: true, preset: 'stars', density: 0.5, speed: 0.5 },
+    fields: [
+      { key: 'preset', label: 'Preset', type: 'select', options: ['none', 'stars', 'snow', 'matrix', 'fireflies', 'ash'] },
+      { key: 'density', label: 'Density', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'speed', label: 'Speed', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    type: 'builtin:effects', label: 'Post Effects', icon: '📺', desc: 'CRT scanlines, vignette, film grain, flicker, chromatic aberration',
+    defaultConfig: { crt: true, vignette: true, noise: false, flicker: false, chromatic: false, scanlineOpacity: 0.18, vignetteStrength: 0.65, noiseOpacity: 0.06 },
+    fields: [
+      { key: 'crt', label: 'CRT Scanlines', type: 'boolean' },
+      { key: 'scanlineOpacity', label: 'Scanline Intensity', type: 'number', min: 0, max: 1, step: 0.01 },
+      { key: 'vignette', label: 'Vignette', type: 'boolean' },
+      { key: 'vignetteStrength', label: 'Vignette Strength', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'noise', label: 'Film Grain', type: 'boolean' },
+      { key: 'noiseOpacity', label: 'Grain Opacity', type: 'number', min: 0, max: 0.5, step: 0.01 },
+      { key: 'flicker', label: 'Flicker', type: 'boolean' },
+      { key: 'chromatic', label: 'Chromatic Aberration', type: 'boolean' },
+    ],
+  },
+  // ── Plugin sources ──────────────────────────────────────────────
   {
     type: 'image-slideshow', label: 'Game Slideshow', icon: '🎞', desc: 'Auto-cycling scraped game screenshots',
     defaultConfig: { interval: 6, shuffle: true },

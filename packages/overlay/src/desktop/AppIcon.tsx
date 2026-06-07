@@ -43,8 +43,8 @@ export function AppIcon({
   onContextMenu,
 }: AppIconProps) {
   const lastClickTime = useRef(0)
-  const launchable = app.appType === 'scene' || app.appType === 'widget'
-  const resolvedSize = size ?? app.iconSize ?? 'normal'
+  const launchable = true
+  const resolvedSize = size ?? 'normal'
   const motionStrength = Math.max(0, Math.min(3, motionAmount))
 
   const handleClick = (e: React.MouseEvent) => {
@@ -87,7 +87,6 @@ export function AppIcon({
         reactive ? 'app-icon--reactive' : '',
         draggable ? 'app-icon--draggable' : '',
         dragging ? 'app-icon--dragging' : '',
-        app.appType === 'decoration' ? 'app-icon--decoration' : '',
       ].filter(Boolean).join(' ')}
       style={style}
       draggable={false}

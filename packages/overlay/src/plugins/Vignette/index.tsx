@@ -1,4 +1,4 @@
-export function VignetteRenderer({ config }: { config: Record<string, unknown> }) {
+export function VignetteRenderer({ config }: import('../registry').PluginProps) {
   const color    = String(config.color ?? '#000000')
   const strength = Number(config.strength ?? 0.6)
 

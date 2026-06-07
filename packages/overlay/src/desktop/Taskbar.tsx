@@ -44,7 +44,7 @@ export function Taskbar({ startMenuOpen, onStartClick, onWidgetTaskbarClick }: T
     ? config.applications.find((a) => a.targetSceneId === visualState) ?? null
     : null
 
-  const widgetButtons = config.applications.filter((app) => app.appType === 'widget' && openWidgets.has(app.id))
+  const widgetButtons = config.applications.filter((app) => openWidgets.has(app.id))
 
   const handleWindowBtnClick = () => {
     // Clicking the active window button returns to DESKTOP

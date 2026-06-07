@@ -1,4 +1,4 @@
-export function CRTEffectRenderer({ config }: { config: Record<string, unknown> }) {
+export function CRTEffectRenderer({ config }: import('../registry').PluginProps) {
   const scanlineIntensity = Math.min(1, Math.max(0, Number(config.scanlineIntensity) || 0.25))
   const vignetteStrength = Math.min(1, Math.max(0, Number(config.vignetteStrength) || 0.5))
 

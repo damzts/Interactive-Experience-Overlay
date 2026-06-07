@@ -1,14 +1,11 @@
 import {
-  DEFAULT_CONFIG,
   getDefaultWidgetWindowSize,
   getDefaultWidgetZIndex,
   getWidgetComponent,
 } from '@ieom/shared'
 import type {
   Application,
-  ApplicationDefaultSnapshot,
   Scene,
-  SceneDefaultSnapshot,
   WidgetComponentType,
   WidgetLayoutDefinition,
   WidgetLayoutItem,
@@ -25,15 +22,15 @@ export function clampWidgetDimension(value: number, min: number, max: number, fa
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-export function resolveAppWidgetComponent(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>): WidgetComponentType {
+export function resolveAppWidgetComponent(app: Pick<Application, 'id' | 'widgetComponent'>): WidgetComponentType {
   return getWidgetComponent(app) ?? 'generic'
 }
 
-export function getDefaultWidgetSize(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>) {
+export function getDefaultWidgetSize(app: Pick<Application, 'id' | 'widgetComponent'>) {
   return getDefaultWidgetWindowSize(app.id, resolveAppWidgetComponent(app))
 }
 
-export function resolveWidgetSizeFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent' | 'windowSize'>, _desktopConfig?: unknown) {
+export function resolveWidgetSizeFromConfig(app: Pick<Application, 'id' | 'widgetComponent' | 'windowSize'>, _desktopConfig?: unknown) {
   const defaults = getDefaultWidgetSize(app)
   const raw = app.windowSize
   return {
@@ -50,14 +47,14 @@ export function resolveWidgetPositionFromConfig(app: Pick<Application, 'id' | 'w
   }
 }
 
-export function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'appType' | 'widgetComponent' | 'zIndexDefault'>, _desktopConfig?: unknown) {
+export function resolveWidgetDefaultZIndexFromConfig(app: Pick<Application, 'id' | 'widgetComponent' | 'zIndexDefault'>, _desktopConfig?: unknown) {
   const value = app.zIndexDefault
   return Number.isFinite(value)
     ? Math.max(0, Math.round(value as number))
     : getDefaultWidgetZIndex(app.id, resolveAppWidgetComponent(app))
 }
 
-export function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'appType' | 'widgetComponent' | 'zIndexDefault' | 'zIndexCurrent'>, _desktopConfig?: unknown) {
+export function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'widgetComponent' | 'zIndexDefault' | 'zIndexCurrent'>, _desktopConfig?: unknown) {
   const value = app.zIndexCurrent
   return Number.isFinite(value)
     ? Math.max(0, Math.round(value as number))
@@ -69,69 +66,6 @@ export function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'the
 }
 
 // ── Snapshot helpers ──────────────────────────────────────────────────
-
-export function createApplicationSnapshot(source: Application): ApplicationDefaultSnapshot {
-  return {
-    id: source.id,
-    label: source.label,
-    icon: source.icon,
-    appType: source.appType,
-    targetSceneId: source.targetSceneId,
-    widgetSource: source.widgetSource,
-    widgetComponent: source.widgetComponent,
-    transitionType: source.transitionType,
-    introTransition: source.introTransition,
-    exitTransition: source.exitTransition,
-    introTransitions: source.introTransitions ? clone(source.introTransitions) : undefined,
-    exitTransitions: source.exitTransitions ? clone(source.exitTransitions) : undefined,
-    iconPosition: source.iconPosition ? clone(source.iconPosition) : undefined,
-    iconSize: source.iconSize,
-    launchPipeline: source.launchPipeline ? clone(source.launchPipeline) : undefined,
-    gallerySettings: source.gallerySettings ? clone(source.gallerySettings) : undefined,
-    cameraSettings: source.cameraSettings ? clone(source.cameraSettings) : undefined,
-    sourceWidgetSettings: source.sourceWidgetSettings ? clone(source.sourceWidgetSettings) : undefined,
-    stickyNotesSettings: source.stickyNotesSettings ? clone(source.stickyNotesSettings) : undefined,
-    recycleBinSettings: source.recycleBinSettings ? clone(source.recycleBinSettings) : undefined,
-    widgetDefaults: source.appType === 'widget'
-      ? {
-          windowSize: source.windowSize ? clone(source.windowSize) : undefined,
-          defaultZIndex: source.zIndexDefault,
-          themeOverride: source.themeOverride ? clone(source.themeOverride) : undefined,
-        }
-      : undefined,
-  }
-}
-
-export function buildApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
-  const source = DEFAULT_CONFIG.applications.find((entry) => entry.id === app.id) ?? app
-  return createApplicationSnapshot(source)
-}
-
-export function resolveApplicationDefaultSnapshot(app: Application): ApplicationDefaultSnapshot {
-  return app.defaultConfig ? clone(app.defaultConfig) : buildApplicationDefaultSnapshot(app)
-}
-
-export function createSceneSnapshot(scene: Scene): SceneDefaultSnapshot {
-  return {
-    label: scene.label,
-    backgroundOpaque: scene.backgroundOpaque,
-    sources: clone(scene.sources ?? []),
-    style: scene.style ? clone(scene.style) : undefined,
-    lobbyConfig: scene.lobbyConfig ? clone(scene.lobbyConfig) : undefined,
-    onEntry: scene.onEntry ? [...scene.onEntry] : undefined,
-    onExit: scene.onExit ? [...scene.onExit] : undefined,
-    musicTrack: scene.musicTrack,
-  }
-}
-
-export function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): SceneDefaultSnapshot {
-  const source = DEFAULT_CONFIG.scenes[sceneId] ?? scene
-  return createSceneSnapshot(source)
-}
-
-export function resolveSceneDefaultSnapshot(sceneId: string, scene: Scene): SceneDefaultSnapshot {
-  return scene.defaultConfig ? clone(scene.defaultConfig) : buildSceneDefaultSnapshot(sceneId, scene)
-}
 
 // ── Widget layout helpers ─────────────────────────────────────────────
 

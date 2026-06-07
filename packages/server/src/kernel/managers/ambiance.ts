@@ -351,9 +351,7 @@ this.lastSkipReason = 'simulation completion timeout released lock'
   }
 
   private getEffectiveBehaviors() {
-    const widgetIds = this.getConfig().applications
-      .filter((app) => app.appType === 'widget')
-      .map((app) => app.id)
+    const widgetIds = this.getConfig().applications.map((app) => app.id)
     const configuredBehaviors = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance).widgetSimulation.behaviors
     const hasEnabledBehavior = Object.values(configuredBehaviors).some((behavior) => !!behavior?.enabled)
 

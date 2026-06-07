@@ -72,17 +72,7 @@ export const signalHandlers: SignalHandlerMap = {
     } else {
       store.setVisualState(next)
     }
-    // Reactive icon pulse
-    const desktopConfig = withDesktopConfigDefaults(store.config.desktopConfig)
-    if (desktopConfig.iconAnimation === 'reactive') {
-      const sceneApp = store.config.applications.find(
-        (app) => app.appType === 'scene' && (app as any).targetSceneId === next,
-      )
-      if (sceneApp) {
-        store.setReactiveIconId(sceneApp.id)
-        setTimeout(() => store.setReactiveIconId(null), 720)
-      }
-    }
+    // Reactive icon pulse — no-op, scene apps no longer exist
   },
 
   'transition:play': (payload: TransitionPlayPayload, store) => {

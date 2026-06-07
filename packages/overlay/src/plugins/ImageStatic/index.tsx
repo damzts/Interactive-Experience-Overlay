@@ -1,4 +1,4 @@
-export function ImageStaticRenderer({ config }: { config: Record<string, unknown> }) {
+export function ImageStaticRenderer({ config }: import('../registry').PluginProps) {
   const url       = String(config.url ?? '')
   const objectFit = String(config.objectFit ?? 'cover') as 'cover' | 'contain' | 'fill'
   const opacity   = Number(config.opacity ?? 1)

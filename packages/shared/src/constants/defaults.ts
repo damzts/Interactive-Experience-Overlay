@@ -1,7 +1,6 @@
 import type {
   Application,
   EventWidgetThemePatch,
-  RecycleBinSettings,
   SourceWidgetSettings,
   StickyNotesSettings,
   WidgetThemeAnimation,
@@ -391,11 +390,6 @@ export const DEFAULT_WIDGET_THEME_PRESETS: Record<WidgetSkinTheme, WidgetThemeCo
   'lan party':        { skin: 'lan party',         fontFamily: 'Share Tech Mono', accentColor: '#67ffcc', textColor: '#e7fff7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
 }
 
-export const DEFAULT_RECYCLE_BIN_SETTINGS: RecycleBinSettings = {
-  emptyIcon: '🗑️',
-  fullIcon: '🗑️',
-}
-
 const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
   background: {
     type: 'none',
@@ -688,24 +682,15 @@ function normalizeStickyNotesSettings(settings?: Partial<StickyNotesSettings> | 
   }
 }
 
-function normalizeRecycleBinSettings(settings?: Partial<RecycleBinSettings> | null): RecycleBinSettings {
-  return {
-    ...DEFAULT_RECYCLE_BIN_SETTINGS,
-    ...settings,
-  }
-}
-
 export function isSystemWidgetId(widgetId: string) {
   return (DEFAULT_SYSTEM_WIDGET_IDS as readonly string[]).includes(widgetId)
 }
 
-export function getWidgetSource(app: Pick<Application, 'id' | 'appType' | 'widgetSource'>): WidgetLayoutSource | undefined {
-  if (app.appType !== 'widget') return undefined
+export function getWidgetSource(app: Pick<Application, 'id' | 'widgetSource'>): WidgetLayoutSource {
   return isSystemWidgetId(app.id) ? 'system' : 'user'
 }
 
-export function getWidgetComponent(app: Pick<Application, 'id' | 'appType' | 'widgetComponent'>): WidgetComponentType | undefined {
-  if (app.appType !== 'widget') return undefined
+export function getWidgetComponent(app: Pick<Application, 'id' | 'widgetComponent'>): WidgetComponentType {
   if (KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]) return KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]
   if (isWidgetComponentType(app.widgetComponent) && app.widgetComponent !== 'generic') return app.widgetComponent
   if (/^camera(?:[-:_].+)?$/i.test(app.id)) return 'camera'
@@ -714,7 +699,7 @@ export function getWidgetComponent(app: Pick<Application, 'id' | 'appType' | 'wi
   return 'generic'
 }
 
-export function isSystemWidget(app: Pick<Application, 'id' | 'appType' | 'widgetSource'>) {
+export function isSystemWidget(app: Pick<Application, 'id' | 'widgetSource'>) {
   return getWidgetSource(app) === 'system'
 }
 
@@ -730,21 +715,15 @@ export function getDefaultWidgetZIndex(widgetId: string, widgetComponent?: Widge
 }
 
 export function withApplicationDefaults(app: Application): Application {
-  const next: Application = app.appType === 'widget'
-    ? {
-        ...app,
-        widgetSource: getWidgetSource(app),
-        widgetComponent: getWidgetComponent(app),
-        sourceWidgetSettings: normalizeSourceWidgetSettings(app.sourceWidgetSettings),
-      }
-    : { ...app }
-
-  if (next.id === 'sticky-notes' && next.appType === 'widget') {
-    next.stickyNotesSettings = normalizeStickyNotesSettings(next.stickyNotesSettings)
+  const next: Application = {
+    ...app,
+    widgetSource: getWidgetSource(app),
+    widgetComponent: getWidgetComponent(app),
+    sourceWidgetSettings: normalizeSourceWidgetSettings(app.sourceWidgetSettings),
   }
 
-  if (next.id === 'recycle-bin' && next.appType === 'decoration') {
-    next.recycleBinSettings = normalizeRecycleBinSettings(next.recycleBinSettings)
+  if (next.id === 'sticky-notes') {
+    next.stickyNotesSettings = normalizeStickyNotesSettings(next.stickyNotesSettings)
   }
 
   return next
@@ -1209,11 +1188,11 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
     widgetTheme?: Partial<WidgetThemeConfig>
     notifications?: unknown
     stickyNotes?: Partial<StickyNotesSettings> | null
-    recycleBin?: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings>
+    recycleBin?: Partial<DesktopConfig['recycleBin']>
   }
   const { notifications: _legacyNotifications, stickyNotes: _legacyStickyNotes, theme: _legacyTheme, widgetTheme: _legacyWidgetTheme, ...rest } = source
-  const legacyRecycleBin: Partial<DesktopConfig['recycleBin']> & Partial<RecycleBinSettings> = source.recycleBin ?? {}
-  const { emptyIcon: _legacyEmptyIcon, fullIcon: _legacyFullIcon, ...recycleBin } = legacyRecycleBin
+  const legacyRecycleBin: Partial<DesktopConfig['recycleBin']> = source.recycleBin ?? {}
+  const { ...recycleBin } = legacyRecycleBin
 
   // Migrate legacy top-level theme/widgetTheme into globalThemeDefault when upgrading old DB data
   const globalThemeDefault = normalizeGlobalThemeDefaultConfig({
@@ -1417,253 +1396,48 @@ export const DEFAULT_CONFIG: AppConfig = {
       id: 'DESKTOP',
       label: 'DESKTOP',
       backgroundOpaque: true,
-      // Desktop = Win98 OS layer (shown via #desktop-layer CSS, not a source plugin).
-      // Sources layer is empty — the desktop canvas owns this state visually.
-      sources: [],
-      style: {
-        background: {
-          type: 'none',
-          color: '#000000',
-          gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
-          imageUrl: '',
-          videoUrl: '',
-          pattern: 'none',
-          opacity: 0,
-          blur: 0,
+      showDesktop: true,
+      // Desktop = Win98 OS widget lifecycle manager.
+      // No background/particles — visual style lives in sources below.
+      sources: [
+        {
+          id: '__desktop-effects',
+          pluginType: 'builtin:effects',
+          config: {
+            crt: true,
+            noise: false,
+            vignette: true,
+            flicker: false,
+            chromatic: false,
+            scanlineOpacity: 0.18,
+            noiseOpacity: 0.06,
+            vignetteStrength: 0.65,
+          },
+          position: { x: 0, y: 0, width: 1920, height: 1080 },
+          zIndex: 0,
+          visible: true,
         },
-        effects: {
-          crt: true,
-          noise: false,
-          vignette: true,
-          flicker: false,
-          chromatic: false,
-          scanlineOpacity: 0.18,
-          noiseOpacity: 0.06,
-          vignetteStrength: 0.65,
-        },
-        particles: {
-          enabled: false,
-          preset: 'none',
-          density: 0.5,
-          speed: 0.4,
-        },
-        fontFamily: 'default',
-        accentColor: '#00ff41',
-        textColor: '#ffffff',
-      },
+      ],
     },
   },
 
   applications: [
-    {
-      id: 'recycle-bin',
-      label: 'Recycle Bin',
-      icon: '🗑️',
-      recycleBinSettings: { ...DEFAULT_RECYCLE_BIN_SETTINGS },
-      appType: 'decoration' as const,
-      targetSceneId: STATE.DESKTOP,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 16 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'gallery',
-      label: 'GALLERY.exe',
-      icon: '🖼',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'gallery' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 96 },
-      iconSize: 'normal' as const,
-      gallerySettings: {
-        randomOrder: true,
-        autoPlay: false,
-        intervalSec: 8,
-      },
-    },
-    {
-      id: 'music',
-      label: 'MUSIC.exe',
-      icon: '🎵',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'music' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 176 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'archive',
-      label: 'ARCHIVE.exe',
-      icon: '📖',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'archive' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 256 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'sticky-notes',
-      label: 'Sticky Notes',
-      icon: '📝',
-      stickyNotesSettings: { ...DEFAULT_STICKY_NOTES_SETTINGS },
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'sticky-notes' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 336 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'chat',
-      label: 'CHAT.exe',
-      icon: '💬',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'chat' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 416 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'camera',
-      label: 'CAMERA.exe',
-      icon: '📷',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'camera' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 16, y: 496 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'media-deck',
-      label: 'Media Deck',
-      icon: '📻',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'media-deck' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 16 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'cd-ripper',
-      label: 'CD Ripper',
-      icon: '💽',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'cd-ripper' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 96 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'signal-lab',
-      label: 'Signal Lab',
-      icon: '📼',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'signal-lab' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 176 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'broadcast-scheduler',
-      label: 'Broadcast Scheduler',
-      icon: '🗓️',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'broadcast-scheduler' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 256 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'weather',
-      label: 'Weather Center',
-      icon: '🌦️',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'weather-console' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 336 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'clock-tower',
-      label: 'Clock',
-      icon: '🕒',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'clock-tower' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 416 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'newswire-desk',
-      label: 'Newswire Desk',
-      icon: '📰',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'newswire-desk' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 496 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'city-nav',
-      label: 'City Navigator',
-      icon: '🗺️',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'city-navigator' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 104, y: 576 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'lcd-dolphins',
-      label: 'Pioneer LCD',
-      icon: '🐬',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'lcd-dolphins' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 184, y: 96 },
-      iconSize: 'normal' as const,
-    },
-    {
-      id: 'online-stream',
-      label: 'Online Stream',
-      icon: '📡',
-      appType: 'widget' as const,
-      targetSceneId: STATE.DESKTOP,
-      widgetSource: 'system' as const,
-      widgetComponent: 'online-stream' as const,
-      transitionType: 'instant',
-      iconPosition: { x: 184, y: 176 },
-      iconSize: 'normal' as const,
-    },
+    { id: 'gallery',              label: 'GALLERY.exe',         icon: '🖼',   widgetSource: 'system' as const, widgetComponent: 'gallery' as const,              gallerySettings: { randomOrder: true, autoPlay: false, intervalSec: 8 } },
+    { id: 'music',                label: 'MUSIC.exe',            icon: '🎵',   widgetSource: 'system' as const, widgetComponent: 'music' as const },
+    { id: 'archive',              label: 'ARCHIVE.exe',          icon: '📖',   widgetSource: 'system' as const, widgetComponent: 'archive' as const },
+    { id: 'sticky-notes',         label: 'Sticky Notes',         icon: '📝',   widgetSource: 'system' as const, widgetComponent: 'sticky-notes' as const,         stickyNotesSettings: { ...DEFAULT_STICKY_NOTES_SETTINGS } },
+    { id: 'chat',                 label: 'CHAT.exe',             icon: '💬',   widgetSource: 'system' as const, widgetComponent: 'chat' as const },
+    { id: 'camera',               label: 'CAMERA.exe',           icon: '📷',   widgetSource: 'system' as const, widgetComponent: 'camera' as const },
+    { id: 'media-deck',           label: 'Media Deck',           icon: '📻',   widgetSource: 'system' as const, widgetComponent: 'media-deck' as const },
+    { id: 'cd-ripper',            label: 'CD Ripper',            icon: '💽',   widgetSource: 'system' as const, widgetComponent: 'cd-ripper' as const },
+    { id: 'signal-lab',           label: 'Signal Lab',           icon: '📼',   widgetSource: 'system' as const, widgetComponent: 'signal-lab' as const },
+    { id: 'broadcast-scheduler',  label: 'Broadcast Scheduler',  icon: '🗓️',  widgetSource: 'system' as const, widgetComponent: 'broadcast-scheduler' as const },
+    { id: 'weather',              label: 'Weather Center',       icon: '🌦️',  widgetSource: 'system' as const, widgetComponent: 'weather-console' as const },
+    { id: 'clock-tower',          label: 'Clock',                icon: '🕒',   widgetSource: 'system' as const, widgetComponent: 'clock-tower' as const },
+    { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
+    { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
+    { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
+    { id: 'online-stream',        label: 'Online Stream',        icon: '📡',   widgetSource: 'system' as const, widgetComponent: 'online-stream' as const },
   ],
 
   keybinds: {

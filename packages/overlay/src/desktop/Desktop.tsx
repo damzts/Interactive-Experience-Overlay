@@ -636,7 +636,7 @@ export function Desktop({ apps }: DesktopProps) {
         const cursor = (window as any).__cursorOverlayController;
         if (!cursor) return;
 
-        const app = supportedApps.find((candidate) => candidate.id === payload.widgetId && candidate.appType === 'widget');
+        const app = supportedApps.find((candidate) => candidate.id === payload.widgetId);
         if (!app) return;
 
         socket.emit('ambiance:simulate:started', {
@@ -849,18 +849,17 @@ export function Desktop({ apps }: DesktopProps) {
   }, [desktopApps, autoArrangeIcons, defaultIconSize])
 
   const launchableApps = useMemo(
-    () => desktopApps.filter((app) => app.appType !== 'decoration'),
+    () => desktopApps,
     [desktopApps],
   )
   const widgetAppById = useMemo(
-    () => new Map(apps.filter((app) => app.appType === 'widget').map((app) => [app.id, app])),
+    () => new Map(apps.map((app) => [app.id, app])),
     [apps],
   )
 
   const visibleWidgets = useMemo(
     () => desktopApps.filter((app) => (
-      app.appType === 'widget'
-      && (openWidgets.has(app.id) || closingWidgets.has(app.id))
+      (openWidgets.has(app.id) || closingWidgets.has(app.id))
       && !minimizedWidgets.has(app.id)
     )),
     [closingWidgets, desktopApps, minimizedWidgets, openWidgets],
@@ -1232,23 +1231,10 @@ export function Desktop({ apps }: DesktopProps) {
       return
     }
 
-    if (app.appType === 'widget') {
+    if (app.widgetComponent !== undefined || app.widgetSource !== undefined) {
       if (simEmittingRef.current) socket.emit('widget:simulate:action', { widgetId: app.id, action: 'toggle' })
       else socket.emit('widget:toggle', app.id)
       return
-    }
-    if (app.appType !== 'scene') return
-
-    if (app.launchPipeline && app.launchPipeline.effects.length > 0) {
-      socket.emit('overlay:trigger', {
-        id: `launch-${app.id}`,
-        effects: app.launchPipeline.effects,
-      })
-      setTimeout(() => {
-        socket.emit('scene:change', app.targetSceneId as STATE)
-      }, app.launchPipeline.delayMs)
-    } else {
-      socket.emit('scene:change', app.targetSceneId as STATE)
     }
   }
 
@@ -1512,7 +1498,7 @@ export function Desktop({ apps }: DesktopProps) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [applyWidgetLayoutById])
 
-  const iconMenuLaunchable = contextMenu?.app?.appType === 'scene' || contextMenu?.app?.appType === 'widget'
+  const iconMenuLaunchable = !!contextMenu?.app
   const simProgramsOpen = startMenuSimulationPhase?.phase === 'programs-open'
     || startMenuSimulationPhase?.phase === 'target-hover'
     || startMenuSimulationPhase?.phase === 'target-select'

@@ -30,7 +30,7 @@ export function applySavedWidgetLayout(
   if (!layout) return { ok: false, error: `Unknown widget layout: ${layoutId}` }
 
   const validWidgetIds = new Set(
-    currentConfig.applications.filter((a) => a.appType === 'widget').map((a) => a.id),
+    currentConfig.applications.map((a) => a.id),
   )
   const layoutItems = layout.items.filter((i) => validWidgetIds.has(i.widgetId))
   if (!layoutItems.length) return { ok: false, error: `Widget layout has no valid widgets: ${layoutId}` }
@@ -139,7 +139,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   socket.on('widget:layout:apply:items', (items) => {
     ctx.scheduler?.noteActivity()
     const currentConfig = ctx.cachedUserConfig
-    const validWidgetIds = new Set(currentConfig.applications.filter((a) => a.appType === 'widget').map((a) => a.id))
+    const validWidgetIds = new Set(currentConfig.applications.map((a) => a.id))
     const validItems = items.filter((i) => validWidgetIds.has(i.widgetId))
     if (!validItems.length) return
 

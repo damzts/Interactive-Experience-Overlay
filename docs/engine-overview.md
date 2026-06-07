@@ -7,7 +7,60 @@
 
 # Engine Overview
 
-## The core assertion
+## Core concepts
+
+Understanding these three things is enough to work on any part of the system.
+
+### Widgets
+
+A **widget** is a desktop window — a draggable, resizable application that runs
+on the overlay's desktop layer. Every entry in the `widgets` table is a widget.
+There is no other application type. Widgets can be toggled open/closed,
+positioned, themed, and grouped into layouts.
+
+```
+Widget = window position + window size + component type + optional settings
+```
+
+The `widgetComponent` field determines which React component renders the window.
+Built-in components: `music`, `chat`, `camera`, `gallery`, `source`, `sticky-notes`, etc.
+User-created widgets have `widgetSource: 'user'`.
+
+### Scenes
+
+A **scene** is a named visual state for the overlay compositor. It defines what
+the overlay renders — background, particle effects, plugin sources, post-processing,
+and whether the desktop layer is visible (`showDesktop`).
+
+```
+Scene = background + particles + sources[] + effects + showDesktop + transitions
+```
+
+Scenes are standalone records. They have no linked application or widget.
+Creating or deleting a scene does not affect any widget. Scenes can define an
+entry/exit transition pipeline and a background music track.
+
+### Runtimes
+
+A **runtime** is a pre-configured scene that manages a lifecycle environment:
+
+| Runtime | Scene key | What it is |
+|---------|-----------|------------|
+| **Lobby** | `LOBBY` | 3D room firmware — Three.js environment, managed by `LobbyScene` |
+| **Desktop** | `DESKTOP` | OS kernel — the win98 desktop with taskbar, icons, and widgets |
+
+Runtimes are system scenes. They cannot be deleted from the admin. Their
+Sources and visual config can still be edited like any other scene.
+
+**The mental model:**
+- Switch to `LOBBY` → viewers see the 3D lobby room
+- Switch to `DESKTOP` → viewers see the desktop OS with widgets
+- Switch to any user scene → viewers see that scene's compositor output
+
+Runtimes are listed separately from user scenes in the admin nav to make this
+distinction clear.
+
+---
 
 The engine is the product. The Desktop OS is a demo built on top of it.
 
@@ -89,11 +142,14 @@ The Desktop OS is one interpretation of engine primitives. It is not the engine.
 |---|---|
 | Widget | A draggable window with title bar, close button, resize handles |
 | Widget toggle | Window open/close animation |
-| Scene state | A desktop environment with icons, or a 3D lobby room |
+| Scene state | A desktop environment with a taskbar and icons, or a 3D lobby room |
 | Ambiance action | A simulated user clicking around the OS |
 | Theme tokens | Win98 chrome, Frutiger Aero glass, Y2K candy colors |
 
-The Desktop OS lives entirely in the overlay package. The engine has no knowledge of it.
+**All applications are widgets.** There is no decoration type, no scene-app
+type, no icon-only type. Every entry in the `widgets` table is a window that
+can be opened, closed, moved, and resized. The Desktop OS renders desktop icons
+for all widgets regardless of state — the icon is just the widget's closed face.
 
 ## Adding a second presentation
 

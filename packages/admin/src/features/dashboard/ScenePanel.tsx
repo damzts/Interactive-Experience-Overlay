@@ -1,61 +1,61 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE, withOverlayStyleDefaults } from '@ieom/shared'
-import type { Application, OverlayStyle, Scene, SourceInstance } from '@ieom/shared'
+import type { OverlayStyle, Scene, SourceInstance, TransitionStep } from '@ieom/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
-import { StyleSections } from './StyleEditor'
 import { SourcesEditor } from './SceneConfig'
-import { AppForm, type AppFormHandle } from './AppForm'
+import { ScenePreview } from './ScenePreview'
+import { TransitionChipPicker } from './TransitionPicker'
 
 type ScenePanelDraft = {
-  onEntry: string[]
-  onExit:  string[]
-  style:   OverlayStyle
-  sources: SourceInstance[]
-  musicTrack: string
+  onEntry:     TransitionStep[]
+  onExit:      TransitionStep[]
+  style:       OverlayStyle
+  sources:     SourceInstance[]
+  musicTrack:  string
+  showDesktop: boolean
 }
 
-function buildScenePanelDraft(
+function buildDraft(
   sceneId: string,
   config: ReturnType<typeof useAdminStore.getState>['config'],
 ): ScenePanelDraft {
   const scene = config.scenes[sceneId] as Scene | undefined
   return {
-    onEntry: structuredClone(scene?.onEntry ?? []),
-    onExit:  structuredClone(scene?.onExit ?? []),
-    style:   structuredClone(withOverlayStyleDefaults(scene?.style)),
-    sources: structuredClone(scene?.sources ?? []),
-    musicTrack: scene?.musicTrack ?? '',
+    onEntry:     structuredClone(scene?.onEntry?.map((id) => ({ id })) ?? []),
+    onExit:      structuredClone(scene?.onExit?.map((id) => ({ id })) ?? []),
+    style:       structuredClone(withOverlayStyleDefaults(scene?.style)),
+    sources:     structuredClone(scene?.sources ?? []),
+    musicTrack:  scene?.musicTrack ?? '',
+    showDesktop: scene?.showDesktop ?? false,
   }
 }
 
-export function ScenePanel({ sceneId, app, onDelete }: { sceneId: string; app?: Application; onDelete?: () => void }) {
+export function ScenePanel({ sceneId }: { sceneId: string }) {
   const config        = useAdminStore((s) => s.config)
   const saveConfig    = useAdminStore((s) => s.saveConfig)
-  const isUser    = sceneId !== STATE.LOBBY && sceneId !== STATE.DESKTOP
+  const isDesktop     = sceneId === STATE.DESKTOP
+  const isUser        = sceneId !== STATE.LOBBY && sceneId !== STATE.DESKTOP
   const sourcePresets = config.sourcePresets ?? []
 
-  const sourceDraft = buildScenePanelDraft(sceneId, config)
-  const [draft,  setDraft]  = useState<ScenePanelDraft>(sourceDraft)
+  const baseDraft = buildDraft(sceneId, config)
+  const [draft,  setDraft]  = useState<ScenePanelDraft>(baseDraft)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
-  const [tab,    setTab]    = useState<'editor' | 'settings'>('editor')
+  const [tab,    setTab]    = useState<'sources' | 'settings'>('sources')
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const appFormRef = useRef<AppFormHandle>(null)
-  const [appDirty, setAppDirty] = useState(false)
 
-  const dirty = !isSameDraft(draft, sourceDraft) || appDirty
+  const dirty = !isSameDraft(draft, baseDraft)
 
   useEffect(() => {
-    setDraft(buildScenePanelDraft(sceneId, config))
+    setDraft(buildDraft(sceneId, config))
     setSaved(false)
-    setAppDirty(false)
+    setSelectedSourceId(null)
   }, [sceneId])
 
-  useEffect(() => () => {
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-  }, [])
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
   const update = useCallback((updater: (d: ScenePanelDraft) => void) => {
     setDraft((prev) => { const next = structuredClone(prev); updater(next); return next })
@@ -64,108 +64,97 @@ export function ScenePanel({ sceneId, app, onDelete }: { sceneId: string; app?: 
 
   const apply = useCallback(async () => {
     setSaving(true)
-    const scene = config.scenes[sceneId] ?? {}
+    const scene = (config.scenes[sceneId] ?? {}) as Scene
     const nextScene: Scene = {
-      ...scene as Scene,
-      style:      draft.style,
-      sources:    draft.sources,
-      onEntry:    draft.onEntry.length ? draft.onEntry : undefined,
-      onExit:     draft.onExit.length  ? draft.onExit  : undefined,
-      musicTrack: draft.musicTrack.trim() || undefined,
+      ...scene,
+      sources:     draft.sources,
+      showDesktop: draft.showDesktop,
+      onEntry:     draft.onEntry.filter((s) => s.id).map((s) => s.id),
+      onExit:      draft.onExit.filter((s) => s.id).map((s) => s.id),
+      musicTrack:  draft.musicTrack.trim() || undefined,
+      ...(isDesktop ? {} : { style: draft.style }),
     }
     await saveConfig({ scenes: { [sceneId]: nextScene } })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
-    await appFormRef.current?.apply()
-  }, [config, draft, sceneId, saveConfig])
+  }, [config, draft, sceneId, saveConfig, isDesktop])
 
   const reset = useCallback(() => {
-    setDraft(buildScenePanelDraft(sceneId, config))
+    setDraft(buildDraft(sceneId, config))
     setSaved(false)
-    appFormRef.current?.reset()
   }, [sceneId, config])
 
-  const label = sceneId === STATE.LOBBY ? 'Lobby Scene' : sceneId === STATE.DESKTOP ? 'Desktop Scene' : 'Scene Configuration'
+  const label = isDesktop ? 'Desktop' : sceneId === STATE.LOBBY ? 'Lobby' : 'Scene'
 
   return (
     <div className="space-y-3">
+      {/* Tab bar */}
       <div className="flex gap-1 rounded-xl bg-white/[0.04] p-1">
-        {(['editor', 'settings'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={
-              'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-colors ' +
-              (tab === t ? 'bg-white/10 text-white shadow' : 'text-zinc-500 hover:text-zinc-300')
-            }
-          >
-            {t === 'editor' ? 'Editor' : 'Settings'}
+        {(['sources', 'settings'] as const).map((t) => (
+          <button key={t} type="button" onClick={() => setTab(t)}
+            className={'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-colors ' +
+              (tab === t ? 'bg-white/10 text-white shadow' : 'text-zinc-500 hover:text-zinc-300')}>
+            {t === 'sources' ? 'Sources' : 'Settings'}
           </button>
         ))}
       </div>
 
-      {tab === 'editor' && (
-        app && onDelete
-          ? <AppForm ref={appFormRef} app={app} onDelete={onDelete} embedded onDirtyChange={setAppDirty} />
-          : <div className="text-sm text-zinc-500 italic px-1">No application linked.</div>
+      {/* ── Sources tab ──────────────────────────────────── */}
+      {tab === 'sources' && (
+        <div className="space-y-3">
+          <ScenePreview
+            sources={draft.sources}
+            selectedId={selectedSourceId}
+            onSelect={setSelectedSourceId}
+            onChangePosition={(id, pos) => update((d) => {
+              const s = d.sources.find((x) => x.id === id)
+              if (s) s.position = pos
+            })}
+          />
+          <SourcesEditor
+            sources={draft.sources}
+            sourcePresets={sourcePresets}
+            onChange={(next) => update((d) => { d.sources = next })}
+          />
+        </div>
       )}
 
+      {/* ── Settings tab ─────────────────────────────────── */}
       {tab === 'settings' && (
-        <div className="space-y-0 pt-3">
-          <ConfigPanel title="Transitions" className="mb-4">
-            <div className="space-y-3">
-              {([
-                { key: 'onEntry' as const, label: 'On Entry' },
-                { key: 'onExit'  as const, label: 'On Exit'  },
-              ]).map(({ key, label: tLabel }) => (
-                <div key={key}>
-                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">{tLabel} — comma-separated transition names</div>
-                  <input
-                    type="text"
-                    value={draft[key].join(', ')}
-                    onChange={(e) => update((d) => {
-                      d[key] = e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
-                    })}
-                    placeholder="e.g. fade, slide-left"
-                    className="w-full font-mono text-xs"
-                  />
-                </div>
-              ))}
+        <div className="space-y-4 pt-1">
+          {/* Show Desktop */}
+          {!isDesktop && (
+            <label className="flex items-center gap-3 cursor-pointer select-none px-1">
+              <input type="checkbox" checked={draft.showDesktop}
+                onChange={(e) => update((d) => { d.showDesktop = e.target.checked })}
+                className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-cyan-400" />
+              <span className="text-xs text-[var(--color-text-primary)]">Show Win98 desktop while this scene is active</span>
+            </label>
+          )}
+
+          {/* Transitions — two columns */}
+          <ConfigPanel title="Transitions">
+            <div className="grid grid-cols-2 gap-4">
+              <TransitionChipPicker label="On Entry" steps={draft.onEntry}
+                onChange={(steps) => update((d) => { d.onEntry = steps })} />
+              <TransitionChipPicker label="On Exit" steps={draft.onExit}
+                onChange={(steps) => update((d) => { d.onExit = steps })} />
             </div>
           </ConfigPanel>
 
+          {/* Background Music */}
           {isUser && (
-            <ConfigPanel title="Sources" className="mb-4">
-              <SourcesEditor
-                sources={draft.sources}
-                sourcePresets={sourcePresets}
-                onChange={(next) => update((d) => { d.sources = next })}
-              />
-            </ConfigPanel>
-          )}
-
-          <StyleSections
-            sceneId={sceneId}
-            style={draft.style}
-            update={(updater) => update((d) => { updater(d.style) })}
-          />
-
-          {isUser && (
-            <ConfigPanel title="Background Music" className="mb-4">
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-2">Loop a music track while this scene is active. Leave blank for silence.</div>
-              <input
-                type="text"
-                placeholder="/assets/audio/music/ambient/track.mp3"
+            <ConfigPanel title="Background Music">
+              <input type="text" placeholder="/assets/audio/music/ambient/track.mp3"
                 value={draft.musicTrack}
                 onChange={(e) => update((d) => { d.musicTrack = e.target.value })}
-                className="w-full font-mono text-xs"
-              />
-              <div className="text-[10px] text-[var(--color-text-muted)] mt-1">Crossfade: 1.5 s</div>
+                className="w-full font-mono text-xs" />
+              <div className="text-[10px] text-[var(--color-text-muted)] mt-1">Crossfade: 1.5 s — leave blank for silence</div>
             </ConfigPanel>
           )}
+
         </div>
       )}
 

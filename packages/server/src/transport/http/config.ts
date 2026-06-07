@@ -91,4 +91,5 @@ export async function configRoute(app: FastifyInstance, opts: ConfigRouteOptions
       return reply.code(400).send({ ok: false, error: String(e) })
     }
   })
+
 }

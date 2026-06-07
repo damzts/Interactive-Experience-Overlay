@@ -1,4 +1,4 @@
-export function VideoLoopRenderer({ config }: { config: Record<string, unknown> }) {
+export function VideoLoopRenderer({ config }: import('../registry').PluginProps) {
   const url     = String(config.url ?? '')
   const opacity = Number(config.opacity ?? 1)
 

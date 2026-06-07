@@ -1,13 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { STATE } from '@ieom/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
 import { audioEngine } from './engine/AudioEngine'
 import { TransitionEngine } from './engine/TransitionEngine'
-import { LayerStack } from './layers/LayerStack'
-import { BackgroundLayer } from './layers/BackgroundLayer'
-import { ParticlesLayer } from './layers/ParticlesLayer'
-import { CSSEffectsLayer } from './layers/CSSEffectsLayer'
+import { SceneCompositor } from './layers/SceneCompositor'
 import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
 import { LobbyScene } from './lobby/LobbyScene'
@@ -15,76 +12,62 @@ import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
 
 export default function App() {
-  const visualState   = useAppStore((s) => s.visualState)
-  const config        = useAppStore((s) => s.config)
+  const visualState = useAppStore((s) => s.visualState)
+  const config      = useAppStore((s) => s.config)
 
-  // Wire socket events to the store
+  const sceneStartRef = useRef(Date.now())
+  const [sceneAge, setSceneAge] = useState(0)
+
+  useEffect(() => {
+    sceneStartRef.current = Date.now()
+    setSceneAge(0)
+    const id = setInterval(() => setSceneAge(Math.floor((Date.now() - sceneStartRef.current) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [visualState])
+
   useSocket()
-
   useEffect(() => { audioEngine.init() }, [])
-
   useEffect(() => {
     audioEngine.setMasterVolume(config.audio.masterVolume)
     audioEngine.setMusicVolume(config.audio.musicVolume)
   }, [config.audio.masterVolume, config.audio.musicVolume])
 
-  const { scene, visibleSources, overlayStyle, effectiveEffects } = resolveScene(config, visualState)
+  const { scene, visibleSources, overlayStyle, showDesktop } = resolveScene(config, visualState)
 
-  // Play per-scene background music track (null = silence)
   useEffect(() => {
     audioEngine.playMusic(scene?.musicTrack ?? null)
   }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div id="overlay-root" className={`state-${visualState.toLowerCase()}`}>
-      {/* Configurable background (gradient / image / video / pattern) */}
-      <div id="background-layer">
-        <LayerErrorBoundary name="background">
-          <BackgroundLayer style={overlayStyle} />
-        </LayerErrorBoundary>
-      </div>
+    <div
+      id="overlay-root"
+      className={`state-${visualState.toLowerCase()}`}
+      data-desktop={String(showDesktop)}
+    >
+      <LayerErrorBoundary name="scene">
+        <SceneCompositor
+          sources={visibleSources}
+          overlayStyle={overlayStyle}
+          sceneAge={sceneAge}
+        />
+      </LayerErrorBoundary>
 
-      {/* Particle system on top of background */}
-      <div id="particles-layer">
-        <LayerErrorBoundary name="particles">
-          <ParticlesLayer {...overlayStyle.particles} />
-        </LayerErrorBoundary>
-      </div>
-
-      {/* All plugin sources (backgrounds, effects, overlays) */}
-      <div id="sources-layer">
-        <LayerErrorBoundary name="sources">
-          <LayerStack sources={visibleSources} />
-        </LayerErrorBoundary>
-      </div>
-
-      {/* 3D lobby room — only mounted when in LOBBY state (no wasted render otherwise) */}
       <div id="lobby-layer">
         <LayerErrorBoundary name="lobby">
           {visualState === STATE.LOBBY && <LobbyScene />}
         </LayerErrorBoundary>
       </div>
 
-      {/* Win98 OS desktop */}
       <div id="desktop-layer">
         <LayerErrorBoundary name="desktop">
           <Desktop apps={config.applications} />
         </LayerErrorBoundary>
       </div>
 
-      {/* Global CSS effects — CRT, vignette, grain, flicker, chromatic */}
-      <div id="effects-layer">
-        <LayerErrorBoundary name="effects">
-          <CSSEffectsLayer effects={effectiveEffects} />
-        </LayerErrorBoundary>
-      </div>
-
-      {/* GSAP transition effect elements (loading window, flash, static, etc.) */}
       <div id="transition-layer">
         <TransitionLayer />
       </div>
 
-      {/* Invisible engine — watches pendingTransition, runs GSAP */}
       <TransitionEngine />
     </div>
   )
