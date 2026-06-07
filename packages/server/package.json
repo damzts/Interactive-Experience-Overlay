@@ -7,9 +7,12 @@
     "./desktop-entry": "./dist/desktop-entry.js"
   },
   "scripts": {
-    "dev": "tsx watch src/desktop-entry.ts",
     "build": "tsc",
-    "start": "node dist/desktop-entry.js"
+    "dev": "tsx watch src/desktop-entry.ts",
+    "start": "node dist/desktop-entry.js",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",

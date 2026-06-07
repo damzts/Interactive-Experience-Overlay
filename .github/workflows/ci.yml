@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '11'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @ieom/shared build
+
+      - name: TypeScript check
+        run: |
+          pnpm --filter @ieom/shared typecheck
+          pnpm --filter @ieom/server typecheck
+          pnpm --filter @ieom/overlay typecheck
+          pnpm --filter @ieom/admin typecheck
+          pnpm --filter @ieom/desktop typecheck
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run tests (server)
+        run: pnpm --filter @ieom/server test
+
+      - name: Run tests (desktop)
+        run: pnpm --filter @ieom/desktop test
