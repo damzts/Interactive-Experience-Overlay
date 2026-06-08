@@ -17,6 +17,7 @@ import {
 } from './window-state.js';
 import { loadToken } from './token-storage.js';
 import { getDesktopAdminUrl, getDesktopServerPort } from './runtime-config.js';
+import { getAdminToken } from './server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -468,7 +469,12 @@ export async function createAdminWindow(): Promise<void> {
   });
 
   // Load the admin UI from the embedded server
-  await adminWindow.loadURL(ADMIN_URL);
+  // If an admin token was generated (packaged Electron), inject it as query param
+  const adminToken = getAdminToken();
+  const adminUrl = adminToken
+    ? `${ADMIN_URL}?token=${encodeURIComponent(adminToken)}`
+    : ADMIN_URL;
+  await adminWindow.loadURL(adminUrl);
 
   const token = loadToken();
   if (token) {

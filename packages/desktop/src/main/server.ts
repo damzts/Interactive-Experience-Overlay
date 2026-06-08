@@ -6,6 +6,7 @@
  */
 
 import { app, dialog, Notification, BrowserWindow } from 'electron';
+import { randomBytes } from 'node:crypto';
 import path from 'path';
 import { createDesktopServer } from '@ieom/server/desktop-entry';
 import type { DesktopServer } from '@ieom/server/desktop-entry';
@@ -81,6 +82,34 @@ function isDatabaseError(error: unknown): boolean {
 // ---------------------------------------------------------------------------
 
 /**
+ * Generate a cryptographically random admin token for the embedded server.
+ * In packaged Electron, this protects admin endpoints against local attacks.
+ * In dev mode (no env var), returns undefined → permissive mode.
+ */
+function generateAdminToken(): string | undefined {
+  if (app.isPackaged) {
+    // Production: auto-generate secure random token
+    return `ieom-${randomBytes(24).toString('hex')}`;
+  }
+  // Dev: user can set OVERLAY_ADMIN_TOKEN explicitly, otherwise permissive
+  return process.env['OVERLAY_ADMIN_TOKEN']?.trim() || undefined;
+}
+
+const ADMIN_TOKEN = generateAdminToken();
+
+// If auto-generated, inject into env so downstream code (namespace.ts, authMiddleware.ts) sees it
+if (ADMIN_TOKEN && !process.env['OVERLAY_ADMIN_TOKEN']) {
+  process.env['OVERLAY_ADMIN_TOKEN'] = ADMIN_TOKEN;
+}
+
+/**
+ * Expose the admin token so callers can inject it into URLs (e.g., admin window).
+ */
+export function getAdminToken(): string | undefined {
+  return ADMIN_TOKEN;
+}
+
+/**
  * Start the embedded Fastify server.
  *
  * Resolves paths for dbPath, assetsDir, overlayDir, adminDir.
@@ -114,6 +143,7 @@ export async function startServer(): Promise<void> {
         assetsDir,
         overlayDir,
         adminDir,
+        adminToken: ADMIN_TOKEN,
         getToken: loadToken,
       });
       await server.start();

@@ -26,17 +26,25 @@ type OnlineNamespace = ReturnType<
  * Validates the admin token or JWT Bearer token on socket handshake.
  * Only admin roles are checked — player/overlay roles pass through.
  * Returns true if valid, false otherwise.
+ *
+ * Fallback behavior (mirrors desktop-entry.ts):
+ *   If OVERLAY_ADMIN_TOKEN is NOT configured → allow all (unprotected dev mode).
+ *   If OVERLAY_ADMIN_TOKEN IS configured → require the correct token or a valid JWT.
  */
 function validateAdminToken(auth: Record<string, unknown>): boolean {
   const role = (auth?.clientType as string) ?? 'player'
   if (role !== 'admin') return true // non-admin roles bypass
 
+  // If OVERLAY_ADMIN_TOKEN is not configured, skip validation.
+  // This matches the HTTP fallback in desktop-entry.ts (DESKTOP_USER_ID blanket-assign).
+  const adminToken = process.env['OVERLAY_ADMIN_TOKEN']?.trim()
+  if (!adminToken) return true
+
   const token = (auth?.token as string)?.trim()
   if (!token) return false
 
   // Check overlay admin token (env var)
-  const adminToken = process.env['OVERLAY_ADMIN_TOKEN']?.trim()
-  if (adminToken && token === adminToken) return true
+  if (token === adminToken) return true
 
   // Check JWT Bearer token (for OAuth-authenticated users)
   try {

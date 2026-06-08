@@ -63,6 +63,13 @@ export interface DesktopServerOptions {
   overlayDir: string
   /** Path to the admin dist directory */
   adminDir: string
+  /**
+   * Overlay admin token for authenticating admin HTTP + Socket.IO connections.
+   * If set, protects /api/config, /api/online, /api/pov, etc.
+   * If not set, falls back to permissive mode (DESKTOP_USER_ID) for local dev.
+   * In production (Electron), auto-generated and injected into the admin UI.
+   */
+  adminToken?: string
   /** Cloud API URL for room creation (default: https://ieom.danhub.dev) */
   cloudUrl?: string
   /** Token provider for cloud API authentication */
@@ -94,10 +101,13 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(fastifyCors, { origin: '*' })
   await app.register(fastifyCookie)
 
-  // Auth: if OVERLAY_ADMIN_TOKEN is set, protected routes require it.
-  // In local dev (no token), blanket-assign 'desktop' user for backward compat.
-  const adminToken = process.env['OVERLAY_ADMIN_TOKEN']?.trim()
+  // Auth: if a token is configured, protected routes require it.
+  // Priority: options.adminToken > OVERLAY_ADMIN_TOKEN env var > permissive fallback.
+  // In permissive mode (no token), blanket-assign 'desktop' user for backward compat.
+  const adminToken = options.adminToken?.trim() || process.env['OVERLAY_ADMIN_TOKEN']?.trim()
   if (adminToken) {
+    // Set it back so downstream code (namespace.ts, authMiddleware.ts) sees the same value
+    if (!process.env['OVERLAY_ADMIN_TOKEN']) process.env['OVERLAY_ADMIN_TOKEN'] = adminToken
     registerAuthMiddleware(app)
   } else {
     app.addHook('onRequest', async (request) => { request.userId = DESKTOP_USER_ID })
