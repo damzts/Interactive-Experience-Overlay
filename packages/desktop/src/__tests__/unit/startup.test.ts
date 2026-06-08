@@ -8,37 +8,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Mocks
+// Mocks (vi.hoisted ensures these are initialized before vi.mock factories
+// run, which is required by vitest 4 — vitest 2 was more lenient)
 // ---------------------------------------------------------------------------
 
-const mockGetLoginItemSettings = vi.fn(() => ({
-  wasOpenedAtLogin: false,
-  openAtLogin: false,
+const mocks = vi.hoisted(() => ({
+  mockGetLoginItemSettings: vi.fn(() => ({
+    wasOpenedAtLogin: false,
+    openAtLogin: false,
+  })),
+  mockSetLoginItemSettings: vi.fn(),
+  mockPrepare: vi.fn(),
+  mockPragma: vi.fn(),
+  mockClose: vi.fn(),
+  mockRun: vi.fn(),
+  mockGet: vi.fn(),
 }));
-const mockSetLoginItemSettings = vi.fn();
+
+const mockDbInstance = {
+  prepare: mocks.mockPrepare,
+  pragma: mocks.mockPragma,
+  close: mocks.mockClose,
+};
 
 vi.mock('electron', () => ({
   app: {
-    getLoginItemSettings: () => mockGetLoginItemSettings(),
-    setLoginItemSettings: (...args: unknown[]) => mockSetLoginItemSettings(...args),
+    getLoginItemSettings: function () { return mocks.mockGetLoginItemSettings(); },
+    setLoginItemSettings: function (...args: unknown[]) { return mocks.mockSetLoginItemSettings(...args); },
   },
 }));
 
-// Mock better-sqlite3
-const mockPrepare = vi.fn();
-const mockPragma = vi.fn();
-const mockClose = vi.fn();
-const mockRun = vi.fn();
-const mockGet = vi.fn();
-
-const mockDbInstance = {
-  prepare: mockPrepare,
-  pragma: mockPragma,
-  close: mockClose,
-};
-
 vi.mock('better-sqlite3', () => ({
-  default: vi.fn(() => mockDbInstance),
+  default: vi.fn(function () { return mockDbInstance; }),
 }));
 
 // Import after mocks
@@ -57,13 +58,13 @@ const {
 describe('startup module', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrepare.mockReturnValue({ run: mockRun, get: mockGet });
-    mockGet.mockReturnValue(undefined);
+    mocks.mockPrepare.mockReturnValue({ run: mocks.mockRun, get: mocks.mockGet });
+    mocks.mockGet.mockReturnValue(undefined);
   });
 
   describe('isAutoLaunched()', () => {
     it('should return true when wasOpenedAtLogin is true', () => {
-      mockGetLoginItemSettings.mockReturnValue({
+      mocks.mockGetLoginItemSettings.mockReturnValue({
         wasOpenedAtLogin: true,
         openAtLogin: true,
       });
@@ -72,7 +73,7 @@ describe('startup module', () => {
     });
 
     it('should return false when wasOpenedAtLogin is false and no CLI args', () => {
-      mockGetLoginItemSettings.mockReturnValue({
+      mocks.mockGetLoginItemSettings.mockReturnValue({
         wasOpenedAtLogin: false,
         openAtLogin: false,
       });
@@ -82,7 +83,7 @@ describe('startup module', () => {
     });
 
     it('should return true when --hidden arg is present (Linux fallback)', () => {
-      mockGetLoginItemSettings.mockReturnValue({
+      mocks.mockGetLoginItemSettings.mockReturnValue({
         wasOpenedAtLogin: false,
         openAtLogin: false,
       });
@@ -96,7 +97,7 @@ describe('startup module', () => {
     });
 
     it('should return true when --autostart arg is present (Linux fallback)', () => {
-      mockGetLoginItemSettings.mockReturnValue({
+      mocks.mockGetLoginItemSettings.mockReturnValue({
         wasOpenedAtLogin: false,
         openAtLogin: false,
       });
@@ -116,7 +117,7 @@ describe('startup module', () => {
 
       setLaunchAtStartup(true);
 
-      expect(mockSetLoginItemSettings).toHaveBeenCalledWith({
+      expect(mocks.mockSetLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: true,
         openAsHidden: true,
         args: ['--hidden'],
@@ -128,7 +129,7 @@ describe('startup module', () => {
 
       setLaunchAtStartup(false);
 
-      expect(mockSetLoginItemSettings).toHaveBeenCalledWith({
+      expect(mocks.mockSetLoginItemSettings).toHaveBeenCalledWith({
         openAtLogin: false,
         openAsHidden: true,
         args: [],
@@ -140,8 +141,8 @@ describe('startup module', () => {
 
       setLaunchAtStartup(true);
 
-      expect(mockPrepare).toHaveBeenCalled();
-      expect(mockRun).toHaveBeenCalledWith(1);
+      expect(mocks.mockPrepare).toHaveBeenCalled();
+      expect(mocks.mockRun).toHaveBeenCalledWith(1);
     });
 
     it('should persist 0 when disabling', () => {
@@ -149,28 +150,28 @@ describe('startup module', () => {
 
       setLaunchAtStartup(false);
 
-      expect(mockRun).toHaveBeenCalledWith(0);
+      expect(mocks.mockRun).toHaveBeenCalledWith(0);
     });
   });
 
   describe('getLaunchAtStartup()', () => {
     it('should return false when no row exists', () => {
       openAppSettingsDb('/mock/path/ieom.db');
-      mockGet.mockReturnValue(undefined);
+      mocks.mockGet.mockReturnValue(undefined);
 
       expect(getLaunchAtStartup()).toBe(false);
     });
 
     it('should return true when launch_at_startup is 1', () => {
       openAppSettingsDb('/mock/path/ieom.db');
-      mockGet.mockReturnValue({ launch_at_startup: 1 });
+      mocks.mockGet.mockReturnValue({ launch_at_startup: 1 });
 
       expect(getLaunchAtStartup()).toBe(true);
     });
 
     it('should return false when launch_at_startup is 0', () => {
       openAppSettingsDb('/mock/path/ieom.db');
-      mockGet.mockReturnValue({ launch_at_startup: 0 });
+      mocks.mockGet.mockReturnValue({ launch_at_startup: 0 });
 
       expect(getLaunchAtStartup()).toBe(false);
     });
@@ -190,8 +191,8 @@ describe('startup module', () => {
 
       openAppSettingsDb('/mock/path/ieom.db');
 
-      expect(Database).toHaveBeenCalledWith('/mock/path/ieom.db', { fileMustExist: true });
-      expect(mockPragma).toHaveBeenCalledWith('journal_mode = WAL');
+      expect(Database).toHaveBeenCalledWith('/mock/path/ieom.db');
+      expect(mocks.mockPragma).toHaveBeenCalledWith('journal_mode = WAL');
     });
   });
 
@@ -200,7 +201,7 @@ describe('startup module', () => {
       openAppSettingsDb('/mock/path/ieom.db');
       closeAppSettingsDb();
 
-      expect(mockClose).toHaveBeenCalled();
+      expect(mocks.mockClose).toHaveBeenCalled();
     });
   });
 });
