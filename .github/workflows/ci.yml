@@ -35,8 +35,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared
-        run: pnpm --filter @ieomlabs/shared build
+      - name: Build shared + server
+        run: |
+          pnpm --filter @ieomlabs/shared build
+          pnpm --filter @ieom/server build
 
       - name: TypeScript check
         run: |
@@ -45,11 +47,7 @@ jobs:
           pnpm --filter @ieom/overlay typecheck
           pnpm --filter @ieom/desktop typecheck
 
-      - name: Build packages
-        run: pnpm build
-
-      - name: Run tests (server)
-        run: pnpm --filter @ieom/server test
-
-      - name: Run tests (desktop)
-        run: pnpm --filter @ieom/desktop test
+      - name: Run tests (server + desktop)
+        run: |
+          pnpm --filter @ieom/server test run
+          pnpm --filter @ieom/desktop test
