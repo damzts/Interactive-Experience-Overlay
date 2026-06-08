@@ -35,6 +35,8 @@ export interface DesktopBridge {
   }
   /** Server status */
   server: {
+    /** Request the admin token from the main process (never exposed in URL). */
+    getAdminToken(): Promise<string | null>
     status: ServerStatusData | null
   }
   /** App info */
@@ -113,6 +115,14 @@ export function useDesktopBridge(): DesktopBridge | null {
     return window.ieom.app.getVersion()
   }, [])
 
+  const getAdminToken = useCallback(async (): Promise<string | null> => {
+    try {
+      return await window.ieom.server.getAdminToken()
+    } catch {
+      return null
+    }
+  }, [])
+
   const install = useCallback(async (): Promise<void> => {
     return window.ieom.update.install()
   }, [])
@@ -132,6 +142,7 @@ export function useDesktopBridge(): DesktopBridge | null {
       status: authStatus,
     },
     server: {
+      getAdminToken,
       status: serverStatus,
     },
     app: {

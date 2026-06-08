@@ -9,6 +9,7 @@
 
 import { ipcMain, app, BrowserWindow } from 'electron';
 import { getLicenseTier, validateLicense, type LicenseTier } from './license.js';
+import { getAdminToken } from './server.js';
 import { clearToken } from './token-storage.js';
 import { getLaunchAtStartup, setLaunchAtStartup } from './startup.js';
 import { installUpdate } from './auto-updater.js';
@@ -184,6 +185,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('room:leave', async () => {
     await leaveRoom();
     return getRoomStatus();
+  });
+
+  // -------------------------------------------------------------------------
+  // Server: get admin token (for IPC delivery — not URL injection)
+  // -------------------------------------------------------------------------
+  ipcMain.handle('server:get-admin-token', () => {
+    return getAdminToken() ?? null;
   });
 
   // -------------------------------------------------------------------------

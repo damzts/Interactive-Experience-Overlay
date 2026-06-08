@@ -6,6 +6,10 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined'
 }
 
+function isDesktopMode(): boolean {
+  return typeof window !== 'undefined' && typeof (window as any).ieom?.server?.getAdminToken === 'function'
+}
+
 function readTokenFromParams(params: URLSearchParams): string | null {
   return params.get('token') ?? params.get('access_token')
 }
@@ -50,6 +54,27 @@ export function captureAuthTokenFromLocation(): string | null {
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
 
   return token.trim()
+}
+
+/**
+ * Get the admin token from the best available source:
+ * - Desktop mode: via IPC bridge (never exposed in URL)
+ * - Web mode: from URL params or sessionStorage (existing behavior)
+ */
+export async function getAdminTokenForAuth(): Promise<string | null> {
+  if (isDesktopMode()) {
+    try {
+      return await (window as any).ieom.server.getAdminToken()
+    } catch {
+      // IPC failed — fall through to web mode methods
+    }
+  }
+
+  // Web mode or IPC fallback: check URL params / sessionStorage
+  const fromUrl = captureAuthTokenFromLocation()
+  if (fromUrl) return fromUrl
+
+  return getStoredAuthToken()
 }
 
 export function getAuthOrigin(): string {

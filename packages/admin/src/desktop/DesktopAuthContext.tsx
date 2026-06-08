@@ -37,7 +37,7 @@ export function DesktopAuthProvider({ children }: { children: ReactNode }) {
       if (data.authenticated && data.user) {
         const authUser = data.user as AuthUser
         setUser(authUser)
-        reconnectSocket()
+        void reconnectSocket()
       } else {
         setUser(null)
       }

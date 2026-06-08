@@ -4,6 +4,7 @@ import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { useAuth } from '../../auth/AuthContext'
+import { LoginModal } from '../../auth/LoginModal'
 import { Sidebar as LeftSidebar, TopBar as NewTopBar } from '../../components/organisms'
 import type { SidebarSection } from '../../components/organisms'
 import { DashboardContainer } from './DashboardContainer'
@@ -40,7 +41,7 @@ export function Dashboard() {
   // ─── Runtime state for TopBar status indicators ───
   const overlayOwnerSocketId = useAdminStore((s) => s.overlayOwnerSocketId)
   const obsConnected = useAdminStore((s) => s.obsConnected)
-  const { user } = useAuth()
+  const { user, isLoginModalOpen, closeLoginModal } = useAuth()
 
   const overlayStatus: 'connected' | 'disconnected' =
     overlayOwnerSocketId != null ? 'connected' : 'disconnected'
@@ -128,6 +129,9 @@ export function Dashboard() {
         onNavigate={handleNavigate}
         sections={NAV_SECTIONS}
       />
+
+      {/* ─── Login modal overlay (not a navigation) ─── */}
+      <LoginModal open={isLoginModalOpen} onClose={closeLoginModal} />
 
       {/* ─── New Design System TopBar (fixed top, offset by sidebar) ─── */}
       <NewTopBar

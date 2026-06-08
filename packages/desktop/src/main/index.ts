@@ -9,6 +9,8 @@ import { registerIpcHandlers } from './ipc-handlers.js';
 import { initAutoUpdater, checkForUpdates, cleanupAutoUpdater } from './auto-updater.js';
 import { initConnectivityMonitor, cleanupConnectivityMonitor } from './connectivity.js';
 import { isAutoLaunched, openAppSettingsDb, closeAppSettingsDb } from './startup.js';
+import { loadToken } from './token-storage.js';
+import { broadcastAuthStatus } from './ipc-handlers.js';
 
 // ---------------------------------------------------------------------------
 // Crash Handlers — ensure the process exits on fatal errors
@@ -22,6 +24,61 @@ process.on('unhandledRejection', (reason) => {
   console.error('[IEOM] Unhandled rejection:', reason);
   app.exit(1);
 });
+
+// ---------------------------------------------------------------------------
+// Session Restore — load persisted token on startup
+// ---------------------------------------------------------------------------
+
+/**
+ * Attempt to restore a previously saved session by loading the token from
+ * safeStorage. If a valid JWT token is found, decode its payload and
+ * broadcast an authenticated status so the renderer never shows a login
+ * flash. Invalid / corrupted tokens are silently ignored (renderer will
+ * show login as normal).
+ */
+async function restoreSession(): Promise<void> {
+  try {
+    const token = loadToken();
+    if (!token) {
+      // No saved session — renderer will show login.
+      broadcastAuthStatus({ authenticated: false });
+      return;
+    }
+
+    // Decode the JWT payload (best-effort; backend already verified validity)
+    const payload = JSON.parse(
+      Buffer.from(token.split('.')[1]!, 'base64url').toString(),
+    ) as {
+      sub?: string;
+      email?: string;
+      name?: string;
+      userId?: string;
+      id?: string;
+      exp?: number;
+    };
+
+    // Skip if token is expired (renderer will do a full check later)
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      console.log('[session-restore] Token expired — renderer will request re-auth');
+      broadcastAuthStatus({ authenticated: false });
+      return;
+    }
+
+    broadcastAuthStatus({
+      authenticated: true,
+      user: {
+        id: payload.userId ?? payload.sub ?? payload.id ?? 'desktop-user',
+        email: payload.email ?? '',
+        name: payload.name ?? payload.email ?? 'User',
+      },
+    });
+
+    console.log('[session-restore] Session restored successfully');
+  } catch {
+    // Corrupted token / decode failure — start fresh
+    broadcastAuthStatus({ authenticated: false });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Single-Instance Lock
@@ -70,6 +127,14 @@ if (!gotLock) {
     } catch {
       // If the database isn't ready yet, startup settings will use defaults
     }
+
+    // -----------------------------------------------------------------------
+    // Session restore: load persisted token before creating any windows so
+    // the renderer receives auth status immediately on mount (no flash of
+    // login screen). The broadcast reaches all BrowserWindows created after
+    // this point via `broadcastAuthStatus`.
+    // -----------------------------------------------------------------------
+    await restoreSession();
 
     await createTray();
 

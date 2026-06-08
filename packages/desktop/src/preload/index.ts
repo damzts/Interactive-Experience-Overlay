@@ -46,6 +46,10 @@ const api = {
   },
 
   server: {
+    /** Request the admin token from the main process (never exposed in URL). */
+    getAdminToken(): Promise<string | null> {
+      return ipcRenderer.invoke('server:get-admin-token');
+    },
     /** Subscribe to server status change events. Returns an unsubscribe function. */
     onStatusChanged(callback: (data: { running: boolean; error?: string }) => void): () => void {
       const listener = (_event: Electron.IpcRendererEvent, data: { running: boolean; error?: string }) => {

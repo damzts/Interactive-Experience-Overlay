@@ -1,10 +1,10 @@
 import { io, type Socket } from 'socket.io-client'
-import { getAuthOrigin, getStoredAuthToken } from '../auth/sessionToken'
+import { getAuthOrigin, getAdminTokenForAuth, getStoredAuthToken } from '../auth/sessionToken'
 
 /** Singleton socket for admin panel — cookies are sent automatically via withCredentials */
 export const socket: Socket = io(getAuthOrigin(), {
   withCredentials: true,
-  auth: { clientType: 'admin', ...(getStoredAuthToken() ? { token: getStoredAuthToken() as string } : {}) },
+  auth: { clientType: 'admin' },
   autoConnect: false,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
@@ -12,13 +12,22 @@ export const socket: Socket = io(getAuthOrigin(), {
 
 /**
  * Reconnect the socket (e.g. after a token refresh).
- * Cookies are sent automatically on reconnect — no manual token passing needed.
+ * Resolves the admin token from the best available source:
+ * - Desktop: via IPC bridge (never in URL)
+ * - Web: from URL params or sessionStorage
  */
-export function reconnectSocket(): void {
+export async function reconnectSocket(): Promise<void> {
   if (socket.connected) {
     socket.disconnect()
   }
-  const token = getStoredAuthToken()
-  socket.auth = { clientType: 'admin', ...(token ? { token } : {}) }
+
+  const adminToken = await getAdminTokenForAuth()
+  const authToken = getStoredAuthToken()
+
+  socket.auth = {
+    clientType: 'admin',
+    ...(adminToken ? { token: adminToken } : {}),
+    ...(authToken ? { authToken } : {}),
+  }
   socket.connect()
 }

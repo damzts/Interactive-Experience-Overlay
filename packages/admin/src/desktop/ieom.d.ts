@@ -23,6 +23,8 @@ export interface IeomAuthApi {
 }
 
 export interface IeomServerApi {
+  /** Request the admin token from the main process (never exposed in URL). */
+  getAdminToken(): Promise<string | null>
   /** Subscribe to server status change events. Returns an unsubscribe function. */
   onStatusChanged(callback: (data: { running: boolean; error?: string }) => void): () => void
 }

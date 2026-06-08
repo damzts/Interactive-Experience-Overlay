@@ -22,6 +22,9 @@ export interface AuthContextValue {
   login: () => void
   logout: () => void
   checkAuth: () => Promise<void>
+  openLoginModal: () => void
+  closeLoginModal: () => void
+  isLoginModalOpen: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -79,11 +82,15 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
     clearStoredAuthToken()
     // apiLogout clears server-side session state without navigating away from the admin shell
     await apiLogout()
+    setUser(null)
   }, [])
+
+  const openLoginModal = useCallback(() => setLoginModalOpen(true), [])
+  const closeLoginModal = useCallback(() => setLoginModalOpen(false), [])
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth }}
+      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth, openLoginModal, closeLoginModal, isLoginModalOpen }}
     >
       {children}
     </AuthContext.Provider>
@@ -107,7 +114,7 @@ function DesktopAuthProviderInternal({ children }: { children: ReactNode }) {
     const unsubscribe = ieom.auth.onStatusChanged((data) => {
       if (data.authenticated && data.user) {
         setUser(data.user as AuthUser)
-        reconnectSocket()
+        void reconnectSocket()
       } else {
         setUser(null)
       }
@@ -134,9 +141,12 @@ function DesktopAuthProviderInternal({ children }: { children: ReactNode }) {
     // This is effectively a no-op since the main process drives auth state.
   }, [])
 
+  const openLoginModal = useCallback(() => setLoginModalOpen(true), [])
+  const closeLoginModal = useCallback(() => setLoginModalOpen(false), [])
+
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth }}
+      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth, openLoginModal, closeLoginModal, isLoginModalOpen }}
     >
       {children}
     </AuthContext.Provider>

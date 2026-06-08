@@ -15,9 +15,7 @@ import {
   saveWindowBounds,
   type WindowBounds,
 } from './window-state.js';
-import { loadToken } from './token-storage.js';
 import { getDesktopAdminUrl, getDesktopServerPort } from './runtime-config.js';
-import { getAdminToken } from './server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -469,38 +467,12 @@ export async function createAdminWindow(): Promise<void> {
   });
 
   // Load the admin UI from the embedded server
-  // If an admin token was generated (packaged Electron), inject it as query param
-  const adminToken = getAdminToken();
-  const adminUrl = adminToken
-    ? `${ADMIN_URL}?token=${encodeURIComponent(adminToken)}`
-    : ADMIN_URL;
-  await adminWindow.loadURL(adminUrl);
-
-  const token = loadToken();
-  if (token) {
-    try {
-      const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString()) as {
-        sub?: string
-        email?: string
-        name?: string
-        userId?: string
-        id?: string
-      };
-
-      adminWindow.webContents?.send?.('auth:status', {
-        authenticated: true,
-        user: {
-          id: payload.userId ?? payload.sub ?? payload.id ?? 'desktop-user',
-          email: payload.email ?? 'local@desktop',
-          name: payload.name ?? payload.email ?? 'Desktop User',
-        },
-      });
-    } catch {
-      adminWindow.webContents?.send?.('auth:status', { authenticated: false });
-    }
-  } else {
-    adminWindow.webContents?.send?.('auth:status', { authenticated: false });
-  }
+  // Admin token is delivered via IPC (server:get-admin-token), not URL —
+  // keeping the URL clean avoids token exposure in browser history / process list.
+  // In dev web mode, the token is still read from URL params / sessionStorage.
+  // Session restore (auth:status broadcast) is handled in index.ts restoreSession()
+  // before any window is created.
+  await adminWindow.loadURL(ADMIN_URL);
 }
 
 /**

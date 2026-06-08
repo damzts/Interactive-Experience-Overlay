@@ -1,12 +1,12 @@
 import { useAuth } from './AuthContext'
 
 export function AuthBadge() {
-  const { isAuthenticated, user, login, logout } = useAuth()
+  const { isAuthenticated, user, openLoginModal, logout } = useAuth()
 
   if (!isAuthenticated) {
     return (
       <button
-        onClick={login}
+        onClick={openLoginModal}
         className="rounded-md border border-zinc-700 bg-zinc-800/80 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
       >
         Sign in

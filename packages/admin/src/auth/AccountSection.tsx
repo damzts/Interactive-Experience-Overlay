@@ -1,7 +1,7 @@
 import { useAuth } from './AuthContext'
 
 export function AccountSection() {
-  const { isAuthenticated, user, login, logout } = useAuth()
+  const { isAuthenticated, user, openLoginModal, logout } = useAuth()
 
   if (!isAuthenticated) {
     return (
@@ -11,7 +11,7 @@ export function AccountSection() {
           <div className="text-[11px] text-zinc-500 mt-0.5">Sign in to unlock online features</div>
         </div>
         <button
-          onClick={login}
+          onClick={openLoginModal}
           className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 transition-colors"
         >
           Sign in
