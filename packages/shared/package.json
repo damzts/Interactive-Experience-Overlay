@@ -1,6 +1,7 @@
 {
-  "name": "@ieom/shared",
+  "name": "@ieomlabs/shared",
   "version": "1.0.0",
+  "description": "Shared types and contracts for IEOM (backend, frontend, overlay)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,10 +17,34 @@
       "default": "./dist/cloud/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "dev": "tsc --watch",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "ieom",
+    "shared",
+    "types",
+    "contracts"
+  ],
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ieomlabs/Interactive-Experience-Overlay.git",
+    "directory": "packages/shared"
+  },
+  "bugs": {
+    "url": "https://github.com/damzts/Interactive-Experience-Overlay/issues"
   },
   "devDependencies": {
     "typescript": "^5.5.2"
