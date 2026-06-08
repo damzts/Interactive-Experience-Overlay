@@ -143,7 +143,7 @@ export interface Application {
   // ── Desktop icon fields (used by overlay desktop UI) ──────────────────
 
   /** Icon size on the desktop grid. */
-  iconSize?: 'small' | 'medium' | 'large'
+  iconSize?: 'small' | 'normal' | 'large'
   /** Manual icon position on the desktop canvas (px). */
   iconPosition?: { x: number; y: number }
   /** Recycle bin icon overrides. */

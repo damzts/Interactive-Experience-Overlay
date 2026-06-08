@@ -98,10 +98,10 @@ export const signalHandlers: SignalHandlerMap = {
   'overlay:resync': (_payload, _store) => {
     // Signal the connect-sync hook to re-request state from server.
     // Handled by the socket 'connect' listener in useSocket.
-    socket.emit('state:request', (serverState) => {
+    socket.emit('state:request', (serverState: any) => {
       _store.setVisualState(serverState as Exclude<typeof serverState, 'TRANSITIONING'>)
     })
-    socket.emit('desktop:state:request', (payload) => {
+    socket.emit('desktop:state:request', (payload: any) => {
       _store.syncDesktopRuntimeState(payload)
     })
   },
