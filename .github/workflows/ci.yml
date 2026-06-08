@@ -28,8 +28,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Bypass minimum-release-age policy for fresh npm packages
-        run: pnpm config set minimum-release-age 0 --global
+      - name: Configure pnpm relaxed release age
+        run: pnpm config set minimum-release-age 0 --location project
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
