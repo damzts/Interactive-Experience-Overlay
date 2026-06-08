@@ -1,5 +1,5 @@
-import type { OverlayStyle } from '@ieom/shared'
-import type { STATE } from '@ieom/shared'
+import type { OverlayStyle } from '@ieomlabs/shared'
+import type { STATE } from '@ieomlabs/shared'
 
 export type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
 

@@ -2,14 +2,14 @@ import {
   DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   DEFAULT_WIDGET_THEME_PRESETS,
   STATE,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type {
   DesktopNotificationEffectConfig,
   EffectConfig,
   EffectType,
   EventAction,
   EventConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 
 export type EventDef = EventConfig & {
   builtIn?: boolean

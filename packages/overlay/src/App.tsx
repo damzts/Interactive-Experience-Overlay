@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
 import { audioEngine } from './engine/AudioEngine'

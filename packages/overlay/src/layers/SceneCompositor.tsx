@@ -6,7 +6,7 @@
  * Post-effects (CRT, vignette, etc.) are explicit builtin:effects sources in
  * the scene's sources array — not auto-injected here.
  */
-import type { OverlayStyle, SourceInstance, TierName } from '@ieom/shared'
+import type { OverlayStyle, SourceInstance, TierName } from '@ieomlabs/shared'
 import { SceneLayer } from './SceneLayer'
 
 interface Props {

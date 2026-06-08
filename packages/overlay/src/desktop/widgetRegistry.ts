@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import type { Application, WidgetComponentType } from '@ieom/shared'
+import type { Application, WidgetComponentType } from '@ieomlabs/shared'
 
 export interface DesktopWidgetProps {
   appId?: string

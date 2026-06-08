@@ -2,7 +2,7 @@
  * @deprecated Use SceneLayer + SourceRenderer instead.
  * Kept for reference; no longer imported by App.tsx.
  */
-import type { SourceInstance } from '@ieom/shared'
+import type { SourceInstance } from '@ieomlabs/shared'
 import { SourceRenderer } from './SourceRenderer'
 
 interface LayerStackProps {

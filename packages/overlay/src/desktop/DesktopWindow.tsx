@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { withDesktopConfigDefaults } from '@ieom/shared'
+import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { socket } from '../socket/client'
-import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieom/shared'
+import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieomlabs/shared'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 
 const TASKBAR_HEIGHT_PX = 40

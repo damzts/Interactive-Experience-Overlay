@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { VictoryOverlayConfig } from '@ieom/shared'
+import type { VictoryOverlayConfig } from '@ieomlabs/shared'
 
 /** VICTORY overlay — MISSION.LOG saved window + success flash.
  *  Plays on top of current scene, no state change. Auto-clears after ~3s. */

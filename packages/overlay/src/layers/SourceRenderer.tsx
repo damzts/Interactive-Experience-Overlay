@@ -3,7 +3,7 @@
  * Handles: lazy plugin resolution, conditions, blend modes, opacity, masks, transitions.
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { SourceInstance } from '@ieom/shared'
+import type { SourceInstance } from '@ieomlabs/shared'
 import { resolvePlugin, type PluginDefinition } from '../plugins/registry'
 
 /** Stable no-op emit/onSignal for sources that don't use the event bus */

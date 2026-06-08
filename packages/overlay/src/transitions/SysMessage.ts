@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { TerminalToastConfig } from '@ieom/shared'
+import type { TerminalToastConfig } from '@ieomlabs/shared'
 
 /** SYS_MESSAGE overlay — terminal toast that types [SERVER] messages. */
 

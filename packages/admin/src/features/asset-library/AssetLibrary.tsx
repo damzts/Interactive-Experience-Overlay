@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { MediaEntry } from '@ieom/shared'
+import type { MediaEntry } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   deleteAssetFile,

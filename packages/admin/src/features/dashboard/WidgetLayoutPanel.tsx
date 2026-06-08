@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieom/shared'
+import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigApplyBar, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayCanvas } from '../../shared/ui'
 import { normalizeWidgetLayoutsForEditor } from './widgetHelpers'

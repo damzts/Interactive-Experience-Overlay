@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE, withOverlayStyleDefaults } from '@ieom/shared'
-import type { OverlayStyle, Scene, SourceInstance, TransitionStep } from '@ieom/shared'
+import { STATE, withOverlayStyleDefaults } from '@ieomlabs/shared'
+import type { OverlayStyle, Scene, SourceInstance, TransitionStep } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { LayoutDashboard, Monitor, Layers, Image, Settings } from 'lucide-react'
-import { withDesktopConfigDefaults } from '@ieom/shared'
+import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { useAuth } from '../../auth/AuthContext'

@@ -2,7 +2,7 @@
  * SceneLayer — renders one z-tier of SourceInstances via SourceRenderer.
  * Tiers are rendered in order: background → particles → content → post → transition.
  */
-import type { SourceInstance, TierName } from '@ieom/shared'
+import type { SourceInstance, TierName } from '@ieomlabs/shared'
 import { SourceRenderer } from './SourceRenderer'
 
 interface Props {

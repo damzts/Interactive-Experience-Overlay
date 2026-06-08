@@ -1,5 +1,5 @@
-import { DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieom/shared'
-import type { AppConfig, RuntimeConfigOverridePayload } from '@ieom/shared'
+import { DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieomlabs/shared'
+import type { AppConfig, RuntimeConfigOverridePayload } from '@ieomlabs/shared'
 
 export interface ConfigSlice {
   persistedConfig: AppConfig

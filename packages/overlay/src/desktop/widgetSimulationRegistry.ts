@@ -1,4 +1,4 @@
-import type { Application, WidgetSimulationIntentPayload } from '@ieom/shared'
+import type { Application, WidgetSimulationIntentPayload } from '@ieomlabs/shared'
 
 export interface WidgetInteractionStep {
   selectors: string[]

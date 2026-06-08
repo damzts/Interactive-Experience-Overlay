@@ -3,8 +3,8 @@
  * Coordinates room lifecycle, participant tracking, and POV switching.
  */
 
-import type { OnlineModeConfig, OnlineRoomStatus, ParticipantInfo, SwitchMode } from '@ieom/shared'
-import { DEFAULT_ONLINE_MODE_CONFIG } from '@ieom/shared'
+import type { OnlineModeConfig, OnlineRoomStatus, ParticipantInfo, SwitchMode } from '@ieomlabs/shared'
+import { DEFAULT_ONLINE_MODE_CONFIG } from '@ieomlabs/shared'
 import type { CloudSignaling } from '../transport/webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../kernel/managers/pov.js'
 import { CircuitBreaker } from '../lib/cloud-circuit-breaker.js'

@@ -24,7 +24,7 @@ import {
   type ImageOverlayConfig,
   type VideoOverlayConfig,
   type VictoryOverlayConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 
 import { runDeathOverlay }      from '../transitions/DeathOverlay'
 import { runDesktopNotification } from '../transitions/DesktopNotification'

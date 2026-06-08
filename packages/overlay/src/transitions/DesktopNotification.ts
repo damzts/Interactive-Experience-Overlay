@@ -1,4 +1,4 @@
-import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, type DesktopNotificationEffectConfig } from '@ieom/shared'
+import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, type DesktopNotificationEffectConfig } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 
 export function runDesktopNotification(cfg: DesktopNotificationEffectConfig) {

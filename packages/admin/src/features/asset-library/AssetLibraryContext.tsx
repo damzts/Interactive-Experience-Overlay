@@ -5,7 +5,7 @@ import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { SOURCE_CATALOG, findSourceCatalogEntry, getSafeSceneSources } from '../../shared/sourceCatalog'
 import { TRANSITION_OPTIONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
-import type { MediaEntry, SourcePreset } from '@ieom/shared'
+import type { MediaEntry, SourcePreset } from '@ieomlabs/shared'
 
 export type AssetLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
 

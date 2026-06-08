@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { ScreenShakeConfig } from '@ieom/shared'
+import type { ScreenShakeConfig } from '@ieomlabs/shared'
 
 const INTENSITY = {
   light:  { x: 6,  y: 4,  repeat: 4 },

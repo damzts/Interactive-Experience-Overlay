@@ -1,5 +1,5 @@
-import { mergeAppConfig } from '@ieom/shared'
-import type { WidgetSimulationCommandPayload } from '@ieom/shared'
+import { mergeAppConfig } from '@ieomlabs/shared'
+import type { WidgetSimulationCommandPayload } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 import { applyRuntimeConfigOverride } from './runtimeOverride.js'
 import logger from '../../../lib/logger.js';

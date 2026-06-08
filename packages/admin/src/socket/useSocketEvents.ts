@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { STATE } from '@ieom/shared'
-import type { DesktopRuntimeStatePayload, ServerToClientEvents } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { DesktopRuntimeStatePayload, ServerToClientEvents } from '@ieomlabs/shared'
 import { socket } from './client'
 import { useAdminStore } from '../store/useAdminStore'
 import { adminSignalHandlers } from './signalMap'

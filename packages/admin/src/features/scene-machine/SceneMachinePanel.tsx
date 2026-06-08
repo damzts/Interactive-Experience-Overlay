@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { STATE } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { Btn, ConfigCard, ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'

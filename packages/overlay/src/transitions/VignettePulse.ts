@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { VignettePulseConfig } from '@ieom/shared'
+import type { VignettePulseConfig } from '@ieomlabs/shared'
 
 /** VIGNETTE-PULSE — floods the screen with a color vignette, optional centered text. */
 export function runVignettePulse(cfg: VignettePulseConfig) {

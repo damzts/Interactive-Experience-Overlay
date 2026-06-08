@@ -1,5 +1,5 @@
-import { STATE } from '@ieom/shared'
-import type { Manager, ManagerStatus } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { Manager, ManagerStatus } from '@ieomlabs/shared'
 
 export interface WidgetRuntimeState {
   openWidgetIds: ReadonlySet<string>

@@ -19,8 +19,8 @@ import { join } from 'path'
 import { pipeline } from 'stream/promises'
 import logger from './lib/logger.js'
 
-import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieom/shared'
-import type { AppConfig } from '@ieom/shared'
+import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieomlabs/shared'
+import type { AppConfig } from '@ieomlabs/shared'
 
 import { AdminRelay } from './transport/webrtc/admin-relay.js'
 import { Kernel } from './kernel/index.js'
@@ -167,7 +167,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   kernel.register(povOrchestrator)
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
-  machine.on('state:change', (payload: { state: import('@ieom/shared').STATE }) => {
+  machine.on('state:change', (payload: { state: import('@ieomlabs/shared').STATE }) => {
     runtimeState.setCurrentScene(payload.state)
     runtimeState.setTransitionInProgress(false)
   })

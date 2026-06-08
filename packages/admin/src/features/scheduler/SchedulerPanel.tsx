@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieom/shared'
-import type { EventConfig, AutoTrigger } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { EventConfig, AutoTrigger } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   ConfigCard, ConfigPageIntro, ConfigSectionPanel,

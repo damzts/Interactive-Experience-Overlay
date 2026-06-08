@@ -13,7 +13,7 @@
 
 import OBSWebSocket from 'obs-websocket-js'
 import type { Server } from 'socket.io'
-import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieom/shared'
+import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieomlabs/shared'
 import logger from '../../lib/logger.js'
 import type { SceneMachine } from './scene.js'
 

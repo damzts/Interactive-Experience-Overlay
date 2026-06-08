@@ -8,7 +8,7 @@
  * Adding a new signal = add one entry here. No hook hunting.
  */
 
-import { withDesktopConfigDefaults, DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS } from '@ieom/shared'
+import { withDesktopConfigDefaults, DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS } from '@ieomlabs/shared'
 import type {
   CursorMirrorPayload,
   DesktopNotificationPayload,
@@ -24,7 +24,7 @@ import type {
   AppConfig,
   EffectConfig,
   OverlayTriggerPayload,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'

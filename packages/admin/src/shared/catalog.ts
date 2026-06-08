@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { MediaEntry } from '@ieom/shared'
+import type { MediaEntry } from '@ieomlabs/shared'
 import { getAssetCatalog, uploadAsset, deleteAsset } from '../api/mediaApi.js'
 export type { AssetKind, AssetSource, AssetRecord } from '../api/mediaApi.js'
 

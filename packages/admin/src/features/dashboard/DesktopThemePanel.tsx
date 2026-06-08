@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DEFAULT_WIDGET_THEME_PRESETS,
   withDesktopConfigDefaults,
-} from '@ieom/shared'
-import type { DesktopConfig, DesktopTheme, WidgetThemeConfig } from '@ieom/shared'
+} from '@ieomlabs/shared'
+import type { DesktopConfig, DesktopTheme, WidgetThemeConfig } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, ConfigChoiceButton, isSameDraft, Slider } from '../../shared/ui'
@@ -171,7 +171,7 @@ export function DesktopThemeEditor() {
       desktopConfig: {
         ...structuredClone(form),
         globalThemeDefault: { theme, widgetTheme: structuredClone(widgetTheme), appearance: structuredClone(appearance) },
-      } as unknown as import('@ieom/shared').DesktopConfig,
+      } as unknown as import('@ieomlabs/shared').DesktopConfig,
     })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)

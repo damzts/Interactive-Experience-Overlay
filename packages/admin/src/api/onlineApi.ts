@@ -1,4 +1,4 @@
-import type { OnlineModeConfig, OnlineRoomStatus } from '@ieom/shared'
+import type { OnlineModeConfig, OnlineRoomStatus } from '@ieomlabs/shared'
 import { apiFetch } from './client.js'
 import { getStoredAuthToken } from '../auth/sessionToken.js'
 

@@ -1,5 +1,5 @@
-import { DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE } from '@ieom/shared'
-import type { DesktopNotificationPayload, DesktopRuntimeStatePayload } from '@ieom/shared'
+import { DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE } from '@ieomlabs/shared'
+import type { DesktopNotificationPayload, DesktopRuntimeStatePayload } from '@ieomlabs/shared'
 
 const WINDOW_CLOSE_MS = 180
 const widgetCloseTimers = new Map<string, ReturnType<typeof setTimeout>>()

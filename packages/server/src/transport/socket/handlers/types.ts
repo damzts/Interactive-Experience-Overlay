@@ -6,8 +6,8 @@ import type {
   SocketData,
   RuntimeConfigOverridePayload,
   ObsStatusPayload,
-} from '@ieom/shared'
-import type { AppConfig } from '@ieom/shared'
+} from '@ieomlabs/shared'
+import type { AppConfig } from '@ieomlabs/shared'
 import type { SceneMachine } from '../../../kernel/managers/scene.js'
 import type { EventScheduler } from '../../../kernel/managers/scheduler.js'
 import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
@@ -26,7 +26,7 @@ export interface HandlerContext {
   runtimeState: RuntimeStateStore
   configService: any | null
   getObsStatus?: () => ObsStatusPayload
-  getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
+  getManagerStatuses?: () => Record<string, import('@ieomlabs/shared').ManagerStatus>
   bus?: KernelBus
 
   runtimeConfigOverride: RuntimeConfigOverridePayload

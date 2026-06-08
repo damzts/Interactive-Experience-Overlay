@@ -9,7 +9,7 @@
  */
 
 import { EventEmitter } from 'events'
-import type { EventConfig } from '@ieom/shared'
+import type { EventConfig } from '@ieomlabs/shared'
 
 // ── Kernel event type map ────────────────────────────────────────
 

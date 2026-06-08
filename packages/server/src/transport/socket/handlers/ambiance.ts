@@ -3,7 +3,7 @@
   AmbianceSimulationStartedPayload,
   AmbianceSimulationDonePayload,
   WidgetSimulationIntentPayload,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import logger from '../../../lib/logger.js'
 import type { HandlerContext, AppSocket } from './types.js'
 

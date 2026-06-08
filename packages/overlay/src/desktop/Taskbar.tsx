@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { STATE } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
 import { socket } from '../socket/client'
 import { AppGlyph } from './AppGlyph'
 

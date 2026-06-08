@@ -1,5 +1,5 @@
-import { STATE } from '@ieom/shared'
-import type { TransitionStep } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { TransitionStep } from '@ieomlabs/shared'
 
 type VisualState = Exclude<STATE, typeof STATE.TRANSITIONING>
 

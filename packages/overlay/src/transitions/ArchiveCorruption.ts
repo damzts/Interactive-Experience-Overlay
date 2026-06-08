@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { CorruptionBurstConfig } from '@ieom/shared'
+import type { CorruptionBurstConfig } from '@ieomlabs/shared'
 
 /** ARCHIVE_CORRUPTION overlay — glitch artifact burst. */
 

@@ -4,7 +4,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
-import type { SwitchMode } from '@ieom/shared'
+import type { SwitchMode } from '@ieomlabs/shared'
 import type { CloudSignaling } from '../webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
 

@@ -10,7 +10,7 @@ import {
   withDesktopConfigDefaults,
   type AppConfig,
   type ObsStatusPayload,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type { IO, HandlerContext, AppSocket } from './types.js'
 import type { SceneMachine } from '../../../kernel/managers/scene.js'
 import type { EventScheduler } from '../../../kernel/managers/scheduler.js'
@@ -30,7 +30,7 @@ export function setupSocketHandlers(
   ambianceManager: AmbianceManager,
   options?: {
     getObsStatus?: () => ObsStatusPayload
-    getManagerStatuses?: () => Record<string, import('@ieom/shared').ManagerStatus>
+    getManagerStatuses?: () => Record<string, import('@ieomlabs/shared').ManagerStatus>
     bus?: import('../../../kernel/bus.js').KernelBus
     runtimeState?: import('../../../kernel/managers/runtime.js').RuntimeStateStore
     configService?: any

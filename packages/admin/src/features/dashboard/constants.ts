@@ -1,4 +1,4 @@
-import type { BackgroundType, PatternPreset, ParticlePreset } from '@ieom/shared'
+import type { BackgroundType, PatternPreset, ParticlePreset } from '@ieomlabs/shared'
 
 export const GRADIENT_PRESETS = [
   { name: 'Deep Space',   value: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)' },

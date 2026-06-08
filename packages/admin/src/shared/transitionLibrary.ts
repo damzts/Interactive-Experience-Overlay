@@ -1,4 +1,4 @@
-import type { MediaEntry, TransitionStep } from '@ieom/shared'
+import type { MediaEntry, TransitionStep } from '@ieomlabs/shared'
 
 export const TRANSITION_OPTIONS = [
   { id: 'instant', label: 'Instant', desc: 'Immediate cut, no animation' },

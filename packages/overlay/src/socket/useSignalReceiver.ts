@@ -12,7 +12,7 @@ import { useEffect } from 'react'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
 import { signalHandlers } from './signalMap'
-import type { ServerToClientEvents } from '@ieom/shared'
+import type { ServerToClientEvents } from '@ieomlabs/shared'
 
 const DEBUG = import.meta.env.VITE_DEBUG_SIGNALS === 'true'
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import type { TransitionStep } from '@ieom/shared'
+import type { TransitionStep } from '@ieomlabs/shared'
 import type gsap from 'gsap'
 import { resolvePlugin } from '../plugins/registry'
 import { lobbyToDesktop }   from '../transitions/LobbyToDesktop'

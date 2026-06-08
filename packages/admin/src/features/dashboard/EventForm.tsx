@@ -4,7 +4,7 @@ import {
   DEFAULT_WIDGET_THEME_PRESETS,
   STATE,
   withDesktopConfigDefaults,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type {
   DesktopConfig,
   DesktopNotificationEffectConfig,
@@ -12,7 +12,7 @@ import type {
   EventAction,
   EventDesktopTheme,
   WidgetThemeConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   DESKTOP_THEMES,

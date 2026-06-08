@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client'
-import type { ServerToClientEvents, ClientToServerEvents } from '@ieom/shared'
+import type { ServerToClientEvents, ClientToServerEvents } from '@ieomlabs/shared'
 
 const overlayPort = typeof window !== 'undefined'
   ? (window.location.port || (window.location.protocol === 'https:' ? '443' : '80'))

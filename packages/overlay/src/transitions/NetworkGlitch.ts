@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { NetworkGlitchConfig } from '@ieom/shared'
+import type { NetworkGlitchConfig } from '@ieomlabs/shared'
 
 /** NETWORK_GLITCH overlay — screen shake + broadcast interruption message. */
 export function runNetworkGlitch(cfg?: NetworkGlitchConfig) {

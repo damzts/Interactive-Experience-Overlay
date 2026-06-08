@@ -1,4 +1,4 @@
-import type { AppConfig, Application, DesktopConfig } from '@ieom/shared'
+import type { AppConfig, Application, DesktopConfig } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 
 function throwIfRequestFailed(response: Response) {

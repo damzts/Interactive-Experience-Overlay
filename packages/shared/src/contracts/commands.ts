@@ -71,7 +71,7 @@ export interface DesktopRuntimeStatePayload {
   startMenuState?: DesktopStartMenuStatePayload
 }
 
-// Re-export for convenience (import from signals.ts or @ieom/shared directly)
+// Re-export for convenience (import from signals.ts or @ieomlabs/shared directly)
 // (types listed here are defined in signals.ts — re-exporting would duplicate in the barrel)
 
 // ── ClientToServerEvents (commands) ──────────────────────────────

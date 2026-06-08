@@ -6,7 +6,7 @@
  * - Drag/resize a handle → updates source.position in the draft
  */
 import { useRef } from 'react'
-import type { SourceInstance } from '@ieom/shared'
+import type { SourceInstance } from '@ieomlabs/shared'
 import { OverlayCanvas, OverlayPreviewItem } from '../../shared/ui'
 import { SOURCE_CATALOG } from '../../shared/sourceCatalog'
 import { getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'

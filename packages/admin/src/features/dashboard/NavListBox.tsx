@@ -1,6 +1,6 @@
 import { useAdminStore } from '../../store/useAdminStore'
-import { STATE, withDesktopConfigDefaults, getWidgetSource } from '@ieom/shared'
-import type { Application, Scene } from '@ieom/shared'
+import { STATE, withDesktopConfigDefaults, getWidgetSource } from '@ieomlabs/shared'
+import type { Application, Scene } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { IconGlyph } from '../../shared/ui'
 import { itemKey } from './types'

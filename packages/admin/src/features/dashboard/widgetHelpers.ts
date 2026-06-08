@@ -2,7 +2,7 @@ import {
   getDefaultWidgetWindowSize,
   getDefaultWidgetZIndex,
   getWidgetComponent,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type {
   Application,
   Scene,
@@ -10,7 +10,7 @@ import type {
   WidgetLayoutDefinition,
   WidgetLayoutItem,
   WidgetLayoutSnapshot,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import { WIDGET_WIDTH_MIN, WIDGET_WIDTH_MAX, WIDGET_HEIGHT_MIN, WIDGET_HEIGHT_MAX } from './constants'
 
 export function clone<T>(value: T): T {
@@ -153,7 +153,7 @@ export function normalizeWidgetLayoutsForEditor(
 }
 
 /** Geometry is now on the application row itself — deletion removes it. This helper is a no-op kept for call-site compatibility. */
-export function removeWidgetFromDesktopConfig(desktopConfig: import('@ieom/shared').DesktopConfig, _widgetId: string) {
+export function removeWidgetFromDesktopConfig(desktopConfig: import('@ieomlabs/shared').DesktopConfig, _widgetId: string) {
   return desktopConfig
 }
 

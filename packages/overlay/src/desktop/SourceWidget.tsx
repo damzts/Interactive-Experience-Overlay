@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from 'react'
-import { resolveSourceInstance } from '@ieom/shared'
+import { resolveSourceInstance } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { resolvePlugin, type PluginDefinition } from '../plugins/registry'
 import { DesktopWindow } from './DesktopWindow'

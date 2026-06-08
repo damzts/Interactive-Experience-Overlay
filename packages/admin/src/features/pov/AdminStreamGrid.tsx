@@ -16,7 +16,7 @@ import type {
   AdminStreamRemovedPayload,
   AdminStreamInfo,
   AdminStreamIceCandidatePayload,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 
 // ── Types ──────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
-import { DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieom/shared'
-import type { AppConfig, RuntimeConfigOverridePayload } from '@ieom/shared'
+import { DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieomlabs/shared'
+import type { AppConfig, RuntimeConfigOverridePayload } from '@ieomlabs/shared'
 import { fetchConfig, patchConfig } from '../../api/configApi'
 
 export interface ConfigSlice {

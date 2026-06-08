@@ -1,4 +1,4 @@
-import type { WidgetSimulationIntentPayload } from '@ieom/shared'
+import type { WidgetSimulationIntentPayload } from '@ieomlabs/shared'
 
 const WIDGET_SIMULATION_INTENT_EVENT = 'ieom:widget-simulation-intent'
 

@@ -6,7 +6,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
-import type { OnlineModeConfig } from '@ieom/shared'
+import type { OnlineModeConfig } from '@ieomlabs/shared'
 import type { OnlineRoomManager } from './manager.js'
 
 interface OnlineRouteOptions extends FastifyPluginOptions {

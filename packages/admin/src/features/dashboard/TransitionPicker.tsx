@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { MediaEntry, TransitionStep } from '@ieom/shared'
+import type { MediaEntry, TransitionStep } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn } from '../../shared/ui'

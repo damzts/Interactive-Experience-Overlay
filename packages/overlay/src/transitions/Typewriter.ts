@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { TypewriterConfig } from '@ieom/shared'
+import type { TypewriterConfig } from '@ieomlabs/shared'
 
 const POSITION_STYLE: Record<TypewriterConfig['position'], string> = {
   top:    'position:absolute;top:80px;left:50%;transform:translateX(-50%)',

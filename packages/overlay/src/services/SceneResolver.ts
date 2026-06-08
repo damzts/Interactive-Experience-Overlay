@@ -1,5 +1,5 @@
-import { STATE, resolveSourceInstance, withOverlayStyleDefaults } from '@ieom/shared'
-import type { AppConfig, OverlayStyle, Scene, SourceInstance } from '@ieom/shared'
+import { STATE, resolveSourceInstance, withOverlayStyleDefaults } from '@ieomlabs/shared'
+import type { AppConfig, OverlayStyle, Scene, SourceInstance } from '@ieomlabs/shared'
 
 export interface ResolvedScene {
   scene: Scene | undefined

@@ -1,4 +1,4 @@
-import type { SwitchMode } from '@ieom/shared'
+import type { SwitchMode } from '@ieomlabs/shared'
 
 export interface POVSwitcherConfig {
   cooldownMs: number

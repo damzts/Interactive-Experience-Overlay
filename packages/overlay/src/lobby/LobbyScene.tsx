@@ -11,8 +11,8 @@ import {
   Stars,
 } from '@react-three/drei'
 import * as THREE from 'three'
-import { DEFAULT_CONFIG, STATE } from '@ieom/shared'
-import type { LobbyConfig } from '@ieom/shared'
+import { DEFAULT_CONFIG, STATE } from '@ieomlabs/shared'
+import type { LobbyConfig } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { resolveSceneStyle } from '../services/SceneResolver.js'
 

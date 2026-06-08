@@ -18,7 +18,7 @@ import {
   withEventListDefaults,
   withLobbyConfigDefaults,
   withOverlayStyleDefaults,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type {
   AppConfig,
   Application,
@@ -29,8 +29,8 @@ import type {
   WidgetLayoutDefinition,
   WidgetLayoutItem,
   TransitionDefinition,
-} from '@ieom/shared'
-import type { EventConfig, AutoTrigger } from '@ieom/shared'
+} from '@ieomlabs/shared'
+import type { EventConfig, AutoTrigger } from '@ieomlabs/shared'
 
 type DesktopDatabase = Database.Database
 

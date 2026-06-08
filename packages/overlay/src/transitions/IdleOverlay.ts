@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { FloatiesConfig } from '@ieom/shared'
+import type { FloatiesConfig } from '@ieomlabs/shared'
 
 /** IDLE overlay — random terminal/desktop floaties drift across the screen. */
 

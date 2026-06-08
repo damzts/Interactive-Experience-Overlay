@@ -7,8 +7,8 @@
  * Adding a new signal = add one entry here.
  */
 
-import { STATE } from '@ieom/shared'
-import type { ObsStatusPayload, RuntimeDiagnosticsPayload, ServerToClientEvents } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { ObsStatusPayload, RuntimeDiagnosticsPayload, ServerToClientEvents } from '@ieomlabs/shared'
 import type { AdminStore } from '../store/useAdminStore'
 
 export type AdminSignalHandler<T> = (payload: T, store: AdminStore) => void

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { DEFAULT_STICKY_NOTES_SETTINGS } from '@ieom/shared'
+import { DEFAULT_STICKY_NOTES_SETTINGS } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
 import { patchApplicationConfig } from './configPersistence'

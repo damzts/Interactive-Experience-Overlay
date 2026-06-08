@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react'
-import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieom/shared'
+import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { LobbyRuntimePanel } from './LobbyRuntimePanel'

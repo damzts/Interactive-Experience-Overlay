@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react'
-import type { SourceInstance, SourcePreset } from '@ieom/shared'
-import { resolveSourceInstance } from '@ieom/shared'
+import type { SourceInstance, SourcePreset } from '@ieomlabs/shared'
+import { resolveSourceInstance } from '@ieomlabs/shared'
 import { SOURCE_CATALOG } from '../../shared/sourceCatalog'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
-import type { TierName } from '@ieom/shared'
+import type { TierName } from '@ieomlabs/shared'
 
 // ── Notice ─────────────────────────────────────────────────────────────
 

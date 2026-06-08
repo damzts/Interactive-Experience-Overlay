@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { DeathOverlayConfig } from '@ieom/shared'
+import type { DeathOverlayConfig } from '@ieomlabs/shared'
 
 /** Runs the DEATH overlay animation — red vignette + YOU DIED text.
  *  Not a state transition; called directly from useSocket on overlay:show event.

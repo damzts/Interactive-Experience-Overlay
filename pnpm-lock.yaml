@@ -31,7 +31,7 @@ importers:
       98.css:
         specifier: ^0.1.18
         version: 0.1.21
-      '@ieom/shared':
+      '@ieomlabs/shared':
         specifier: workspace:*
         version: link:../shared
       '@react-three/drei':
@@ -101,7 +101,7 @@ importers:
       '@ieom/server':
         specifier: workspace:*
         version: link:../server
-      '@ieom/shared':
+      '@ieomlabs/shared':
         specifier: workspace:*
         version: link:../shared
       better-sqlite3:
@@ -141,7 +141,7 @@ importers:
       98.css:
         specifier: ^0.1.18
         version: 0.1.21
-      '@ieom/shared':
+      '@ieomlabs/shared':
         specifier: workspace:*
         version: link:../shared
       '@react-three/drei':
@@ -211,7 +211,7 @@ importers:
       '@fastify/static':
         specifier: ^7.0.4
         version: 7.0.4
-      '@ieom/shared':
+      '@ieomlabs/shared':
         specifier: workspace:*
         version: link:../shared
       better-sqlite3:

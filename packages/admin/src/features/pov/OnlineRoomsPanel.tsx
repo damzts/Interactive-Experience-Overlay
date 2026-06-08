@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
-import type { OnlineRoomStatus, ParticipantInfo, OnlineModeConfig, SwitchMode } from '@ieom/shared'
-import { ONLINE_CONFIG_BOUNDS, DEFAULT_ONLINE_MODE_CONFIG } from '@ieom/shared'
+import type { OnlineRoomStatus, ParticipantInfo, OnlineModeConfig, SwitchMode } from '@ieomlabs/shared'
+import { ONLINE_CONFIG_BOUNDS, DEFAULT_ONLINE_MODE_CONFIG } from '@ieomlabs/shared'
 import type {
   OnlineRoomCreatedPayload,
   OnlineRoomClosedPayload,
@@ -11,7 +11,7 @@ import type {
   OnlineSwitchPayload,
   OnlineServerToAdminEvents,
   OnlineClientToServerEvents,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import { getOnlineConfig, updateOnlineConfig, getOnlineRooms, provideAuthToken } from '../../api/onlineApi'
 import { getStoredAuthToken } from '../../auth/sessionToken'
 import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'

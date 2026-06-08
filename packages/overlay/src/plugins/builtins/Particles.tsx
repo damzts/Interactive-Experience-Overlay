@@ -4,7 +4,7 @@
  */
 import type { PluginProps } from '../registry'
 import { ParticlesLayer } from '../../layers/ParticlesLayer'
-import type { ParticlePreset } from '@ieom/shared'
+import type { ParticlePreset } from '@ieomlabs/shared'
 
 export function BuiltinParticlesRenderer({ config }: PluginProps) {
   return (

@@ -1,4 +1,4 @@
-import type { OverlayStyle, PatternPreset } from '@ieom/shared'
+import type { OverlayStyle, PatternPreset } from '@ieomlabs/shared'
 
 /**
  * Pure CSS background rendering — no canvas, no external libs.

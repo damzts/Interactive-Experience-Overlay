@@ -1,4 +1,4 @@
-import type { OverlayEffects } from '@ieom/shared'
+import type { OverlayEffects } from '@ieomlabs/shared'
 
 /**
  * Pure CSS effects layer — CRT scanlines, vignette, film grain, flicker, chromatic.

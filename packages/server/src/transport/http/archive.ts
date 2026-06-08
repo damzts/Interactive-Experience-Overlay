@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
-import type { ObsStatusPayload } from '@ieom/shared'
+import type { ObsStatusPayload } from '@ieomlabs/shared'
 import type { ObsBridge } from '../../kernel/managers/obs.js'
 
 interface ArchiveRouteOptions extends FastifyPluginOptions {

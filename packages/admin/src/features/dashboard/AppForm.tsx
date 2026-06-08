@@ -6,13 +6,13 @@ import {
   isSystemWidget,
   resolveSourceInstance,
   withDesktopConfigDefaults,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type {
   Application,
   AppConfig,
   DesktopConfig,
   WidgetThemeConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'

@@ -1,5 +1,5 @@
-import { mergeAppConfig } from '@ieom/shared'
-import type { AppConfig, Application } from '@ieom/shared'
+import { mergeAppConfig } from '@ieomlabs/shared'
+import type { AppConfig, Application } from '@ieomlabs/shared'
 import { apiFetch } from './client.js'
 
 function findSingleChangedApplication(
@@ -49,7 +49,7 @@ export async function patchConfig(
   return merged
 }
 
-export async function createScene(app: Application, scene: import('@ieom/shared').Scene): Promise<AppConfig> {
+export async function createScene(app: Application, scene: import('@ieomlabs/shared').Scene): Promise<AppConfig> {
   const result = await apiFetch<{ ok: boolean; config: AppConfig }>('/api/config/scenes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -8,8 +8,8 @@
  *   - Desktop: OS chrome — themes, icons, widgets, screensaver (via DesktopThemeEditor)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieom/shared'
-import type { Scene, SourceInstance } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { Scene, SourceInstance } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { SourcesEditor } from './SceneConfig'

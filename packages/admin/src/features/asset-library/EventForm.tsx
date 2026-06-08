@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, DEFAULT_WIDGET_THEME_PRESETS, STATE, withDesktopConfigDefaults } from '@ieom/shared'
+import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, DEFAULT_WIDGET_THEME_PRESETS, STATE, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type {
   CorruptionBurstConfig,
   DesktopConfig,
@@ -19,7 +19,7 @@ import type {
   VideoOverlayConfig,
   VignettePulseConfig,
   WidgetThemeConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from './AssetLibrary'
 import {

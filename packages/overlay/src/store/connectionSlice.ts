@@ -1,4 +1,4 @@
-import type { CameraPermissionState } from '@ieom/shared'
+import type { CameraPermissionState } from '@ieomlabs/shared'
 
 export interface ConnectionSlice {
   obsConnected: boolean

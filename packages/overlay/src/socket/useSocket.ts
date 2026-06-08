@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { STATE } from '@ieom/shared'
-import type { DesktopRuntimeStatePayload } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { DesktopRuntimeStatePayload } from '@ieomlabs/shared'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
 import { useSignalReceiver } from './useSignalReceiver'

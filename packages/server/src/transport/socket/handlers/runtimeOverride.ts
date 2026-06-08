@@ -5,7 +5,7 @@
 import type {
   RuntimeConfigOverridePayload,
   DesktopAmbianceConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type { HandlerContext } from './types.js'
 
 // ── Scope types ──────────────────────────────────────────────────

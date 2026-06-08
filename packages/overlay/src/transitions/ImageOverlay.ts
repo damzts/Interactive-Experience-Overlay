@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { ImageOverlayConfig } from '@ieom/shared'
+import type { ImageOverlayConfig } from '@ieomlabs/shared'
 
 /** Displays a transparent image (PNG/APNG) as an overlay.
  *  Uses #tl-media-container. Position is absolute within 1920×1080. */

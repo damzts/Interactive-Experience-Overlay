@@ -16,7 +16,7 @@ import type {
   OnlineRoomClosePayload,
   OnlineModeSetPayload,
   OnlineSelectPayload,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 
 type OnlineNamespace = ReturnType<
   SocketIOServer<OnlineClientToServerEvents, OnlineServerToClientEvents, OnlineInterServerEvents, OnlineSocketData>['of']

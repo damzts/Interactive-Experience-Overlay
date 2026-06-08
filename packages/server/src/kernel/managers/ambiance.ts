@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io'
-import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieom/shared'
-import type { AppConfig, Manager, ManagerStatus } from '@ieom/shared'
+import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieomlabs/shared'
+import type { AppConfig, Manager, ManagerStatus } from '@ieomlabs/shared'
 import logger from '../../lib/logger.js'
 import type {
   AmbianceDiagnosticsPayload,
@@ -8,7 +8,7 @@ import type {
   AmbianceSimulationDonePayload,
   AmbianceSimulationPayload,
   AmbianceWidgetBehavior,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 
 const SIMULATION_ACCEPT_TIMEOUT_MS = 4000
 const SIMULATION_START_TIMEOUT_MS = 5000

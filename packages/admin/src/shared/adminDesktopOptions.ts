@@ -1,4 +1,4 @@
-import type { DesktopConfig, DesktopIconArrangement, DesktopTheme, WidgetThemeConfig } from '@ieom/shared'
+import type { DesktopConfig, DesktopIconArrangement, DesktopTheme, WidgetThemeConfig } from '@ieomlabs/shared'
 
 export const GOOGLE_FONTS = [
   { name: 'System Default', css: 'default' },

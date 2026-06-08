@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import type { SourcePreset } from '@ieom/shared'
+import type { SourcePreset } from '@ieomlabs/shared'
 import { AssetSelectionInput } from './AssetLibrary'
 import { findSourceCatalogEntry, SOURCE_CATALOG, type CatalogEntry, type FieldDef } from '../../shared/sourceCatalog'
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'

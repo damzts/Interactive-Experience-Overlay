@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE, withLobbyConfigDefaults } from '@ieom/shared'
-import type { LobbyConfig, Scene } from '@ieom/shared'
+import { STATE, withLobbyConfigDefaults } from '@ieomlabs/shared'
+import type { LobbyConfig, Scene } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft, Slider } from '../../shared/ui'
 import { Toggle } from '../../components/atoms'

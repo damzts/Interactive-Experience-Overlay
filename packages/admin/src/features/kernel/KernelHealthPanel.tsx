@@ -1,6 +1,6 @@
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
-import type { ManagerStatus } from '@ieom/shared'
+import type { ManagerStatus } from '@ieomlabs/shared'
 
 const STATUS_STYLE: Record<ManagerStatus, string> = {
   running: 'bg-emerald-400',

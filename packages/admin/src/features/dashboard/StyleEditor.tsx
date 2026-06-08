@@ -1,5 +1,5 @@
-import { STATE } from '@ieom/shared'
-import type { BackgroundType, OverlayStyle, ParticlePreset } from '@ieom/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { BackgroundType, OverlayStyle, ParticlePreset } from '@ieomlabs/shared'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
 import { ConfigSectionPanel, Slider, Toggle } from '../../shared/ui'
 import { BG_TYPES, GRADIENT_PRESETS, PARTICLE_PRESETS, PATTERN_CSS } from './constants'

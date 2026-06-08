@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { NotificationBoxConfig } from '@ieom/shared'
+import type { NotificationBoxConfig } from '@ieomlabs/shared'
 
 /** NOTIFICATION-BOX — creates a Win98-style dialog window.
  *  Appended into #tl-notification-stack (flex column), so multiple

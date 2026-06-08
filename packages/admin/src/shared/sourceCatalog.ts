@@ -1,4 +1,4 @@
-import type { Scene, SourcePreset } from '@ieom/shared'
+import type { Scene, SourcePreset } from '@ieomlabs/shared'
 import type { AssetKind } from './catalog'
 
 export type FieldDef = {

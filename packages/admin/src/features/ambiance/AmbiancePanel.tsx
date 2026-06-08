@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
-import { withDesktopAmbianceDefaults, type DesktopAmbianceConfig, type Application } from '@ieom/shared'
+import { withDesktopAmbianceDefaults, type DesktopAmbianceConfig, type Application } from '@ieomlabs/shared'
 import { Slider, isSameDraft, IconGlyph, ConfigApplyBar, ConfigPageIntro } from '../../shared/ui'
 import { Toggle, Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../../kernel/managers/scene.js'
-import { mergeAppConfig, withDesktopConfigDefaults } from '@ieom/shared'
-import type { AppConfig, Application, Scene } from '@ieom/shared'
+import { mergeAppConfig, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import type { AppConfig, Application, Scene } from '@ieomlabs/shared'
 
 interface ConfigServiceLike {
   getForUser(userId: string): Promise<AppConfig>

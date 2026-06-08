@@ -12,8 +12,8 @@
  */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieom/shared'
-import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieom/shared'
+import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'

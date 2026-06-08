@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { VideoOverlayConfig } from '@ieom/shared'
+import type { VideoOverlayConfig } from '@ieomlabs/shared'
 
 /** Displays a video as an overlay (WebM with alpha channel = transparent).
  *  Uses #tl-media-container. Position is absolute within 1920×1080. */

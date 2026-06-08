@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import type { Application, DesktopIconAnimation } from '@ieom/shared'
+import type { Application, DesktopIconAnimation } from '@ieomlabs/shared'
 import { AppGlyph } from './AppGlyph'
 
 type IconSize = NonNullable<Application['iconSize']>

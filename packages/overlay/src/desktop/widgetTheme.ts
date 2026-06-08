@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
-import { DEFAULT_WIDGET_THEME_PRESETS } from '@ieom/shared'
-import type { WidgetThemeConfig } from '@ieom/shared'
+import { DEFAULT_WIDGET_THEME_PRESETS } from '@ieomlabs/shared'
+import type { WidgetThemeConfig } from '@ieomlabs/shared'
 
 function buildFontStack(fontFamily: string, fallback: string) {
   return `"${fontFamily.replace(/"/g, '\\"')}", ${fallback}`

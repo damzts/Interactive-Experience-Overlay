@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { CursorOverlayController } from './CursorOverlay';
-import type { DesktopStartMenuSimulationPhasePayload, MenuPathTimingStep, OpenWidgetMenuTimelinePayload } from '@ieom/shared';
+import type { DesktopStartMenuSimulationPhasePayload, MenuPathTimingStep, OpenWidgetMenuTimelinePayload } from '@ieomlabs/shared';
 
 function randomRange(min: number, max: number) {
   return min + Math.random() * (max - min);

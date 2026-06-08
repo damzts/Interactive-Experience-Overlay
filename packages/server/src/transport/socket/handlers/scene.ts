@@ -14,7 +14,7 @@ import {
   type WidgetSkinTheme,
   type WidgetThemeConfig,
   type DesktopConfig,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type { TransitionStartPayload } from '../../../kernel/managers/scene.js'
 import type { HandlerContext, AppSocket } from './types.js'
 import {

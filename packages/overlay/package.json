@@ -8,7 +8,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ieom/shared": "workspace:*",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "98.css": "^0.1.18",
@@ -18,7 +17,8 @@
     "react-dom": "^18.3.1",
     "socket.io-client": "^4.7.5",
     "three": "^0.167.1",
-    "zustand": "^4.5.2"
+    "zustand": "^4.5.2",
+    "@ieomlabs/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

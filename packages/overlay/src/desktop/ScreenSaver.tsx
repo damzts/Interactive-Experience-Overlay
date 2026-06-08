@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { DesktopScreenSaverPreviewPayload } from '@ieom/shared'
+import type { DesktopScreenSaverPreviewPayload } from '@ieomlabs/shared'
 import { socket } from '../socket/client'
 import { useAppStore } from '../store/useAppStore'
 

@@ -9,7 +9,7 @@ import { ParticipantRegistry, type Participant } from '../../pov/participant-reg
 import { createAudioScoreProcessor, type AudioScoreProcessor } from '../../pov/audio-score-processor.js'
 import { createMotionDetector, type MotionAware } from '../../pov/motion-detector.js'
 import { POVSwitcher, type SwitchCallback } from '../../pov/switcher.js'
-import type { Manager, ManagerStatus } from '@ieom/shared'
+import type { Manager, ManagerStatus } from '@ieomlabs/shared'
 import logger from '../../lib/logger.js';
 
 

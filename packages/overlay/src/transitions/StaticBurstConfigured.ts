@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { StaticBurstConfig } from '@ieom/shared'
+import type { StaticBurstConfig } from '@ieomlabs/shared'
 
 /** STATIC-BURST — TV static noise floods the screen then clears.
  *  Config-aware wrapper around the existing #tl-static-overlay element. */

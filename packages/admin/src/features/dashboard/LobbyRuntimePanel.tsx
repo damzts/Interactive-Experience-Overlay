@@ -7,8 +7,8 @@
  *   - 3D Room: lighting, fog, world, atmosphere, props (via LobbyThemeEditor)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE, withOverlayStyleDefaults } from '@ieom/shared'
-import type { Scene, SourceInstance } from '@ieom/shared'
+import { STATE, withOverlayStyleDefaults } from '@ieomlabs/shared'
+import type { Scene, SourceInstance } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { SourcesEditor } from './SceneConfig'

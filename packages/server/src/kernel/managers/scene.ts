@@ -5,7 +5,7 @@ import {
   type OverlayTriggerPayload,
   type Manager,
   type ManagerStatus,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 
 interface MachineSnapshot {
   current: STATE

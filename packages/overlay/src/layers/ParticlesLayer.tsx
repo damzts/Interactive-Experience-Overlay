@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { OverlayParticles, ParticlePreset } from '@ieom/shared'
+import type { OverlayParticles, ParticlePreset } from '@ieomlabs/shared'
 
 interface Particle {
   x: number

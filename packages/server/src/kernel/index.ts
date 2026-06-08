@@ -15,7 +15,7 @@
  */
 
 import logger from '../lib/logger.js'
-import type { Manager } from '@ieom/shared'
+import type { Manager } from '@ieomlabs/shared'
 import { KernelBus } from './bus.js'
 
 export { KernelBus } from './bus.js'
@@ -44,8 +44,8 @@ export class Kernel {
   }
 
   /** Returns a snapshot of every manager's current lifecycle status. */
-  getManagerStatuses(): Record<string, import('@ieom/shared').ManagerStatus> {
-    const result: Record<string, import('@ieom/shared').ManagerStatus> = {}
+  getManagerStatuses(): Record<string, import('@ieomlabs/shared').ManagerStatus> {
+    const result: Record<string, import('@ieomlabs/shared').ManagerStatus> = {}
     for (const [name, m] of this.managers) result[name] = m.status()
     return result
   }

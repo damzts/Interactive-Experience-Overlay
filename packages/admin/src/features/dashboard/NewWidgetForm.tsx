@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { withDesktopConfigDefaults } from '@ieom/shared'
-import type { Application } from '@ieom/shared'
+import { withDesktopConfigDefaults } from '@ieomlabs/shared'
+import type { Application } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
 import { IconGlyph } from '../../shared/ui'

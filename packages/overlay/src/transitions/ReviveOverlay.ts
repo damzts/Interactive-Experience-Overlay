@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import type { ReviveOverlayConfig } from '@ieom/shared'
+import type { ReviveOverlayConfig } from '@ieomlabs/shared'
 
 /** REVIVE overlay — "Restarting process..." boot sequence.
  *  Plays on top of current scene, no state change. Auto-clears after ~3s. */

@@ -5,7 +5,7 @@ import type {
   DesktopStartMenuStatePayload,
   DesktopStartMenuSimulationPhasePayload,
   DesktopRuntimeStatePayload,
-} from '@ieom/shared'
+} from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 import { applyRuntimeConfigOverride } from './runtimeOverride.js'
 

@@ -1,4 +1,4 @@
-import type { RecycleBinSettings, StickyNotesSettings } from '@ieom/shared'
+import type { RecycleBinSettings, StickyNotesSettings } from '@ieomlabs/shared'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
 import { ConfigSectionPanel, HexColorInput, Toggle } from '../../shared/ui'
 

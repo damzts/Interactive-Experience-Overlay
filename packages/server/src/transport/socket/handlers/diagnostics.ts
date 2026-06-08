@@ -1,4 +1,4 @@
-import type { OverlayRuntimeStatusPayload } from '@ieom/shared'
+import type { OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 
 // ── Diagnostics throttle state ────────────────────────────────────
