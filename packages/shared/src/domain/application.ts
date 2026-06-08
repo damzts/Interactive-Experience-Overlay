@@ -139,4 +139,18 @@ export interface Application {
   stickyNotesSettings?: StickyNotesSettings
   /** Persisted widget chrome override for this specific widget. */
   themeOverride?: WidgetThemeConfig
+
+  // ── Desktop icon fields (used by overlay desktop UI) ──────────────────
+
+  /** Icon size on the desktop grid. */
+  iconSize?: 'small' | 'medium' | 'large'
+  /** Manual icon position on the desktop canvas (px). */
+  iconPosition?: { x: number; y: number }
+  /** Recycle bin icon overrides. */
+  recycleBinSettings?: {
+    fullIcon?: string
+    emptyIcon?: string
+  }
+  /** Target scene ID for taskbar scene-switching. */
+  targetSceneId?: string
 }
