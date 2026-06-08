@@ -9,6 +9,7 @@ on:
 env:
   NODE_VERSION: '22'
   PNPM_VERSION: '11'
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
 jobs:
   build-and-test:
