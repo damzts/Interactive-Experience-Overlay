@@ -40,6 +40,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 function WebAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loginModalOpen, setLoginModalOpen] = useState(false)
 
   const isAuthenticated = user !== null
 
@@ -54,7 +55,7 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
 
       const data = await apiFetch<AuthUser>('/api/auth/me')
       setUser(data)
-      reconnectSocket()
+      void reconnectSocket()
     } catch {
       setUser(null)
     } finally {
@@ -90,7 +91,17 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth, openLoginModal, closeLoginModal, isLoginModalOpen }}
+      value={{
+        isAuthenticated,
+        user,
+        isLoading,
+        login,
+        logout,
+        checkAuth,
+        openLoginModal,
+        closeLoginModal,
+        isLoginModalOpen: loginModalOpen,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -104,6 +115,7 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
 function DesktopAuthProviderInternal({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loginModalOpen, setLoginModalOpen] = useState(false)
 
   const isAuthenticated = user !== null
 
@@ -146,7 +158,17 @@ function DesktopAuthProviderInternal({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth, openLoginModal, closeLoginModal, isLoginModalOpen }}
+      value={{
+        isAuthenticated,
+        user,
+        isLoading,
+        login,
+        logout,
+        checkAuth,
+        openLoginModal,
+        closeLoginModal,
+        isLoginModalOpen: loginModalOpen,
+      }}
     >
       {children}
     </AuthContext.Provider>

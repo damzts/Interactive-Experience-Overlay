@@ -21,6 +21,7 @@ const DesktopAuthContext = createContext<AuthContextValue | null>(null)
 export function DesktopAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loginModalOpen, setLoginModalOpen] = useState(false)
 
   const isAuthenticated = user !== null
 
@@ -64,9 +65,22 @@ export function DesktopAuthProvider({ children }: { children: ReactNode }) {
     // This is a no-op since the main process drives auth state.
   }, [])
 
+  const openLoginModal = useCallback(() => setLoginModalOpen(true), [])
+  const closeLoginModal = useCallback(() => setLoginModalOpen(false), [])
+
   return (
     <DesktopAuthContext.Provider
-      value={{ isAuthenticated, user, isLoading, login, logout, checkAuth }}
+      value={{
+        isAuthenticated,
+        user,
+        isLoading,
+        login,
+        logout,
+        checkAuth,
+        openLoginModal,
+        closeLoginModal,
+        isLoginModalOpen: loginModalOpen,
+      }}
     >
       {children}
     </DesktopAuthContext.Provider>
