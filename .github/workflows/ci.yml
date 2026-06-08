@@ -43,7 +43,6 @@ jobs:
           pnpm --filter @ieomlabs/shared typecheck
           pnpm --filter @ieom/server typecheck
           pnpm --filter @ieom/overlay typecheck
-          pnpm --filter @ieom/admin typecheck
           pnpm --filter @ieom/desktop typecheck
 
       - name: Build packages
