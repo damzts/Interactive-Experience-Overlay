@@ -8,3 +8,32 @@ packages:
 - packages/admin
 - packages/overlay
 - packages/desktop
+
+# pnpm v9+ reads these from pnpm-workspace.yaml
+onlyBuiltDependencies:
+  - better-sqlite3
+  - electron
+  - esbuild
+
+# pnpm overrides for security advisories (resolves #26 Fase 1)
+# Use >= ranges to handle post-major-version releases
+# NOTE: 'ip' (via werift) is abandoned upstream — last release 2.0.1.
+# GHSA-2p57-rm9w-gvfp has no patched version. Accepted risk for now
+# (SSRF only affects ICE candidate validation, low blast radius).
+# Mitigation: monitor @indutny/node-ip repo for a community fork.
+# NOTE: vitest 4.x requires vite 6.x (vite/module-runner). Project uses vite 5.
+# Upgrade blocked until Fase 2: migrate vite 5→6 + vitest 2→4 together.
+# GHSA-5xrq-8626-4rwp (CRITICAL) waiver pending Fase 2.
+overrides:
+  node-abi: '>=4.31.0'
+  fastify: '>=5.7.2'
+  lodash: '>=4.17.21'
+  ws: '>=8.17.0'
+  uuid: '>=9.0.0'
+  tar: '>=7.5.7'
+  esbuild: '>=0.24.3'
+  react-router: '>=6.30.4'
+  fast-uri: '>=3.1.0'
+  brace-expansion: '>=2.0.2'
+  protocol-buffers-schema: '>=3.5.1'
+  socket.io-parser: '>=4.2.1'
