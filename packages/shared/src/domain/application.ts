@@ -147,10 +147,13 @@ export interface Application {
   /** Manual icon position on the desktop canvas (px). */
   iconPosition?: { x: number; y: number }
   /** Recycle bin icon overrides. */
-  recycleBinSettings?: {
-    fullIcon?: string
-    emptyIcon?: string
-  }
+  recycleBinSettings?: RecycleBinSettings
   /** Target scene ID for taskbar scene-switching. */
   targetSceneId?: string
+}
+
+/** Desktop icon overrides for the recycle bin widget. */
+export type RecycleBinSettings = {
+  fullIcon?: string
+  emptyIcon?: string
 }
