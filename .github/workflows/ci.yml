@@ -35,11 +35,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared
-        run: pnpm --filter @ieom/shared build
+        run: pnpm --filter @ieomlabs/shared build
 
       - name: TypeScript check
         run: |
-          pnpm --filter @ieom/shared typecheck
+          pnpm --filter @ieomlabs/shared typecheck
           pnpm --filter @ieom/server typecheck
           pnpm --filter @ieom/overlay typecheck
           pnpm --filter @ieom/admin typecheck

@@ -1,7 +1,7 @@
-name: Publish @ieom/shared
+name: Publish @ieomlabs/shared
 
 # Publica automáticamente cuando hay cambios en packages/shared
-# Resolución: closes #52 (acoplamiento cross-repo @ieom/shared)
+# Resolución: closes #52 (acoplamiento cross-repo @ieomlabs/shared)
 on:
   push:
     branches: [main]
