@@ -17,6 +17,10 @@ vi.mock('electron', () => ({
   app: {
     setAsDefaultProtocolClient: vi.fn(),
     getPath: vi.fn(() => '/mock/userData'),
+    getVersion: vi.fn(() => '1.0.0'),
+  },
+  BrowserWindow: {
+    getAllWindows: vi.fn(() => []),
   },
   Notification: class MockNotification {
     title: string;

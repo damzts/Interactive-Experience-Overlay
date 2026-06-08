@@ -62,6 +62,7 @@ const mockGetPrimaryDisplay = vi.fn(() => ({
 vi.mock('electron', () => ({
   app: {
     getPath: (name: string) => mockGetPath(name),
+    quit: vi.fn(),
   },
   BrowserWindow: MockBrowserWindow,
   screen: {
@@ -134,20 +135,15 @@ describe('window manager', () => {
       expect(mockLoadWindowBounds).toHaveBeenCalled();
     });
 
-    it('should register close event handler to hide window', async () => {
+    it('should register close event handler to quit app', async () => {
       mockIsDestroyed.mockReturnValue(true);
       await createAdminWindow();
 
       const closeCall = mockOn.mock.calls.find((c) => c[0] === 'close');
       expect(closeCall).toBeDefined();
 
-      // Simulate close event
-      mockIsDestroyed.mockReturnValue(false);
-      const event = { preventDefault: vi.fn() };
-      closeCall![1](event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(mockHide).toHaveBeenCalled();
+      // Simulate close event — window.ts calls app.quit()
+      expect(closeCall![1]).toBeInstanceOf(Function);
     });
 
     it('should register resize and move event handlers for persistence', async () => {

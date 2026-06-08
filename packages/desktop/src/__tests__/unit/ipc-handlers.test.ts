@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockHandle = vi.fn();
+const mockStartOAuthFlow = vi.fn().mockResolvedValue(undefined);
 const mockOpenExternal = vi.fn().mockResolvedValue(undefined);
 const mockGetVersion = vi.fn().mockReturnValue('1.2.3');
 const mockSend = vi.fn();
@@ -19,6 +20,10 @@ const mockGetAllWindows = vi.fn().mockReturnValue([]);
 const mockGetLicenseTier = vi.fn().mockReturnValue('free');
 const mockValidateLicense = vi.fn().mockResolvedValue(undefined);
 const mockClearToken = vi.fn();
+
+vi.mock('../../main/oauth-flow.js', () => ({
+  startOAuthFlow: () => mockStartOAuthFlow(),
+}));
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -30,8 +35,18 @@ vi.mock('electron', () => ({
   shell: {
     openExternal: (...args: unknown[]) => mockOpenExternal(...args),
   },
-  BrowserWindow: {
-    getAllWindows: () => mockGetAllWindows(),
+  BrowserWindow: class {
+    static getAllWindows = () => mockGetAllWindows();
+    constructor(_opts: unknown) {}
+    webContents = { send: vi.fn(), on: vi.fn() };
+    loadURL = vi.fn();
+    on = vi.fn();
+    close = vi.fn();
+    isDestroyed = vi.fn(() => false);
+  },
+  Notification: class {
+    show = vi.fn();
+    constructor(_opts: unknown) {}
   },
 }));
 
@@ -165,15 +180,13 @@ describe('ipc-handlers', () => {
       expect(result).toEqual({ tier: 'pro' });
     });
 
-    it('auth:login handler should open system browser to OAuth URL', async () => {
+    it('auth:login handler should start OAuth flow', async () => {
       const handler = mockHandle.mock.calls.find(
         (call: unknown[]) => call[0] === 'auth:login',
       )![1] as () => Promise<void>;
 
       await handler();
-      expect(mockOpenExternal).toHaveBeenCalledWith(
-        'https://app.ieom.gg/api/auth/google?redirect=ieom://auth',
-      );
+      expect(mockStartOAuthFlow).toHaveBeenCalled();
     });
 
     it('auth:logout handler should clear token and broadcast', () => {

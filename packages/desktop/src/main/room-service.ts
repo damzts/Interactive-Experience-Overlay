@@ -28,8 +28,39 @@ interface RoomState {
 let currentState: RoomState = { status: 'disconnected', roomId: null, participants: [] };
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum number of concurrent peer connections per room.
+ * Requirement 9.2
+ */
+const MAX_PEERS = 8;
+
+/**
+ * Maximum exponential backoff delay in milliseconds.
+ * Requirement 9.4
+ */
+const MAX_BACKOFF_MS = 30_000;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Returns the maximum number of concurrent peer connections.
+ */
+export function getMaxPeers(): number {
+  return MAX_PEERS;
+}
+
+/**
+ * Calculates exponential backoff delay capped at MAX_BACKOFF_MS.
+ * delay = min(2^(N-1) * 1000, MAX_BACKOFF) ms for the N-th attempt.
+ */
+export function calculateBackoffDelay(attempt: number): number {
+  return Math.min(Math.pow(2, attempt - 1) * 1000, MAX_BACKOFF_MS);
+}
 
 function getServerBaseUrl(): string {
   return `http://127.0.0.1:${getDesktopServerPort()}`;

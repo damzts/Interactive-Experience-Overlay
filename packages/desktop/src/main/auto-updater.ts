@@ -7,9 +7,8 @@
  * Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8
  */
 
-import electronUpdater from 'electron-updater';
+import { autoUpdater } from 'electron-updater';
 import type { UpdateInfo } from 'electron-updater';
-const { autoUpdater } = electronUpdater;
 import { Notification, BrowserWindow } from 'electron';
 import { logger } from './logger.js';
 
