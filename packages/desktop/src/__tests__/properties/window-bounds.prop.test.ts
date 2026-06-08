@@ -18,28 +18,35 @@ import * as fc from 'fast-check';
 // In-memory SQLite store mock
 // ---------------------------------------------------------------------------
 
-const store = new Map<string, any>();
+const mocks = vi.hoisted(() => {
+  const store = new Map<string, any>();
+  return { store };
+});
 
 vi.mock('better-sqlite3', () => ({
-  default: vi.fn(() => ({
-    pragma: vi.fn(),
-    prepare: vi.fn((sql: string) => ({
-      get: () => store.get('window_state') ?? undefined,
-      run: (...args: any[]) => {
-        // INSERT OR REPLACE INTO window_state (id, x, y, width, height, is_maximized) VALUES (1, ?, ?, ?, ?, ?)
-        if (args.length >= 5) {
-          store.set('window_state', {
-            x: args[0],
-            y: args[1],
-            width: args[2],
-            height: args[3],
-            is_maximized: args[4],
-          });
-        }
-      },
-    })),
-    close: vi.fn(),
-  })),
+  default: vi.fn(function () {
+    return {
+      pragma: vi.fn(),
+      prepare: vi.fn(function (sql: string) {
+        return {
+          get: function () { return mocks.store.get('window_state') ?? undefined; },
+          run: function (...args: any[]) {
+            // INSERT OR REPLACE INTO window_state (id, x, y, width, height, is_maximized) VALUES (1, ?, ?, ?, ?, ?)
+            if (args.length >= 5) {
+              mocks.store.set('window_state', {
+                x: args[0],
+                y: args[1],
+                width: args[2],
+                height: args[3],
+                is_maximized: args[4],
+              });
+            }
+          },
+        };
+      }),
+      close: vi.fn(),
+    };
+  }),
 }));
 
 // Import after mocks are set up
@@ -128,7 +135,7 @@ const withinBoundsPosition = fc
 
 describe('Property 9: Window Bounds Persistence Round-Trip', () => {
   beforeEach(() => {
-    store.clear();
+    mocks.store.clear();
     // Open the DB connection (uses mocked better-sqlite3)
     openWindowStateDb('/mock/ieom.db');
   });
@@ -137,7 +144,7 @@ describe('Property 9: Window Bounds Persistence Round-Trip', () => {
     fc.assert(
       fc.property(validWindowBounds, (bounds) => {
         // Clear store between iterations
-        store.clear();
+        mocks.store.clear();
 
         // Re-open DB to ensure connection is active
         openWindowStateDb('/mock/ieom.db');
