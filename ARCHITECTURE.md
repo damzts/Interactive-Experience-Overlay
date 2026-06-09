@@ -132,22 +132,19 @@ Config service remains as thin coordinator: cache invalidation, socket broadcast
 
 ### Reactive Widget Chains
 
-The `reactive_chains` SQLite table enables automatic widget-to-widget reactions. **`DesktopConfigService` owns and routes all reactive chains** — it is the wire router.
+The `reactive_chains` SQLite table enables automatic widget-to-widget reactions. **`DesktopConfigService`** owns and loads chains into `AppConfig`. The overlay evaluates them in-process — no kernel round-trip is needed for custom actions.
 
 ```
 widget emits DOM signal (dispatchWidgetSignal)
-  → useSocket forwards to kernel (socket.emit 'widget:signal')
-  → DesktopConfigService.routeWidgetSignal(source, event)
-  → finds matching enabled rows in reactive_chains
-  → fires target actions:
-      open / close / toggle  →  direct widget state change
-      custom action          →  widget:chain:action signal to overlay
+  → useSocket addWidgetSignalListener (overlay-local)
+  → looks up config.reactiveChains in Zustand store
+  → for custom actions:
+       dispatchWidgetChainAction({ targetWidgetId, action })  ← DOM bus, zero latency
+  → for open/close/toggle:
+       socket.emit('widget:signal')  → kernel mutates open state → widget:toggle back
 ```
 
-Configure chains via the Admin Wires panel (`/api/wires`) or direct SQLite:
-```sql
-INSERT INTO reactive_chains VALUES ('chain-1', 'weather', 'storm', 'particles', 'rain-preset', 1)
-```
+Wires are managed via `GET/POST/PATCH/DELETE /api/wires`. After any mutation, the server emits `config:patch { reactiveChains }` so the overlay updates live without a restart.
 
 ### Kernel Rules
 
@@ -297,8 +294,9 @@ Widgets talk to each other via two channels:
 
 | Channel | How | When to use |
 |---------|-----|-------------|
-| **DOM intent bus** | `CustomEvent` on `window` | Widget-to-widget, in-process, no kernel involvement. Fast. |
-| **Server-mediated** | Widget → kernel → broadcast → DOM bus | When the interaction needs to be coordinated, persisted, or visible to admin. |
+| **DOM intent bus** | `CustomEvent` on `window` | Widget-to-widget, in-process, hardcoded by developer. Fast, ephemeral. |
+| **Reactive chains** | `dispatchWidgetChainAction` on `window` | Operator-configured, persistent wires. Evaluated in-process from `config.reactiveChains`. Zero latency for custom actions; kernel only for open/close/toggle. |
+| **Server-mediated** | Widget → kernel → broadcast → DOM bus | When the interaction must change authoritative open state or be visible to all connected clients. |
 
 Widgets never import each other directly. The bus is fire-and-forget — if the target widget isn't mounted, the event is silently dropped.
 
@@ -311,19 +309,16 @@ Widget A emits → dispatchWidgetSignal (DOM)
 Widget B listens → addWidgetSignalListener (DOM)   ← zero kernel involvement
 ```
 
-The kernel is only in the path when the operator has configured a **persistent reactive chain** via the Wires panel. In that case the same DOM signal is also forwarded to the kernel, which routes it through `reactive_chains` and sends the result back as a `widget:chain:action` signal:
+**Reactive chains** extend this: the overlay evaluates operator-configured chains from `config.reactiveChains` on every DOM signal. Custom actions dispatch via `dispatchWidgetChainAction` — still in-process, zero latency. Only `open/close/toggle` actions go to the kernel (they mutate authoritative open state):
 
 ```
-Widget state change
-  → dispatchWidgetSignal({ source, event, payload })   ← DOM bus (widget-to-widget, immediate)
-  → useSocket addWidgetSignalListener                   ← also forwarded to kernel
-  → socket.emit('widget:signal')                        ← only needed for configured chains
-  → DesktopConfigService.routeWidgetSignal()            ← wire router (DB lookup)
-  → matching reactive_chains rows
-  → widget:chain:action → DOM bus (dispatchWidgetSimulationIntent)
+dispatchWidgetSignal                          ← widget emits
+  → useSocket: look up config.reactiveChains
+      custom action → dispatchWidgetChainAction → addWidgetChainActionListener in target widget
+      open/close/toggle → socket.emit('widget:signal') → kernel → widget:toggle
 ```
 
-Each widget type declares its pub/sub vocabulary as a `WidgetIntentManifest` (static, code-defined). The Admin **Wires** panel reads these manifests to populate the source/target picker, and persists connections to `reactive_chains`.
+Each widget type declares its pub/sub vocabulary as a `WidgetIntentManifest` in `packages/shared/src/constants/widgetIntentManifests.ts` (static data, importable by both overlay and server). The Admin **Wires** panel fetches manifests from `GET /api/wires/manifests` and persists connections to `reactive_chains`.
 
 ---
 
@@ -447,7 +442,7 @@ Like a real computer, the system has two kinds of memory:
 
 | Store | What lives here | Persists? |
 |-------|----------------|-----------|
-| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`) | ✅ Yes |
+| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`), reactive chains (`reactive_chains`) | ✅ Yes |
 | `RuntimeStateStore` (in-memory) | Current scene, open widgets, overlay connected, ambiance leader | ❌ No |
 | `HandlerContext` (socket closure) | Runtime config overrides, simulation metrics, overlay slot | ❌ No |
 

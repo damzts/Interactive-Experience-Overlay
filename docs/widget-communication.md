@@ -14,11 +14,11 @@ at a widget. The cursor simulation is an optional side effect layered on top.
 
 Widgets don't talk to each other directly. There is no widget bus, no
 shared widget state, no cross-widget imports. Communication always routes
-through one of two channels:
+through one of three channels:
 
-1. **The DOM intent bus** — for in-process, same-overlay widget updates
-2. **The server → overlay signal path** — for authoritative, persisted,
-   cross-client state changes
+1. **The DOM intent bus** — in-process, ephemeral, developer-configured
+2. **Reactive chains** — in-process, persistent, operator-configured (no kernel round-trip for custom actions)
+3. **The server → overlay signal path** — for authoritative state changes (open/close/toggle)
 
 ---
 
