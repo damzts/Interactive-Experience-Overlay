@@ -24,6 +24,8 @@
 ## Known constraints & gotchas
 
 - **LAN WebRTC requires HTTPS** — `getUserMedia` is blocked by browsers on non-localhost origins over plain HTTP. Generate a self-signed cert with `node scripts/generate-cert.js`; the server auto-detects and enables HTTPS on restart. Guest devices accept the cert warning once.
+- **Admin preview vs overlay widget** — `AdminRelay` has one WebRTC PC per participant; only one consumer (admin panel preview OR overlay `participant-stream` widget) can answer a given offer. Admin preview is off by default so the overlay widget gets priority.
+- **OverlayRelay uses no STUN** — server and overlay are both localhost; empty `iceServers` gives immediate ICE. STUN caused ~12s delays before removal.
 - **werift `addTrack` with received tracks** — track must come from a live peer connection. Synthetic tracks don't work.
 - **werift `MediaStream` parameter** — `addTrack(track, stream?)` stream param is unimplemented. Build `MediaStream` manually from `event.track`.
 - **werift `a=msid`** — not emitted in SDP. Do not rely on `event.streams` in `ontrack`.

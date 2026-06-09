@@ -55,11 +55,30 @@ Once a participant's tracks arrive at the hub, three things happen:
 
 **Overlay relay** — when the active participant changes, the server does a `replaceTrack()` on the overlay's WebRTC sender. The overlay's video element continues playing without interruption — it doesn't know a track swap happened.
 
-## Overlay relay detail
+## Overlay widgets
 
-The overlay subscribes to the hub by emitting a subscribe signal over its Socket.IO connection. The server then creates a dedicated send-only WebRTC peer connection for the overlay and begins relaying the active participant's tracks.
+Two overlay widgets consume video from the server:
 
-The overlay builds its `MediaStream` manually from the incoming track event rather than relying on the stream provided by the WebRTC API. This is a werift-specific requirement — werift does not implement the `msid` attribute in its SDP, so the browser-standard stream attachment doesn't work.
+**POV Stream (Auto)** (`pov-stream`) — subscribes via `pov:subscribe` on the main Socket.IO connection. The server's `OverlayRelay` creates a sendonly WebRTC PC and relays whichever participant the POV switcher has selected. Track swaps are seamless via `replaceTrack`. Use this when you want the server to automatically manage who is on screen.
+
+**Participant Stream** (`participant-stream`) — connects to the `/online` namespace as an admin client and receives `admin:offer` events from `AdminRelay`. Shows the raw stream of whatever participant is currently being relayed, bypassing the switcher. Use this for a direct feed.
+
+**Important:** `AdminRelay` uses one WebRTC PC per participant. Only one consumer can answer a given offer — the first to send `admin:answer` gets the stream. The admin panel's preview grid (inside Online Rooms → Active Rooms) is a consumer of the same relay. It is **off by default** so the overlay widget gets priority. Enable it in the panel only for debugging.
+
+## Overlay relay wiring
+
+`OverlayRelay` is owned entirely by `desktop-entry.ts`. Two hooks drive it:
+
+- `povOrchestrator.onSwitch(next => overlayRelay.switchTo(...))` — fires on every POV switch, updates the relay's active track
+- `hubConnection.onTrack(userId => ...)` — auto-selects the first participant and calls `switchTo` on re-offer (new track objects after reconnect)
+
+`CloudSignaling` does not touch `OverlayRelay`. This ensures LAN-only mode works without any cloud room active.
+
+## ICE servers
+
+The `OverlayRelay` and `POVStreamWidget` use **no ICE servers** (empty `iceServers: []`). The server and overlay are both on localhost — ICE resolves immediately via host candidates. STUN is unnecessary and was causing ~12s delays before being removed.
+
+`HubConnection` and `AdminRelay` still use `stun:stun.l.google.com:19302` because participants may connect from different network segments (LAN or cloud).
 
 ## ICE candidate ordering constraint
 
