@@ -20,6 +20,7 @@ import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import { ConfigPanel } from '../../components/organisms'
 import { AdminStreamGrid } from './AdminStreamGrid'
+import { FeatureGate } from '../../desktop/FeatureGate'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -723,62 +724,7 @@ export function OnlineRoomsPanel() {
       )}
 
       <div className="space-y-6 pt-3">
-        {/* Active Rooms */}
-        <ConfigPanel title="Active Rooms" collapsible>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-[var(--color-text-secondary)]">
-              {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
-            </span>
-            <Button variant="primary" size="sm" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
-              {creating ? 'Creating…' : '+ Create Room'}
-            </Button>
-          </div>
-
-          {rooms.length === 0 ? (
-            <Notice tone="info">
-              No online rooms active. Create a room to get started.
-            </Notice>
-          ) : (
-            <div className="space-y-2">
-              {rooms.map((room) => (
-                <RoomCard
-                  key={room.roomCode}
-                  room={room}
-                  onClose={handleCloseRoom}
-                  onRejoin={handleRejoinRoom}
-                  onModeSet={handleModeSet}
-                  onSelect={handleSelect}
-                  onKick={handleKick}
-                  socket={socketRef.current}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Video stream grid — shows all participant streams across rooms */}
-          <AdminStreamGrid socket={socketRef.current as any} />
-        </ConfigPanel>
-
-        {/* Activity Feed */}
-        <ConfigPanel title="Activity Log" collapsible>
-          {activityLog.length === 0 ? (
-            <Notice tone="info">No activity yet. Events will appear here in real time.</Notice>
-          ) : (
-            <div className="max-h-48 overflow-y-auto space-y-0.5">
-              {activityLog.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-2 rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/50">
-                  <span className="shrink-0">{entry.icon}</span>
-                  <span className="flex-1 min-w-0 truncate">{entry.text}</span>
-                  <span className="shrink-0 text-[9px] text-[var(--color-text-muted)] font-mono">
-                    {new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </ConfigPanel>
-
-        {/* LAN Participants */}
+        {/* LAN Participants — always visible, no cloud required */}
         <ConfigPanel title="LAN Participants" collapsible>
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -831,6 +777,64 @@ export function OnlineRoomsPanel() {
             </div>
           </div>
         </ConfigPanel>
+
+        {/* Cloud sections — feature gated */}
+        <FeatureGate feature="stream-rooms">
+          {/* Active Rooms */}
+          <ConfigPanel title="Active Rooms" collapsible>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
+              </span>
+              <Button variant="primary" size="sm" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
+                {creating ? 'Creating…' : '+ Create Room'}
+              </Button>
+            </div>
+
+            {rooms.length === 0 ? (
+              <Notice tone="info">
+                No online rooms active. Create a room to get started.
+              </Notice>
+            ) : (
+              <div className="space-y-2">
+                {rooms.map((room) => (
+                  <RoomCard
+                    key={room.roomCode}
+                    room={room}
+                    onClose={handleCloseRoom}
+                    onRejoin={handleRejoinRoom}
+                    onModeSet={handleModeSet}
+                    onSelect={handleSelect}
+                    onKick={handleKick}
+                    socket={socketRef.current}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Video stream grid — shows all participant streams across rooms */}
+            <AdminStreamGrid socket={socketRef.current as any} />
+          </ConfigPanel>
+
+          {/* Activity Feed */}
+          <ConfigPanel title="Activity Log" collapsible>
+            {activityLog.length === 0 ? (
+              <Notice tone="info">No activity yet. Events will appear here in real time.</Notice>
+            ) : (
+              <div className="max-h-48 overflow-y-auto space-y-0.5">
+                {activityLog.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-2 rounded px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/50">
+                    <span className="shrink-0">{entry.icon}</span>
+                    <span className="flex-1 min-w-0 truncate">{entry.text}</span>
+                    <span className="shrink-0 text-[9px] text-[var(--color-text-muted)] font-mono">
+                      {new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ConfigPanel>
+        </FeatureGate>
 
         {/* Configuration */}
         <ConfigPanel title="Online Mode Configuration" collapsible>

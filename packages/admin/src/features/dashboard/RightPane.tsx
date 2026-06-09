@@ -19,7 +19,6 @@ import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { WiresPanel } from '../wires/WiresPanel'
 import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
-import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
@@ -121,7 +120,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'wires') return <WiresPanel />
-  if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
+  if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
   if (selected.kind === 'asset-catalog')     return <AssetLibraryPanel tab="catalog" />
   if (selected.kind === 'asset-events')      return <AssetLibraryPanel tab="events" />
   if (selected.kind === 'asset-sources')     return <AssetLibraryPanel tab="sources" />
