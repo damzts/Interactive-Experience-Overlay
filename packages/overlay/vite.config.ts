@@ -17,6 +17,9 @@ export default defineConfig({
       '/media': 'http://localhost:3000',
     },
   },
+  optimizeDeps: {
+    esbuildOptions: { target: 'esnext' },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
