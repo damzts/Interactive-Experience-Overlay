@@ -398,6 +398,7 @@ export function OnlineRoomsPanel() {
   const [config, setConfig] = useState<OnlineModeConfig>(DEFAULT_ONLINE_MODE_CONFIG)
   const [configDraft, setConfigDraft] = useState<OnlineModeConfig>(DEFAULT_ONLINE_MODE_CONFIG)
   const [creating, setCreating] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
   const [configSaved, setConfigSaved] = useState(false)
@@ -812,8 +813,18 @@ export function OnlineRoomsPanel() {
               </div>
             )}
 
-            {/* Video stream grid — shows all participant streams across rooms */}
-            <AdminStreamGrid socket={socketRef.current as any} />
+            {/* Video stream preview — disabled by default so overlay widget takes precedence */}
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={() => setShowPreview(v => !v)}
+                className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${showPreview ? 'bg-[var(--color-primary-500)]' : 'bg-[var(--color-bg-elevated)]'}`}
+                role="switch" aria-checked={showPreview}
+              >
+                <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${showPreview ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+              <span className="text-[10px] text-[var(--color-text-muted)]">Admin preview (disables overlay widget stream)</span>
+            </div>
+            {showPreview && <AdminStreamGrid socket={socketRef.current as any} />}
           </ConfigPanel>
 
           {/* Activity Feed */}
