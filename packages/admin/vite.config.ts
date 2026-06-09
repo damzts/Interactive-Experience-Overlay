@@ -23,10 +23,10 @@ export default defineConfig({
     port: 3002,
     proxy: {
       '/api/auth': { target: 'https://ieom.danhub.dev', changeOrigin: true },
-      '/api': 'http://localhost:3000',
-      '/socket.io': { target: 'http://localhost:3000', ws: true },
-      '/assets': 'http://localhost:3000',
-      '/media': 'http://localhost:3000',
+      '/api': { target: 'https://localhost:3000', secure: false },
+      '/socket.io': { target: 'https://localhost:3000', ws: true, secure: false },
+      '/assets': { target: 'https://localhost:3000', secure: false },
+      '/media': { target: 'https://localhost:3000', secure: false },
     },
   },
   optimizeDeps: {
