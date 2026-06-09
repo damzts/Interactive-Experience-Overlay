@@ -83,14 +83,16 @@ export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
     return {
       mode: pov.switcher.mode,
       activeCameraId: pov.switcher.activeCameraId,
+      lanParticipantsEnabled: pov.lanParticipantsEnabled,
     }
   })
 
   /** Update POV orchestrator config (weights, thresholds, etc.) */
-  app.post<{ Body: { motionWeight?: number; cooldownMs?: number; activityThreshold?: number; silenceThreshold?: number } }>('/api/camera/config', async (req, reply) => {
+  app.post<{ Body: { motionWeight?: number; cooldownMs?: number; activityThreshold?: number; silenceThreshold?: number; lanParticipantsEnabled?: boolean } }>('/api/camera/config', async (req, reply) => {
     if (!pov) return reply.code(503).send({ ok: false, error: 'pov_unavailable' })
     const cfg = req.body ?? {}
     if (cfg.motionWeight !== undefined) pov.motionWeight = cfg.motionWeight
+    if (cfg.lanParticipantsEnabled !== undefined) pov.lanParticipantsEnabled = cfg.lanParticipantsEnabled
     if (cfg.cooldownMs !== undefined || cfg.activityThreshold !== undefined || cfg.silenceThreshold !== undefined) {
       pov.switcher.updateConfig({
         cooldownMs: cfg.cooldownMs,

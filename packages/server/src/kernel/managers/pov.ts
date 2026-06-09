@@ -36,6 +36,7 @@ export class POVOrchestrator implements Manager {
   private videoUnsubscribes = new Map<string, () => void>()
   /** Combined score: audio score + motion weight * motion score */
   motionWeight: number
+  lanParticipantsEnabled: boolean = true
 
   constructor(private hub: HubConnection, config?: POVOrchestratorConfig) {
     this.registry = new ParticipantRegistry(this.participants)
@@ -61,6 +62,7 @@ export class POVOrchestrator implements Manager {
       const combined = new Map<string, number>()
       const allIds = new Set([...audioScores.keys(), ...motionScores.keys()])
       for (const id of allIds) {
+        if (!this.lanParticipantsEnabled && id.startsWith('lan-')) continue
         const audio = audioScores.get(id) ?? 0
         const motion = motionScores.get(id) ?? 0
         combined.set(id, audio + motion * this.motionWeight)

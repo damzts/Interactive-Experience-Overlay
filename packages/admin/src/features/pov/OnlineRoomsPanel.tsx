@@ -414,15 +414,18 @@ export function OnlineRoomsPanel() {
   const [lanCode, setLanCode] = useState<string | null>(null)
   const [lanParticipants, setLanParticipants] = useState<Array<{ id: string; iceState: string; videoMuted: boolean }>>([])
   const [regeneratingCode, setRegeneratingCode] = useState(false)
+  const [lanParticipantsEnabled, setLanParticipantsEnabled] = useState(true)
 
   const refreshLan = useCallback(async () => {
     try {
-      const [{ code }, { participants }] = await Promise.all([
+      const [{ code }, { participants }, status] = await Promise.all([
         apiFetch<{ code: string }>('/api/room/code'),
         apiFetch<{ participants: Array<{ id: string; iceState: string; videoMuted: boolean }> }>('/api/room/lan-participants'),
+        apiFetch<{ lanParticipantsEnabled?: boolean }>('/api/camera/status').catch(() => ({})),
       ])
       setLanCode(code)
       setLanParticipants(participants)
+      if (status && 'lanParticipantsEnabled' in status) setLanParticipantsEnabled(status.lanParticipantsEnabled!)
     } catch { /* non-fatal */ }
   }, [])
 
@@ -747,6 +750,25 @@ export function OnlineRoomsPanel() {
               >
                 Regenerate
               </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[10px] text-[var(--color-text-muted)]">Allow in POV</span>
+                <button
+                  onClick={async () => {
+                    const next = !lanParticipantsEnabled
+                    setLanParticipantsEnabled(next)
+                    await apiFetch('/api/camera/config', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ lanParticipantsEnabled: next }),
+                    }).catch(() => setLanParticipantsEnabled(!next))
+                  }}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${lanParticipantsEnabled ? 'bg-[var(--color-primary-500)]' : 'bg-[var(--color-bg-elevated)]'}`}
+                  role="switch"
+                  aria-checked={lanParticipantsEnabled}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${lanParticipantsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
               <span className="text-[10px] text-[var(--color-text-muted)]">🏠 LAN Join:</span>
