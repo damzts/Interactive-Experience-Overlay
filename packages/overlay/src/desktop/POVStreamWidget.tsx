@@ -31,9 +31,7 @@ export function POVStreamWidget({ appId, onClose, onMinimize, onFocus, windowSta
       if (cancelled) return
       cleanup()
       try {
-        pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-        })
+        pc = new RTCPeerConnection({ iceServers: [] })
         pcRef.current = pc
 
         pc.ontrack = (event) => {

@@ -99,8 +99,22 @@ export class AdminRelay {
    */
   setSocket(socket: Socket): void {
     this.adminSocket = socket
-    // Send current stream status on connect
+    // Send current stream status
     socket.emit('admin:stream-status', this.getStatus())
+    // Re-send offers for any participants already relaying
+    for (const relay of this.relays.values()) {
+      this.removeRelay(relay.userId)
+    }
+    // Recreate relays so fresh offers go to the new socket
+    if (this.hub) {
+      for (const userId of this.hub.getParticipantIds()) {
+        const videoTrack = this.hub.getVideoTrack(userId)
+        if (videoTrack) {
+          const audioTrack = this.hub.getAudioTrack(userId) ?? undefined
+          void this.createRelay(userId, videoTrack, audioTrack)
+        }
+      }
+    }
   }
 
   /**
