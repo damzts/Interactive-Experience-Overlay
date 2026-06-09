@@ -34,7 +34,7 @@ import { SceneRepository } from '../../db/repositories/SceneRepository.js'
 import { WidgetRepository } from '../../db/repositories/WidgetRepository.js'
 import { EventRepository } from '../../db/repositories/EventRepository.js'
 import { ThemeRepository } from '../../db/repositories/ThemeRepository.js'
-import { ReactiveChainRepository } from '../../db/repositories/ReactiveChainRepository.js'
+import { WidgetWireRepository } from '../../db/repositories/WidgetWireRepository.js'
 
 type DesktopDatabase = Database.Database
 
@@ -91,7 +91,7 @@ export class DesktopConfigService implements Manager {
   private readonly widgetRepo: WidgetRepository
   private readonly eventRepo: EventRepository
   private readonly themeRepo: ThemeRepository
-  readonly reactiveChains: ReactiveChainRepository
+  readonly widgetWires: WidgetWireRepository
 
   constructor(
     private db: DesktopDatabase,
@@ -101,7 +101,7 @@ export class DesktopConfigService implements Manager {
     this.widgetRepo = new WidgetRepository(db)
     this.eventRepo = new EventRepository(db)
     this.themeRepo = new ThemeRepository(db)
-    this.reactiveChains = new ReactiveChainRepository(db)
+    this.widgetWires = new WidgetWireRepository(db)
 
     // Ensure required tables exist
     this.db.exec(`
@@ -124,7 +124,7 @@ export class DesktopConfigService implements Manager {
         focus_priority INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (layout_id, widget_id)
       );
-      CREATE TABLE IF NOT EXISTS reactive_chains (
+      CREATE TABLE IF NOT EXISTS widget_wires (
         id TEXT PRIMARY KEY,
         trigger_widget_id TEXT NOT NULL,
         trigger_event TEXT NOT NULL,
@@ -164,13 +164,13 @@ export class DesktopConfigService implements Manager {
   }
 
   /**
-   * Route an incoming widget signal through the reactive-chains table.
+   * Route an incoming widget signal through the widget_wires table.
    * Returns the list of target actions that were triggered.
    */
   routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }> {
-    return this.reactiveChains.list()
-      .filter((c) => c.enabled && c.triggerWidgetId === source && c.triggerEvent === event)
-      .map((c) => ({ targetWidgetId: c.targetWidgetId, targetAction: c.targetAction }))
+    return this.widgetWires.list()
+      .filter((w) => w.enabled && w.triggerWidgetId === source && w.triggerEvent === event)
+      .map((w) => ({ targetWidgetId: w.targetWidgetId, targetAction: w.targetAction }))
   }
 
   async getForUser(_userId: string): Promise<AppConfig> {
@@ -222,7 +222,7 @@ export class DesktopConfigService implements Manager {
       sourceMedia:      this.loadSourceMedia(),
       sourcePresets:    this.loadSourcePresets(),
       sourceTransitions: this.loadSourceTransitions(),
-      reactiveChains:   this.reactiveChains.list(),
+      widgetWires:      this.widgetWires.list(),
     }
     return this.withConfigDefaults(base)
   }
@@ -413,7 +413,7 @@ export class DesktopConfigService implements Manager {
       sourceMedia: next.sourceMedia ?? [],
       sourcePresets: next.sourcePresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],
-      reactiveChains: next.reactiveChains ?? [],
+      widgetWires: next.widgetWires ?? [],
     }
   }
 

@@ -182,7 +182,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     ctx.io.emit('widget:simulate:intent', payload)
   })
 
-  // Reactive chain signal routing — only open/close/toggle go through kernel
+  // Widget wire routing — only open/close/toggle go through kernel
   // (they mutate authoritative open state). Custom actions are evaluated
   // locally in the overlay via the DOM bus without a server round-trip.
   socket.on('widget:signal', (payload: { source: string; event: string; payload: unknown }) => {

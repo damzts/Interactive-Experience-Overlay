@@ -266,11 +266,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
   await app.register(wiresRoute, {
-    chains: configService.reactiveChains,
+    wires: configService.widgetWires,
     getManifests: () => WIDGET_INTENT_MANIFESTS,
-    broadcastChains: (chains) => {
+    broadcastWires: (wires) => {
       configService['_cachedConfig'] = null
-      io.emit('config:patch', { reactiveChains: chains })
+      io.emit('config:patch', { widgetWires: wires })
     },
   })
 

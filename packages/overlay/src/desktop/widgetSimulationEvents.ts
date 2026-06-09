@@ -21,7 +21,7 @@ export function addWidgetSimulationIntentListener(listener: (payload: WidgetSimu
   }
 }
 
-// ── Widget signal bus (IPC: widget → kernel reactive chain router) ──────────
+// ── Widget signal bus (IPC: widget → overlay wire evaluator) ────────────────
 
 const WIDGET_SIGNAL_EVENT = 'ieom:widget-signal'
 
@@ -60,7 +60,7 @@ export interface WidgetChainActionDetail {
 
 /**
  * Dispatch a chain-triggered action directly on the DOM bus.
- * Used by useSocket when a reactive chain with a custom action matches —
+ * Used by useSocket when a widget wire with a custom action matches —
  * no kernel involvement, no type cast needed.
  */
 export function dispatchWidgetChainAction(detail: WidgetChainActionDetail) {

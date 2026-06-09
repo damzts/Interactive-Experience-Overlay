@@ -124,7 +124,7 @@ export function getAllWidgetIntentManifests(): WidgetIntentManifest[] {
 
 /**
  * WidgetSignal — a typed event emitted by a widget into the kernel event bus.
- * Used as the trigger side of reactive chains.
+ * Used as the trigger side of widget wires.
  */
 export interface WidgetSignal {
   /** Widget instance ID (appId) that produced this signal */
@@ -136,10 +136,10 @@ export interface WidgetSignal {
 }
 
 /**
- * ReactiveChain — defines an automatic trigger from one widget to another.
- * Stored in SQLite and executed by the kernel when a matching signal arrives.
+ * WidgetWire — defines an automatic trigger from one widget to another.
+ * Stored in SQLite and evaluated by the overlay when a matching signal arrives.
  */
-export interface ReactiveChain {
+export interface WidgetWire {
   id: string
   triggerWidgetId: string
   triggerEvent: string

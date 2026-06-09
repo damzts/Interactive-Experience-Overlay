@@ -15,20 +15,20 @@ export function useSocket() {
   // Mount all signal handlers from signalMap
   useSignalReceiver()
 
-  // Evaluate reactive chains locally on the DOM bus — no kernel round-trip needed.
+  // Evaluate widget wires locally on the DOM bus — no kernel round-trip needed.
   // open/close/toggle still go to the kernel (they mutate authoritative open state).
   useEffect(() => {
     return addWidgetSignalListener((detail) => {
-      const chains = useAppStore.getState().config.reactiveChains ?? []
-      const matches = chains.filter(
-        (c) => c.enabled && c.triggerWidgetId === detail.source && c.triggerEvent === detail.event
+      const wires = useAppStore.getState().config.widgetWires ?? []
+      const matches = wires.filter(
+        (w) => w.enabled && w.triggerWidgetId === detail.source && w.triggerEvent === detail.event
       )
-      for (const chain of matches) {
-        if (chain.targetAction === 'open' || chain.targetAction === 'close' || chain.targetAction === 'toggle') {
+      for (const wire of matches) {
+        if (wire.targetAction === 'open' || wire.targetAction === 'close' || wire.targetAction === 'toggle') {
           socket.emit('widget:signal', { source: detail.source, event: detail.event, payload: detail.payload })
           return
         }
-        dispatchWidgetChainAction({ targetWidgetId: chain.targetWidgetId, action: chain.targetAction, sourceSignal: detail })
+        dispatchWidgetChainAction({ targetWidgetId: wire.targetWidgetId, action: wire.targetAction, sourceSignal: detail })
       }
     })
   }, [])

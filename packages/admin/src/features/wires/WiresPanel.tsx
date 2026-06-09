@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { ReactiveChain, WidgetIntentManifest } from '@ieomlabs/shared'
+import type { WidgetWire, WidgetIntentManifest } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { fetchWires, fetchWireManifests, createWire, patchWire, deleteWire } from '../../api/wiresApi'
 import { ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
@@ -17,7 +17,7 @@ function widgetLabel(appId: string, apps: { id: string; label: string }[]): stri
 export function WiresPanel() {
   const applications = useAdminStore((s) => s.config.applications)
 
-  const [wires, setWires] = useState<ReactiveChain[]>([])
+  const [wires, setWires] = useState<WidgetWire[]>([])
   const [manifests, setManifests] = useState<WidgetIntentManifest[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -79,7 +79,7 @@ export function WiresPanel() {
     } finally { setAdding(false) }
   }
 
-  async function handleToggle(wire: ReactiveChain) {
+  async function handleToggle(wire: WidgetWire) {
     const updated = await patchWire(wire.id, { enabled: !wire.enabled })
     setWires((prev) => prev.map((w) => w.id === updated.id ? updated : w))
   }

@@ -105,7 +105,7 @@ packages/server/src/
 │       ├── scene.ts        # SceneMachine — state machine
 │       ├── ambiance.ts     # AmbianceManager — widget simulation (2-phase)
 │       ├── scheduler.ts    # EventScheduler — time/idle triggers
-│       ├── config.ts       # DesktopConfigService — SQLite persistence + reactive chains
+│       ├── config.ts       # DesktopConfigService — SQLite persistence + widget wires
 │       ├── runtime.ts      # RuntimeStateStore — in-memory session state
 │       ├── obs.ts          # ObsBridge — OBS WebSocket bridge
 │       └── pov.ts          # POVOrchestrator — video switching

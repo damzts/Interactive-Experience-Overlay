@@ -18,7 +18,7 @@
 | [webrtc-online-rooms.md](docs/webrtc-online-rooms.md) | SFU architecture, cloud rooms, LAN join, POV pipeline, overlay relay, ICE ordering constraint, werift gotchas |
 | [widget-authoring.md](docs/widget-authoring.md) | How to write a new widget, local state vs server config, simulation intents, the four-file checklist |
 | [widget-communication.md](docs/widget-communication.md) | Widget-to-widget pub/sub, the DOM intent bus, the server-mediated signal path, the full ambiance reactive loop |
-| [reactive-chains.md](docs/reactive-chains.md) | Operator-configured persistent wires between widgets, signal/action manifests, Wires admin panel, DesktopConfigService as router |
+| [widget-wires.md](docs/widget-wires.md) | Operator-configured persistent wires between widgets, signal/action manifests, Wires admin panel, DesktopConfigService as owner |
 | [admin-engine-pages.md](docs/admin-engine-pages.md) | Panel-to-table ownership map, DB table inventory, why geometry moved to `applications`, why transitions are named assets, routing checklist. |
 
 ## Known constraints & gotchas

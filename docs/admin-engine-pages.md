@@ -35,7 +35,7 @@ All tables currently in the DB:
 | `applications` | `AppForm` | Widget geometry (`window_x/y`, `window_width/height`, `z_index_default/current`) lives here |
 | `desktop_config` | `DesktopThemeEditor` | OS presentation only: theme, icon config, screensaver, system sounds. No geometry. |
 | `widget_layouts` + `widget_layout_items` | `WidgetLayoutPanel` | Named layout presets. Independent of `desktop_config`. |
-| `reactive_chains` | — (direct SQLite; admin UI TBD) | Widget-to-widget reactive triggers. Each row: trigger widget + event → target widget + action. |
+| `widget_wires` | — (Wires panel → `/api/wires`) | Widget-to-widget wires. Each row: trigger widget + event → target widget + action. |
 | `desktop_ambiance` | `AmbiancePanel` | Widget simulation config |
 | `audio_config` | `AudioPanel` | Master/SFX/music volumes |
 | `obs_config` | `ObsPanel` | WebSocket URL and password |

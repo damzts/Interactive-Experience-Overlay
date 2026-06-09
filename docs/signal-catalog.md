@@ -49,7 +49,7 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `cursor:mirror` | `CursorMirrorPayload` | Ambiance moves/clicks cursor | Move/click/show-hide the cursor overlay |
 | `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Ambiance opens a widget via menu | Play full menu navigation animation |
 | `bus:custom` | `{ event: string; payload: unknown }` | Manager calls `bus.emitCustom()` | Forward custom manager event to overlay |
-| `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Reactive chain fires a non-toggle action | Widget receives custom chain action |
+| `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Widget wire fires a non-toggle action | Widget receives custom wire action |
 
 ---
 
@@ -77,7 +77,7 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `ambiance:simulate:accepted` | `AmbianceSimulationAcceptedPayload` | Overlay leader accepts | Kernel records accept, clears pending timeout |
 | `ambiance:simulate:done` | `AmbianceSimulationDonePayload` | Overlay finishes simulation | Kernel records outcome, updates metrics |
 | `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Widget interaction | Kernel broadcasts to all clients |
-| `widget:signal` | `{ source, event, payload }` | Widget emits a signal | Kernel routes through reactive chains |
+| `widget:signal` | `{ source, event, payload }` | Widget emits a signal | Overlay routes through widget wires |
 | `cursor:mirror` | `CursorMirrorPayload` | Overlay cursor moved | Broadcast to all admins |
 | `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Overlay menu animation | Broadcast to all admins |
 | `desktop:notify` | `DesktopNotificationPayload` | Admin send notification | Broadcast notification to overlay |

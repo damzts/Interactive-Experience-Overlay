@@ -232,6 +232,6 @@ export interface ServerToClientEvents {
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   /** Custom kernel bus event forwarded from managers */
   'bus:custom': (payload: { event: string; payload: unknown }) => void
-  /** Reactive chain triggered a widget action */
+  /** Widget wire triggered a widget action */
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }) => void
 }

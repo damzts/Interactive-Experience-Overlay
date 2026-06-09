@@ -1,6 +1,6 @@
-# Reactive Chains
+# Widget Wires
 
-Reactive chains let you wire a **signal** from one widget to an **action** on another widget — persistently, without writing code. When Widget A does something, Widget B automatically reacts.
+Widget Wires let you connect a **signal** from one widget to an **action** on another widget — persistently, without writing code. When Widget A does something, Widget B automatically reacts.
 
 Examples:
 - Weather detects a storm → open the particles widget
@@ -16,22 +16,22 @@ Examples:
 
 **Action** — something a widget can receive and act on. Also declared in its manifest. Examples: `gallery:next`, `sticky:set-color`, `music:play-pause`. The built-in actions `open`, `close`, and `toggle` work on every widget without being declared in the manifest.
 
-**Reactive chain** — a persisted row in the `reactive_chains` SQLite table connecting one signal to one action. Evaluated by the overlay every time a matching signal fires.
+**Widget Wire** — a persisted row in the `widget_wires` SQLite table connecting one signal to one action. Evaluated by the overlay every time a matching signal fires.
 
-**Wire** — the admin panel name for a reactive chain. Same thing.
+**Wire** — shorthand for Widget Wire. Same thing.
 
 ---
 
 ## How it works
 
-Reactive chains are evaluated entirely **in the overlay process** — no kernel round-trip is needed for custom actions. The chains are delivered to the overlay as part of `AppConfig` and stay in memory.
+Widget Wires are evaluated entirely **in the overlay process** — no kernel round-trip is needed for custom actions. The wires are delivered to the overlay as part of `AppConfig` and stay in memory.
 
 ```
 1. Widget emits a DOM signal:
    dispatchWidgetSignal({ source: appId, event: 'weather:storm' })
 
 2. useSocket's addWidgetSignalListener fires:
-   - Looks up matching enabled chains from store.config.reactiveChains
+   - Looks up matching enabled wires from store.config.widgetWires
    - For each match:
        a. Custom action (e.g. 'gallery:next'):
             dispatchWidgetChainAction({ targetWidgetId, action })
@@ -117,11 +117,11 @@ Ambiance-triggered actions still arrive on `addWidgetSimulationIntentListener`. 
 
 ---
 
-## Who manages reactive chains
+## Who manages widget wires
 
-**`DesktopConfigService`** owns the `reactive_chains` table via `ReactiveChainRepository`. It loads chains into `AppConfig` on startup and on every wire mutation.
+**`DesktopConfigService`** owns the `widget_wires` table via `WidgetWireRepository`. It loads wires into `AppConfig` on startup and on every wire mutation.
 
-`GET/POST/PATCH/DELETE /api/wires` is a thin CRUD layer over `ReactiveChainRepository`. After any mutation, the route calls `broadcastChains()` which emits `config:patch { reactiveChains }` to all connected clients.
+`GET/POST/PATCH/DELETE /api/wires` is a thin CRUD layer over `WidgetWireRepository`. After any mutation, the route calls `broadcastWires()` which emits `config:patch { widgetWires }` to all connected clients.
 
 The overlay's `useSocket` evaluates chains. The kernel's `widget.ts` only handles the `open/close/toggle` subset.
 
@@ -129,7 +129,7 @@ The overlay's `useSocket` evaluates chains. The kernel's `widget.ts` only handle
 
 ## Comparison table
 
-| | DOM intent bus | Reactive chain | Ambiance |
+| | DOM intent bus | Widget Wire | Ambiance |
 |---|---|---|---|
 | Configured by | developer (code) | operator (Wires panel) | kernel (autonomous) |
 | Persists | no | yes (SQLite) | no |

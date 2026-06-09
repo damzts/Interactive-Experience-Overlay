@@ -17,7 +17,7 @@ shared widget state, no cross-widget imports. Communication always routes
 through one of three channels:
 
 1. **The DOM intent bus** — in-process, ephemeral, developer-configured
-2. **Reactive chains** — in-process, persistent, operator-configured (no kernel round-trip for custom actions)
+2. **Widget Wires** — in-process, persistent, operator-configured (no kernel round-trip for custom actions)
 3. **The server → overlay signal path** — for authoritative state changes (open/close/toggle)
 
 ---

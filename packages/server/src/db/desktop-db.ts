@@ -126,6 +126,15 @@ const SCHEMA = `
     duration REAL
   );
 
+  CREATE TABLE IF NOT EXISTS widget_wires (
+    id TEXT PRIMARY KEY,
+    trigger_widget_id TEXT NOT NULL,
+    trigger_event TEXT NOT NULL,
+    target_widget_id TEXT NOT NULL,
+    target_action TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1
+  );
+
   CREATE TABLE IF NOT EXISTS source_transitions (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
