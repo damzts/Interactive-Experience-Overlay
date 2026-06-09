@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DesktopWindow } from './DesktopWindow'
-import { addWidgetSimulationIntentListener, dispatchWidgetSignal } from './widgetSimulationEvents'
+import { addWidgetSimulationIntentListener, dispatchWidgetSignal, addWidgetChainActionListener } from './widgetSimulationEvents'
 
 const TRACKS = [
   'lo-fi beats to stream to — track 01',
@@ -45,7 +45,7 @@ function TrackMarquee({ text }: { text: string }) {
 }
 
 interface Props {
-  appId?: string
+  appId: string
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void
@@ -53,7 +53,7 @@ interface Props {
   zIndex?: number
 }
 
-export function MusicWidget({ appId = 'music', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
+export function MusicWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
   const [elapsed, setElapsed] = useState(0)
   const [trackIndex, setTrackIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
@@ -87,12 +87,21 @@ export function MusicWidget({ appId = 'music', onClose, onMinimize, onFocus, win
 
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
-      if (payload.widgetId !== 'music') return
+      if (payload.widgetId !== appId) return
       if (payload.kind === 'music:prev' || payload.kind === 'music:play-pause' || payload.kind === 'music:next') {
         runTransportAction(payload.kind)
       }
     })
-  }, [])
+  }, [appId])
+
+  useEffect(() => {
+    return addWidgetChainActionListener(({ targetWidgetId, action }) => {
+      if (targetWidgetId !== appId) return
+      if (action === 'music:prev' || action === 'music:play-pause' || action === 'music:next') {
+        runTransportAction(action)
+      }
+    })
+  }, [appId])
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 

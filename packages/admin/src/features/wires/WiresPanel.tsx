@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getAllWidgetIntentManifests } from '@ieomlabs/shared'
 import type { ReactiveChain, WidgetIntentManifest } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { fetchWires, createWire, patchWire, deleteWire } from '../../api/wiresApi'
+import { fetchWires, fetchWireManifests, createWire, patchWire, deleteWire } from '../../api/wiresApi'
 import { ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { Toggle } from '../../components/atoms'
@@ -19,6 +18,7 @@ export function WiresPanel() {
   const applications = useAdminStore((s) => s.config.applications)
 
   const [wires, setWires] = useState<ReactiveChain[]>([])
+  const [manifests, setManifests] = useState<WidgetIntentManifest[]>([])
   const [loading, setLoading] = useState(true)
 
   // Pending new wire state
@@ -27,8 +27,6 @@ export function WiresPanel() {
   const [dstWidgetId, setDstWidgetId] = useState<string | null>(null)
   const [dstAction,   setDstAction]   = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
-
-  const manifests: WidgetIntentManifest[] = getAllWidgetIntentManifests()
 
   // Map componentType → manifest for quick lookup
   const manifestByType = new Map(manifests.map((m) => [m.componentType, m]))
@@ -53,7 +51,11 @@ export function WiresPanel() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { setWires(await fetchWires()) } finally { setLoading(false) }
+    try {
+      const [w, m] = await Promise.all([fetchWires(), fetchWireManifests()])
+      setWires(w)
+      setManifests(m)
+    } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { void load() }, [load])

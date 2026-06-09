@@ -3,7 +3,7 @@ import { DEFAULT_STICKY_NOTES_SETTINGS } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
 import { patchApplicationConfig } from './configPersistence'
-import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
+import { addWidgetSimulationIntentListener, addWidgetChainActionListener } from './widgetSimulationEvents'
 
 const NOTE_COLORS = ['#fff2a8', '#ffd3e0', '#d8f8d0', '#cde8ff']
 
@@ -50,6 +50,17 @@ export function StickyNotesWidget({
     return addWidgetSimulationIntentListener((payload) => {
       if (payload.widgetId !== appId || payload.kind !== 'sticky:set-color') return
       setColor(payload.color)
+    })
+  }, [appId])
+
+  useEffect(() => {
+    return addWidgetChainActionListener(({ targetWidgetId, action }) => {
+      if (targetWidgetId !== appId || action !== 'sticky:set-color') return
+      // chain doesn't carry a color — toggle through preset colors
+      setColor((prev) => {
+        const COLORS = ['#fff2a8', '#ffd3e0', '#d8f8d0', '#cde8ff']
+        return COLORS[(COLORS.indexOf(prev) + 1) % COLORS.length]
+      })
     })
   }, [appId])
 

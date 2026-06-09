@@ -3,6 +3,7 @@ import type { DesktopAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventConfig } from './event.js'
 import type { MediaEntry, Scene, SourcePreset } from './scene.js'
+import type { ReactiveChain } from '../contracts/widget.js'
 
 /** Root application config — stored in server memory */
 export interface AppConfig {
@@ -33,4 +34,6 @@ export interface AppConfig {
   sourcePresets?: SourcePreset[]
   /** Named transition definitions (Asset Library Transitions tab → source_transitions table) */
   sourceTransitions?: TransitionDefinition[]
+  /** Operator-configured reactive chains (Wires panel → reactive_chains table) */
+  reactiveChains?: ReactiveChain[]
 }

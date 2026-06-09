@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
-import { addWidgetSimulationIntentListener, dispatchWidgetSignal } from './widgetSimulationEvents'
+import { addWidgetSimulationIntentListener, dispatchWidgetSignal, addWidgetChainActionListener } from './widgetSimulationEvents'
 
 interface Message {
   user: string
@@ -23,7 +23,7 @@ interface Props {
   zIndex?: number
 }
 
-export function ChatWidget({ appId = 'chat', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId?: string }) {
+export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId: string }) {
   const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES)
   const [input, setInput]     = useState('')
   const listRef               = useRef<HTMLDivElement>(null)
@@ -41,7 +41,17 @@ export function ChatWidget({ appId = 'chat', onClose, onMinimize, onFocus, windo
         return [...prev, payload.message]
       })
     })
-  }, [])
+  }, [appId])
+
+  useEffect(() => {
+    return addWidgetChainActionListener(({ targetWidgetId, action }) => {
+      if (targetWidgetId !== appId || action !== 'chat:add-message') return
+      // chain actions don't carry a message payload — use a placeholder
+      const msg = { user: 'chain', text: '(chain triggered)', color: '#aaa' }
+      setMessages((prev) => [...prev, msg])
+      dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
+    })
+  }, [appId])
 
   const handleSend = () => {
     const txt = input.trim()

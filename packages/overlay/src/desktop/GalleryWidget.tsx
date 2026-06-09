@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { useAppStore } from '../store/useAppStore'
-import { addWidgetSimulationIntentListener, dispatchWidgetSignal } from './widgetSimulationEvents'
+import { addWidgetSimulationIntentListener, dispatchWidgetSignal, addWidgetChainActionListener } from './widgetSimulationEvents'
 
 interface DesktopWidgetProps {
   appId?: string
@@ -103,21 +103,24 @@ export function GalleryWidget({ appId, onClose, onMinimize, onFocus, windowState
 
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
-      if (payload.widgetId !== (appId ?? 'gallery')) return
-      if (payload.kind === 'gallery:next') {
-        showNext()
-        return
-      }
-      if (payload.kind === 'gallery:previous') {
-        showPrevious()
-      }
+      if (payload.widgetId !== appId) return
+      if (payload.kind === 'gallery:next') { showNext(); return }
+      if (payload.kind === 'gallery:previous') showPrevious()
+    })
+  }, [appId, showNext, showPrevious])
+
+  useEffect(() => {
+    return addWidgetChainActionListener(({ targetWidgetId, action }) => {
+      if (targetWidgetId !== appId) return
+      if (action === 'gallery:next') showNext()
+      else if (action === 'gallery:previous') showPrevious()
     })
   }, [appId, showNext, showPrevious])
 
   // Emit slide-changed signal whenever the current asset changes
   useEffect(() => {
     if (!current) return
-    dispatchWidgetSignal({ source: appId ?? 'gallery', event: 'gallery:slide-changed', payload: { assetId: current.id } })
+    dispatchWidgetSignal({ source: appId!, event: 'gallery:slide-changed', payload: { assetId: current.id } })
   }, [current?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

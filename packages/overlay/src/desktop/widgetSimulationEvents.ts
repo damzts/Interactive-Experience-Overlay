@@ -47,3 +47,31 @@ export function addWidgetSignalListener(listener: (detail: WidgetSignalDetail) =
   window.addEventListener(WIDGET_SIGNAL_EVENT, handler as EventListener)
   return () => window.removeEventListener(WIDGET_SIGNAL_EVENT, handler as EventListener)
 }
+
+// ── Widget chain action bus (kernel → overlay for open/close/toggle chains) ─
+
+const WIDGET_CHAIN_ACTION_EVENT = 'ieom:widget-chain-action'
+
+export interface WidgetChainActionDetail {
+  targetWidgetId: string
+  action: string
+  sourceSignal?: unknown
+}
+
+/**
+ * Dispatch a chain-triggered action directly on the DOM bus.
+ * Used by useSocket when a reactive chain with a custom action matches —
+ * no kernel involvement, no type cast needed.
+ */
+export function dispatchWidgetChainAction(detail: WidgetChainActionDetail) {
+  window.dispatchEvent(new CustomEvent<WidgetChainActionDetail>(WIDGET_CHAIN_ACTION_EVENT, { detail }))
+}
+
+export function addWidgetChainActionListener(listener: (detail: WidgetChainActionDetail) => void): () => void {
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent<WidgetChainActionDetail>).detail
+    if (detail) listener(detail)
+  }
+  window.addEventListener(WIDGET_CHAIN_ACTION_EVENT, handler as EventListener)
+  return () => window.removeEventListener(WIDGET_CHAIN_ACTION_EVENT, handler as EventListener)
+}

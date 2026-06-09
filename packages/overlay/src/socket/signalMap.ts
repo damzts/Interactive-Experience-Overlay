@@ -28,7 +28,7 @@ import type {
 import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
-import { dispatchWidgetSimulationIntent } from '../desktop/widgetSimulationEvents'
+import { dispatchWidgetSimulationIntent, dispatchWidgetChainAction } from '../desktop/widgetSimulationEvents'
 import { runWidgetCursorSimulation } from '../desktop/cursorSimUtils'
 import { socket } from './client'
 import type { AppStore } from '../store/useAppStore'
@@ -131,13 +131,7 @@ export const signalHandlers: SignalHandlerMap = {
   },
 
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }, _store) => {
-    // Dispatch as a simulation intent so target widgets can handle custom actions
-    // via their existing addWidgetSimulationIntentListener hooks.
-    dispatchWidgetSimulationIntent({
-      actionId: `chain-${Date.now()}`,
-      widgetId: payload.targetWidgetId,
-      kind: payload.action as any,
-    } as WidgetSimulationIntentPayload)
+    dispatchWidgetChainAction({ targetWidgetId: payload.targetWidgetId, action: payload.action, sourceSignal: payload.sourceSignal })
   },
 
   'desktop:notify': (payload: DesktopNotificationPayload, store) => {

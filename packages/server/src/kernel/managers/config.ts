@@ -222,6 +222,7 @@ export class DesktopConfigService implements Manager {
       sourceMedia:      this.loadSourceMedia(),
       sourcePresets:    this.loadSourcePresets(),
       sourceTransitions: this.loadSourceTransitions(),
+      reactiveChains:   this.reactiveChains.list(),
     }
     return this.withConfigDefaults(base)
   }
@@ -412,6 +413,7 @@ export class DesktopConfigService implements Manager {
       sourceMedia: next.sourceMedia ?? [],
       sourcePresets: next.sourcePresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],
+      reactiveChains: next.reactiveChains ?? [],
     }
   }
 

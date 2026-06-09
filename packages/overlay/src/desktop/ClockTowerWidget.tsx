@@ -40,7 +40,7 @@ function getTimeZoneLabel() {
   return parts[parts.length - 1]?.replace(/_/g, ' ') || zone
 }
 
-export function ClockTowerWidget({ appId = 'clock-tower', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId?: string }) {
+export function ClockTowerWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId: string }) {
   const [now, setNow] = useState(() => new Date())
   const [clockView, setClockView] = useState<ClockView>('analog')
   const lastHourRef = useRef<number>(-1)

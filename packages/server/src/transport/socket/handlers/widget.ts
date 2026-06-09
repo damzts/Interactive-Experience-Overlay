@@ -182,7 +182,9 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     ctx.io.emit('widget:simulate:intent', payload)
   })
 
-  // Reactive chain signal routing
+  // Reactive chain signal routing — only open/close/toggle go through kernel
+  // (they mutate authoritative open state). Custom actions are evaluated
+  // locally in the overlay via the DOM bus without a server round-trip.
   socket.on('widget:signal', (payload: { source: string; event: string; payload: unknown }) => {
     if (!ctx.configService?.routeWidgetSignal) return
     const chains = ctx.configService.routeWidgetSignal(payload.source, payload.event)
@@ -191,9 +193,8 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
         setWidgetRuntimeOpenState(ctx, chain.targetWidgetId, chain.targetAction === 'open')
       } else if (chain.targetAction === 'toggle') {
         toggleWidgetRuntime(ctx, chain.targetWidgetId)
-      } else {
-        ctx.io.emit('widget:chain:action', { targetWidgetId: chain.targetWidgetId, action: chain.targetAction, sourceSignal: payload })
       }
+      // custom actions intentionally not handled here — overlay evaluates them locally
     }
   })
 }

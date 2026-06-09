@@ -23,3 +23,4 @@ export * from './contracts/widget.js'
 // Constants and utilities
 export * from './constants/ambianceSimulation.js'
 export * from './constants/defaults.js'
+export * from './constants/widgetIntentManifests.js'

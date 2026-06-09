@@ -19,7 +19,7 @@ import { join } from 'path'
 import { pipeline } from 'stream/promises'
 import logger from './lib/logger.js'
 
-import { DEFAULT_CONFIG, withDesktopAmbianceDefaults } from '@ieomlabs/shared'
+import { DEFAULT_CONFIG, withDesktopAmbianceDefaults, WIDGET_INTENT_MANIFESTS } from '@ieomlabs/shared'
 import type { AppConfig } from '@ieomlabs/shared'
 
 import { AdminRelay } from './transport/webrtc/admin-relay.js'
@@ -265,7 +265,14 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(configRoute, { machine, configService: configService as any })
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
-  await app.register(wiresRoute, { chains: configService.reactiveChains })
+  await app.register(wiresRoute, {
+    chains: configService.reactiveChains,
+    getManifests: () => WIDGET_INTENT_MANIFESTS,
+    broadcastChains: (chains) => {
+      configService['_cachedConfig'] = null
+      io.emit('config:patch', { reactiveChains: chains })
+    },
+  })
 
   // ── Room system ───────────────────────────────────────────────
   const overlayRelay = new OverlayRelay()

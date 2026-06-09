@@ -297,7 +297,7 @@ async function fetchRegionWeather(signal: AbortSignal): Promise<WeatherSnapshot>
   }
 }
 
-export function WeatherConsoleWidget({ appId = 'weather-console', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId?: string }) {
+export function WeatherConsoleWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId: string }) {
   const [mode, setMode] = useState<(typeof MODES)[number]>('today')
   const [tick, setTick] = useState(0)
   const [weather, setWeather] = useState<WeatherSnapshot>(FALLBACK_WEATHER)
