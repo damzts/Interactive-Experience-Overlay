@@ -1,5 +1,13 @@
-import { DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieomlabs/shared'
+import { applyRuntimeConfigOverride, mergeAppConfig } from '@ieomlabs/shared'
 import type { AppConfig, RuntimeConfigOverridePayload } from '@ieomlabs/shared'
+
+/** Minimal stub used before server config is received. Replaced immediately on socket connect. */
+const EMPTY_CONFIG: AppConfig = {
+  sourcePresets: [], scenes: {}, applications: [], keybinds: { obs: {}, admin: {} },
+  obs: { url: '', password: '' }, audio: { masterVolume: 0.8, sfxVolume: 0.7, musicVolume: 0.4 },
+  desktopConfig: {} as any, desktopAmbiance: {} as any,
+  widgetLayouts: [], sourceEvents: [], sourceMedia: [], sourceTransitions: [],
+} as unknown as AppConfig
 
 export interface ConfigSlice {
   persistedConfig: AppConfig
@@ -17,9 +25,9 @@ export interface ConfigSlice {
 }
 
 export const createConfigSlice = (set: (fn: (state: any) => Partial<any>) => void, get: () => any): ConfigSlice => ({
-  persistedConfig: DEFAULT_CONFIG as unknown as AppConfig,
+  persistedConfig: EMPTY_CONFIG,
   runtimeConfigOverride: {},
-  config: DEFAULT_CONFIG as unknown as AppConfig,
+  config: EMPTY_CONFIG,
   previewBaseConfig: null,
   previewConfigPatch: null,
   configLoaded: false,

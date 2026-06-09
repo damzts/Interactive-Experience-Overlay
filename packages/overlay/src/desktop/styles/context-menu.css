@@ -1,0 +1,87 @@
+﻿/* â”€â”€ Context Menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.context-menu {
+  position: absolute;
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  box-shadow: 2px 2px 0 #000000;
+  min-width: 160px;
+  z-index: 150;
+  padding: 2px 0;
+  user-select: none;
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 4px 20px 4px 24px;
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  text-align: left;
+}
+.context-menu-item:hover:not(.context-menu-item--disabled) {
+  background: #000080;
+  color: #ffffff;
+}
+.context-menu-item--disabled {
+  color: #808080;
+  cursor: default;
+}
+.context-menu-item--bold {
+  font-weight: bold;
+}
+.context-menu-separator {
+  height: 1px;
+  background: #808080;
+  border-bottom: 1px solid #ffffff;
+  margin: 3px 4px;
+}
+
+
+/* â”€â”€ App icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 68px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px;
+  border: 1px solid transparent;
+}
+.app-icon:hover {
+  background: rgba(0, 0, 128, 0.5);
+  border: 1px dashed #ffffff;
+}
+
+.app-icon-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.app-icon-label {
+  font-family: 'MS Sans Serif', 'Arial', sans-serif;
+  font-size: 11px;
+  color: #ffffff;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+  text-align: center;
+  word-break: break-word;
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+.app-icon--selected {
+  background: rgba(0, 0, 128, 0.7);
+  border: 1px solid #ffffff !important;
+}
+
+.app-icon--selected .app-icon-label {
+  background: #000080;
+  color: #ffffff;
+  text-shadow: none;
+}
+

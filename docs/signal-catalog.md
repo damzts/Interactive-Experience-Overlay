@@ -28,7 +28,6 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `config:patch` | `Partial<AppConfig>` | Partial config save | Merge patch into config |
 | `runtime:config:override` | `RuntimeConfigOverridePayload` | Admin preview / runtime tweak | Apply scoped override without persisting |
 | `obs:status` | `ObsStatusPayload` | OBS connection state changes | Update OBS indicator in admin/overlay |
-| `ambiance:leader` | `{ socketId }` | Leader socket changes | Track who the simulation leader is |
 | `ambiance:metrics` | `{ accepted, rejected }` | After each simulation cycle | Update diagnostics display |
 | `runtime:diagnostics` | `RuntimeDiagnosticsPayload` | Throttled periodic emit | Update admin diagnostics panels |
 | `overlay:owner` | `{ socketId }` | Overlay slot changes | Track overlay ownership in admin |
@@ -49,6 +48,8 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `desktop:widget:resize` | `DesktopWidgetResizePayload` | Ambiance resizes a window | Resize widget |
 | `cursor:mirror` | `CursorMirrorPayload` | Ambiance moves/clicks cursor | Move/click/show-hide the cursor overlay |
 | `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Ambiance opens a widget via menu | Play full menu navigation animation |
+| `bus:custom` | `{ event: string; payload: unknown }` | Manager calls `bus.emitCustom()` | Forward custom manager event to overlay |
+| `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Reactive chain fires a non-toggle action | Widget receives custom chain action |
 
 ---
 
@@ -72,12 +73,11 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `runtime:config:override:clear` | — | Admin clear override | Remove all runtime overrides |
 | `runtime:config:override:widget:clear` | `widgetId` | Widget drag/resize end | Remove override for one widget |
 | `runtime:config:override:widget-layout:clear` | `widgetId[]` | Layout reset | Remove overrides for a set of widgets |
-| `ambiance:leader:request` | — | Overlay on connect | Respond with current leader socket ID |
 | `ambiance:history:clear` | — | Admin diagnostics | Clear ambiance history log |
-| `ambiance:simulate:accepted` | `AmbianceSimulationAcceptedPayload` | Overlay leader accepts | Kernel records accept, starts timeout |
-| `ambiance:simulate:started` | `AmbianceSimulationStartedPayload` | Overlay begins simulation | Kernel records start time |
+| `ambiance:simulate:accepted` | `AmbianceSimulationAcceptedPayload` | Overlay leader accepts | Kernel records accept, clears pending timeout |
 | `ambiance:simulate:done` | `AmbianceSimulationDonePayload` | Overlay finishes simulation | Kernel records outcome, updates metrics |
 | `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Widget interaction | Kernel broadcasts to all clients |
+| `widget:signal` | `{ source, event, payload }` | Widget emits a signal | Kernel routes through reactive chains |
 | `cursor:mirror` | `CursorMirrorPayload` | Overlay cursor moved | Broadcast to all admins |
 | `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Overlay menu animation | Broadcast to all admins |
 | `desktop:notify` | `DesktopNotificationPayload` | Admin send notification | Broadcast notification to overlay |

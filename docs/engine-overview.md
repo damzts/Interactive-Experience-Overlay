@@ -62,7 +62,7 @@ distinction clear.
 
 ---
 
-The engine is the product. The Desktop OS is a demo built on top of it.
+The kernel is the platform. The Desktop OS, the widgets, the source/scene plugins, and the ambiance behaviors are all first-party contributions built on top of it — the same way any collaborator can build and contribute new managers, source plugins, or widget packs.
 
 The engine is presentation-agnostic. It manages state, schedules events, runs ambiance, fires effects, handles transitions, and bridges real-time state. It knows nothing about windows, taskbars, icons, or visual metaphors. Those are concerns of the overlay — which is one possible interpretation of engine primitives, not the only one.
 
@@ -98,23 +98,29 @@ Four things, in order of how often they change:
 ```
 packages/server/src/
 ├── kernel/
-│   ├── index.ts          # Kernel class — register(), boot(), shutdown()
-│   ├── bus.ts            # Internal event bus (KernelBus, KernelEvents)
-│   └── managers/         # All kernel managers — the engine brain
-│       ├── scene.ts      # SceneMachine — state machine
-│       ├── ambiance.ts   # AmbianceManager — widget simulation
-│       ├── scheduler.ts  # EventScheduler — time/idle triggers
-│       ├── config.ts     # DesktopConfigService — SQLite persistence
-│       ├── runtime.ts    # RuntimeStateStore — in-memory session state
-│       ├── obs.ts        # ObsBridge — OBS WebSocket bridge
-│       └── pov.ts        # POVOrchestrator — video switching
+│   ├── index.ts            # Kernel class — register(), boot(), shutdown()
+│   ├── bus.ts              # Internal event bus (KernelBus, KernelEvents, emitCustom)
+│   ├── SafeManagerProxy.ts # Quarantine wrapper for untrusted managers
+│   └── managers/           # All kernel managers — the engine brain
+│       ├── scene.ts        # SceneMachine — state machine
+│       ├── ambiance.ts     # AmbianceManager — widget simulation (2-phase)
+│       ├── scheduler.ts    # EventScheduler — time/idle triggers
+│       ├── config.ts       # DesktopConfigService — SQLite persistence + reactive chains
+│       ├── runtime.ts      # RuntimeStateStore — in-memory session state
+│       ├── obs.ts          # ObsBridge — OBS WebSocket bridge
+│       └── pov.ts          # POVOrchestrator — video switching
 ├── transport/
-│   ├── http/             # Fastify routes (config, media, archive, room)
-│   ├── socket/           # Socket.IO handlers (all domain modules)
-│   └── webrtc/           # werift hub + overlay relay + cloud signaling
-├── db/                   # SQLite init, migrations, repositories
-├── online/               # Online room feature (composes kernel + transport)
-└── desktop-entry.ts      # Thin bootstrap — creates Kernel, registers managers
+│   ├── http/               # Fastify routes (config, media, archive, room)
+│   ├── socket/             # Socket.IO handlers (all domain modules)
+│   └── webrtc/             # werift hub + overlay relay + cloud signaling
+├── db/
+│   ├── desktop-db.ts       # SQLite init + migrations
+│   └── repositories/       # Focused CRUD: SceneRepository, WidgetRepository,
+│                           #   EventRepository, ThemeRepository, UserRepository
+├── lib/
+│   └── defaults.ts         # loadDefaultConfig() — loads data/fixtures/default-config.json
+├── online/                 # Online room feature (composes kernel + transport)
+└── desktop-entry.ts        # Thin bootstrap — creates Kernel, registers managers
 ```
 
 **Navigating by intent:**

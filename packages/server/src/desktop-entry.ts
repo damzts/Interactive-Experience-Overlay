@@ -24,6 +24,7 @@ import type { AppConfig } from '@ieomlabs/shared'
 
 import { AdminRelay } from './transport/webrtc/admin-relay.js'
 import { Kernel } from './kernel/index.js'
+import { loadDefaultConfig } from './lib/defaults.js'
 import { SceneMachine } from './kernel/managers/scene.js'
 import { RuntimeStateStore } from './kernel/managers/runtime.js'
 import { setupSocketHandlers } from './transport/socket/handlers.js'
@@ -63,6 +64,8 @@ export interface DesktopServerOptions {
   overlayDir: string
   /** Path to the admin dist directory */
   adminDir: string
+  /** Path to the plugins directory (optional, served at /plugins/) */
+  pluginsDir?: string
   /**
    * Overlay admin token for authenticating admin HTTP + Socket.IO connections.
    * If set, protects /api/config, /api/online, /api/pov, etc.
@@ -93,12 +96,17 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const { dbPath, port = 3000, assetsDir, overlayDir, adminDir, cloudUrl, getToken } = options
   let boundPort = port
 
+  // ── CORS origin allowlist ──────────────────────────────────────
+  const corsOrigins: string[] = process.env['CORS_ORIGINS']
+    ? process.env['CORS_ORIGINS'].split(',').map((o) => o.trim()).filter(Boolean)
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173']
+
   // ── Database ─────────────────────────────────────────────────
   const db = initDesktopDatabase(dbPath)
 
   // ── Fastify ───────────────────────────────────────────────────
   const app = Fastify({ logger: { level: 'warn' } })
-  await app.register(fastifyCors, { origin: '*' })
+  await app.register(fastifyCors, { origin: corsOrigins, credentials: true })
   await app.register(fastifyCookie)
 
   // Auth: if a token is configured, protected routes require it.
@@ -126,22 +134,76 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(fastifyStatic, { root: assetsDir, prefix: '/media/', decorateReply: false })
 
   // ── File upload ───────────────────────────────────────────────
-  await app.register(fastifyMultipart, { limits: { fileSize: 500 * 1024 * 1024 } })
+  await app.register(fastifyMultipart, { limits: { fileSize: 50 * 1024 * 1024 } })
+
+  const ALLOWED_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
+  const ALLOWED_VIDEO_EXTS = new Set(['.mp4', '.webm'])
+  const ALLOWED_MIME_MAP: Record<string, Set<string>> = {
+    '.png': new Set(['image/png']),
+    '.jpg': new Set(['image/jpeg']),
+    '.jpeg': new Set(['image/jpeg']),
+    '.gif': new Set(['image/gif']),
+    '.webp': new Set(['image/webp']),
+    '.svg': new Set(['image/svg+xml', 'text/plain']),
+    '.mp4': new Set(['video/mp4']),
+    '.webm': new Set(['video/webm']),
+  }
+  const VIDEO_SIZE_LIMIT = 50 * 1024 * 1024
+  const IMAGE_SIZE_LIMIT = 10 * 1024 * 1024
+
   app.post('/api/upload/asset', async (req, reply) => {
     const data = await req.file()
     if (!data) return reply.code(400).send({ error: 'No file' })
-    const subfolder = data.mimetype.startsWith('video/') ? 'video' : 'images'
+
+    // Strip null bytes and normalize
+    const rawName = data.filename.replace(/\0/g, '').replace(/[\\/]/g, '_').slice(0, 200)
+    const ext = rawName.slice(rawName.lastIndexOf('.')).toLowerCase()
+    const isVideo = ALLOWED_VIDEO_EXTS.has(ext)
+    const isImage = ALLOWED_IMAGE_EXTS.has(ext)
+
+    if (!isVideo && !isImage) {
+      data.file.resume()
+      return reply.code(400).send({ error: `File type not allowed: ${ext}` })
+    }
+
+    const allowedMimes = ALLOWED_MIME_MAP[ext]
+    if (allowedMimes && !allowedMimes.has(data.mimetype.split(';')[0].trim())) {
+      data.file.resume()
+      return reply.code(400).send({ error: `MIME type mismatch for ${ext}: ${data.mimetype}` })
+    }
+
+    const sizeLimit = isVideo ? VIDEO_SIZE_LIMIT : IMAGE_SIZE_LIMIT
+    const subfolder = isVideo ? 'video' : 'images'
     const destDir = join(assetsDir, subfolder)
     mkdirSync(destDir, { recursive: true })
-    const safeName = data.filename.replace(/[\\/]/g, '_')
-    await pipeline(data.file, createWriteStream(join(destDir, safeName)))
+    const safeName = rawName
+
+    let bytesWritten = 0
+    const dest = createWriteStream(join(destDir, safeName))
+    try {
+      await pipeline(
+        data.file,
+        async function* (source) {
+          for await (const chunk of source) {
+            bytesWritten += chunk.length
+            if (bytesWritten > sizeLimit) throw Object.assign(new Error('File too large'), { code: 'ELIMIT' })
+            yield chunk
+          }
+        },
+        dest,
+      )
+    } catch (err: any) {
+      if (err.code === 'ELIMIT') return reply.code(413).send({ error: 'File exceeds size limit' })
+      throw err
+    }
+
     clearMediaCaches()
     return reply.send({ url: `/assets/${subfolder}/${safeName}` })
   })
 
   // ── Socket.IO ─────────────────────────────────────────────────
   const io = new SocketIOServer(app.server, {
-    cors: { origin: '*' },
+    cors: { origin: corsOrigins, credentials: true },
     transports: ['websocket', 'polling'],
   })
 
@@ -197,6 +259,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // ── REST routes ───────────────────────────────────────────────
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/overlay/status', async () => ({ slotTaken: isOverlaySlotTaken() }))
+  app.get('/api/defaults', async () => loadDefaultConfig())
   await app.register(authRoutes, { userRepository })
   await app.register(configRoute, { machine, configService: configService as any })
   await app.register(mediaRoute)
@@ -286,19 +349,28 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     await app.register(fastifyStatic, { root: overlayDir, prefix: '/', wildcard: false, decorateReply: false })
   }
 
-  // ── Global crash handler ────────────────────────────────────────
-// Evita que excepciones no capturadas de werift/WSLR maten el proceso
-process.on('uncaughtException', (err) => {
-  logger.error({ err }, '[crash] Uncaught exception:')
-  if (err.stack) logger.error(err.stack)
-  // No terminamos el proceso — werift puede fallar sin matar la app
-})
+  // ── Plugin static files ────────────────────────────────────────
+  const { pluginsDir } = options
+  if (pluginsDir && existsSync(pluginsDir)) {
+    await app.register(fastifyStatic, { root: pluginsDir, prefix: '/plugins/', decorateReply: false })
+  }
 
-process.on('unhandledRejection', (reason) => {
-  logger.error({ reason }, '[crash] Unhandled rejection:')
-  if ((reason as Error).stack) logger.error((reason as Error).stack)
-  // No terminamos el proceso
-})
+  // ── Global crash handler ────────────────────────────────────────
+  // Log and exit on uncaught exceptions; let the process manager restart.
+  // Exception: werift WebRTC errors are non-fatal and caught here to avoid killing the app.
+  process.on('uncaughtException', (err) => {
+    const isWeriftNoise = err.stack?.includes('werift') || err.message?.includes('RTCPeerConnection')
+    if (isWeriftNoise) {
+      logger.warn({ err }, '[crash] Suppressed werift exception:')
+      return
+    }
+    logger.error({ err }, '[crash] Uncaught exception — exiting:')
+    process.exit(1)
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    logger.warn({ reason }, '[crash] Unhandled rejection (non-fatal):')
+  })
 
 // ── Lifecycle ─────────────────────────────────────────────────
 
@@ -337,6 +409,7 @@ if (shouldAutoStart) {
     assetsDir: join(monorepo, 'assets'),
     overlayDir: join(monorepo, 'packages', 'overlay', 'dist'),
     adminDir: join(monorepo, 'packages', 'admin', 'dist'),
+    pluginsDir: join(monorepo, 'plugins'),
   }).then(async (server) => {
     await server.start()
     logger.info(`[server] listening on http://localhost:${server.getPort()}`)

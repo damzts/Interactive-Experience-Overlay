@@ -159,7 +159,9 @@ widget application uses.
 ## Step 4 — Add simulation intent kinds (if signalable)
 
 If you want the server (via ambiance, events, or the admin panel) to signal your
-widget, extend the two union types in `packages/shared/src/contracts/socket.ts`:
+widget, extend the two union types in `packages/shared/src/contracts/signals.ts`
+(`WidgetSimulationIntentSeed`, `WidgetSimulationIntentPayload`) and `commands.ts`
+(`ClientToServerEvents`):
 
 ```ts
 export type WidgetSimulationIntentSeed =

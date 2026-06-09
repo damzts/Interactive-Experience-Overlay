@@ -1,11 +1,12 @@
-﻿/**
+/**
  * LAN /join namespace — local WebRTC signaling without cloud dependency.
  *
  * Guests on the same network open http://<host-ip>:3000/join in a browser,
  * grant camera/mic, and connect directly to the WebRTC hub via this namespace.
  *
- * No auth, no room codes, no STUN/TURN needed (host candidates work on LAN).
- * Guest video/audio enters the same POV pipeline as cloud participants.
+ * Security:
+ * - Room code (6-char): host displays in admin, guest must provide.
+ * - Rate limit: max 10 connection attempts per IP per minute.
  *
  * See FEATURES.md §LAN WebRTC via /join for the design spec.
  */
@@ -21,6 +22,51 @@ import logger from '../../lib/logger.js'
 function participantId(socketId: string): string {
   return `lan-${socketId.slice(0, 8)}`
 }
+
+// ── Room code ─────────────────────────────────────────────────────
+
+function generateRoomCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
+// Exported so the admin can display and regenerate the code
+export let CURRENT_ROOM_CODE: string = generateRoomCode()
+
+export function regenerateRoomCode(): string {
+  CURRENT_ROOM_CODE = generateRoomCode()
+  logger.info(`[join] Room code regenerated: ${CURRENT_ROOM_CODE}`)
+  return CURRENT_ROOM_CODE
+}
+
+// ── Rate limiter ──────────────────────────────────────────────────
+
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX = 10
+
+const rateBuckets = new Map<string, { count: number; windowStart: number }>()
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const bucket = rateBuckets.get(ip)
+  if (!bucket || now - bucket.windowStart > RATE_WINDOW_MS) {
+    rateBuckets.set(ip, { count: 1, windowStart: now })
+    return true
+  }
+  if (bucket.count >= RATE_MAX) return false
+  bucket.count++
+  return true
+}
+
+// Periodically clean stale buckets to avoid memory growth
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, bucket] of rateBuckets) {
+    if (now - bucket.windowStart > RATE_WINDOW_MS) rateBuckets.delete(ip)
+  }
+}, RATE_WINDOW_MS)
+
+// ─────────────────────────────────────────────────────────────────
 
 export function registerJoinNamespace(
   io: Server,
@@ -47,17 +93,38 @@ export function registerJoinNamespace(
   }
 
   nsp.on('connection', (socket: Socket) => {
+    const ip = (socket.handshake.headers['x-forwarded-for'] as string | undefined)?.split(',')[0].trim()
+      || socket.handshake.address
+
+    // Rate limit
+    if (!checkRateLimit(ip)) {
+      logger.warn(`[join] Rate limit exceeded for ${ip}`)
+      socket.emit('error', { message: 'Too many connection attempts. Try again in a minute.' })
+      socket.disconnect(true)
+      return
+    }
+
+    // Room code auth (skip if JOIN_CODE env is 'disabled')
+    const joinCodeEnabled = process.env['JOIN_CODE_DISABLED'] !== 'true'
+    if (joinCodeEnabled) {
+      const providedCode = (socket.handshake.auth as { roomCode?: string })?.roomCode?.trim().toUpperCase()
+      if (!providedCode || providedCode !== CURRENT_ROOM_CODE) {
+        logger.warn(`[join] Invalid room code from ${ip}: '${providedCode}'`)
+        socket.emit('error', { message: 'Invalid room code.' })
+        socket.disconnect(true)
+        return
+      }
+    }
+
     const userId = participantId(socket.id)
     const displayName = (socket.handshake.auth as { displayName?: string })?.displayName || `LAN Guest (${socket.id.slice(0, 6)})`
     let addedToPov = false
-    // Track pending ICE candidates for the current offer cycle
     let pendingAnswer = false
     let buffered: any[] = []
 
     participantSockets.set(userId, socket)
     logger.info(`[join] LAN participant connected: ${userId} (${socket.id})`)
 
-    // Register per-participant ICE candidate listener once
     hubConnection.onIceCandidate((id, candidate) => {
       if (id !== userId) return
       if (pendingAnswer) {
@@ -67,32 +134,26 @@ export function registerJoinNamespace(
       }
     })
 
-    // Guest sends their SDP offer
     socket.on('offer', async (sdp: string) => {
       pendingAnswer = true
       buffered = []
 
       try {
         const answerSdp = await hubConnection.handleOffer(userId, sdp)
-
         socket.emit('answer', answerSdp)
         pendingAnswer = false
 
-        // Flush buffered candidates that arrived before answer was sent
         for (const c of buffered) socket.emit('ice-candidate', c)
         buffered = []
 
-        // Register with POV pipeline (idempotent — ignore if already added)
         if (!addedToPov) {
           povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
           logger.info(`[join] ${userId} (${displayName}) added to POV pipeline`)
 
-          // Also register with OnlineRoomManager so admin panel sees this participant
           if (onlineManager) {
             const rooms = onlineManager.getRooms()
             if (rooms.length > 0) {
-              // Add to the first active room (LAN participants don't specify a room)
               onlineManager.addParticipant(rooms[0].roomCode, userId, displayName)
             }
           }
@@ -105,7 +166,6 @@ export function registerJoinNamespace(
       }
     })
 
-    // Guest ICE candidates → hub
     socket.on('ice-candidate', async (candidate: RTCIceCandidateInit) => {
       try {
         await hubConnection.handleIceCandidate(userId, candidate)
@@ -120,7 +180,6 @@ export function registerJoinNamespace(
       void hubConnection.removeParticipant(userId)
       if (addedToPov) {
         povOrchestrator.removeParticipant(userId)
-        // Also remove from OnlineRoomManager
         if (onlineManager) {
           const rooms = onlineManager.getRooms()
           for (const room of rooms) {
@@ -131,4 +190,3 @@ export function registerJoinNamespace(
     })
   })
 }
-

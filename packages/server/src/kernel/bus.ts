@@ -43,6 +43,21 @@ export class KernelBus {
     this.emitter.emit(event, payload)
   }
 
+  /**
+   * Emit a custom event (any string name). Used by third-party managers to
+   * publish domain-specific signals without coupling to KernelEvents.
+   * The socket orchestrator subscribes to 'custom:*' and forwards to overlay clients.
+   */
+  emitCustom(event: string, payload: unknown): void {
+    this.emitter.emit(`custom:${event}`, payload)
+  }
+
+  onCustom(event: string, listener: (payload: unknown) => void): () => void {
+    const fullEvent = `custom:${event}`
+    this.emitter.on(fullEvent, listener)
+    return () => this.emitter.off(fullEvent, listener)
+  }
+
   on<K extends keyof KernelEvents>(event: K, listener: Listener<KernelEvents[K]>): () => void {
     this.emitter.on(event, listener as (...args: unknown[]) => void)
     return () => this.emitter.off(event, listener as (...args: unknown[]) => void)

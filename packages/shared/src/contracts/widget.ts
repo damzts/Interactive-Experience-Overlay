@@ -80,3 +80,30 @@ export function registerWidgetLifecycle(lifecycle: WidgetLifecycle): void {
 export function getWidgetLifecycle(componentType: WidgetComponentType): WidgetLifecycle | undefined {
   return lifecycleRegistry.get(componentType)
 }
+
+/**
+ * WidgetSignal — a typed event emitted by a widget into the kernel event bus.
+ * Used as the trigger side of reactive chains.
+ */
+export interface WidgetSignal {
+  /** Widget instance ID (appId) that produced this signal */
+  source: string
+  /** Signal event name (e.g. 'weather:storm', 'music:track-changed') */
+  event: string
+  /** Arbitrary payload */
+  payload: unknown
+}
+
+/**
+ * ReactiveChain — defines an automatic trigger from one widget to another.
+ * Stored in SQLite and executed by the kernel when a matching signal arrives.
+ */
+export interface ReactiveChain {
+  id: string
+  triggerWidgetId: string
+  triggerEvent: string
+  targetWidgetId: string
+  /** Action to invoke on the target widget */
+  targetAction: string
+  enabled: boolean
+}

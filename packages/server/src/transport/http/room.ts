@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SwitchMode } from '@ieomlabs/shared'
 import type { CloudSignaling } from '../webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
+import { CURRENT_ROOM_CODE, regenerateRoomCode } from '../socket/joinNamespace.js'
 
 interface RoomRouteOptions extends FastifyPluginOptions {
   cloudSignaling: CloudSignaling
@@ -15,6 +16,10 @@ interface RoomRouteOptions extends FastifyPluginOptions {
 
 export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
   const { cloudSignaling, pov } = opts
+
+  // ── LAN join room code ─────────────────────────────────────────
+  app.get('/api/room/code', async () => ({ code: CURRENT_ROOM_CODE }))
+  app.post('/api/room/code/regenerate', async () => ({ code: regenerateRoomCode() }))
 
   // ── Cloud join / leave / status ────────────────────────────────
 

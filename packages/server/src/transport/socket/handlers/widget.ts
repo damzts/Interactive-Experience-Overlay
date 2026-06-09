@@ -181,5 +181,20 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     if (socket.id !== ctx.overlaySocketId) return
     ctx.io.emit('widget:simulate:intent', payload)
   })
+
+  // Reactive chain signal routing
+  socket.on('widget:signal', (payload: { source: string; event: string; payload: unknown }) => {
+    if (!ctx.configService?.routeWidgetSignal) return
+    const chains = ctx.configService.routeWidgetSignal(payload.source, payload.event)
+    for (const chain of chains) {
+      if (chain.targetAction === 'open' || chain.targetAction === 'close') {
+        setWidgetRuntimeOpenState(ctx, chain.targetWidgetId, chain.targetAction === 'open')
+      } else if (chain.targetAction === 'toggle') {
+        toggleWidgetRuntime(ctx, chain.targetWidgetId)
+      } else {
+        ctx.io.emit('widget:chain:action', { targetWidgetId: chain.targetWidgetId, action: chain.targetAction, sourceSignal: payload })
+      }
+    }
+  })
 }
 

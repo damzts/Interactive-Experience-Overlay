@@ -10,10 +10,9 @@ import type {
   AmbianceWidgetBehavior,
 } from '@ieomlabs/shared'
 
-const SIMULATION_ACCEPT_TIMEOUT_MS = 4000
-const SIMULATION_START_TIMEOUT_MS = 5000
+const SIMULATION_PENDING_TIMEOUT_MS = 5000    // "if no ack in 5s, cancel"
 const SIMULATION_FALLBACK_TIMEOUT_MS = 30000
-const AMBIANCE_HISTORY_LIMIT = 50
+const AMBIANCE_HISTORY_LIMIT = 10             // circular buffer
 const DEFAULT_BEHAVIOR: AmbianceWidgetBehavior = {
   enabled: true,
   openChance: 0.18,
@@ -67,14 +66,13 @@ export class AmbianceManager implements Manager {
   private _status: ManagerStatus = 'idle'
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private acceptTimeout: ReturnType<typeof setTimeout> | null = null
-  private startTimeout: ReturnType<typeof setTimeout> | null = null
   private simulationTimeout: ReturnType<typeof setTimeout> | null = null
   private getOpenWidgetIds?: () => Set<string>
   private getSimulationLeaderSocketId?: () => string | null
   private lastActionAtByWidget = new Map<string, number>()
   private lastWidgetId: string | null = null
   private simulationInFlight = false
-  private pendingPhase: 'awaiting-acceptance' | 'awaiting-start' | 'running' | null = null
+  private pendingPhase: 'pending' | 'running' | null = null
   private inFlightActionId: string | null = null
   private actionSequence = 0
   private lastStartedAt: number | null = null
@@ -205,10 +203,6 @@ export class AmbianceManager implements Manager {
       clearTimeout(this.acceptTimeout)
       this.acceptTimeout = null
     }
-    if (this.startTimeout) {
-      clearTimeout(this.startTimeout)
-      this.startTimeout = null
-    }
     if (this.simulationTimeout) {
       clearTimeout(this.simulationTimeout)
       this.simulationTimeout = null
@@ -218,7 +212,7 @@ export class AmbianceManager implements Manager {
   markSimulationDispatched(payload: AmbianceSimulationPayload) {
     this.clearSimulationInFlight()
     this.simulationInFlight = true
-    this.pendingPhase = 'awaiting-acceptance'
+    this.pendingPhase = 'pending'
     this.inFlightActionId = payload.actionId
     this.recordHistory('simulate-dispatched', `simulation dispatched for ${payload.widgetId}`, {
       actionId: payload.actionId,
@@ -226,73 +220,37 @@ export class AmbianceManager implements Manager {
       action: payload.action,
       leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
     })
+    // Single "pending" timeout: if not accepted+started within 5s, cancel
     this.acceptTimeout = setTimeout(() => {
       const actionId = this.inFlightActionId
       this.simulationInFlight = false
       this.pendingPhase = null
       this.inFlightActionId = null
       this.acceptTimeout = null
-this.lastSkipReason = 'simulation acceptance timeout released lock'
-      this.recordHistory('simulate-accept-timeout', 'simulation acceptance timeout released lock', {
+      this.lastSkipReason = 'simulation pending timeout released lock'
+      this.recordHistory('simulate-accept-timeout', 'simulation pending timeout released lock', {
         actionId: actionId ?? undefined,
         widgetId: this.lastActionWidgetId ?? undefined,
         action: this.lastAction ?? undefined,
         leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
       })
       this.emitDiagnostics()
-    }, SIMULATION_ACCEPT_TIMEOUT_MS)
+    }, SIMULATION_PENDING_TIMEOUT_MS)
     this.emitDiagnostics()
   }
 
+  /** Called when the overlay client accepts the simulation (transitions to running). */
   markSimulationAccepted(actionId?: string) {
-    if (actionId && this.inFlightActionId && actionId !== this.inFlightActionId) {
-      return
-    }
-    if (!this.simulationInFlight) {
-      return
-    }
+    if (actionId && this.inFlightActionId && actionId !== this.inFlightActionId) return
+    if (!this.simulationInFlight) return
+
+    // Clear the pending timeout — we're now running
     if (this.acceptTimeout) {
       clearTimeout(this.acceptTimeout)
       this.acceptTimeout = null
     }
-    this.pendingPhase = 'awaiting-start'
-    this.recordHistory('simulate-accepted', 'leader accepted simulation job', {
-      actionId: this.inFlightActionId ?? undefined,
-      widgetId: this.lastActionWidgetId ?? undefined,
-      action: this.lastAction ?? undefined,
-      leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
-    })
-    this.startTimeout = setTimeout(() => {
-      const inFlightActionId = this.inFlightActionId
-      this.simulationInFlight = false
-      this.pendingPhase = null
-      this.inFlightActionId = null
-      this.startTimeout = null
-this.lastSkipReason = 'simulation start timeout released lock'
-      this.recordHistory('simulate-start-timeout', 'simulation start timeout released lock', {
-        actionId: inFlightActionId ?? undefined,
-        widgetId: this.lastActionWidgetId ?? undefined,
-        action: this.lastAction ?? undefined,
-        leaderSocketId: this.getSimulationLeaderSocketId?.() ?? null,
-      })
-      this.emitDiagnostics()
-    }, SIMULATION_START_TIMEOUT_MS)
-    this.emitDiagnostics()
-  }
-
-  markSimulationStarted(actionId?: string) {
-    if (actionId && this.inFlightActionId && actionId !== this.inFlightActionId) {
-      return
-    }
-    if (!this.simulationInFlight) {
-      return
-    }
-    if (this.startTimeout) {
-      clearTimeout(this.startTimeout)
-      this.startTimeout = null
-    }
     this.pendingPhase = 'running'
-    this.recordHistory('simulate-started', 'leader started executing simulation', {
+    this.recordHistory('simulate-accepted', 'leader accepted and started simulation', {
       actionId: this.inFlightActionId ?? undefined,
       widgetId: this.lastActionWidgetId ?? undefined,
       action: this.lastAction ?? undefined,
@@ -304,7 +262,7 @@ this.lastSkipReason = 'simulation start timeout released lock'
       this.pendingPhase = null
       this.inFlightActionId = null
       this.simulationTimeout = null
-this.lastSkipReason = 'simulation completion timeout released lock'
+      this.lastSkipReason = 'simulation completion timeout released lock'
       this.recordHistory('simulate-completion-timeout', 'simulation completion timeout released lock', {
         actionId: inFlightActionId ?? undefined,
         widgetId: this.lastActionWidgetId ?? undefined,
@@ -314,6 +272,11 @@ this.lastSkipReason = 'simulation completion timeout released lock'
       this.emitDiagnostics()
     }, SIMULATION_FALLBACK_TIMEOUT_MS)
     this.emitDiagnostics()
+  }
+
+  /** Alias: overlay accepted → same as markSimulationAccepted in 2-phase model */
+  markSimulationStarted(actionId?: string) {
+    this.markSimulationAccepted(actionId)
   }
 
   getDiagnostics(): AmbianceDiagnosticsPayload {

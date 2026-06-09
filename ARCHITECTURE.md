@@ -72,7 +72,7 @@ A self-hosted stream overlay engine, structured as a pnpm monorepo with five pac
 
 The system is fully functional offline with no external dependencies. The admin panel is optional. The engine is presentation-agnostic — the Desktop OS (Win98 aesthetic) is one overlay implementation. Any client that speaks the signal contract works.
 
-**The engine is the product. The Desktop OS is a demo built on top of it.**
+**The kernel is the platform.** The Desktop OS, the widgets, the source/scene plugins, and the ambiance behaviors are all first-party contributions built on top of it — the same way any collaborator can build and contribute new managers, source plugins, or widget packs.
 
 ---
 
@@ -88,14 +88,62 @@ The kernel handles multiple concerns through specialized **managers**. Each mana
 
 | Manager | Domain | What it does |
 |---------|--------|-------------|
+| **DesktopConfigService** | Persistence (filesystem) | SQLite CRUD for all configuration. `bootPriority=0` — boots first. Delegates to focused repositories (`SceneRepository`, `WidgetRepository`, `EventRepository`, `ThemeRepository`). |
 | **SceneMachine** | State machine | Tracks the current scene, validates transitions, emits state change signals. The backbone of the system. |
-| **AmbianceManager** | Autonomous simulation | Drives "alive" behavior — opens/closes widgets, triggers interactions on a timer. Makes the overlay feel inhabited. |
+| **AmbianceManager** | Autonomous simulation | Drives "alive" behavior — opens/closes widgets, triggers interactions on a timer. 2-phase state machine (pending → running). |
 | **EventScheduler** | Time & idle triggers | Fires events on intervals or after idle periods. Supports priority, cooldown, chance-based firing. |
-| **DesktopConfigService** | Persistence (filesystem) | SQLite CRUD for all configuration. The only thing that survives a restart. |
 | **RuntimeStateStore** | Runtime state (RAM) | In-memory state for the live session: current scene, open widgets, overlay connection status. Zero I/O on hot path. |
 | **OBSBridge** | Hardware bridge | WebSocket connection to OBS Studio. Mirrors scene state, reacts to OBS events. |
 | **POVOrchestrator** | Video switching | Picks which camera feed to show on stream. Audio-reactive scoring + manual override. |
 | **HubConnection** | WebRTC SFU | werift-based hub that receives participant video tracks and relays them. |
+
+### Manager Plugin Interface
+
+Every manager implements the `Manager` interface from `@ieomlabs/shared/contracts/manager`:
+
+```typescript
+interface Manager {
+  readonly name: string
+  readonly bootPriority?: number   // Lower value = boots first. Default: 0
+  readonly configNamespace?: string // For future plugin config injection
+  init(): Promise<void> | void
+  start(): Promise<void> | void
+  stop(): Promise<void> | void
+  dispose(): Promise<void> | void
+  status(): ManagerStatus
+}
+```
+
+Third-party managers should be wrapped in `SafeManagerProxy` which quarantines a manager after 3 errors in 60s and emits a `bus:custom manager:quarantined` event.
+
+### Repository Layer
+
+`DesktopConfigService` delegates all SQLite I/O to focused repository classes:
+
+| Repository | Tables owned |
+|-----------|--------------|
+| `SceneRepository` | `scenes` |
+| `WidgetRepository` | `widgets`, `widget_layouts`, `widget_layout_items` |
+| `EventRepository` | `source_events` |
+| `ThemeRepository` | `desktop_config`, `desktop_ambiance` |
+
+Config service remains as thin coordinator: cache invalidation, socket broadcast, defaults injection.
+
+### Reactive Widget Chains
+
+The `reactive_chains` SQLite table enables automatic widget-to-widget reactions:
+
+```
+widget:signal(source, event, payload)
+  → DesktopConfigService.routeWidgetSignal(source, event)
+  → finds matching chains in reactive_chains
+  → fires target actions (open/close/toggle/custom)
+```
+
+Configure chains via direct SQLite insert (admin UI to be built separately):
+```sql
+INSERT INTO reactive_chains VALUES ('chain-1', 'weather', 'storm', 'particles', 'rain-preset', 1)
+```
 
 ### Kernel Rules
 
@@ -104,6 +152,10 @@ The kernel handles multiple concerns through specialized **managers**. Each mana
 3. **Hot paths never touch disk.** Runtime decisions read from memory only. SQLite is for persistence on config changes and startup hydration.
 4. **Managers are independent.** They communicate through an internal event bus, not by importing each other. A manager can be disabled without breaking the rest.
 5. **One overlay at a time.** The slot system ensures deterministic state — only one overlay connects, and it gets the full state on connect.
+
+### Custom Bus Events
+
+`KernelBus.emitCustom(event, payload)` lets managers emit arbitrary events. The socket orchestrator forwards `custom:*` events to overlay clients as `bus:custom { event, payload }`. This is the third-party manager IPC channel.
 
 ### How the Kernel Emits Signals
 
@@ -182,12 +234,58 @@ Widgets are:
 - **Kernel-unaware** — they never import the socket directly; they receive events through the DOM CustomEvent bus
 - **Composable** — a widget can be as simple as a static React component or as complex as a full app with its own API connections
 
+Widgets can implement behaviors and freely communicate with any other system mechanism — emitting signals through the DOM bus (picked up by other widgets or the kernel), subscribing to `bus:custom` events from managers, triggering reactive chains, or calling external APIs. A widget built by one collaborator can react to events produced by a widget or manager built by another, with no coordination required beyond the shared signal contract.
+
 **To add a new widget:**
 1. Create the component in `packages/overlay/src/desktop/`
 2. Add one line to the manifest in `widgetRegistry.ts`
 3. Add the `WidgetComponentType` string to `packages/shared/src/domain/application.ts`
 
 No other files need to change.
+
+### Desktop.tsx Facade Pattern
+
+`Desktop.tsx` is the coordinator — it owns kernel signal reception and state, but delegates rendering to sub-components:
+
+| Sub-component | Owns |
+|--------------|------|
+| `IconGrid` | Icon rendering, drag-and-drop, auto-arrange |
+| `StartMenu` | Start menu, programs sub-list, widget layouts sub-menu |
+| `ContextMenuSystem` | Desktop and icon right-click menus |
+| `WindowManager` | Widget window rendering, GenericWidget fallback |
+| `ThemeEngine.ts` | `buildDesktopThemeVars()` — pure CSS variable computation, no React |
+
+### External Widget Plugins
+
+Drop a widget into `plugins/<name>/manifest.json` to register it at runtime without rebuilding:
+
+```json
+{ "id": "my-widget", "label": "My Widget", "icon": "🔌",
+  "component": "/plugins/my-widget/index.js",
+  "defaultGeometry": { "width": 320, "height": 240 } }
+```
+
+`plugins/loader.ts` fetches `index.json` → loads each manifest → calls `registerExternalWidget()`. The widget JS module is dynamically imported (`/* @vite-ignore */`) and cached in the overlay registry.
+
+### CSS Module Structure
+
+CSS is split per domain. Each component imports its own styles. The build chunks CSS per component:
+
+```
+overlay.css          ← 24-line barrel (@import only)
+layers/layers.css    ← base z-index stacking for all layers
+desktop/styles/
+  desktop.css        ← desktop chrome, icon grid
+  start-menu.css     ← start menu
+  windows.css        ← widget windows, themes (widget vars)
+  context-menu.css   ← context menu
+transitions/styles/transitions.css
+effects/styles/effects.css, misc.css
+```
+
+### JSON Fixture Loading
+
+The server loads `DEFAULT_CONFIG` from `data/fixtures/default-config.json` at boot via `loadDefaultConfig()`. The overlay receives the real config from the server on socket connect — its initial Zustand state is a minimal empty stub. The fixture file is generated by `pnpm fixtures` and committed to the repository.
 
 ### Widget Communication (IPC)
 
@@ -295,6 +393,8 @@ WS  /join  →  Socket.IO signaling (offer/answer/ICE)
              ↓
          HubConnection (werift) → POVOrchestrator → OverlayRelay
 ```
+
+**Security:** `/join` requires a 6-character room code (generated at server start, displayed in admin at `GET /api/room/code`, regenerable via `POST /api/room/code/regenerate`). Rate-limited to 10 attempts/IP/minute. Disable with `JOIN_CODE_DISABLED=true` env var.
 
 ### Kernel → Cloud (optional, external)
 

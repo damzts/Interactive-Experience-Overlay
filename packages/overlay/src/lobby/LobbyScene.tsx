@@ -11,7 +11,7 @@ import {
   Stars,
 } from '@react-three/drei'
 import * as THREE from 'three'
-import { DEFAULT_CONFIG, STATE } from '@ieomlabs/shared'
+import { STATE } from '@ieomlabs/shared'
 import type { LobbyConfig } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { resolveSceneStyle } from '../services/SceneResolver.js'
@@ -479,7 +479,7 @@ function Scene() {
   const env = config.scenes[STATE.LOBBY]?.lobbyConfig
   const lobbyStyle = resolveSceneStyle(config, STATE.LOBBY)
   const lobbyBackground = lobbyStyle.background
-  const defaultLobbyBackground = DEFAULT_CONFIG.scenes[STATE.LOBBY].style?.background
+  const defaultLobbyBackground = { type: 'gradient', color: '#f8fbff', gradient: 'linear-gradient(180deg, #ffffff 0%, #edf3ff 100%)', imageUrl: '', videoUrl: '', pattern: 'none', opacity: 1, blur: 0 }
 
   const fogColor         = resolveAlphaColor(env?.fogColor, '#080810')
   const fogNear          = env?.fogNear           ?? 6

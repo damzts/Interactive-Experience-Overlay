@@ -90,3 +90,50 @@ export function preloadWidgets(componentTypes: WidgetComponentType[]): void {
     }
   }
 }
+
+/** External widget manifest (subset used by the desktop widget registry) */
+export interface ExternalWidgetRegistration {
+  id: string
+  label: string
+  icon: string
+  component: string  // URL to the widget JS module
+  defaultGeometry?: { width: number; height: number }
+}
+
+/** External widget registrations loaded at runtime (not in widgetManifest) */
+const externalWidgetCache = new Map<string, DesktopWidgetRenderer>()
+const externalWidgetMeta = new Map<string, ExternalWidgetRegistration>()
+
+/**
+ * Register an external widget from a plugin manifest.
+ * The component is loaded lazily via dynamic import from the given URL.
+ */
+export function registerExternalWidget(manifest: ExternalWidgetRegistration): void {
+  externalWidgetMeta.set(manifest.id, manifest)
+}
+
+/** Load and cache an external widget component by its registered id. */
+export async function loadExternalWidgetById(id: string): Promise<DesktopWidgetRenderer | null> {
+  const cached = externalWidgetCache.get(id)
+  if (cached) return cached
+
+  const meta = externalWidgetMeta.get(id)
+  if (!meta) return null
+
+  try {
+    const mod = await import(/* @vite-ignore */ meta.component) as { default?: DesktopWidgetRenderer; Widget?: DesktopWidgetRenderer }
+    const component = mod.default ?? mod.Widget
+    if (component) {
+      externalWidgetCache.set(id, component)
+      return component
+    }
+  } catch (err) {
+    console.error(`[desktop] Failed to load external widget "${id}":`, err)
+  }
+  return null
+}
+
+/** Get all registered external widget metadata. */
+export function getExternalWidgetRegistrations(): ExternalWidgetRegistration[] {
+  return [...externalWidgetMeta.values()]
+}

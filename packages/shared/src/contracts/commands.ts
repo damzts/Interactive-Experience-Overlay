@@ -142,6 +142,9 @@ export interface ClientToServerEvents {
   /** Immediate panic reset — clears all state to safe defaults */
   'panic': () => void
 
+  /** Widget signal for reactive chain routing */
+  'widget:signal': (payload: { source: string; event: string; payload: unknown }) => void
+
   // ── Queries (request/response via callback) ──────────────────────
   /** Request current scene state */
   'state:request': (callback: (state: STATE) => void) => void

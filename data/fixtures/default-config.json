@@ -1,0 +1,431 @@
+{
+  "sourcePresets": [],
+  "scenes": {
+    "LOBBY": {
+      "id": "LOBBY",
+      "label": "LOBBY",
+      "backgroundOpaque": true,
+      "sources": [],
+      "style": {
+        "background": {
+          "type": "gradient",
+          "color": "#f8fbff",
+          "gradient": "linear-gradient(180deg, #ffffff 0%, #edf3ff 100%)",
+          "imageUrl": "",
+          "videoUrl": "",
+          "pattern": "none",
+          "opacity": 1,
+          "blur": 0
+        },
+        "effects": {
+          "crt": false,
+          "noise": false,
+          "vignette": false,
+          "flicker": false,
+          "chromatic": false,
+          "scanlineOpacity": 0,
+          "noiseOpacity": 0,
+          "vignetteStrength": 0
+        },
+        "particles": {
+          "enabled": false,
+          "preset": "none",
+          "density": 0.25,
+          "speed": 0.25
+        },
+        "fontFamily": "default",
+        "accentColor": "#7fd0ff",
+        "textColor": "#18314d"
+      },
+      "lobbyConfig": {
+        "ambientColor": "#f8fbff",
+        "ambientIntensity": 0.85,
+        "fogColor": "#edf3ff",
+        "fogNear": 10,
+        "fogFar": 30,
+        "skyTopColor": "#dceeff",
+        "skyHorizonColor": "#f8fbff",
+        "floorColor": "#eef2f9",
+        "floorReflectivity": 0.28,
+        "crtGlowColor": "#6cb6ff",
+        "dustMotes": true,
+        "cameraFov": 56,
+        "starsCount": 0,
+        "virtualPet": {
+          "enabled": true,
+          "color": "#7fd0ff",
+          "accessoryColor": "#ffe27a"
+        },
+        "lavaLamp": {
+          "enabled": true,
+          "glassColor": "#eff6ff",
+          "liquidColor": "#7ec8ff",
+          "glowColor": "#9be7ff"
+        },
+        "fishTank": {
+          "enabled": true,
+          "glassColor": "#e9f7ff",
+          "waterColor": "#dcf6ff",
+          "fishColor": "#ffb347",
+          "fishCount": 4
+        }
+      }
+    },
+    "DESKTOP": {
+      "id": "DESKTOP",
+      "label": "DESKTOP",
+      "backgroundOpaque": true,
+      "showDesktop": true,
+      "sources": [
+        {
+          "id": "__desktop-effects",
+          "pluginType": "builtin:effects",
+          "config": {
+            "crt": true,
+            "noise": false,
+            "vignette": true,
+            "flicker": false,
+            "chromatic": false,
+            "scanlineOpacity": 0.18,
+            "noiseOpacity": 0.06,
+            "vignetteStrength": 0.65
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "zIndex": 0,
+          "visible": true
+        }
+      ]
+    }
+  },
+  "applications": [
+    {
+      "id": "gallery",
+      "label": "GALLERY.exe",
+      "icon": "🖼",
+      "widgetSource": "system",
+      "widgetComponent": "gallery",
+      "gallerySettings": {
+        "randomOrder": true,
+        "autoPlay": false,
+        "intervalSec": 8
+      }
+    },
+    {
+      "id": "music",
+      "label": "MUSIC.exe",
+      "icon": "🎵",
+      "widgetSource": "system",
+      "widgetComponent": "music"
+    },
+    {
+      "id": "archive",
+      "label": "ARCHIVE.exe",
+      "icon": "📖",
+      "widgetSource": "system",
+      "widgetComponent": "archive"
+    },
+    {
+      "id": "sticky-notes",
+      "label": "Sticky Notes",
+      "icon": "📝",
+      "widgetSource": "system",
+      "widgetComponent": "sticky-notes",
+      "stickyNotesSettings": {
+        "text": "Reminder:\n- queue scenes\n- test alerts\n- hydrate",
+        "color": "#fff2a8"
+      }
+    },
+    {
+      "id": "chat",
+      "label": "CHAT.exe",
+      "icon": "💬",
+      "widgetSource": "system",
+      "widgetComponent": "chat"
+    },
+    {
+      "id": "camera",
+      "label": "CAMERA.exe",
+      "icon": "📷",
+      "widgetSource": "system",
+      "widgetComponent": "camera"
+    },
+    {
+      "id": "media-deck",
+      "label": "Media Deck",
+      "icon": "📻",
+      "widgetSource": "system",
+      "widgetComponent": "media-deck"
+    },
+    {
+      "id": "cd-ripper",
+      "label": "CD Ripper",
+      "icon": "💽",
+      "widgetSource": "system",
+      "widgetComponent": "cd-ripper"
+    },
+    {
+      "id": "signal-lab",
+      "label": "Signal Lab",
+      "icon": "📼",
+      "widgetSource": "system",
+      "widgetComponent": "signal-lab"
+    },
+    {
+      "id": "broadcast-scheduler",
+      "label": "Broadcast Scheduler",
+      "icon": "🗓️",
+      "widgetSource": "system",
+      "widgetComponent": "broadcast-scheduler"
+    },
+    {
+      "id": "weather",
+      "label": "Weather Center",
+      "icon": "🌦️",
+      "widgetSource": "system",
+      "widgetComponent": "weather-console"
+    },
+    {
+      "id": "clock-tower",
+      "label": "Clock",
+      "icon": "🕒",
+      "widgetSource": "system",
+      "widgetComponent": "clock-tower"
+    },
+    {
+      "id": "newswire-desk",
+      "label": "Newswire Desk",
+      "icon": "📰",
+      "widgetSource": "system",
+      "widgetComponent": "newswire-desk"
+    },
+    {
+      "id": "city-nav",
+      "label": "City Navigator",
+      "icon": "🗺️",
+      "widgetSource": "system",
+      "widgetComponent": "city-navigator"
+    },
+    {
+      "id": "lcd-dolphins",
+      "label": "Pioneer LCD",
+      "icon": "🐬",
+      "widgetSource": "system",
+      "widgetComponent": "lcd-dolphins"
+    },
+    {
+      "id": "online-stream",
+      "label": "Online Stream",
+      "icon": "📡",
+      "widgetSource": "system",
+      "widgetComponent": "online-stream"
+    }
+  ],
+  "keybinds": {
+    "obs": {
+      "F2": "overlay:death",
+      "F3": "overlay:revive",
+      "F4": "overlay:victory",
+      "F6": "scene:desktop",
+      "F7": "scene:lobby",
+      "Escape": "panic"
+    },
+    "admin": {
+      "F2": "overlay:death",
+      "F3": "overlay:revive",
+      "F4": "overlay:victory",
+      "F6": "scene:desktop",
+      "F7": "scene:lobby",
+      "Escape": "panic"
+    }
+  },
+  "obs": {
+    "url": "ws://localhost:4455",
+    "password": ""
+  },
+  "audio": {
+    "masterVolume": 0.8,
+    "sfxVolume": 0.7,
+    "musicVolume": 0.4
+  },
+  "desktopConfig": {
+    "globalThemeDefault": {
+      "theme": "win98",
+      "widgetTheme": {
+        "skin": "metalheart",
+        "fontFamily": "Audiowide",
+        "accentColor": "#ff5c8a",
+        "textColor": "#f8fbff",
+        "titleColor": "",
+        "animation": "shimmer",
+        "atmosphere": "sparkle",
+        "motionIntensity": 0.95,
+        "glowIntensity": 1.2,
+        "shellOpacity": 1,
+        "shadowIntensity": 1.2,
+        "borderRadius": 0
+      },
+      "appearance": {
+        "fontFamily": "default",
+        "accentColor": "#00ff41",
+        "textColor": "#ffffff"
+      }
+    },
+    "defaultIconSize": "normal",
+    "autoArrangeIcons": false,
+    "iconAnimation": "none",
+    "iconArrangement": "grid",
+    "iconMotion": 0.45,
+    "iconArrangementMotion": 1,
+    "recycleBin": {
+      "fullOnStart": false
+    },
+    "screenSaver": {
+      "enabled": false,
+      "timeoutMinutes": 5,
+      "preset": "starfield"
+    },
+    "systemSounds": {
+      "startup": "",
+      "error": "",
+      "notify": "",
+      "click": "",
+      "close": ""
+    }
+  },
+  "desktopAmbiance": {
+    "widgetSimulation": {
+      "enabled": false,
+      "intervalSeconds": 30,
+      "maxOpenWidgets": 2,
+      "openWhileOneOpenChance": 0.35,
+      "behaviors": {}
+    }
+  },
+  "widgetLayouts": [],
+  "sourceEvents": [
+    {
+      "id": "death",
+      "label": "DEATH",
+      "icon": "💀",
+      "color": "text-red-400",
+      "desc": "Red vignette + YOU DIED",
+      "effects": [
+        {
+          "type": "death-overlay",
+          "cfg": {}
+        }
+      ],
+      "actions": [],
+      "auto": {
+        "enabled": false,
+        "mode": "interval",
+        "intervalMin": 20,
+        "idleMin": 5,
+        "chance": 1,
+        "cooldownMin": 0
+      }
+    },
+    {
+      "id": "victory",
+      "label": "VICTORY",
+      "icon": "🏆",
+      "color": "text-yellow-400",
+      "desc": "Win98 dialog: MISSION.LOG saved",
+      "effects": [
+        {
+          "type": "victory-overlay",
+          "cfg": {}
+        }
+      ],
+      "actions": [],
+      "auto": {
+        "enabled": false,
+        "mode": "interval",
+        "intervalMin": 30,
+        "idleMin": 5,
+        "chance": 1,
+        "cooldownMin": 0
+      }
+    },
+    {
+      "id": "revive",
+      "label": "REVIVE",
+      "icon": "❤",
+      "color": "text-emerald-400",
+      "desc": "Terminal: Restarting process...",
+      "effects": [
+        {
+          "type": "revive-overlay",
+          "cfg": {}
+        }
+      ],
+      "actions": [],
+      "auto": {
+        "enabled": false,
+        "mode": "interval",
+        "intervalMin": 25,
+        "idleMin": 5,
+        "chance": 1,
+        "cooldownMin": 0
+      }
+    },
+    {
+      "id": "network_glitch",
+      "label": "GLITCH",
+      "icon": "📡",
+      "color": "text-purple-400",
+      "desc": "Full-screen artifact burst",
+      "effects": [
+        {
+          "type": "network-glitch",
+          "cfg": {
+            "message": "[ NETWORK INTERRUPTION ]",
+            "duration": 2
+          }
+        }
+      ],
+      "actions": [],
+      "auto": {
+        "enabled": false,
+        "mode": "interval",
+        "intervalMin": 15,
+        "idleMin": 5,
+        "chance": 1,
+        "cooldownMin": 0
+      }
+    },
+    {
+      "id": "idle-floaties",
+      "label": "FLOATIES",
+      "icon": "✨",
+      "color": "text-cyan-400",
+      "desc": "Glowing symbols drift over screen",
+      "effects": [
+        {
+          "type": "floaties",
+          "cfg": {
+            "count": 10,
+            "duration": 10,
+            "speed": 1
+          }
+        }
+      ],
+      "actions": [],
+      "auto": {
+        "enabled": false,
+        "mode": "idle",
+        "intervalMin": 15,
+        "idleMin": 5,
+        "chance": 1,
+        "cooldownMin": 0
+      }
+    }
+  ],
+  "sourceMedia": [],
+  "sourceTransitions": []
+}

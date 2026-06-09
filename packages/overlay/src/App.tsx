@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { STATE } from '@ieomlabs/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
@@ -7,9 +7,10 @@ import { TransitionEngine } from './engine/TransitionEngine'
 import { SceneCompositor } from './layers/SceneCompositor'
 import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
-import { LobbyScene } from './lobby/LobbyScene'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
+
+const LobbyScene = React.lazy(() => import('./lobby/LobbyScene').then(m => ({ default: m.LobbyScene })))
 
 export default function App() {
   const visualState = useAppStore((s) => s.visualState)
@@ -54,7 +55,11 @@ export default function App() {
 
       <div id="lobby-layer">
         <LayerErrorBoundary name="lobby">
-          {visualState === STATE.LOBBY && <LobbyScene />}
+          {visualState === STATE.LOBBY && (
+            <React.Suspense fallback={null}>
+              <LobbyScene />
+            </React.Suspense>
+          )}
         </LayerErrorBoundary>
       </div>
 

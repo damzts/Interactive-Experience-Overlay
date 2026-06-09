@@ -1,0 +1,85 @@
+﻿/* â”€â”€ Text widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.text-widget {
+  position: absolute;
+  inset: 0;
+}
+
+/* â”€â”€ CSSEffectsLayer animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@keyframes grain {
+  0%   { transform: translate(0, 0); }
+  10%  { transform: translate(-5%, -10%); }
+  20%  { transform: translate(-15%, 5%); }
+  30%  { transform: translate(7%, -25%); }
+  40%  { transform: translate(-5%, 25%); }
+  50%  { transform: translate(-15%, 10%); }
+  60%  { transform: translate(15%, 0); }
+  70%  { transform: translate(0, 15%); }
+  80%  { transform: translate(3%, 35%); }
+  90%  { transform: translate(-10%, 10%); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes flicker {
+  0%   { opacity: 1; }
+  91%  { opacity: 1; }
+  92%  { opacity: 0.85; }
+  93%  { opacity: 1; }
+  95%  { opacity: 0.9; }
+  96%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* â”€â”€ Boot screen (one-time stream start, faded by BootSequence.ts) â”€â”€ */
+#tl-boot-screen {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  display: none;
+  flex-direction: column;
+  padding: 48px 60px;
+  opacity: 1;
+  pointer-events: none;
+}
+
+#tl-boot-text {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #aaaaaa;
+  line-height: 1.6;
+  white-space: pre;
+  margin: 0;
+  flex: 1;
+}
+
+#tl-boot-bar {
+  width: 220px;
+  height: 14px;
+  border: 1px solid #444444;
+  margin-top: 20px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+#tl-boot-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #003f8a, #0078d7);
+}
+
+/* Fix: overlay event elements must be hidden by default */
+#tl-victory-overlay,
+#tl-revive-overlay,
+#tl-glitch-overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* â”€â”€ Screen saver marquee scroll animations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@keyframes ss-scroll-l {
+  from { transform: translateX(110vw); }
+  to   { transform: translateX(-110vw); }
+}
+@keyframes ss-scroll-r {
+  from { transform: translateX(-110vw); }
+  to   { transform: translateX(110vw); }
+}

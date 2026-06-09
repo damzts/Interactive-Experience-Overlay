@@ -101,7 +101,7 @@ export interface AmbianceDiagnosticsPayload {
   lastActionWidgetId: string | null
   lastAction: 'open' | 'close' | 'interact' | null
   inFlight: boolean
-  pendingPhase: 'awaiting-acceptance' | 'awaiting-start' | 'running' | null
+  pendingPhase: 'pending' | 'running' | null
   pendingActionId: string | null
   leaderSocketId: string | null
   /** Whether the overlay has reported itself ready to execute simulations */

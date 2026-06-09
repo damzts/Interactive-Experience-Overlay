@@ -20,6 +20,7 @@ import { KernelBus } from './bus.js'
 
 export { KernelBus } from './bus.js'
 export type { KernelEvents } from './bus.js'
+export { SafeManagerProxy } from './SafeManagerProxy.js'
 
 export class Kernel {
   readonly bus: KernelBus = new KernelBus()
@@ -50,10 +51,11 @@ export class Kernel {
     return result
   }
 
-  /** Kahn's algorithm — returns names in dependency-safe boot order. */
+  /** Kahn's algorithm — returns names in dependency-safe boot order.
+   * Primary sort: bootPriority (lower = first). Topo-sort breaks ties and validates declared deps. */
   private topoSort(): string[] {
     const inDegree = new Map<string, number>()
-    const adjReverse = new Map<string, string[]>() // name → who depends on it
+    const adjReverse = new Map<string, string[]>()
 
     for (const name of this.managers.keys()) {
       inDegree.set(name, 0)
@@ -70,16 +72,28 @@ export class Kernel {
       }
     }
 
-    const queue = [...this.managers.keys()].filter((n) => inDegree.get(n) === 0)
+    // Seed queue sorted by bootPriority so that within the same dependency level,
+    // managers with lower bootPriority boot first.
+    const queue = [...this.managers.keys()]
+      .filter((n) => inDegree.get(n) === 0)
+      .sort((a, b) => (this.managers.get(a)!.bootPriority ?? 0) - (this.managers.get(b)!.bootPriority ?? 0))
+
     const order: string[] = []
 
     while (queue.length > 0) {
       const node = queue.shift()!
       order.push(node)
-      for (const dependent of adjReverse.get(node) ?? []) {
+      const dependents = (adjReverse.get(node) ?? [])
+        .sort((a, b) => (this.managers.get(a)!.bootPriority ?? 0) - (this.managers.get(b)!.bootPriority ?? 0))
+      for (const dependent of dependents) {
         const deg = (inDegree.get(dependent) ?? 0) - 1
         inDegree.set(dependent, deg)
-        if (deg === 0) queue.push(dependent)
+        if (deg === 0) {
+          // Insert in priority order
+          const insertPriority = this.managers.get(dependent)!.bootPriority ?? 0
+          const insertIdx = queue.findIndex((n) => (this.managers.get(n)!.bootPriority ?? 0) > insertPriority)
+          queue.splice(insertIdx === -1 ? queue.length : insertIdx, 0, dependent)
+        }
       }
     }
 

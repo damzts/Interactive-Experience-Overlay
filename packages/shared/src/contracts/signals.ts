@@ -230,4 +230,8 @@ export interface ServerToClientEvents {
   'desktop:start-menu:phase': (payload: DesktopStartMenuSimulationPhasePayload) => void
   /** Screen saver preview command */
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
+  /** Custom kernel bus event forwarded from managers */
+  'bus:custom': (payload: { event: string; payload: unknown }) => void
+  /** Reactive chain triggered a widget action */
+  'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }) => void
 }

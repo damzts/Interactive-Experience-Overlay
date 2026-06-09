@@ -77,6 +77,24 @@ export function setupSocketHandlers(
 
   registerMachineListeners(ctx)
 
+  // Forward custom:* bus events to all connected overlay/admin clients
+  if (options?.bus) {
+    const rawEmitter = (options.bus as any).emitter as import('events').EventEmitter | undefined
+    rawEmitter?.on('newListener', (event: string) => {
+      // no-op — just ensures listener count doesn't silently overflow
+    })
+    // Subscribe to all custom:* events via wildcard-style listener on the EventEmitter
+    // We monkey-patch emit to intercept 'custom:*' events and forward them
+    const origEmit = (options.bus as any).emitter.emit.bind((options.bus as any).emitter)
+    ;(options.bus as any).emitter.emit = function (event: string, payload: unknown) {
+      const result = origEmit(event, payload)
+      if (typeof event === 'string' && event.startsWith('custom:')) {
+        io.emit('bus:custom', { event: event.slice(7), payload })
+      }
+      return result
+    }
+  }
+
   const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'unknown' => {
     const auth = socket.handshake.auth as { clientType?: string } | undefined
     return auth?.clientType === 'overlay' || auth?.clientType === 'admin' ? auth.clientType : 'unknown'

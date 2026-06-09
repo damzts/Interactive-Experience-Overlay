@@ -23,7 +23,9 @@ Once WebRTC establishes, the cloud is no longer in the media path. All video and
 
 ## LAN join (no cloud required)
 
-Participants on the same local network can connect without a cloud account or room code. They navigate directly to the local server's join page on their browser.
+Participants on the same local network can connect without a cloud account. They navigate directly to the local server's join page (`/join`) on their browser and enter the host's room code.
+
+The room code is a 6-character alphanumeric string generated at server start. The host retrieves it from `GET /api/room/code` and can regenerate it via `POST /api/room/code/regenerate`. Set `JOIN_CODE_DISABLED=true` to skip code validation in fully trusted local environments.
 
 The signaling happens entirely over the local Socket.IO connection — no cloud relay involved. WebRTC then connects using host candidates (local IP addresses), which work directly on a LAN without STUN or TURN servers.
 

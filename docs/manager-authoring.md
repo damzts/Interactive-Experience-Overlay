@@ -31,6 +31,7 @@ import type { Manager, ManagerStatus } from '@ieom/shared'
 
 export class YourManager implements Manager {
   readonly name = 'YourManager'
+  readonly bootPriority = 10  // lower = boots sooner; default is 0 (DesktopConfigService)
   private _status: ManagerStatus = 'idle'
 
   // ── Lifecycle ────────────────────────────────────────────────
@@ -156,9 +157,11 @@ Add the command type in `packages/shared/src/contracts/commands.ts`.
 
 - [ ] Implements `Manager` interface with all five lifecycle methods
 - [ ] `name` is unique among registered managers
+- [ ] `bootPriority` set to reflect intended boot order relative to other managers
 - [ ] `status()` reflects actual lifecycle state
 - [ ] Communicates via `KernelBus`, not by importing other managers
 - [ ] Registered in `desktop-entry.ts` after its dependencies
+- [ ] If third-party / untrusted: wrapped in `SafeManagerProxy` before registration
 - [ ] Bus events (if any) added to `KernelEvents` in `kernel/bus.ts`
 - [ ] Socket signals (if any) added to `ServerToClientEvents` in `signals.ts`
 - [ ] Socket commands (if any) added to `ClientToServerEvents` in `commands.ts`

@@ -1,0 +1,15 @@
+﻿/* â”€â”€ CRT effect animation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@keyframes crt-flicker {
+  0%   { opacity: 1; }
+  88%  { opacity: 1; }
+  90%  { opacity: 0.94; }
+  91%  { opacity: 1; }
+  95%  { opacity: 0.97; }
+  96%  { opacity: 0.92; }
+  100% { opacity: 1; }
+}
+
+.crt-flicker {
+  animation: crt-flicker 7s infinite;
+}
+

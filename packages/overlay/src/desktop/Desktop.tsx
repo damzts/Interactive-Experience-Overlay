@@ -12,27 +12,28 @@
  */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { DEFAULT_CONFIG, DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import { DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
-import { AppIcon } from './AppIcon'
 import { Taskbar } from './Taskbar'
 import { ScreenSaver } from './ScreenSaver'
 import { DesktopNotifications } from './DesktopNotifications'
-import { DesktopWindow } from './DesktopWindow'
-import { AppGlyph } from './AppGlyph'
+import { IconGrid } from './IconGrid'
+import { StartMenu } from './StartMenu'
+import { ContextMenuSystem, type ContextMenu } from './ContextMenuSystem'
+import { WindowManager } from './WindowManager'
+import { buildDesktopThemeVars } from './ThemeEngine'
 import { patchApplicationConfig, replaceConfig } from './configPersistence'
 import { CursorOverlayProvider } from './CursorOverlay'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
 import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
-import { DesktopWidgetProps, getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets } from './widgetRegistry'
+import { warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets, getDesktopWidgetRenderer } from './widgetRegistry'
 import React from 'react';
 import { resolveSceneStyle } from '../services/SceneResolver.js'
 
 function resolveWidgetComponent(app: Application) {
-  const widgetComponent = getWidgetComponent(app)
-  return getDesktopWidgetRenderer(widgetComponent)
+  return getDesktopWidgetRenderer(getWidgetComponent(app))
 }
 
 const THEME_CLASSNAME: Record<DesktopTheme, string> = {
@@ -44,13 +45,6 @@ const THEME_CLASSNAME: Record<DesktopTheme, string> = {
   'coastal glass': 'desktop--theme-coastal-glass',
   'amber terminal': 'desktop--theme-amber-terminal',
   custom: 'desktop--theme-custom',
-}
-
-interface ContextMenu {
-  x: number
-  y: number
-  type: 'desktop' | 'icon'
-  app?: Application
 }
 
 interface DesktopProps {
@@ -72,187 +66,6 @@ interface IconDragBroadcastState {
   lastSentAt: number
   rafId: number | null
   pending: DesktopIconDragPayload | null
-}
-
-function clampChannel(value: number) {
-  return Math.max(0, Math.min(255, Math.round(value)))
-}
-
-function adjustHexColor(input: string, delta: number) {
-  const hex = input.replace('#', '')
-  if (!/^[\da-fA-F]{6}$/.test(hex)) return input
-  const r = clampChannel(parseInt(hex.slice(0, 2), 16) + delta)
-  const g = clampChannel(parseInt(hex.slice(2, 4), 16) + delta)
-  const b = clampChannel(parseInt(hex.slice(4, 6), 16) + delta)
-  return `#${[r, g, b].map((value) => value.toString(16).padStart(2, '0')).join('')}`
-}
-
-function buildFontStack(fontFamily: string, fallback: string) {
-  return `"${fontFamily.replace(/"/g, '\\"')}", ${fallback}`
-}
-
-function opaqueHexColor(input: string, fallback: string) {
-  const value = input.trim()
-  if (/^#[\da-fA-F]{3,4}$/.test(value)) {
-    const expanded = value.slice(1).split('').map((char) => char + char).join('')
-    return `#${expanded.slice(0, 6)}`
-  }
-  if (/^#[\da-fA-F]{6}([\da-fA-F]{2})?$/.test(value)) {
-    return `#${value.slice(1, 7)}`
-  }
-  return fallback
-}
-
-const DEFAULT_DESKTOP_STYLE = DEFAULT_CONFIG.scenes[STATE.DESKTOP].style
-
-function buildDesktopThemeVars(theme: DesktopTheme, accentColor: string, textColor: string, fontFamily: string): React.CSSProperties {
-  const customAccent = accentColor.startsWith('#') ? accentColor : '#2f70c8'
-  const customText = textColor || '#ffffff'
-  const opaqueCustomText = opaqueHexColor(customText, '#ffffff')
-  const hasAccentOverride = theme === 'custom' || (DEFAULT_DESKTOP_STYLE && customAccent.toLowerCase() !== DEFAULT_DESKTOP_STYLE.accentColor.toLowerCase())
-  const hasTextOverride = theme === 'custom' || (DEFAULT_DESKTOP_STYLE && customText.toLowerCase() !== DEFAULT_DESKTOP_STYLE.textColor.toLowerCase())
-  const hasFontOverride = fontFamily !== 'default' && (DEFAULT_DESKTOP_STYLE && fontFamily !== DEFAULT_DESKTOP_STYLE.fontFamily)
-
-  const vars: Record<string, string> = {
-    '--desktop-panel': '#c0c0c0',
-    '--desktop-panel-light': '#ffffff',
-    '--desktop-panel-dark': '#808080',
-    '--desktop-panel-shadow': '#000000',
-    '--desktop-title-start': '#000080',
-    '--desktop-title-end': '#1084d0',
-    '--desktop-title-text': '#ffffff',
-    '--desktop-ui-font': 'MS Sans Serif, Arial, sans-serif',
-    '--desktop-menu-hover': '#000080',
-    '--desktop-menu-danger': '#800000',
-    '--desktop-icon-label': '#ffffff',
-    '--desktop-icon-shadow': '1px 1px 2px #000, -1px -1px 2px #000',
-    '--desktop-tray-glow': 'rgba(0, 204, 0, 0.3)',
-  }
-
-  if (theme === 'y2k candy') {
-    Object.assign(vars, {
-      '--desktop-panel': '#ffe6fb',
-      '--desktop-panel-light': '#ffffff',
-      '--desktop-panel-dark': '#d76eb8',
-      '--desktop-panel-shadow': '#772a72',
-      '--desktop-title-start': '#ff7bc6',
-      '--desktop-title-end': '#7bdcff',
-      '--desktop-title-text': '#3d1140',
-      '--desktop-ui-font': 'Trebuchet MS, Verdana, Arial, sans-serif',
-      '--desktop-menu-hover': '#f05db3',
-      '--desktop-menu-danger': '#bf4378',
-      '--desktop-icon-shadow': '0 1px 2px rgba(65, 0, 70, 0.85)',
-      '--desktop-tray-glow': 'rgba(255, 143, 216, 0.45)',
-    })
-  } else if (theme === 'frutiger aero') {
-    Object.assign(vars, {
-      '--desktop-panel': 'rgba(231, 247, 255, 0.92)',
-      '--desktop-panel-light': '#ffffff',
-      '--desktop-panel-dark': '#5b8fb8',
-      '--desktop-panel-shadow': '#1f466f',
-      '--desktop-title-start': '#2aa0e0',
-      '--desktop-title-end': '#aef0ff',
-      '--desktop-title-text': '#073c61',
-      '--desktop-ui-font': 'Tahoma, Segoe UI, Arial, sans-serif',
-      '--desktop-menu-hover': '#1187d8',
-      '--desktop-menu-danger': '#d24d4d',
-      '--desktop-icon-shadow': '0 2px 6px rgba(0, 0, 0, 0.8)',
-      '--desktop-tray-glow': 'rgba(55, 226, 255, 0.5)',
-    })
-  } else if (theme === 'midnight chrome') {
-    Object.assign(vars, {
-      '--desktop-panel': '#d8e2ef',
-      '--desktop-panel-light': '#ffffff',
-      '--desktop-panel-dark': '#667382',
-      '--desktop-panel-shadow': '#0c1117',
-      '--desktop-title-start': '#22384f',
-      '--desktop-title-end': '#9ab8d8',
-      '--desktop-title-text': '#f6fbff',
-      '--desktop-ui-font': 'Tahoma, Segoe UI, Arial, sans-serif',
-      '--desktop-menu-hover': '#345c86',
-      '--desktop-menu-danger': '#8c3849',
-      '--desktop-icon-shadow': '0 2px 8px rgba(0, 0, 0, 0.9)',
-      '--desktop-tray-glow': 'rgba(154, 184, 216, 0.4)',
-    })
-  } else if (theme === 'sunset boulevard') {
-    Object.assign(vars, {
-      '--desktop-panel': '#ffd8c8',
-      '--desktop-panel-light': '#fff6f2',
-      '--desktop-panel-dark': '#b96872',
-      '--desktop-panel-shadow': '#4c1830',
-      '--desktop-title-start': '#ff8b5f',
-      '--desktop-title-end': '#ff5c8d',
-      '--desktop-title-text': '#47101d',
-      '--desktop-ui-font': 'Trebuchet MS, Verdana, Arial, sans-serif',
-      '--desktop-menu-hover': '#d65475',
-      '--desktop-menu-danger': '#8d2637',
-      '--desktop-icon-shadow': '0 2px 6px rgba(48, 7, 18, 0.82)',
-      '--desktop-tray-glow': 'rgba(255, 145, 109, 0.45)',
-    })
-  } else if (theme === 'coastal glass') {
-    Object.assign(vars, {
-      '--desktop-panel': 'rgba(229, 255, 252, 0.9)',
-      '--desktop-panel-light': '#ffffff',
-      '--desktop-panel-dark': '#65a1a6',
-      '--desktop-panel-shadow': '#123f43',
-      '--desktop-title-start': '#3ac6bf',
-      '--desktop-title-end': '#b4fff8',
-      '--desktop-title-text': '#0a4044',
-      '--desktop-ui-font': 'Tahoma, Segoe UI, Arial, sans-serif',
-      '--desktop-menu-hover': '#17989c',
-      '--desktop-menu-danger': '#b44f4f',
-      '--desktop-icon-shadow': '0 2px 6px rgba(0, 30, 32, 0.82)',
-      '--desktop-tray-glow': 'rgba(148, 255, 244, 0.5)',
-    })
-  } else if (theme === 'amber terminal') {
-    Object.assign(vars, {
-      '--desktop-panel': '#d1a45b',
-      '--desktop-panel-light': '#f6ddaf',
-      '--desktop-panel-dark': '#74531f',
-      '--desktop-panel-shadow': '#130d05',
-      '--desktop-title-start': '#5b360d',
-      '--desktop-title-end': '#be7c22',
-      '--desktop-title-text': '#ffe0a0',
-      '--desktop-ui-font': 'Lucida Console, Courier New, monospace',
-      '--desktop-menu-hover': '#8e5d16',
-      '--desktop-menu-danger': '#7a2d1d',
-      '--desktop-icon-label': '#ffd77a',
-      '--desktop-icon-shadow': '0 0 10px rgba(0, 0, 0, 0.9)',
-      '--desktop-tray-glow': 'rgba(255, 186, 74, 0.45)',
-    })
-  } else if (theme === 'custom') {
-    Object.assign(vars, {
-      '--desktop-panel': adjustHexColor(customAccent, 110),
-      '--desktop-panel-light': '#ffffff',
-      '--desktop-panel-dark': adjustHexColor(customAccent, -35),
-      '--desktop-panel-shadow': adjustHexColor(customAccent, -95),
-      '--desktop-title-start': adjustHexColor(customAccent, -20),
-      '--desktop-title-end': adjustHexColor(customAccent, 35),
-      '--desktop-title-text': customText,
-      '--desktop-ui-font': 'Segoe UI, Arial, sans-serif',
-      '--desktop-menu-hover': adjustHexColor(customAccent, -25),
-      '--desktop-menu-danger': '#9f2d41',
-      '--desktop-icon-label': opaqueCustomText,
-      '--desktop-tray-glow': `${customAccent}55`,
-    })
-  }
-
-  if (theme !== 'custom' && hasAccentOverride) {
-    vars['--desktop-title-end'] = customAccent
-    vars['--desktop-menu-hover'] = customAccent
-    vars['--desktop-tray-glow'] = `${customAccent}55`
-  }
-
-  if (theme !== 'custom' && hasTextOverride) {
-    vars['--desktop-title-text'] = customText
-    vars['--desktop-icon-label'] = opaqueCustomText
-  }
-
-  if (hasFontOverride) {
-    vars['--desktop-ui-font'] = buildFontStack(fontFamily, vars['--desktop-ui-font'])
-  }
-
-  return vars as React.CSSProperties
 }
 
 // ── Icon grid layout ──────────────────────────────────────────
@@ -422,30 +235,6 @@ function computeGridPositions(
 }
 
 /** Fallback draggable window for any widget without a registered runtime component. */
-function GenericWidget({ app, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: { app: Application } & DesktopWidgetProps) {
-  return (
-    <DesktopWindow
-      id={app.id}
-      title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><AppGlyph icon={app.icon} label={app.label} size={16} /> <span>{app.label}</span></span>}
-      width={260}
-      height={240}
-      defaultPosition={{ x: 80, y: 120 }}
-      zIndex={zIndex}
-      state={windowState}
-      onFocus={onFocus}
-      onMinimize={onMinimize}
-      onClose={onClose}
-      bodyStyle={{ padding: '12px 16px', color: 'var(--desktop-title-start)', textAlign: 'center' }}
-    >
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <AppGlyph icon={app.icon} label={app.label} size={28} />
-        </div>
-        <div style={{ marginTop: 6, fontWeight: 'bold' }}>{app.label}</div>
-        <div style={{ marginTop: 4, fontSize: 10, color: '#666' }}>Widget — no component registered for id: {app.id}</div>
-    </DesktopWindow>
-  )
-}
-
 export function Desktop({ apps }: DesktopProps) {
   const [selectedId, setSelectedId]       = useState<string | null>(null)
   const [startMenuOpen, setStartMenuOpen] = useState(false)
@@ -1498,13 +1287,6 @@ export function Desktop({ apps }: DesktopProps) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [applyWidgetLayoutById])
 
-  const iconMenuLaunchable = !!contextMenu?.app
-  const simProgramsOpen = startMenuSimulationPhase?.phase === 'programs-open'
-    || startMenuSimulationPhase?.phase === 'target-hover'
-    || startMenuSimulationPhase?.phase === 'target-select'
-  const simProgramsHover = startMenuSimulationPhase?.phase === 'programs-hover'
-  const simTargetAppId = startMenuSimulationPhase?.targetAppId
-  const simTargetHover = startMenuSimulationPhase?.phase === 'target-hover' || startMenuSimulationPhase?.phase === 'target-select'
   const widgetLayouts = config.widgetLayouts ?? []
   const systemWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'user')
@@ -1521,190 +1303,51 @@ export function Desktop({ apps }: DesktopProps) {
         onContextMenu={handleDesktopContextMenu}
       >
         {/* Desktop icon canvas */}
-        <div className="desktop-icons" onMouseDown={(e) => e.stopPropagation()}>
-          {desktopApps.map((app, index) => {
-            const resolvedPos = resolveIconPosition(app)
-            const resolvedSize = resolveIconSize(app, defaultIconSize)
-            return (
-              <AppIcon
-                key={app.id}
-                app={app}
-                position={resolvedPos}
-                size={resolvedSize}
-                selected={selectedId === app.id}
-                animationMode={desktopConfig.iconAnimation}
-                motionAmount={desktopConfig.iconMotion}
-                animationSeed={index}
-                reactive={desktopConfig.iconAnimation === 'reactive' && reactiveIconId === app.id}
-                draggable={!autoArrangeIcons}
-                dragging={draggingId === app.id}
-                onSelect={() => { setSelectedId(app.id); closeMenus() }}
-                onLaunch={() => handleLaunch(app)}
-                onMouseDown={(event) => handleIconMouseDown(event, app)}
-                consumeClickSuppression={consumeClickSuppression}
-                onContextMenu={(e) => handleIconContextMenu(e, app)}
-              />
-            )
-          })}
-        </div>
+        <IconGrid
+          apps={desktopApps}
+          selectedId={selectedId}
+          draggingId={draggingId}
+          autoArrangeIcons={autoArrangeIcons}
+          defaultIconSize={defaultIconSize}
+          iconAnimation={desktopConfig.iconAnimation}
+          iconMotion={desktopConfig.iconMotion ?? 1}
+          reactiveIconId={reactiveIconId}
+          resolveIconPosition={resolveIconPosition}
+          resolveIconSize={(app) => resolveIconSize(app, defaultIconSize)}
+          onSelect={setSelectedId}
+          onLaunch={handleLaunch}
+          onMouseDown={handleIconMouseDown}
+          onContextMenu={handleIconContextMenu}
+          consumeClickSuppression={consumeClickSuppression}
+          closeMenus={closeMenus}
+        />
 
         {/* Start Menu */}
-        {startMenuOpen && (
-          <div className="start-menu" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="start-menu-banner">
-              <span className="start-menu-banner-text">IEOM</span>
-            </div>
-            <div
-              className="start-menu-items"
-              onMouseLeave={() => {
-                if (!startMenuOpen) return
-                emitStartMenuState({ open: true, activeRoot: null })
-              }}
-            >
-              {/* Programs sub-list */}
-              <div
-                className={`start-menu-item start-menu-item--has-sub${startMenuActiveRoot === 'programs' || simProgramsOpen ? ' start-menu-item--sim-open' : ''}${simProgramsHover ? ' start-menu-item--sim-hover' : ''}`}
-                onMouseEnter={() => emitStartMenuState({ open: true, activeRoot: 'programs' })}
-              >
-                <span className="start-menu-item-icon">📂</span>
-                <span className="start-menu-item-label">Programs</span>
-                <span className="start-menu-item-arrow">▶</span>
-                <div className="start-menu-sub">
-                  {launchableApps.map((app) => (
-                    <button
-                      key={app.id}
-                      className={`start-menu-sub-item${simTargetHover && simTargetAppId === app.id ? ' start-menu-sub-item--sim-hover' : ''}`}
-                      data-start-app-id={app.id}
-                      data-start-app-label={app.label}
-                      onClick={() => {
-                        handleLaunch(app);
-                      }}
-                    >
-                      <AppGlyph icon={app.icon} label={app.label} size={16} />
-                      <span>{app.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                className={`start-menu-item start-menu-item--has-sub${startMenuActiveRoot === 'widget-layouts' ? ' start-menu-item--sim-open' : ''}`}
-                onMouseEnter={() => emitStartMenuState({ open: true, activeRoot: 'widget-layouts' })}
-              >
-                <span className="start-menu-item-icon">📐</span>
-                <span className="start-menu-item-label">Widget Layouts</span>
-                <span className="start-menu-item-arrow">▶</span>
-                <div className="start-menu-sub">
-                  {orderedWidgetLayouts.map((layout) => {
-                    const enabledWidgets = layout.items
-                      .filter((item) => item.enabled)
-                      .map((item) => widgetAppById.get(item.widgetId))
-                      .filter((app): app is Application => !!app)
-
-                    return (
-                    <button
-                      key={layout.id}
-                      className="start-menu-sub-item"
-                      onClick={() => { applyWidgetLayoutById(layout.id) }}
-                      title={enabledWidgets.length > 0
-                        ? `${layout.label}: ${enabledWidgets.map((app) => app.label).join(', ')}`
-                        : layout.label}
-                    >
-                      <span style={{ width: 18, textAlign: 'center' }}>{layout.icon || '📐'}</span>
-                      <span className="start-menu-sub-item-content">
-                        <span className="start-menu-sub-item-title">{layout.label}</span>
-                        <span className="start-menu-sub-item-meta">
-                          {enabledWidgets.length > 0 ? enabledWidgets.map((app) => (
-                            <span key={`${layout.id}-${app.id}`} className="start-menu-sub-item-badge">
-                              <span className="start-menu-sub-item-badge-icon">{typeof app.icon === 'string' ? app.icon : '■'}</span>
-                              <span>{app.label}</span>
-                            </span>
-                          )) : (
-                            <span className="start-menu-sub-item-badge start-menu-sub-item-badge--muted">No enabled widgets</span>
-                          )}
-                        </span>
-                      </span>
-                    </button>
-                  )})}
-                  {systemWidgetLayouts.length > 0 && orderedWidgetLayouts.length > 0 && <div className="start-menu-separator" />}
-                  {systemWidgetLayouts.length > 0 && (
-                    <button
-                      className="start-menu-sub-item"
-                      onClick={() => { applyWidgetLayoutById(sourceCenterToggleRef.current) }}
-                    >
-                      <span style={{ width: 18, textAlign: 'center' }}>⇄</span>
-                      <span className="start-menu-sub-item-content">
-                        <span className="start-menu-sub-item-title">Toggle Source A/B</span>
-                        <span className="start-menu-sub-item-meta">
-                          <span className="start-menu-sub-item-badge start-menu-sub-item-badge--muted">Switch between the two source-center system layouts</span>
-                        </span>
-                      </span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="start-menu-separator" />
-
-              <button
-                className="start-menu-item"
-                onClick={() => { socket.emit('scene:change', STATE.LOBBY); closeMenus() }}
-              >
-                <span className="start-menu-item-icon">🖥</span>
-                <span className="start-menu-item-label">LOBBY</span>
-              </button>
-
-              <div className="start-menu-separator" />
-
-              <button
-                className="start-menu-item start-menu-item--danger"
-                onClick={() => { socket.emit('panic'); closeMenus() }}
-              >
-                <span className="start-menu-item-icon">🔴</span>
-                <span className="start-menu-item-label">PANIC</span>
-              </button>
-            </div>
-          </div>
-        )}
+        <StartMenu
+          open={startMenuOpen}
+          activeRoot={startMenuActiveRoot}
+          simulationPhase={startMenuSimulationPhase}
+          launchableApps={launchableApps}
+          widgetLayouts={orderedWidgetLayouts}
+          widgetAppById={widgetAppById}
+          sourceCenterToggleLayoutId={sourceCenterToggleRef.current}
+          onEmitState={(open, root) => emitStartMenuState({ open, activeRoot: root })}
+          onLaunch={handleLaunch}
+          onApplyLayout={applyWidgetLayoutById}
+          onClose={closeMenus}
+        />
 
         {/* Context Menu */}
-        {contextMenu && (
-          <div
-            className="context-menu"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {contextMenu.type === 'desktop' ? (
-              <>
-                <button className="context-menu-item" onClick={() => { void handleArrangeIcons() }}>Arrange Icons</button>
-                <button className="context-menu-item" onClick={() => { void handleToggleAutoArrange() }}>
-                  {autoArrangeIcons ? 'Disable Auto Arrange' : 'Enable Auto Arrange'}
-                </button>
-                <button className="context-menu-item" onClick={closeMenus}>Refresh</button>
-                <div className="context-menu-separator" />
-                <button className="context-menu-item" onClick={() => { void handleResetIconLayout() }}>Reset Icon Layout</button>
-                <button className="context-menu-item" onClick={() => { void handleResetWidgetWindows() }}>Reset Widget Windows</button>
-                <div className="context-menu-separator" />
-                <button className="context-menu-item context-menu-item--disabled">Properties</button>
-              </>
-            ) : (
-              <>
-                <button
-                  className={`context-menu-item context-menu-item--bold${iconMenuLaunchable ? '' : ' context-menu-item--disabled'}`}
-                  onClick={() => { if (contextMenu.app && iconMenuLaunchable) handleLaunch(contextMenu.app) }}
-                >
-                  Open
-                </button>
-                <div className="context-menu-separator" />
-                <button className="context-menu-item context-menu-item--disabled">Create Shortcut</button>
-                <button className="context-menu-item context-menu-item--disabled">Delete</button>
-                <button className="context-menu-item context-menu-item--disabled">Rename</button>
-                <div className="context-menu-separator" />
-                <button className="context-menu-item context-menu-item--disabled">Properties</button>
-              </>
-            )}
-          </div>
-        )}
+        <ContextMenuSystem
+          contextMenu={contextMenu}
+          autoArrangeIcons={autoArrangeIcons}
+          onArrangeIcons={handleArrangeIcons}
+          onToggleAutoArrange={handleToggleAutoArrange}
+          onResetIconLayout={handleResetIconLayout}
+          onResetWidgetWindows={handleResetWidgetWindows}
+          onLaunch={handleLaunch}
+          onClose={closeMenus}
+        />
 
         <DesktopNotifications />
 
@@ -1727,31 +1370,30 @@ export function Desktop({ apps }: DesktopProps) {
           />
         )}
 
-        {/* Widget windows — rendered above desktop content (z=50 within desktop stacking context) */}
-        {visibleWidgets.map((a) => {
-          const widgetComponent = getWidgetComponent(a)
-          const WidgetComp = resolveWidgetComponent(a)
-          const widgetProps: DesktopWidgetProps = {
-            appId: a.id,
-            defaultCameraLabel: widgetComponent === 'camera'
-              ? (a.cameraSettings?.preferredDeviceLabel ?? '')
-              : undefined,
-            defaultMirror: widgetComponent === 'camera'
-              ? (a.cameraSettings?.mirror ?? false)
-              : undefined,
-            onClose: () => {
-              if ((window as any).__cursorMirrorVisualOnly) return
-              if (simEmittingRef.current) socket.emit('widget:simulate:action', { widgetId: a.id, action: 'toggle' })
-              else socket.emit('widget:toggle', a.id)
-            },
-            onMinimize: () => minimizeWidget(a.id),
-            onFocus: () => focusWidget(a.id),
-            windowState: closingWidgets.has(a.id) ? 'closing' : 'open',
-            zIndex: getWidgetZIndex(a.id),
-          }
-          if (WidgetComp) return <WidgetComp key={a.id} {...widgetProps} />
-          return <GenericWidget key={a.id} app={a} {...widgetProps} />
-        })}
+        {/* Widget windows */}
+        <WindowManager
+          visibleWidgets={visibleWidgets}
+          closingWidgets={closingWidgets}
+          simEmittingRef={simEmittingRef}
+          minimizeWidget={minimizeWidget}
+          focusWidget={focusWidget}
+          getWidgetZIndex={getWidgetZIndex}
+          onWidgetClose={(widgetId) => {
+            if ((window as any).__cursorMirrorVisualOnly) return
+            if (simEmittingRef.current) socket.emit('widget:simulate:action', { widgetId, action: 'toggle' })
+            else socket.emit('widget:toggle', widgetId)
+          }}
+          onWarnMissing={(app) => {
+            const widgetComponent = getWidgetComponent(app)
+            if (!warnMissingDesktopWidgetRegistration(app, widgetComponent)) return
+            enqueueDesktopNotification({
+              title: 'Missing widget UI',
+              body: `${app.label} is using the generic fallback because ${widgetComponent ?? app.id} is not registered.`,
+              icon: '⚠️',
+              durationMs: 4200,
+            })
+          }}
+        />
       </div>
     </CursorOverlayProvider>
   )

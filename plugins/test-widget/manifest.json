@@ -1,0 +1,8 @@
+{
+  "id": "test-widget",
+  "label": "Test Plugin Widget",
+  "icon": "🔌",
+  "component": "/plugins/test-widget/index.js",
+  "defaultGeometry": { "width": 280, "height": 200 },
+  "category": "custom"
+}

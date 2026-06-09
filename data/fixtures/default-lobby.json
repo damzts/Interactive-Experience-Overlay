@@ -1,0 +1,33 @@
+{
+  "ambientColor": "#f8fbff",
+  "ambientIntensity": 0.85,
+  "fogColor": "#edf3ff",
+  "fogNear": 10,
+  "fogFar": 30,
+  "skyTopColor": "#dceeff",
+  "skyHorizonColor": "#f8fbff",
+  "floorColor": "#eef2f9",
+  "floorReflectivity": 0.28,
+  "crtGlowColor": "#6cb6ff",
+  "dustMotes": true,
+  "cameraFov": 56,
+  "starsCount": 0,
+  "virtualPet": {
+    "enabled": true,
+    "color": "#7fd0ff",
+    "accessoryColor": "#ffe27a"
+  },
+  "lavaLamp": {
+    "enabled": true,
+    "glassColor": "#eff6ff",
+    "liquidColor": "#7ec8ff",
+    "glowColor": "#9be7ff"
+  },
+  "fishTank": {
+    "enabled": true,
+    "glassColor": "#e9f7ff",
+    "waterColor": "#dcf6ff",
+    "fishColor": "#ffb347",
+    "fishCount": 4
+  }
+}
