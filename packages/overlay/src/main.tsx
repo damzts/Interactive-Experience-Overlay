@@ -1,6 +1,7 @@
 import ReactDOM from 'react-dom/client'
 import '98.css'
 import './overlay.css'
+import './desktop/widgetIntentManifests'
 import App from './App'
 import { socket } from './socket/client'
 

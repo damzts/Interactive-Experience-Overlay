@@ -37,6 +37,7 @@ import { configRoute } from './transport/http/config.js'
 import { mediaRoute } from './transport/http/media.js'
 import { archiveRoute } from './transport/http/archive.js'
 import { roomRoute } from './transport/http/room.js'
+import { wiresRoute } from './transport/http/wires.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
@@ -264,6 +265,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(configRoute, { machine, configService: configService as any })
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
+  await app.register(wiresRoute, { chains: configService.reactiveChains })
 
   // ── Room system ───────────────────────────────────────────────
   const overlayRelay = new OverlayRelay()

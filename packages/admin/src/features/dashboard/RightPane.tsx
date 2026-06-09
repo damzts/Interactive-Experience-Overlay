@@ -17,6 +17,7 @@ import { SchedulerPanel } from '../scheduler/SchedulerPanel'
 import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
 import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
+import { WiresPanel } from '../wires/WiresPanel'
 import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import { FeatureGate } from '../../desktop/FeatureGate'
 import type { SelectedItem } from './types'
@@ -119,6 +120,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'scene-machine') return <SceneMachinePanel />
   if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
+  if (selected.kind === 'wires') return <WiresPanel />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
   if (selected.kind === 'asset-catalog')     return <AssetLibraryPanel tab="catalog" />
   if (selected.kind === 'asset-events')      return <AssetLibraryPanel tab="events" />
@@ -141,6 +143,7 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
   { icon: '🔊', label: 'Audio Engine',       kind: 'audio' },
   { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
   { icon: '⚙', label: 'Kernel Health',      kind: 'kernel-health' },
+  { icon: '⚡', label: 'Wires',             kind: 'wires' },
   { icon: '⚙', label: 'Settings',           kind: 'settings' },
 ]
 
@@ -273,6 +276,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
   else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
   else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
+  else if (selected.kind === 'wires')         { headerIcon = '⚡'; headerLabel = 'Wires';         headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
 
   return (

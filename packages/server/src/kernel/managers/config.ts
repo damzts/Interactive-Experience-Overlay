@@ -34,6 +34,7 @@ import { SceneRepository } from '../../db/repositories/SceneRepository.js'
 import { WidgetRepository } from '../../db/repositories/WidgetRepository.js'
 import { EventRepository } from '../../db/repositories/EventRepository.js'
 import { ThemeRepository } from '../../db/repositories/ThemeRepository.js'
+import { ReactiveChainRepository } from '../../db/repositories/ReactiveChainRepository.js'
 
 type DesktopDatabase = Database.Database
 
@@ -90,6 +91,7 @@ export class DesktopConfigService implements Manager {
   private readonly widgetRepo: WidgetRepository
   private readonly eventRepo: EventRepository
   private readonly themeRepo: ThemeRepository
+  readonly reactiveChains: ReactiveChainRepository
 
   constructor(
     private db: DesktopDatabase,
@@ -99,6 +101,7 @@ export class DesktopConfigService implements Manager {
     this.widgetRepo = new WidgetRepository(db)
     this.eventRepo = new EventRepository(db)
     this.themeRepo = new ThemeRepository(db)
+    this.reactiveChains = new ReactiveChainRepository(db)
 
     // Ensure required tables exist
     this.db.exec(`
@@ -165,10 +168,9 @@ export class DesktopConfigService implements Manager {
    * Returns the list of target actions that were triggered.
    */
   routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }> {
-    const rows = this.db.prepare(
-      "SELECT target_widget_id, target_action FROM reactive_chains WHERE trigger_widget_id = ? AND trigger_event = ? AND enabled = 1"
-    ).all(source, event) as Array<{ target_widget_id: string; target_action: string }>
-    return rows.map((row) => ({ targetWidgetId: row.target_widget_id, targetAction: row.target_action }))
+    return this.reactiveChains.list()
+      .filter((c) => c.enabled && c.triggerWidgetId === source && c.triggerEvent === event)
+      .map((c) => ({ targetWidgetId: c.targetWidgetId, targetAction: c.targetAction }))
   }
 
   async getForUser(_userId: string): Promise<AppConfig> {

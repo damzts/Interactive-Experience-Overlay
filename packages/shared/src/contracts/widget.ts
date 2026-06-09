@@ -81,6 +81,47 @@ export function getWidgetLifecycle(componentType: WidgetComponentType): WidgetLi
   return lifecycleRegistry.get(componentType)
 }
 
+// ── Widget intent manifest (pub/sub vocabulary declaration) ──────
+
+/** A signal this widget can emit (publish). */
+export interface WidgetSignalDescriptor {
+  event: string    // e.g. 'weather:storm'
+  label: string    // human-readable, e.g. 'Storm detected'
+}
+
+/** An action this widget can receive (subscribe/consume). */
+export interface WidgetActionDescriptor {
+  action: string   // e.g. 'gallery:next'
+  label: string    // human-readable, e.g. 'Next slide'
+}
+
+/**
+ * Static declaration of a widget's pub/sub vocabulary.
+ * Registered once per componentType, never persisted — it lives in code.
+ * The admin UI reads manifests to populate the Wires editor source/target columns.
+ */
+export interface WidgetIntentManifest {
+  componentType: import('../domain/application.js').WidgetComponentType
+  /** Signals this widget type can emit */
+  emits: WidgetSignalDescriptor[]
+  /** Actions this widget type can receive */
+  accepts: WidgetActionDescriptor[]
+}
+
+const intentRegistry = new Map<string, WidgetIntentManifest>()
+
+export function registerWidgetIntentManifest(manifest: WidgetIntentManifest): void {
+  intentRegistry.set(manifest.componentType, manifest)
+}
+
+export function getWidgetIntentManifest(componentType: string): WidgetIntentManifest | undefined {
+  return intentRegistry.get(componentType)
+}
+
+export function getAllWidgetIntentManifests(): WidgetIntentManifest[] {
+  return [...intentRegistry.values()]
+}
+
 /**
  * WidgetSignal — a typed event emitted by a widget into the kernel event bus.
  * Used as the trigger side of reactive chains.
