@@ -130,6 +130,16 @@ export const signalHandlers: SignalHandlerMap = {
     dispatchWidgetSimulationIntent(payload)
   },
 
+  'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }, _store) => {
+    // Dispatch as a simulation intent so target widgets can handle custom actions
+    // via their existing addWidgetSimulationIntentListener hooks.
+    dispatchWidgetSimulationIntent({
+      actionId: `chain-${Date.now()}`,
+      widgetId: payload.targetWidgetId,
+      kind: payload.action as any,
+    } as WidgetSimulationIntentPayload)
+  },
+
   'desktop:notify': (payload: DesktopNotificationPayload, store) => {
     store.enqueueDesktopNotification({
       ...payload,

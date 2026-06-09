@@ -304,14 +304,23 @@ Widgets never import each other directly. The bus is fire-and-forget — if the 
 
 **Signal flow (pub/sub wiring):**
 
+Widgets don't need to signal the kernel to communicate. The DOM bus is the primary IPC channel — widgets can react to each other's signals entirely in-process with no round-trip:
+
+```
+Widget A emits → dispatchWidgetSignal (DOM)
+Widget B listens → addWidgetSignalListener (DOM)   ← zero kernel involvement
+```
+
+The kernel is only in the path when the operator has configured a **persistent reactive chain** via the Wires panel. In that case the same DOM signal is also forwarded to the kernel, which routes it through `reactive_chains` and sends the result back as a `widget:chain:action` signal:
+
 ```
 Widget state change
-  → dispatchWidgetSignal({ source: appId, event, payload })   ← DOM bus
-  → useSocket addWidgetSignalListener                          ← forwarder
-  → socket.emit('widget:signal', ...)                          ← kernel syscall
-  → DesktopConfigService.routeWidgetSignal()                   ← wire router
+  → dispatchWidgetSignal({ source, event, payload })   ← DOM bus (widget-to-widget, immediate)
+  → useSocket addWidgetSignalListener                   ← also forwarded to kernel
+  → socket.emit('widget:signal')                        ← only needed for configured chains
+  → DesktopConfigService.routeWidgetSignal()            ← wire router (DB lookup)
   → matching reactive_chains rows
-  → widget:toggle / widget:chain:action signal to overlay      ← kernel signal
+  → widget:chain:action → DOM bus (dispatchWidgetSimulationIntent)
 ```
 
 Each widget type declares its pub/sub vocabulary as a `WidgetIntentManifest` (static, code-defined). The Admin **Wires** panel reads these manifests to populate the source/target picker, and persists connections to `reactive_chains`.
