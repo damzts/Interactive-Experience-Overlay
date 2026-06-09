@@ -396,7 +396,6 @@ export function OnlineRoomsPanel() {
   const [rooms, setRooms] = useState<OnlineRoomStatus[]>([])
   const [config, setConfig] = useState<OnlineModeConfig>(DEFAULT_ONLINE_MODE_CONFIG)
   const [configDraft, setConfigDraft] = useState<OnlineModeConfig>(DEFAULT_ONLINE_MODE_CONFIG)
-  const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
@@ -580,11 +579,9 @@ export function OnlineRoomsPanel() {
           setRooms(roomsData)
           setConfig(configData)
           setConfigDraft(configData)
-          setLoading(false)
         }
       } catch {
         if (!cancelled) {
-          setLoading(false)
           setError('Failed to load online rooms data')
         }
       }
@@ -701,16 +698,6 @@ export function OnlineRoomsPanel() {
   }, [])
 
   // ── Render ───────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <div className="w-full max-w-none space-y-0 pt-1">
-        <ConfigPageIntro title="Online Rooms" eyebrow="Browser POV">
-          Loading online rooms…
-        </ConfigPageIntro>
-      </div>
-    )
-  }
 
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
