@@ -133,7 +133,7 @@ export const WIDGET_INTENT_MANIFESTS: WidgetIntentManifest[] = [
     accepts: [],
   },
   {
-    componentType: 'online-stream',
+    componentType: 'pov-stream',
     emits: [
       { event: 'stream:viewer-joined', label: 'Viewer joined' },
       { event: 'stream:viewer-left',   label: 'Viewer left' },

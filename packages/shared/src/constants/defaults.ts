@@ -547,7 +547,7 @@ export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height
   'lcd-dolphins': { width: 320, height: 240 },
 }
 
-export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera', 'media-deck', 'cd-ripper', 'signal-lab', 'broadcast-scheduler', 'weather', 'clock-tower', 'newswire-desk', 'city-nav', 'lcd-dolphins', 'online-stream'] as const
+export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera', 'media-deck', 'cd-ripper', 'signal-lab', 'broadcast-scheduler', 'weather', 'clock-tower', 'newswire-desk', 'city-nav', 'lcd-dolphins', 'pov-stream', 'participant-stream'] as const
 
 const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
   browser: 'gallery',
@@ -572,7 +572,9 @@ const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType,
   'newswire-desk': 'newswire-desk',
   'city-nav': 'city-navigator',
   'lcd-dolphins': 'lcd-dolphins',
-  'online-stream': 'online-stream',
+  'online-stream': 'pov-stream',
+  'pov-stream': 'pov-stream',
+  'participant-stream': 'participant-stream',
 }
 
 const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
@@ -597,7 +599,8 @@ const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
   'newswire-desk',
   'city-navigator',
   'lcd-dolphins',
-  'online-stream',
+  'pov-stream',
+  'participant-stream',
   'generic',
 ])
 
@@ -623,7 +626,8 @@ const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width
   'newswire-desk': DEFAULT_WIDGET_WINDOW_SIZES['newswire-desk'],
   'city-navigator': DEFAULT_WIDGET_WINDOW_SIZES['city-nav'],
   'lcd-dolphins': DEFAULT_WIDGET_WINDOW_SIZES['lcd-dolphins'],
-  'online-stream': { width: 480, height: 360 },
+  'pov-stream': { width: 480, height: 360 },
+  'participant-stream': { width: 480, height: 360 },
   generic: { width: 260, height: 240 },
 }
 
@@ -650,7 +654,8 @@ const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> = 
   'newswire-desk': 48,
   'city-navigator': 47,
   'lcd-dolphins': 46,
-  'online-stream': 52,
+  'pov-stream': 52,
+  'participant-stream': 51,
 }
 
 function isWidgetComponentType(value: unknown): value is WidgetComponentType {
@@ -1437,7 +1442,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
     { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
-    { id: 'online-stream',        label: 'Online Stream',        icon: '📡',   widgetSource: 'system' as const, widgetComponent: 'online-stream' as const },
+    { id: 'pov-stream',           label: 'POV Stream (Auto)',    icon: '🎯',   widgetSource: 'system' as const, widgetComponent: 'pov-stream' as const },
+    { id: 'participant-stream',   label: 'Participant Stream',   icon: '📹',   widgetSource: 'system' as const, widgetComponent: 'participant-stream' as const },
   ],
 
   keybinds: {
