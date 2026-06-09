@@ -85,6 +85,11 @@
     <input type="text" id="display-name" placeholder="Enter your name…" maxlength="30" autocomplete="off" />
   </div>
 
+  <div class="name-section">
+    <label for="room-code">Room code</label>
+    <input type="text" id="room-code" placeholder="XXXXXX" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:0.15em;font-weight:600" />
+  </div>
+
   <video id="preview" autoplay muted playsinline></video>
   <div class="controls">
     <select id="camera-select"><option>Loading cameras…</option></select>
@@ -101,6 +106,7 @@
     const leaveBtn = document.getElementById('leave-btn')
     const cameraSelect = document.getElementById('camera-select')
     const displayNameInput = document.getElementById('display-name')
+    const roomCodeInput = document.getElementById('room-code')
 
     let localStream = null
     let pc = null
@@ -151,6 +157,7 @@
       const displayName = getDisplayName()
       joinBtn.disabled = true
       displayNameInput.disabled = true
+      roomCodeInput.disabled = true
       setStatus('Requesting camera/mic…')
       try {
         await startPreview()
@@ -158,7 +165,7 @@
 
         socket = io('/join', {
           transports: ['websocket'],
-          auth: { displayName },
+          auth: { displayName, roomCode: roomCodeInput.value.trim().toUpperCase() },
         })
 
         socket.on('connect', async () => {
@@ -208,6 +215,7 @@
         setStatus(err.message || 'Failed to access camera', 'error')
         joinBtn.disabled = false
         displayNameInput.disabled = false
+        roomCodeInput.disabled = false
       }
     })
 
@@ -224,6 +232,7 @@
       joinBtn.disabled = false
       leaveBtn.disabled = true
       displayNameInput.disabled = false
+      roomCodeInput.disabled = false
     }
   </script>
 </body>
