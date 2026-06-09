@@ -94,6 +94,12 @@ export class HubConnection {
       } else if (track.kind === 'video') {
         media.videoTrack = track
         media.lastVideoPacketMs = Date.now()
+        track.onReceiveRtp.subscribe(() => {
+          media.lastVideoPacketMs = Date.now()
+          if (media.videoMuted) {
+            media.videoMuted = false
+          }
+        })
       }
       for (const cb of this.trackCallbacks) cb(userId, track.kind as 'audio' | 'video', track)
     })
