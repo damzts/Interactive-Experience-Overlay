@@ -301,7 +301,17 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
       .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
   })
 
-  const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator, overlayRelay)
+  // Auto-select first participant; relay fresh tracks on re-offer for active camera
+  hubConnection.onTrack((userId) => {
+    if (!povOrchestrator.activeCameraId) {
+      povOrchestrator.switcher.manualSelect(userId)
+    } else if (userId === povOrchestrator.activeCameraId) {
+      overlayRelay.switchTo(hubConnection.getAudioTrack(userId), hubConnection.getVideoTrack(userId))
+        .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on re-offer failed'))
+    }
+  })
+
+  const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator)
 
   io.on('connection', (socket) => {
     socket.on('pov:subscribe', () => {

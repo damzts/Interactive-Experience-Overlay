@@ -14,7 +14,6 @@ import WebSocket from 'ws'
 import logger from '../../lib/logger.js'
 import type { HubConnection } from './hub-connection.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
-import type { OverlayRelay } from './overlay-relay.js'
 
 export interface CloudSignalingConfig {
   cloudUrl: string
@@ -57,14 +56,11 @@ export class CloudSignaling {
   constructor(
     private hub: HubConnection,
     private pov: POVOrchestrator,
-    private overlayRelay: OverlayRelay,
   ) {
-    this.hub.onTrack((userId, kind) => {
+    this.hub.onTrack((userId) => {
       // Auto-select first participant if none active
       if (!this.pov.activeCameraId) {
         this.pov.switcher.manualSelect(userId)
-      } else if (userId === this.pov.activeCameraId) {
-        this.overlayRelay.switchTo(this.hub.getAudioTrack(userId), this.hub.getVideoTrack(userId))
       }
     })
 
