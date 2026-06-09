@@ -59,10 +59,6 @@ export class CloudSignaling {
     private pov: POVOrchestrator,
     private overlayRelay: OverlayRelay,
   ) {
-    this.pov.onSwitch((_prev, next) => {
-      this.overlayRelay.switchTo(this.hub.getAudioTrack(next), this.hub.getVideoTrack(next))
-    })
-
     this.hub.onTrack((userId, kind) => {
       // Auto-select first participant if none active
       if (!this.pov.activeCameraId) {

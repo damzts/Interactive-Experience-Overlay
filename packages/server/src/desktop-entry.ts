@@ -295,6 +295,12 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // Start WebRTC freeze detection (monitorea tracks congelados cada 2s)
   hubConnection.startFreezeDetection()
 
+  // Wire POV → overlay relay for all participants (LAN and cloud)
+  povOrchestrator.onSwitch((_prev, next) => {
+    overlayRelay.switchTo(hubConnection.getAudioTrack(next), hubConnection.getVideoTrack(next))
+      .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
+  })
+
   const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator, overlayRelay)
 
   io.on('connection', (socket) => {
