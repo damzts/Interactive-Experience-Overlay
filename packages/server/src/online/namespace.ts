@@ -182,7 +182,7 @@ export function registerOnlineNamespace(
         manager.removeParticipant(roomCode, participantId)
       }
       if (role === 'admin' && adminRelay) {
-        adminRelay.clearSocket()
+        adminRelay.clearSocket(socket.id)
       }
     })
   })

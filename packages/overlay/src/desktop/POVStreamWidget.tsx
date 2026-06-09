@@ -66,6 +66,7 @@ export function POVStreamWidget({ appId, onClose, onMinimize, onFocus, windowSta
     }
 
     const subscribe = () => {
+      console.log('[pov-stream] subscribing, socket.id:', socket.id)
       cleanup()
       setError(null)
       socket.emit('pov:subscribe' as any)

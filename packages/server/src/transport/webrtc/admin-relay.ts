@@ -53,10 +53,19 @@ interface ParticipantRelay {
 export class AdminRelay {
   /** Map participantId → relay state */
   private relays = new Map<string, ParticipantRelay>()
-  private adminSocket: Socket | null = null
+  private adminSockets = new Map<string, Socket>()
   private hub: HubConnection | null = null
   /** Callbacks to notify admin when a new offer is ready */
   private offerCallbacks: AdminOfferCallback[] = []
+
+  private get adminSocket(): Socket | null {
+    // Return first socket for legacy single-socket calls
+    return this.adminSockets.values().next().value ?? null
+  }
+
+  private emit(event: string, payload: unknown): void {
+    for (const sock of this.adminSockets.values()) sock.emit(event as any, payload)
+  }
 
   // ── Wiring ──────────────────────────────────────────────────────────────
 
@@ -67,7 +76,7 @@ export class AdminRelay {
     this.hub = hub
 
     hub.onTrack((userId, kind, _track) => {
-      if (!this.adminSocket) return
+      if (this.adminSockets.size === 0) return
 
       if (kind === 'video') {
         // Start relay if we have video from this participant
@@ -98,14 +107,12 @@ export class AdminRelay {
    * Attach the admin's Socket.IO socket for signaling.
    */
   setSocket(socket: Socket): void {
-    this.adminSocket = socket
+    this.adminSockets.set(socket.id, socket)
     // Send current stream status
     socket.emit('admin:stream-status', this.getStatus())
-    // Re-send offers for any participants already relaying
-    for (const relay of this.relays.values()) {
-      this.removeRelay(relay.userId)
-    }
-    // Recreate relays so fresh offers go to the new socket
+    // Recreate relays so fresh offers go to all connected sockets
+    const existingRelays = [...this.relays.values()]
+    for (const relay of existingRelays) this.removeRelay(relay.userId)
     if (this.hub) {
       for (const userId of this.hub.getParticipantIds()) {
         const videoTrack = this.hub.getVideoTrack(userId)
@@ -117,14 +124,11 @@ export class AdminRelay {
     }
   }
 
-  /**
-   * Detach the admin socket (e.g. on disconnect).
-   */
-  clearSocket(): void {
-    this.adminSocket = null
-    // Close all relays when admin disconnects
-    for (const [id] of this.relays) {
-      this.removeRelay(id)
+  clearSocket(socketId: string): void {
+    this.adminSockets.delete(socketId)
+    // Only tear down relays if no consumers remain
+    if (this.adminSockets.size === 0) {
+      for (const [id] of this.relays) this.removeRelay(id)
     }
   }
 
@@ -168,7 +172,7 @@ export class AdminRelay {
     videoTrack: MediaStreamTrack,
     audioTrack?: MediaStreamTrack,
   ): Promise<void> {
-    if (!this.adminSocket) return
+    if (this.adminSockets.size === 0) return
 
     // Avoid duplicates
     const existing = this.relays.get(userId)
@@ -188,10 +192,10 @@ export class AdminRelay {
     }
     this.relays.set(userId, relay)
 
-    // Forward ICE candidates to admin
+    // Forward ICE candidates to all admin consumers
     pc.onIceCandidate.subscribe((candidate: any) => {
-      if (candidate && this.adminSocket) {
-        this.adminSocket.emit('admin:ice-candidate', { userId, candidate: candidate.toJSON() })
+      if (candidate) {
+        this.emit('admin:ice-candidate', { userId, candidate: candidate.toJSON() })
       }
     })
 
@@ -202,8 +206,8 @@ export class AdminRelay {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      // Notify admin of the offer
-      this.adminSocket.emit('admin:offer', {
+      // Notify all consumers of the offer
+      this.emit('admin:offer', {
         userId,
         sdp: pc.localDescription!.sdp,
         displayName: relay.displayName,
@@ -224,8 +228,8 @@ export class AdminRelay {
     try { relay.pc.close() } catch { /* ignore */ }
     this.relays.delete(userId)
 
-    if (this.adminSocket) {
-      this.adminSocket.emit('admin:stream-removed', { userId })
+    if (this.adminSockets.size > 0) {
+      this.emit('admin:stream-removed', { userId })
     }
 
     logger.info({ userId }, '[admin-relay] relay removed')
@@ -237,7 +241,7 @@ export class AdminRelay {
     for (const [id] of [...this.relays]) {
       this.removeRelay(id)
     }
-    this.adminSocket = null
+    this.adminSockets.clear()
   }
 
   /**

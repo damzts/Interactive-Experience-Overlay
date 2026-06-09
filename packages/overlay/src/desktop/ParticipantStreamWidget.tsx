@@ -31,7 +31,7 @@ export function ParticipantStreamWidget({ appId, onClose, onMinimize, onFocus, w
 
     const sock: OnlineSocket = io(`${window.location.origin}/online`, {
       forceNew: false,
-      auth: { clientType: 'overlay' },
+      auth: { clientType: 'admin' },
     })
     socketRef.current = sock
 
