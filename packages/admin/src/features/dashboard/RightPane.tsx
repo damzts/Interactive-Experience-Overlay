@@ -13,7 +13,6 @@ import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
-import { LanParticipantsPanel } from '../pov/LanParticipantsPanel'
 import { SchedulerPanel } from '../scheduler/SchedulerPanel'
 import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
 import { ObsPanel } from '../obs/ObsPanel'
@@ -123,7 +122,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'wires') return <WiresPanel />
   if (selected.kind === 'pov-online') return <FeatureGate feature="stream-rooms"><OnlineRoomsPanel /></FeatureGate>
-  if (selected.kind === 'lan-participants') return <LanParticipantsPanel />
   if (selected.kind === 'asset-catalog')     return <AssetLibraryPanel tab="catalog" />
   if (selected.kind === 'asset-events')      return <AssetLibraryPanel tab="events" />
   if (selected.kind === 'asset-sources')     return <AssetLibraryPanel tab="sources" />
@@ -137,7 +135,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 
 const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
   { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
-  { icon: '📡', label: 'LAN Participants',   kind: 'lan-participants' },
   { icon: '🔄', label: 'Scene Machine',      kind: 'scene-machine' },
   { icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
@@ -281,7 +278,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
   else if (selected.kind === 'wires')         { headerIcon = '⚡'; headerLabel = 'Wires';         headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
-  else if (selected.kind === 'lan-participants') { headerIcon = '📡'; headerLabel = 'LAN Participants'; headerMeta = 'Local Network' }
 
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden bg-[var(--color-bg-base)]">

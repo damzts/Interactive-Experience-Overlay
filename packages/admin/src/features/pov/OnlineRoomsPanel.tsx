@@ -14,6 +14,7 @@ import type {
 } from '@ieomlabs/shared'
 import { getOnlineConfig, updateOnlineConfig, getOnlineRooms, provideAuthToken } from '../../api/onlineApi'
 import { getStoredAuthToken } from '../../auth/sessionToken'
+import { apiFetch } from '../../api/client'
 import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
@@ -408,6 +409,29 @@ export function OnlineRoomsPanel() {
   const mountedRef = useRef(true)
   const logIdRef = useRef(0)
 
+  // ── LAN state ────────────────────────────────────────────────────
+
+  const [lanCode, setLanCode] = useState<string | null>(null)
+  const [lanParticipants, setLanParticipants] = useState<Array<{ id: string; iceState: string; videoMuted: boolean }>>([])
+  const [regeneratingCode, setRegeneratingCode] = useState(false)
+
+  const refreshLan = useCallback(async () => {
+    try {
+      const [{ code }, { participants }] = await Promise.all([
+        apiFetch<{ code: string }>('/api/room/code'),
+        apiFetch<{ participants: Array<{ id: string; iceState: string; videoMuted: boolean }> }>('/api/room/lan-participants'),
+      ])
+      setLanCode(code)
+      setLanParticipants(participants)
+    } catch { /* non-fatal */ }
+  }, [])
+
+  useEffect(() => {
+    refreshLan()
+    const t = setInterval(refreshLan, 3000)
+    return () => clearInterval(t)
+  }, [refreshLan])
+
   const pushLog = useCallback((icon: string, text: string) => {
     const id = ++logIdRef.current
     setActivityLog((prev) => [{ id, time: Date.now(), icon, text }, ...prev].slice(0, 50))
@@ -765,6 +789,60 @@ export function OnlineRoomsPanel() {
               ))}
             </div>
           )}
+        </ConfigPanel>
+
+        {/* LAN Participants */}
+        <ConfigPanel title="LAN Participants" collapsible>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Room Code</div>
+                <span className="font-mono text-2xl tracking-[0.25em] font-bold text-[var(--color-primary-400)] select-all">
+                  {lanCode ?? '······'}
+                </span>
+              </div>
+              <Button
+                variant="secondary" size="sm"
+                loading={regeneratingCode}
+                onClick={async () => {
+                  setRegeneratingCode(true)
+                  try {
+                    const r = await apiFetch<{ code: string }>('/api/room/code/regenerate', { method: 'POST' })
+                    setLanCode(r.code)
+                  } finally { setRegeneratingCode(false) }
+                }}
+              >
+                Regenerate
+              </Button>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
+              <span className="text-[10px] text-[var(--color-text-muted)]">🏠 LAN Join:</span>
+              <span className="text-[10px] font-mono text-[var(--color-text-secondary)] truncate">{buildLanJoinUrl()}</span>
+              <CopyButton text={buildLanJoinUrl()} label="Copy" />
+            </div>
+            <div>
+              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">
+                Connected ({lanParticipants.length})
+              </div>
+              {lanParticipants.length === 0 ? (
+                <Notice tone="info">No LAN participants connected.</Notice>
+              ) : (
+                <div className="space-y-1">
+                  {lanParticipants.map(p => (
+                    <div key={p.id} className="flex items-center justify-between rounded-md px-2 py-1.5 bg-[var(--color-bg-elevated)]/40">
+                      <div>
+                        <span className="text-xs font-mono text-[var(--color-text-primary)]">{p.id}</span>
+                        <span className={`ml-2 text-[10px] ${p.iceState === 'connected' || p.iceState === 'completed' ? 'text-[var(--color-success-400)]' : 'text-[var(--color-text-muted)]'}`}>{p.iceState}</span>
+                      </div>
+                      <span className={`text-[10px] ${p.videoMuted ? 'text-[var(--color-danger-400)]' : 'text-[var(--color-success-400)]'}`}>
+                        {p.videoMuted ? '📵 muted' : '📹 live'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </ConfigPanel>
 
         {/* Configuration */}

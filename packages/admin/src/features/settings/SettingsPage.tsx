@@ -1,39 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
 import { getAdminOrigin, getOverlayDevOrigin, getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
 import { AccountSection } from '../../auth/AccountSection'
 import { ConfigPanel } from '../../components/organisms'
-import { Button } from '../../components/atoms'
-import { apiFetch } from '../../api/client'
-
-function RoomCodeSection() {
-  const [code, setCode] = useState<string | null>(null)
-  const [regenerating, setRegenerating] = useState(false)
-
-  useEffect(() => {
-    apiFetch<{ code: string }>('/api/room/code').then((r) => setCode(r.code)).catch(() => {})
-  }, [])
-
-  const regenerate = useCallback(async () => {
-    setRegenerating(true)
-    try {
-      const r = await apiFetch<{ code: string }>('/api/room/code/regenerate', { method: 'POST' })
-      setCode(r.code)
-    } finally {
-      setRegenerating(false)
-    }
-  }, [])
-
-  return (
-    <div className="flex items-center gap-4">
-      <span className="font-mono text-2xl tracking-[0.35em] text-[var(--color-primary-400)] select-all">
-        {code ?? '······'}
-      </span>
-      <Button variant="secondary" size="sm" loading={regenerating} onClick={regenerate}>
-        Regenerate
-      </Button>
-    </div>
-  )
-}
 
 export function SettingsPage({ mode = 'general' }: { mode?: 'general' | 'about' }) {
   const overlayRuntimeUrl = getOverlayRuntimeOrigin()
@@ -79,12 +46,6 @@ export function SettingsPage({ mode = 'general' }: { mode?: 'general' | 'about' 
     <div className="w-full max-w-none space-y-4 pt-1">
       <ConfigPanel title="Account">
         <AccountSection />
-      </ConfigPanel>
-      <ConfigPanel title="LAN Join Code" description="Guests on the same network enter this code at /join to connect their camera.">
-        <RoomCodeSection />
-        <p className="mt-3 text-xs text-[var(--color-text-muted)]">
-          Set <code className="font-mono">JOIN_CODE_DISABLED=true</code> to skip code validation in fully trusted local environments.
-        </p>
       </ConfigPanel>
       <ConfigPanel title="Server Info">
         <div className="grid text-sm gap-y-1.5" style={{ gridTemplateColumns: '160px 1fr' }}>
