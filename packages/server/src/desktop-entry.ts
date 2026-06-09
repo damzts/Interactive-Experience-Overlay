@@ -319,7 +319,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   })
 
   cloudSignaling.onStatus((status) => io.emit('room:status' as any, status))
-  await app.register(roomRoute, { cloudSignaling, pov: povOrchestrator })
+  await app.register(roomRoute, { cloudSignaling, pov: povOrchestrator, hub: hubConnection })
 
   const onlineManager = new OnlineRoomManager(cloudSignaling, povOrchestrator, { cloudUrl, getToken })
   const adminRelay = new AdminRelay()

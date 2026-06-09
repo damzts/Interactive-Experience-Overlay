@@ -7,21 +7,32 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SwitchMode } from '@ieomlabs/shared'
 import type { CloudSignaling } from '../webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
+import type { HubConnection } from '../webrtc/hub-connection.js'
 import { CURRENT_ROOM_CODE, regenerateRoomCode } from '../socket/joinNamespace.js'
 
 interface RoomRouteOptions extends FastifyPluginOptions {
   cloudSignaling: CloudSignaling
   pov?: POVOrchestrator
+  hub?: HubConnection
 }
 
 export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
-  const { cloudSignaling, pov } = opts
+  const { cloudSignaling, pov, hub } = opts
 
   // ── LAN join room code ─────────────────────────────────────────
   app.get('/api/room/code', async () => ({ code: CURRENT_ROOM_CODE }))
   app.post('/api/room/code/regenerate', async () => ({ code: regenerateRoomCode() }))
 
-  // ── Cloud join / leave / status ────────────────────────────────
+  // ── LAN participants ───────────────────────────────────────────
+  app.get('/api/room/lan-participants', async () => {
+    if (!hub) return { participants: [] }
+    const ids = hub.getParticipantIds().filter(id => id.startsWith('lan-'))
+    const participants = ids.map(id => {
+      const state = hub.getParticipantState(id)
+      return { id, iceState: state?.iceState ?? 'unknown', videoMuted: state?.videoMuted ?? false }
+    })
+    return { participants }
+  })
 
   app.post<{ Body: { cloudUrl: string; token: string; roomId: string } }>('/api/room/join', async (req, reply) => {
     const { cloudUrl, token, roomId } = req.body ?? {}
