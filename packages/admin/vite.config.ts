@@ -32,5 +32,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    target: 'esnext',
+    chunkSizeWarningLimit: 1000,
   },
 })

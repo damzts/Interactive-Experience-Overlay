@@ -13,21 +13,30 @@ const STATUS_LABEL: Record<ManagerStatus, string> = {
   running: 'running',
   idle:    'idle',
   stopped: 'stopped',
-  error:   'error',
+  error:   'error / quarantined',
 }
 
 export function KernelHealthPanel() {
   const managers = useAdminStore((s) => s.runtimeDiagnostics.managers)
 
   const entries = managers ? Object.entries(managers) : []
+  const quarantined = entries.filter(([, s]) => s === 'error')
 
   return (
     <div className="space-y-5">
       <ConfigPageIntro
         icon="⚙"
         title="Kernel Health"
-        description="Lifecycle status of every registered kernel manager. Updates with each diagnostics heartbeat."
+        description="Lifecycle status of every registered kernel manager. Updates with each diagnostics heartbeat. Managers in 'error' state have been quarantined after repeated failures and are no longer executing."
       />
+
+      {quarantined.length > 0 && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-300">
+          ⚠ {quarantined.length} manager{quarantined.length > 1 ? 's' : ''} quarantined:{' '}
+          <span className="font-medium">{quarantined.map(([n]) => n).join(', ')}</span>.
+          Restart the server to recover.
+        </div>
+      )}
 
       <ConfigSectionPanel label="Managers">
         {entries.length === 0 ? (
