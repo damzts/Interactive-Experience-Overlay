@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { WeatherConditionGlyph } from './WeatherConditionGlyph'
 import { WeatherForecastMap } from './WeatherForecastMap'
+import { dispatchWidgetSignal } from './widgetSimulationEvents'
 
 interface Props {
   onClose: () => void
@@ -296,7 +297,7 @@ async function fetchRegionWeather(signal: AbortSignal): Promise<WeatherSnapshot>
   }
 }
 
-export function WeatherConsoleWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
+export function WeatherConsoleWidget({ appId = 'weather-console', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId?: string }) {
   const [mode, setMode] = useState<(typeof MODES)[number]>('today')
   const [tick, setTick] = useState(0)
   const [weather, setWeather] = useState<WeatherSnapshot>(FALLBACK_WEATHER)
@@ -316,6 +317,9 @@ export function WeatherConsoleWidget({ onClose, onMinimize, onFocus, windowState
         const nextWeather = await fetchRegionWeather(controller.signal)
         setWeather(nextWeather)
         setStatus('ready')
+        dispatchWidgetSignal({ source: appId, event: 'weather:update', payload: { condition: nextWeather.condition } })
+        if (nextWeather.icon === 'storm') dispatchWidgetSignal({ source: appId, event: 'weather:storm' })
+        if (nextWeather.icon === 'sunny') dispatchWidgetSignal({ source: appId, event: 'weather:clear' })
       } catch (error) {
         if (controller.signal.aborted) {
           return

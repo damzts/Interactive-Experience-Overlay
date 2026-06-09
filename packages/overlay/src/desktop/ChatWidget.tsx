@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
-import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
+import { addWidgetSimulationIntentListener, dispatchWidgetSignal } from './widgetSimulationEvents'
 
 interface Message {
   user: string
@@ -23,7 +23,7 @@ interface Props {
   zIndex?: number
 }
 
-export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
+export function ChatWidget({ appId = 'chat', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId?: string }) {
   const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES)
   const [input, setInput]     = useState('')
   const listRef               = useRef<HTMLDivElement>(null)
@@ -35,8 +35,11 @@ export function ChatWidget({ onClose, onMinimize, onFocus, windowState = 'open',
 
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
-      if (payload.widgetId !== 'chat' || payload.kind !== 'chat:add-message') return
-      setMessages((prev) => [...prev, payload.message])
+      if (payload.widgetId !== appId || payload.kind !== 'chat:add-message') return
+      setMessages((prev) => {
+        dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: payload.message } })
+        return [...prev, payload.message]
+      })
     })
   }, [])
 

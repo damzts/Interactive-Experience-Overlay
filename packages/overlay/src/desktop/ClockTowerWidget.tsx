@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
+import { dispatchWidgetSignal } from './widgetSimulationEvents'
 
 interface Props {
   onClose: () => void
@@ -39,13 +40,22 @@ function getTimeZoneLabel() {
   return parts[parts.length - 1]?.replace(/_/g, ' ') || zone
 }
 
-export function ClockTowerWidget({ onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props) {
+export function ClockTowerWidget({ appId = 'clock-tower', onClose, onMinimize, onFocus, windowState = 'open', zIndex }: Props & { appId?: string }) {
   const [now, setNow] = useState(() => new Date())
   const [clockView, setClockView] = useState<ClockView>('analog')
+  const lastHourRef = useRef<number>(-1)
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setNow(new Date())
+      setNow((prev) => {
+        const next = new Date()
+        const h = next.getHours()
+        if (next.getMinutes() === 0 && next.getSeconds() === 0 && h !== lastHourRef.current) {
+          lastHourRef.current = h
+          dispatchWidgetSignal({ source: appId, event: h === 0 ? 'clock:midnight' : 'clock:hour', payload: { hour: h } })
+        }
+        return next
+      })
     }, 1000)
     return () => window.clearInterval(timer)
   }, [])

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { useAppStore } from '../store/useAppStore'
-import { addWidgetSimulationIntentListener } from './widgetSimulationEvents'
+import { addWidgetSimulationIntentListener, dispatchWidgetSignal } from './widgetSimulationEvents'
 
 interface DesktopWidgetProps {
   appId?: string
@@ -113,6 +113,12 @@ export function GalleryWidget({ appId, onClose, onMinimize, onFocus, windowState
       }
     })
   }, [appId, showNext, showPrevious])
+
+  // Emit slide-changed signal whenever the current asset changes
+  useEffect(() => {
+    if (!current) return
+    dispatchWidgetSignal({ source: appId ?? 'gallery', event: 'gallery:slide-changed', payload: { assetId: current.id } })
+  }, [current?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <DesktopWindow

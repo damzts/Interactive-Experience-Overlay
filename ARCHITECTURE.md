@@ -126,21 +126,25 @@ Third-party managers should be wrapped in `SafeManagerProxy` which quarantines a
 | `WidgetRepository` | `widgets`, `widget_layouts`, `widget_layout_items` |
 | `EventRepository` | `source_events` |
 | `ThemeRepository` | `desktop_config`, `desktop_ambiance` |
+| `ReactiveChainRepository` | `reactive_chains` |
 
 Config service remains as thin coordinator: cache invalidation, socket broadcast, defaults injection.
 
 ### Reactive Widget Chains
 
-The `reactive_chains` SQLite table enables automatic widget-to-widget reactions:
+The `reactive_chains` SQLite table enables automatic widget-to-widget reactions. **`DesktopConfigService` owns and routes all reactive chains** — it is the wire router.
 
 ```
-widget:signal(source, event, payload)
+widget emits DOM signal (dispatchWidgetSignal)
+  → useSocket forwards to kernel (socket.emit 'widget:signal')
   → DesktopConfigService.routeWidgetSignal(source, event)
-  → finds matching chains in reactive_chains
-  → fires target actions (open/close/toggle/custom)
+  → finds matching enabled rows in reactive_chains
+  → fires target actions:
+      open / close / toggle  →  direct widget state change
+      custom action          →  widget:chain:action signal to overlay
 ```
 
-Configure chains via direct SQLite insert (admin UI to be built separately):
+Configure chains via the Admin Wires panel (`/api/wires`) or direct SQLite:
 ```sql
 INSERT INTO reactive_chains VALUES ('chain-1', 'weather', 'storm', 'particles', 'rain-preset', 1)
 ```
@@ -293,10 +297,24 @@ Widgets talk to each other via two channels:
 
 | Channel | How | When to use |
 |---------|-----|-------------|
-| **DOM intent bus** | `CustomEvent` on `document` | Widget-to-widget, in-process, no kernel involvement. Fast. |
+| **DOM intent bus** | `CustomEvent` on `window` | Widget-to-widget, in-process, no kernel involvement. Fast. |
 | **Server-mediated** | Widget → kernel → broadcast → DOM bus | When the interaction needs to be coordinated, persisted, or visible to admin. |
 
 Widgets never import each other directly. The bus is fire-and-forget — if the target widget isn't mounted, the event is silently dropped.
+
+**Signal flow (pub/sub wiring):**
+
+```
+Widget state change
+  → dispatchWidgetSignal({ source: appId, event, payload })   ← DOM bus
+  → useSocket addWidgetSignalListener                          ← forwarder
+  → socket.emit('widget:signal', ...)                          ← kernel syscall
+  → DesktopConfigService.routeWidgetSignal()                   ← wire router
+  → matching reactive_chains rows
+  → widget:toggle / widget:chain:action signal to overlay      ← kernel signal
+```
+
+Each widget type declares its pub/sub vocabulary as a `WidgetIntentManifest` (static, code-defined). The Admin **Wires** panel reads these manifests to populate the source/target picker, and persists connections to `reactive_chains`.
 
 ---
 

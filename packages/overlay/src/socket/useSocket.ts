@@ -4,6 +4,7 @@ import type { DesktopRuntimeStatePayload } from '@ieomlabs/shared'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
 import { useSignalReceiver } from './useSignalReceiver'
+import { addWidgetSignalListener } from '../desktop/widgetSimulationEvents'
 
 /** Connects all socket events to the app store. Mount once — inside App. */
 export function useSocket() {
@@ -13,6 +14,13 @@ export function useSocket() {
 
   // Mount all signal handlers from signalMap
   useSignalReceiver()
+
+  // Forward DOM widget signals to the kernel for reactive chain routing
+  useEffect(() => {
+    return addWidgetSignalListener((detail) => {
+      socket.emit('widget:signal', detail)
+    })
+  }, [])
 
   // On connect: fetch current state via queries (not signals — signals are push-only)
   useEffect(() => {
