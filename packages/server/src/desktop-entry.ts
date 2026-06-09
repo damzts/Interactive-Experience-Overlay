@@ -297,6 +297,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // Wire POV → overlay relay for all participants (LAN and cloud)
   povOrchestrator.onSwitch((_prev, next) => {
+    logger.info(`[pov-relay] switch → ${next}`)
     overlayRelay.switchTo(hubConnection.getAudioTrack(next), hubConnection.getVideoTrack(next))
       .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
   })
@@ -315,6 +316,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   io.on('connection', (socket) => {
     socket.on('pov:subscribe', () => {
+      logger.info('[pov-relay] overlay subscribed')
       overlayRelay.createOffer((event, payload) => socket.emit(event, payload))
         .catch(e => logger.error('[pov-relay] createOffer failed:', e.message))
     })

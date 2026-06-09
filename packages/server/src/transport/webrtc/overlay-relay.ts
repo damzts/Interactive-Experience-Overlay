@@ -37,6 +37,14 @@ export class OverlayRelay {
       }
     })
 
+    this.pc.iceConnectionStateChange.subscribe(() => {
+      logger.info(`[overlay-relay] ICE state: ${this.pc?.iceConnectionState}`)
+    })
+
+    this.pc.connectionStateChange.subscribe(() => {
+      logger.info(`[overlay-relay] connection state: ${this.pc?.connectionState}`)
+    })
+
     if (this.audioTrack || this.videoTrack) {
       this.scheduleNegotiate()
     }
@@ -59,14 +67,16 @@ export class OverlayRelay {
 
   private async doNegotiate(): Promise<void> {
     if (!this.pc || !this.sendSignal || this.offered) return
-    if (!this.videoTrack) return
+    if (!this.videoTrack) { logger.warn('[overlay-relay] doNegotiate: no video track'); return }
     this.offered = true
     this.offeredVideoTrack = this.videoTrack
 
     this.pc.addTrack(this.videoTrack)
+    logger.info('[overlay-relay] creating offer')
 
     const offer = await this.pc.createOffer()
     await this.pc.setLocalDescription(offer)
+    logger.info('[overlay-relay] offer sent to overlay')
     this.sendSignal('pov:offer', { sdp: this.pc.localDescription!.sdp })
   }
 
@@ -84,8 +94,8 @@ export class OverlayRelay {
       throw err
     }
 
-    // If track changed while negotiating (re-offer created new track objects), replace now
     if (this.videoTrack && this.videoTrack !== this.offeredVideoTrack) {
+      logger.info('[overlay-relay] replacing stale video track after answer')
       const sender = this.pc.getSenders().find(s => s.track?.kind === 'video')
       if (sender) await sender.replaceTrack(this.videoTrack)
     }
