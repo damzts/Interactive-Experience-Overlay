@@ -15,7 +15,8 @@ import fastifyStatic from '@fastify/static'
 import fastifyMultipart from '@fastify/multipart'
 import { Server as SocketIOServer } from 'socket.io'
 import { existsSync, mkdirSync, createWriteStream, readFileSync } from 'fs'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { pipeline } from 'stream/promises'
 import logger from './lib/logger.js'
 
@@ -97,16 +98,31 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const { dbPath, port = 3000, assetsDir, overlayDir, adminDir, cloudUrl, getToken } = options
   let boundPort = port
 
+  // ── TLS (self-signed cert for LAN dev) ────────────────────────
+  const certDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'scripts', 'certs')
+  const certPath = join(certDir, 'cert.pem')
+  const keyPath = join(certDir, 'key.pem')
+  const hasCert = existsSync(certPath) && existsSync(keyPath)
+  if (hasCert) logger.info('[server] HTTPS enabled (self-signed cert)')
+
   // ── CORS origin allowlist ──────────────────────────────────────
-  const corsOrigins: string[] = process.env['CORS_ORIGINS']
+  // In LAN/dev mode allow all origins — connections come from trusted local network.
+  // In production (CORS_ORIGINS env set), restrict to the explicit list.
+  const corsOrigins: string[] | true = process.env['CORS_ORIGINS']
     ? process.env['CORS_ORIGINS'].split(',').map((o) => o.trim()).filter(Boolean)
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173']
+    : true  // allow all origins in local dev / LAN mode
 
   // ── Database ─────────────────────────────────────────────────
   const db = initDesktopDatabase(dbPath)
 
   // ── Fastify ───────────────────────────────────────────────────
-  const app = Fastify({ logger: { level: 'warn' } })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const app: FastifyInstance = hasCert
+    ? (Fastify as any)({
+        logger: { level: 'warn' },
+        https: { key: readFileSync(keyPath), cert: readFileSync(certPath) },
+      })
+    : Fastify({ logger: { level: 'warn' } })
   await app.register(fastifyCors, { origin: corsOrigins, credentials: true })
   await app.register(fastifyCookie)
 
@@ -385,7 +401,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   async function start(): Promise<void> {
     await kernel.boot()
-    await app.listen({ port: boundPort, host: '127.0.0.1' })
+    await app.listen({ port: boundPort, host: '0.0.0.0' })
     const address = app.server.address()
     if (address && typeof address === 'object') boundPort = address.port
   }
@@ -421,7 +437,7 @@ if (shouldAutoStart) {
     pluginsDir: join(monorepo, 'plugins'),
   }).then(async (server) => {
     await server.start()
-    logger.info(`[server] listening on http://localhost:${server.getPort()}`)
+    logger.info(`[server] listening on http${existsSync(join(import.meta.dirname, '..', '..', '..', 'scripts', 'certs', 'cert.pem')) ? 's' : ''}://localhost:${server.getPort()}`)
   }).catch((err) => {
     logger.error({ err }, '[server] failed to start')
     process.exit(1)

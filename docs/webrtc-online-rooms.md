@@ -31,6 +31,16 @@ The signaling happens entirely over the local Socket.IO connection — no cloud 
 
 LAN participants and cloud participants are interchangeable from the hub's perspective. Both enter the same POV scoring and switching pipeline. Both can be active simultaneously.
 
+### HTTPS requirement for LAN WebRTC
+
+Browsers enforce that `getUserMedia` (camera/mic access) and other sensitive APIs are only available in [secure contexts](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts). `localhost` is always a secure context, but any other origin (including a LAN IP like `192.168.x.x`) must be served over HTTPS.
+
+**Setup:** Run `node scripts/generate-cert.js` once to generate a self-signed certificate at `scripts/certs/`. The server auto-detects the cert on startup and switches to HTTPS. Restart after generating.
+
+**Guest devices:** Navigate to `https://<host-ip>:3000/join`. The browser will show a security warning for the self-signed cert — click "Advanced → Proceed" once per device. After that, `getUserMedia` works normally.
+
+The cert files are gitignored. Regenerate them at any time — the server picks up the new cert on next restart.
+
 ### Why LAN join was added
 
 Every multi-participant scenario previously required the cloud service — even a simple two-person setup at the same desk. This was an unnecessary barrier for local streaming setups. The cloud adds cost and latency for something a direct connection handles better.
