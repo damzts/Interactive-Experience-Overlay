@@ -303,8 +303,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // Auto-select first participant; relay fresh tracks on re-offer for active camera
   hubConnection.onTrack((userId) => {
-    const isLan = userId.startsWith('lan-')
-    if (!povOrchestrator.activeCameraId && (!isLan || povOrchestrator.lanParticipantsEnabled)) {
+    if (!povOrchestrator.activeCameraId) {
       povOrchestrator.switcher.manualSelect(userId)
     } else if (userId === povOrchestrator.activeCameraId) {
       overlayRelay.switchTo(hubConnection.getAudioTrack(userId), hubConnection.getVideoTrack(userId))
