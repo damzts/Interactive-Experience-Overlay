@@ -68,11 +68,11 @@ The engine is presentation-agnostic. It manages state, schedules events, runs am
 
 ## What the engine does
 
-The engine has eight distinct responsibilities:
+The engine has eleven distinct responsibilities:
 
 **State machine** — owns the current scene and valid transitions between scenes. Nothing outside the engine decides what the current visual state is.
 
-**Effect pipeline** — a registry of named visual effects (glitch, death, static burst, etc.) that any event or trigger can fire without knowing how they're rendered.
+**Effect pipeline** — a registry of named visual effects (glitch, death, static burst, etc.) that any event or trigger can fire without knowing how they're rendered. Effects support an optional per-instance `sfx` override to play a custom sound URL instead of the built-in SFX map.
 
 **Transition system** — animated state changes with configurable exit and intro pipelines. Transitions are data — a list of steps — not code.
 
@@ -85,6 +85,12 @@ The engine has eight distinct responsibilities:
 **Config persistence** — stores everything that should survive a restart in SQLite. Admin saves write here. The engine never reads SQLite on the real-time rendering path.
 
 **Real-time bridge** — Socket.IO handlers that sync engine state to all connected clients and accept commands from them. This is the only surface the overlay touches.
+
+**Show sequencer** — scripted show pipelines. A `ShowDefinition` is an ordered list of `ShowStep` records (each with a `delayMs` and an `EventAction`). POST `/api/shows/:id/run` starts the chain; POST `/api/shows/:id/cancel` aborts it. Each step fires via `scheduler:fired` so the existing action dispatch path handles it — the sequencer only needs to know about `obs-stream` actions, which it executes directly through `ObsBridge`.
+
+**Twitch chat bridge** — connects to Twitch IRC over WebSocket (anonymous read-only via `justinfan` nick, or authenticated). Parses IRCv3 PRIVMSG tags and emits `chat:message` onto the KernelBus, which is forwarded to the overlay via `bus:custom`. `ChatReactionManager` sits on top and fires configured effects and actions when chat messages match keyword, command, or regex rules.
+
+**OBS bridge** — full bidirectional OBS WebSocket integration. Records streaming, recording, and virtual camera state; emits `obs:stream:started/stopped`, `obs:recording:started/stopped`, and `obs:virtualcam:changed` events on the KernelBus. Show sequencer and automation rules can start/stop streams via the `obs-stream` `EventAction` kind.
 
 ## What the engine exposes
 
@@ -106,24 +112,30 @@ packages/server/src/
 │   └── managers/           # All kernel managers — the engine brain
 │       ├── scene.ts        # SceneMachine — state machine
 │       ├── ambiance.ts     # AmbianceManager — widget simulation (2-phase)
-│       ├── ambiance.signals.ts   # KernelEvents augmentation for ambiance:tick
+│       ├── ambiance.signals.ts      # KernelEvents augmentation for ambiance:tick
 │       ├── scheduler.ts    # EventScheduler — time/idle triggers
-│       ├── scheduler.signals.ts  # KernelEvents augmentation for scheduler:fired
+│       ├── scheduler.signals.ts     # KernelEvents augmentation for scheduler:fired
 │       ├── config.ts       # DesktopConfigService — SQLite persistence + widget wires
-│       ├── config.signals.ts     # KernelEvents augmentation for config:changed
+│       ├── config.signals.ts        # KernelEvents augmentation for config:changed
 │       ├── automation.ts   # AutomationManager — persisted "when event X → do Y" rules
 │       ├── runtime.ts      # RuntimeStateStore — in-memory session state (incl. overlaySocketId)
-│       ├── obs.ts          # ObsBridge — OBS WebSocket bridge
+│       ├── obs.ts          # ObsBridge — OBS WebSocket bridge (stream/record/vcam state + actions)
+│       ├── obs.signals.ts           # KernelEvents augmentation for obs:stream/recording/virtualcam
+│       ├── showSequencer.ts         # ShowSequencer — scripted multi-step show pipelines
+│       ├── showSequencer.signals.ts # KernelEvents augmentation for show:step
+│       ├── twitchChat.ts            # TwitchChatManager — IRC-over-WS, emits chat:message
+│       ├── twitchChat.signals.ts    # KernelEvents augmentation for chat:message, chat:connected
+│       ├── chatReactions.ts         # ChatReactionManager — keyword/command/regex → effects/actions
 │       └── pov.ts          # POVOrchestrator — video switching
 ├── transport/
-│   ├── http/               # Fastify routes (config, media, archive, room, automation)
+│   ├── http/               # Fastify routes (config, media, archive, room, automation, shows, wires)
 │   ├── socket/             # Socket.IO handlers (all domain modules)
 │   └── webrtc/             # werift hub + overlay relay + cloud signaling
 ├── db/
-│   ├── desktop-db.ts       # SQLite init + migrations (incl. automation_rules table)
+│   ├── desktop-db.ts       # SQLite init + migrations (addColumn helper, all table schemas)
 │   └── repositories/       # Focused CRUD: SceneRepository, WidgetRepository,
 │                           #   EventRepository, ThemeRepository, UserRepository,
-│                           #   AutomationRuleRepository
+│                           #   AutomationRuleRepository, WidgetWireRepository
 ├── lib/
 │   ├── defaults.ts         # loadDefaultConfig() — returns bootstrapConfig()
 │   └── bootstrapConfig.ts  # bootstrapConfig() — assembles AppConfig from WIDGET_DEFINITIONS
@@ -140,6 +152,10 @@ packages/server/src/
 - "Add an automation rule" → `POST /api/automation/rules` or see `kernel/managers/automation.ts`
 - "Add a bus event for a manager" → create `kernel/managers/yourmanager.signals.ts`, see `docs/manager-authoring.md`
 - "Change fresh-install defaults" → `lib/bootstrapConfig.ts`
+- "Set up a scripted show pipeline" → `kernel/managers/showSequencer.ts`, `GET/POST /api/shows`
+- "Connect Twitch chat" → `kernel/managers/twitchChat.ts` (config: `AppConfig.twitch`)
+- "React to chat messages" → `kernel/managers/chatReactions.ts` (config: `AppConfig.chatReactions`)
+- "React to OBS stream/record events" → `kernel/managers/obs.signals.ts` + automation rules
 
 ## Manager lifecycle
 

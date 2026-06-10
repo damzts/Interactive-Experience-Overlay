@@ -51,6 +51,21 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `bus:custom` | `{ event: string; payload: unknown }` | Manager calls `bus.emitCustom()` | Forward custom manager event to overlay |
 | `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Widget wire fires a non-toggle action | Widget receives custom wire action |
 
+### `bus:custom` event catalog
+
+The `bus:custom` signal is a generic envelope. The inner `event` field determines the meaning:
+
+| Inner event | Payload | Emitted by | When |
+|-------------|---------|-----------|------|
+| `chat:message` | `{ user, text, color, badges[], channel, source: 'twitch'\|'simulation' }` | TwitchChatManager | Every Twitch PRIVMSG received |
+| `chat:connected` | `{ channel }` | TwitchChatManager | IRC JOIN confirmed |
+| `obs:stream:started` | `{}` | ObsBridge | OBS starts streaming |
+| `obs:stream:stopped` | `{}` | ObsBridge | OBS stops streaming |
+| `obs:recording:started` | `{}` | ObsBridge | OBS starts recording |
+| `obs:recording:stopped` | `{}` | ObsBridge | OBS stops recording |
+| `obs:virtualcam:changed` | `{ active: boolean }` | ObsBridge | Virtual camera toggled |
+| `show:step` | `{ showId, stepIndex, label }` | ShowSequencer | Each step of a running show executes |
+
 ---
 
 ## Commands (Overlay/Admin → Kernel)

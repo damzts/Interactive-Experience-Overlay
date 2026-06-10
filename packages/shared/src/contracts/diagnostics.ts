@@ -57,6 +57,7 @@ export interface ObsStatusPayload {
   lastError: string | null
   virtualCamActive: boolean
   streaming: boolean
+  recording?: boolean
   overlaySourceAdded: boolean
 }
 

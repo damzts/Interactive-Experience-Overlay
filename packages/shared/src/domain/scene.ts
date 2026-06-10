@@ -116,6 +116,7 @@ export interface SceneDefaultSnapshot {
   onEntry?: string[]
   onExit?: string[]
   musicTrack?: string
+  ambientTrack?: string
 }
 
 // ── Media asset entry ────────────────────────────────────────────
@@ -148,6 +149,9 @@ export interface Scene {
   onExit?: string[]
   /** Background music track URL to play when this scene is active. */
   musicTrack?: string
+  /** Independent ambient audio track URL (crowd noise, room tone, etc.).
+   *  Persists across scene musicTrack changes — only replaced when ambientTrack itself changes. */
+  ambientTrack?: string
   /** Show the Win98 desktop layer while this scene is active. Default: false */
   showDesktop?: boolean
   /** Persisted factory snapshot used to restore this scene to defaults. */

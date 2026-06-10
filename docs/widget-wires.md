@@ -62,6 +62,33 @@ Active immediately. Enable/disable individual wires with the toggle in the wire 
 
 ---
 
+## Scene conditions
+
+A wire can be restricted to fire only in specific scenes by setting a `condition`:
+
+```ts
+// Only fires when the current scene is DESKTOP
+wire.condition = { sceneIs: ['DESKTOP'] }
+```
+
+The condition is evaluated **client-side** in `useSocket.ts` — no server round-trip. If `condition.sceneIs` is set and the current `visualState` is not in the list, the wire is skipped silently.
+
+The `condition` field is persisted in the `widget_wires` table as `condition_json` (JSON string, nullable). Pass it in `POST /api/wires` or `PATCH /api/wires/:id` bodies alongside the other wire fields.
+
+```ts
+// POST /api/wires
+{
+  "triggerWidgetId": "weather",
+  "triggerEvent": "weather:storm",
+  "targetWidgetId": "gallery",
+  "targetAction": "gallery:next",
+  "enabled": true,
+  "condition": { "sceneIs": ["DESKTOP"] }
+}
+```
+
+---
+
 ## Manifests — declaring signals and actions
 
 Each built-in widget declares its manifest in its co-located definition file under

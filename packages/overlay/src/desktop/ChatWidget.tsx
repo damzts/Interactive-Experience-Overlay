@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { addWidgetSimulationIntentListener, dispatchWidgetSignal, addWidgetChainActionListener } from './widgetSimulationEvents'
+import { socket } from '../socket/client'
 
 interface Message {
   user: string
@@ -51,6 +52,20 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
       setMessages((prev) => [...prev, msg])
       dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
     })
+  }, [appId])
+
+  // Real Twitch messages arrive via the server bus:custom channel
+  useEffect(() => {
+    const handleBusCustom = (payload: { event: string; payload: unknown }) => {
+      if (payload.event !== 'chat:message') return
+      const m = payload.payload as { user?: string; text?: string; color?: string }
+      if (!m?.user || !m?.text) return
+      const msg: Message = { user: m.user, text: m.text, color: m.color || '#ffffff' }
+      setMessages((prev) => [...prev, msg])
+      dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
+    }
+    socket.on('bus:custom', handleBusCustom)
+    return () => { socket.off('bus:custom', handleBusCustom) }
   }, [appId])
 
   const handleSend = () => {

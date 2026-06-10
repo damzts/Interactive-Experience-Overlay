@@ -62,12 +62,21 @@ export interface EventAmbiancePatchAction {
   patch: Partial<AmbianceWidgetSimulationConfig>
 }
 
+export interface EventObsStreamAction {
+  kind: 'obs-stream'
+  action: 'start' | 'stop'
+  /** Optional RTMP URL override passed to ObsBridge.startStreaming() */
+  rtmpUrl?: string
+  streamKey?: string
+}
+
 export type EventAction =
   | EventDesktopConfigAction
   | EventWidgetThemeOverridesAction
   | EventWidgetLayoutAction
   | EventWidgetCommandAction
   | EventAmbiancePatchAction
+  | EventObsStreamAction
 
 // ── Event entity ─────────────────────────────────────────────────
 

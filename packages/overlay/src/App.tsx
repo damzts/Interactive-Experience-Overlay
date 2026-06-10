@@ -39,6 +39,10 @@ export default function App() {
     audioEngine.playMusic(scene?.musicTrack ?? null)
   }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    audioEngine.playAmbient(scene?.ambientTrack ?? null)
+  }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div
       id="overlay-root"

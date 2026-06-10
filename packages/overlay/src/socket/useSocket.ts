@@ -19,10 +19,18 @@ export function useSocket() {
   // open/close/toggle still go to the kernel (they mutate authoritative open state).
   useEffect(() => {
     return addWidgetSignalListener((detail) => {
-      const wires = useAppStore.getState().config.widgetWires ?? []
-      const matches = wires.filter(
-        (w) => w.enabled && w.triggerWidgetId === detail.source && w.triggerEvent === detail.event
-      )
+      const store = useAppStore.getState()
+      const wires = store.config.widgetWires ?? []
+      const currentState = store.visualState
+      const matches = wires.filter((w) => {
+        if (!w.enabled) return false
+        if (w.triggerWidgetId !== detail.source || w.triggerEvent !== detail.event) return false
+        // Enforce scene condition if set
+        if (w.condition?.sceneIs?.length) {
+          return w.condition.sceneIs.includes(currentState as STATE)
+        }
+        return true
+      })
       for (const wire of matches) {
         if (wire.targetAction === 'open' || wire.targetAction === 'close' || wire.targetAction === 'toggle') {
           socket.emit('widget:signal', { source: detail.source, event: detail.event, payload: detail.payload })

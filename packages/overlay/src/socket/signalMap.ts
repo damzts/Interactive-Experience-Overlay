@@ -84,10 +84,19 @@ export const signalHandlers: SignalHandlerMap = {
     const { effects } = payload
     if (!effects.length) return
     effects.forEach((eff) => {
-      const sfx = SFX_MAP[eff.type]
       const fire = () => {
         dispatchEffect(eff.type, eff.cfg)
-        if (sfx) audioEngine.play(sfx)
+        if (eff.sfx) {
+          // Custom sfx: URL path gets playUrl(), bare ID gets play()
+          if (eff.sfx.includes('/')) {
+            void audioEngine.playUrl(eff.sfx)
+          } else {
+            audioEngine.play(eff.sfx as Parameters<typeof audioEngine.play>[0])
+          }
+        } else {
+          const sfxId = SFX_MAP[eff.type]
+          if (sfxId) audioEngine.play(sfxId)
+        }
       }
       const delay = eff.delay ?? 0
       if (delay > 0) setTimeout(fire, delay * 1000)

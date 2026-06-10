@@ -204,7 +204,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       this.writeSections(config, [
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
-        'sourceEvents', 'sourceMedia', 'sourcePresets', 'sourceTransitions',
+        'sourceEvents', 'sourceMedia', 'sourcePresets', 'sourceTransitions', 'shows',
       ])
     }
 
@@ -238,6 +238,9 @@ export class DesktopConfigService implements Manager, IConfigService {
       sourcePresets:    this.loadSourcePresets(),
       sourceTransitions: this.loadSourceTransitions(),
       widgetWires:      this.widgetWires.list(),
+      shows:            this.loadShows(),
+      twitch:           this.loadTwitchConfig(),
+      chatReactions:    this.loadChatReactions(),
     }
     return this.withConfigDefaults(base)
   }
@@ -319,6 +322,9 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'sourceMedia':      this.saveSourceMedia(cfg.sourceMedia ?? []); break
           case 'sourcePresets':    this.saveSourcePresets(cfg.sourcePresets ?? []); break
           case 'sourceTransitions': this.saveSourceTransitions(cfg.sourceTransitions ?? []); break
+          case 'shows':            this.saveShows(cfg.shows ?? []); break
+          case 'twitch':           if (cfg.twitch) this.saveTwitchConfig(cfg.twitch); break
+          case 'chatReactions':    this.saveChatReactions(cfg.chatReactions ?? []); break
         }
       }
     })
@@ -378,6 +384,76 @@ export class DesktopConfigService implements Manager, IConfigService {
     }
   }
 
+  private saveShows(shows: NonNullable<AppConfig['shows']>): void {
+    this.db.prepare('DELETE FROM shows').run()
+    const insert = this.db.prepare('INSERT INTO shows (id, label, steps_json) VALUES (?, ?, ?)')
+    for (const show of shows) {
+      insert.run(show.id, show.label, JSON.stringify(show.steps ?? []))
+    }
+  }
+
+  private loadShows(): NonNullable<AppConfig['shows']> {
+    const rows = this.db.prepare('SELECT * FROM shows').all() as Array<{
+      id: string; label: string; steps_json: string
+    }>
+    return rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      steps: JSON.parse(row.steps_json ?? '[]'),
+    }))
+  }
+
+  private saveTwitchConfig(cfg: NonNullable<AppConfig['twitch']>): void {
+    this.db.prepare(
+      'INSERT OR REPLACE INTO twitch_config (id, channel, access_token, enabled) VALUES (1, ?, ?, ?)'
+    ).run(cfg.channel, cfg.accessToken ?? null, cfg.enabled ? 1 : 0)
+  }
+
+  private loadTwitchConfig(): AppConfig['twitch'] {
+    const row = this.db.prepare('SELECT * FROM twitch_config WHERE id = 1').get() as {
+      channel: string; access_token: string | null; enabled: number
+    } | undefined
+    if (!row) return undefined
+    return {
+      channel: row.channel,
+      enabled: row.enabled === 1,
+      accessToken: row.access_token ?? undefined,
+    }
+  }
+
+  private saveChatReactions(rules: NonNullable<AppConfig['chatReactions']>): void {
+    this.db.prepare('DELETE FROM chat_reactions').run()
+    const insert = this.db.prepare(
+      'INSERT INTO chat_reactions (id, label, enabled, match_json, actions_json, effects_json, cooldown_ms) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    for (const rule of rules) {
+      insert.run(
+        rule.id, rule.label, rule.enabled ? 1 : 0,
+        JSON.stringify(rule.match),
+        rule.actions ? JSON.stringify(rule.actions) : null,
+        rule.effects ? JSON.stringify(rule.effects) : null,
+        rule.cooldownMs ?? 0,
+      )
+    }
+  }
+
+  private loadChatReactions(): NonNullable<AppConfig['chatReactions']> {
+    const rows = this.db.prepare('SELECT * FROM chat_reactions').all() as Array<{
+      id: string; label: string; enabled: number;
+      match_json: string; actions_json: string | null;
+      effects_json: string | null; cooldown_ms: number
+    }>
+    return rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      enabled: row.enabled === 1,
+      match: JSON.parse(row.match_json),
+      actions: row.actions_json ? JSON.parse(row.actions_json) : undefined,
+      effects: row.effects_json ? JSON.parse(row.effects_json) : undefined,
+      cooldownMs: row.cooldown_ms || undefined,
+    }))
+  }
+
   // ── Private: Config Defaults ─────────────────────────────────
 
   private withConfigDefaults(next: AppConfig): AppConfig {
@@ -429,6 +505,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       sourcePresets: next.sourcePresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],
       widgetWires: next.widgetWires ?? [],
+      shows: next.shows ?? [],
     }
   }
 

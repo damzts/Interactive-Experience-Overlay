@@ -42,8 +42,12 @@ import { wiresRoute } from './transport/http/wires.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
 import { AutomationManager } from './kernel/managers/automation.js'
+import { ShowSequencer } from './kernel/managers/showSequencer.js'
+import { TwitchChatManager } from './kernel/managers/twitchChat.js'
+import { ChatReactionManager } from './kernel/managers/chatReactions.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
+import { showsRoute } from './transport/http/shows.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
 import { authRoutes } from './auth/authRoutes.js'
 import { registerAuthMiddleware } from './auth/authMiddleware.js'
@@ -247,11 +251,17 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
-  const obsBridge = new ObsBridge(io, machine)
+  const obsBridge = new ObsBridge(io, machine, kernel.bus)
   const hubConnection = new HubConnection()
   const povOrchestrator = new POVOrchestrator(hubConnection)
   const automationRepo = new AutomationRuleRepository(db)
   const automationManager = new AutomationManager(automationRepo, kernel.bus, io, machine)
+  const showSequencer = new ShowSequencer(
+    () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
+    kernel.bus,
+    machine,
+    obsBridge,
+  )
   kernel.register(configService)
   kernel.register(runtimeState)
   kernel.register(machine, { after: ['DesktopConfigService'] })
@@ -260,6 +270,20 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   kernel.register(obsBridge, { after: ['SceneMachine'] })
   kernel.register(povOrchestrator)
   kernel.register(automationManager, { after: ['DesktopConfigService', 'SceneMachine', 'EventScheduler', 'AmbianceManager'] })
+  kernel.register(showSequencer, { after: ['DesktopConfigService', 'SceneMachine'] })
+
+  const twitchChatManager = new TwitchChatManager(
+    () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
+    kernel.bus,
+  )
+  kernel.register(twitchChatManager, { after: ['DesktopConfigService'] })
+  configService.onConfigUpdate((config) => twitchChatManager.onConfigChange(config))
+
+  const chatReactionManager = new ChatReactionManager(
+    () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
+    kernel.bus,
+  )
+  kernel.register(chatReactionManager, { after: ['DesktopConfigService', 'TwitchChatManager'] })
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
   machine.on('state:change', (payload: { state: import('@ieomlabs/shared').STATE }) => {
@@ -275,6 +299,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     bus: kernel.bus,
     runtimeState,
     configService,
+    obsBridge,
   })
 
   registerOverlayNamespace(io)
@@ -288,6 +313,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
   await app.register(automationRoute, { automationRepo })
+  await app.register(showsRoute, { sequencer: showSequencer, configService })
   await app.register(wiresRoute, {
     wires: configService.widgetWires,
     getManifests: () => WIDGET_INTENT_MANIFESTS,

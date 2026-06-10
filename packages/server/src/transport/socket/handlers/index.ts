@@ -34,6 +34,7 @@ export function setupSocketHandlers(
     bus?: import('../../../kernel/bus.js').KernelBus
     runtimeState?: import('../../../kernel/managers/runtime.js').RuntimeStateStore
     configService?: import('../../../kernel/managers/config.js').IConfigService
+    obsBridge?: import('../../../kernel/managers/obs.js').ObsBridge
   },
 ): { isOverlaySlotTaken: () => boolean } {
   if (options?.runtimeState) {
@@ -51,6 +52,7 @@ export function setupSocketHandlers(
     getObsStatus: options?.getObsStatus,
     getManagerStatuses: options?.getManagerStatuses,
     bus: options?.bus ?? (() => { throw new Error('[kernel] bus required') })(),
+    obsBridge: options?.obsBridge,
 
     runtimeConfigOverride: {},
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,

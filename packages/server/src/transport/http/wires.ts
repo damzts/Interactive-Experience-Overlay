@@ -20,11 +20,11 @@ export async function wiresRoute(app: FastifyInstance, opts: WiresRouteOptions) 
   app.get('/api/wires/manifests', async () => getManifests())
 
   app.post<{ Body: Omit<WidgetWire, 'id'> }>('/api/wires', async (req, reply) => {
-    const { triggerWidgetId, triggerEvent, targetWidgetId, targetAction, enabled = true } = req.body
+    const { triggerWidgetId, triggerEvent, targetWidgetId, targetAction, enabled = true, condition } = req.body
     if (!triggerWidgetId || !triggerEvent || !targetWidgetId || !targetAction) {
       return reply.code(400).send({ ok: false, error: 'Missing required fields' })
     }
-    const wire = wires.create({ id: randomUUID(), triggerWidgetId, triggerEvent, targetWidgetId, targetAction, enabled })
+    const wire = wires.create({ id: randomUUID(), triggerWidgetId, triggerEvent, targetWidgetId, targetAction, enabled, condition })
     broadcast()
     return { ok: true, wire }
   })

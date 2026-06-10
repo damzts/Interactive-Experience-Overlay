@@ -14,6 +14,7 @@ import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
 import type { KernelBus } from '../../../kernel/bus.js'
 import type { RuntimeStateStore } from '../../../kernel/managers/runtime.js'
 import type { IConfigService } from '../../../kernel/managers/config.js'
+import type { ObsBridge } from '../../../kernel/managers/obs.js'
 
 export type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 export type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -29,6 +30,7 @@ export interface HandlerContext {
   getObsStatus?: () => ObsStatusPayload
   getManagerStatuses?: () => Record<string, import('@ieomlabs/shared').ManagerStatus>
   bus: KernelBus
+  obsBridge?: ObsBridge
 
   runtimeConfigOverride: RuntimeConfigOverridePayload
   cachedUserConfig: AppConfig

@@ -154,6 +154,17 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
+    if (action.kind === 'obs-stream') {
+      if (ctx.obsBridge) {
+        if (action.action === 'start') {
+          void ctx.obsBridge.startStreaming(action.rtmpUrl, action.streamKey)
+        } else {
+          void ctx.obsBridge.stopStreaming()
+        }
+      }
+      continue
+    }
+
     applyRuntimeConfigOverride(ctx, {
       desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
     })

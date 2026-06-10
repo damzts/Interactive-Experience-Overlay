@@ -132,7 +132,8 @@ const SCHEMA = `
     trigger_event TEXT NOT NULL,
     target_widget_id TEXT NOT NULL,
     target_action TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1
+    enabled INTEGER NOT NULL DEFAULT 1,
+    condition_json TEXT
   );
 
   CREATE TABLE IF NOT EXISTS source_transitions (
@@ -187,6 +188,29 @@ const SCHEMA = `
     action_kind TEXT NOT NULL CHECK(action_kind IN ('widget:toggle','scene:change','bus:emit')),
     action_params_json TEXT NOT NULL DEFAULT '{}'
   );
+
+  CREATE TABLE IF NOT EXISTS shows (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL DEFAULT '',
+    steps_json TEXT NOT NULL DEFAULT '[]'
+  );
+
+  CREATE TABLE IF NOT EXISTS twitch_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    channel TEXT NOT NULL DEFAULT '',
+    access_token TEXT,
+    enabled INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS chat_reactions (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    match_json TEXT NOT NULL DEFAULT '{}',
+    actions_json TEXT,
+    effects_json TEXT,
+    cooldown_ms INTEGER NOT NULL DEFAULT 0
+  );
 `
 
 export function initDesktopDatabase(dbPath: string): DesktopDatabase {
@@ -197,6 +221,13 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.exec(SCHEMA)
+
+  // Column migrations — idempotent ALTER TABLE guards for columns added after initial schema
+  const addColumn = (table: string, column: string, def: string) => {
+    try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`) } catch { /* already exists */ }
+  }
+  addColumn('scenes', 'ambient_track', 'TEXT')
+  addColumn('widget_wires', 'condition_json', 'TEXT')
   return db
 }
 

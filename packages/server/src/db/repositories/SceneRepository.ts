@@ -15,7 +15,8 @@ export class SceneRepository {
       id: string; label: string; background_opaque: number;
       sources_json: string | null; style_json: string | null;
       lobby_config_json: string | null; on_entry_json: string | null;
-      on_exit_json: string | null; music_track: string | null; show_desktop: number | null;
+      on_exit_json: string | null; music_track: string | null;
+      ambient_track: string | null; show_desktop: number | null;
     }>
     const scenes: Record<string, Scene> = {}
     for (const row of rows) {
@@ -27,6 +28,7 @@ export class SceneRepository {
         onEntry: parseJson<string[]>(row.on_entry_json, []),
         onExit: parseJson<string[]>(row.on_exit_json, []),
         musicTrack: row.music_track ?? undefined,
+        ambientTrack: row.ambient_track ?? undefined,
         showDesktop: row.show_desktop === 1,
       }
     }
@@ -36,8 +38,8 @@ export class SceneRepository {
   save(scenes: Record<string, Scene>): void {
     this.db.prepare('DELETE FROM scenes').run()
     const insert = this.db.prepare(`
-      INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, show_desktop)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, ambient_track, show_desktop)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const scene of Object.values(scenes)) {
       insert.run(scene.id, scene.label, boolToInt(scene.backgroundOpaque),
@@ -46,7 +48,7 @@ export class SceneRepository {
         scene.lobbyConfig ? JSON.stringify(scene.lobbyConfig) : null,
         JSON.stringify(scene.onEntry ?? []),
         JSON.stringify(scene.onExit ?? []),
-        scene.musicTrack ?? null, boolToInt(scene.showDesktop ?? false))
+        scene.musicTrack ?? null, scene.ambientTrack ?? null, boolToInt(scene.showDesktop ?? false))
     }
   }
 }

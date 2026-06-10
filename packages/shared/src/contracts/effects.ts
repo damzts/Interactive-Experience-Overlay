@@ -151,21 +151,21 @@ export interface ReviveOverlayConfig extends BuiltInOverlayTimingConfig {}
 // delay?: seconds before this effect fires within the stack (default 0)
 
 export type EffectConfig =
-  | { type: 'desktop-notification'; cfg: DesktopNotificationEffectConfig; delay?: number }
-  | { type: 'notification-box'; cfg: NotificationBoxConfig; delay?: number }
-  | { type: 'terminal-toast';   cfg: TerminalToastConfig;   delay?: number }
-  | { type: 'floaties';         cfg: FloatiesConfig;        delay?: number }
-  | { type: 'corruption-burst'; cfg: CorruptionBurstConfig; delay?: number }
-  | { type: 'network-glitch';   cfg: NetworkGlitchConfig;   delay?: number }
-  | { type: 'vignette-pulse';   cfg: VignettePulseConfig;   delay?: number }
-  | { type: 'screen-shake';     cfg: ScreenShakeConfig;     delay?: number }
-  | { type: 'typewriter';       cfg: TypewriterConfig;      delay?: number }
-  | { type: 'static-burst';     cfg: StaticBurstConfig;     delay?: number }
-  | { type: 'image-overlay';    cfg: ImageOverlayConfig;    delay?: number }
-  | { type: 'video-overlay';    cfg: VideoOverlayConfig;    delay?: number }
-  | { type: 'death-overlay';    cfg: DeathOverlayConfig;    delay?: number }
-  | { type: 'victory-overlay';  cfg: VictoryOverlayConfig;  delay?: number }
-  | { type: 'revive-overlay';   cfg: ReviveOverlayConfig;   delay?: number }
+  | { type: 'desktop-notification'; cfg: DesktopNotificationEffectConfig; delay?: number; sfx?: string }
+  | { type: 'notification-box'; cfg: NotificationBoxConfig; delay?: number; sfx?: string }
+  | { type: 'terminal-toast';   cfg: TerminalToastConfig;   delay?: number; sfx?: string }
+  | { type: 'floaties';         cfg: FloatiesConfig;        delay?: number; sfx?: string }
+  | { type: 'corruption-burst'; cfg: CorruptionBurstConfig; delay?: number; sfx?: string }
+  | { type: 'network-glitch';   cfg: NetworkGlitchConfig;   delay?: number; sfx?: string }
+  | { type: 'vignette-pulse';   cfg: VignettePulseConfig;   delay?: number; sfx?: string }
+  | { type: 'screen-shake';     cfg: ScreenShakeConfig;     delay?: number; sfx?: string }
+  | { type: 'typewriter';       cfg: TypewriterConfig;      delay?: number; sfx?: string }
+  | { type: 'static-burst';     cfg: StaticBurstConfig;     delay?: number; sfx?: string }
+  | { type: 'image-overlay';    cfg: ImageOverlayConfig;    delay?: number; sfx?: string }
+  | { type: 'video-overlay';    cfg: VideoOverlayConfig;    delay?: number; sfx?: string }
+  | { type: 'death-overlay';    cfg: DeathOverlayConfig;    delay?: number; sfx?: string }
+  | { type: 'victory-overlay';  cfg: VictoryOverlayConfig;  delay?: number; sfx?: string }
+  | { type: 'revive-overlay';   cfg: ReviveOverlayConfig;   delay?: number; sfx?: string }
 
 // ── Overlay trigger payload (admin → server → overlay) ──────────
 

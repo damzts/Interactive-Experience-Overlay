@@ -16,6 +16,7 @@ import type { Server } from 'socket.io'
 import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieomlabs/shared'
 import logger from '../../lib/logger.js'
 import type { SceneMachine } from './scene.js'
+import type { KernelBus } from '../bus.js'
 
 const OBS_RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000] as const
 
@@ -34,6 +35,7 @@ export class ObsBridge implements Manager {
   private lastError: string | null = null
   private _virtualCamActive = false
   private _streaming = false
+  private _recording = false
   private _overlaySourceAdded = false
   /** URL que el Browser Source usa para mostrar el overlay */
   private overlayUrl = 'http://localhost:3000/overlay'
@@ -41,6 +43,7 @@ export class ObsBridge implements Manager {
   constructor(
     private io: Server,
     private machine: SceneMachine,
+    private bus?: KernelBus,
   ) {
     this.obs.on('ConnectionClosed', () => {
       if (this.connected) {
@@ -102,6 +105,7 @@ export class ObsBridge implements Manager {
       lastError: this.lastError,
       virtualCamActive: this._virtualCamActive,
       streaming: this._streaming,
+      recording: this._recording,
       overlaySourceAdded: this._overlaySourceAdded,
     }
   }
@@ -240,7 +244,39 @@ export class ObsBridge implements Manager {
     this.io.emit('obs:status', this.getStatus())
   }
 
-  private setupListeners() { }
+  private setupListeners() {
+    this.obs.on('StreamStateChanged', (data: { outputActive: boolean }) => {
+      const prev = this._streaming
+      this._streaming = data.outputActive
+      this.emitStatus()
+      if (!prev && data.outputActive) {
+        logger.info('[obs] stream started (event)')
+        this.bus?.emitCustom('obs:stream:started', {})
+      } else if (prev && !data.outputActive) {
+        logger.info('[obs] stream stopped (event)')
+        this.bus?.emitCustom('obs:stream:stopped', {})
+      }
+    })
+
+    this.obs.on('RecordStateChanged', (data: { outputActive: boolean }) => {
+      const prev = this._recording
+      this._recording = data.outputActive
+      this.emitStatus()
+      if (!prev && data.outputActive) {
+        logger.info('[obs] recording started (event)')
+        this.bus?.emitCustom('obs:recording:started', {})
+      } else if (prev && !data.outputActive) {
+        logger.info('[obs] recording stopped (event)')
+        this.bus?.emitCustom('obs:recording:stopped', {})
+      }
+    })
+
+    this.obs.on('VirtualcamStateChanged', (data: { outputActive: boolean }) => {
+      this._virtualCamActive = data.outputActive
+      this.emitStatus()
+      this.bus?.emitCustom('obs:virtualcam:changed', { active: data.outputActive })
+    })
+  }
 
   private async openConnection() {
     if (this.connecting) return
