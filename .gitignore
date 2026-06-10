@@ -11,3 +11,6 @@ dist/
 *.mp3
 *.jpg
 scripts/certs/
+.claude/
+.kiro/
+.vscode/

@@ -88,8 +88,9 @@ export class EventScheduler implements Manager {
   private buildQueue() {
     if (this.queueTimer) { clearTimeout(this.queueTimer); this.queueTimer = null }
     const now = Date.now()
-    this.queue = (this.getConfig().sourceEvents ?? [])
-      .filter((e) => e.auto.enabled && e.auto.mode === 'interval' && this.eventHasWork(e))
+    const allEvents = this.getConfig().sourceEvents ?? []
+    const eligible = allEvents.filter((e) => e.auto.enabled && e.auto.mode === 'interval' && this.eventHasWork(e))
+    this.queue = eligible
       .map((e) => ({ eventId: e.id, fireAt: now + jitterMs(e.auto.intervalMin) }))
     this.queue.sort((a, b) => a.fireAt - b.fireAt)
     this.armQueueTimer()

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { STATE } from '@ieomlabs/shared'
 import type { EventConfig, AutoTrigger } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
+import { socket } from '../../socket/client'
 import {
   ConfigCard, ConfigPageIntro, ConfigSectionPanel,
   Toggle, Slider, ConfigChoiceButton,
@@ -42,6 +43,7 @@ function EventRow({
 }) {
   const [expanded, setExpanded] = useState(false)
   const auto = event.auto
+  const hasWork = event.effects.length > 0 || (event.actions?.length ?? 0) > 0
 
   return (
     <ConfigCard>
@@ -59,9 +61,13 @@ function EventRow({
                 ? `interval · ${auto.intervalMin}m · ${Math.round(auto.chance * 100)}% chance`
                 : `idle · after ${auto.idleMin}m idle · ${Math.round(auto.chance * 100)}% chance`
               : 'disabled'}
+            {' · '}{event.actions?.length ?? 0} actions · {event.effects.length} fx
           </span>
         </span>
         <div className="flex items-center gap-2 shrink-0">
+          {!hasWork && auto.enabled && (
+            <span className="text-[9px] font-bold text-rose-400 tracking-widest">NO WORK</span>
+          )}
           {diag?.due && (
             <span className="text-[9px] font-bold text-amber-400 tracking-widest">DUE</span>
           )}
@@ -78,6 +84,12 @@ function EventRow({
 
       {expanded && (
         <div className="mt-4 space-y-4 border-t border-white/8 pt-4">
+          {!hasWork && (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-4 py-3 text-[10px] text-rose-300">
+              This event has no actions or effects — it will be skipped by the scheduler even if enabled. Add actions or effects in the Asset Library → Events tab.
+            </div>
+          )}
+
           {/* Mode */}
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Mode</div>
@@ -134,6 +146,18 @@ function EventRow({
               {diag.idleTriggered && <div className="text-zinc-600">Idle already triggered this session</div>}
             </div>
           )}
+
+          {/* Fire Now */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={!hasWork}
+              onClick={() => socket.emit('event:preview', event)}
+              className="rounded-md border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-300 transition hover:border-cyan-400/60 hover:bg-cyan-500/20 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ▶ Fire Now
+            </button>
+          </div>
         </div>
       )}
     </ConfigCard>

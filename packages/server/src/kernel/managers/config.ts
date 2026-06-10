@@ -8,6 +8,7 @@
 
 import type Database from 'better-sqlite3'
 import type { Server as SocketIOServer } from 'socket.io'
+import logger from '../../lib/logger.js'
 import {
   DEFAULT_CONFIG,
   DEFAULT_SYSTEM_WIDGET_LAYOUTS,
@@ -96,7 +97,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   private _cachedConfig: AppConfig | null = null
 
   get cachedConfig(): AppConfig | null { return this._cachedConfig }
-  private onConfigUpdateListener: ((config: AppConfig) => void) | null = null
+  private onConfigUpdateListeners: Array<(config: AppConfig) => void> = []
 
   private readonly sceneRepo: SceneRepository
   private readonly widgetRepo: WidgetRepository
@@ -171,7 +172,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   onConfigUpdate(listener: (config: AppConfig) => void) {
-    this.onConfigUpdateListener = listener
+    this.onConfigUpdateListeners.push(listener)
   }
 
   invalidateCache(): void {
@@ -192,6 +193,9 @@ export class DesktopConfigService implements Manager, IConfigService {
     if (this._cachedConfig) return this._cachedConfig
     const config = this.loadFromDb()
     this._cachedConfig = config
+    for (const listener of this.onConfigUpdateListeners) {
+      listener(config)
+    }
     return config
   }
 
@@ -217,7 +221,11 @@ export class DesktopConfigService implements Manager, IConfigService {
       }
     }
 
-    this.onConfigUpdateListener?.(config)
+    if (this.onConfigUpdateListeners.length > 0) {
+      for (const listener of this.onConfigUpdateListeners) {
+        listener(config)
+      }
+    }
     return config
   }
 

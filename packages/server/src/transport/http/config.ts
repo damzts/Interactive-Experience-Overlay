@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { SceneMachine } from '../../kernel/managers/scene.js'
+import logger from '../../lib/logger.js'
 import { mergeAppConfig, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type { AppConfig, Application, Scene } from '@ieomlabs/shared'
 
@@ -31,7 +32,8 @@ export async function configRoute(app: FastifyInstance, opts: ConfigRouteOptions
   app.patch<{ Body: Partial<AppConfig> }>('/api/config', async (req, reply) => {
     try {
       const config = await configService.getForUser(req.userId)
-      await configService.persistForUser(req.userId, mergeAppConfig(config, req.body), req.body)
+      const merged = mergeAppConfig(config, req.body)
+      await configService.persistForUser(req.userId, merged, req.body)
       return { ok: true }
     } catch (e) {
       return reply.code(400).send({ ok: false, error: String(e) })
