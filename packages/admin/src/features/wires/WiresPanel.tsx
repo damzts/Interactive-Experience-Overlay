@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { WidgetWire, WidgetIntentManifest } from '@ieomlabs/shared'
+import { STATE, NAVIGABLE_STATES } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { fetchWires, fetchWireManifests, createWire, patchWire, deleteWire } from '../../api/wiresApi'
 import { ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
@@ -22,10 +23,11 @@ export function WiresPanel() {
   const [loading, setLoading] = useState(true)
 
   // Pending new wire state
-  const [srcWidgetId, setSrcWidgetId] = useState<string | null>(null)
-  const [srcEvent,    setSrcEvent]    = useState<string | null>(null)
-  const [dstWidgetId, setDstWidgetId] = useState<string | null>(null)
-  const [dstAction,   setDstAction]   = useState<string | null>(null)
+  const [srcWidgetId,  setSrcWidgetId]  = useState<string | null>(null)
+  const [srcEvent,     setSrcEvent]     = useState<string | null>(null)
+  const [dstWidgetId,  setDstWidgetId]  = useState<string | null>(null)
+  const [dstAction,    setDstAction]    = useState<string | null>(null)
+  const [sceneFilter,  setSceneFilter]  = useState<STATE[]>([])
   const [adding, setAdding] = useState(false)
 
   // Map componentType → manifest for quick lookup
@@ -72,10 +74,12 @@ export function WiresPanel() {
         targetWidgetId:  dstWidgetId!,
         targetAction:    dstAction!,
         enabled: true,
+        condition: sceneFilter.length > 0 ? { sceneIs: sceneFilter } : undefined,
       })
       setWires((prev) => [...prev, wire])
       setSrcWidgetId(null); setSrcEvent(null)
       setDstWidgetId(null); setDstAction(null)
+      setSceneFilter([])
     } finally { setAdding(false) }
   }
 
@@ -195,6 +199,36 @@ export function WiresPanel() {
           </div>
         </div>
 
+        {/* Scene condition */}
+        <div className="mt-4 space-y-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Scene condition <span className="normal-case font-normal text-zinc-600">(optional — leave blank to fire in any scene)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {NAVIGABLE_STATES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSceneFilter((prev) =>
+                  prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                )}
+                className={`rounded-lg px-3 py-1.5 text-xs transition-colors border ${
+                  sceneFilter.includes(s)
+                    ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-300'
+                    : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+            {sceneFilter.length > 0 && (
+              <button type="button" onClick={() => setSceneFilter([])} className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">
+                clear
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Add button */}
         <div className="mt-4 flex items-center gap-3">
           {canAdd && (
@@ -202,6 +236,9 @@ export function WiresPanel() {
               <span className="text-emerald-400">{widgetLabel(srcWidgetId!, applications)} › {srcEvent}</span>
               {' → '}
               <span className="text-violet-400">{widgetLabel(dstWidgetId!, applications)} › {dstAction}</span>
+              {sceneFilter.length > 0 && (
+                <span className="text-cyan-400"> (in {sceneFilter.join(', ')})</span>
+              )}
             </div>
           )}
           <Button
@@ -243,6 +280,11 @@ export function WiresPanel() {
                     <span className="text-violet-400 font-medium truncate">{widgetLabel(wire.targetWidgetId, applications)}</span>
                     <span className="text-zinc-600">›</span>
                     <span className="font-mono text-zinc-400 truncate">{wire.targetAction}</span>
+                    {wire.condition?.sceneIs?.length && (
+                      <span className="ml-1 font-mono text-[9px] text-cyan-500/80 shrink-0">
+                        [{wire.condition.sceneIs.join(', ')}]
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -250,6 +292,7 @@ export function WiresPanel() {
                 <Toggle
                   checked={wire.enabled}
                   onChange={() => handleToggle(wire)}
+                  size="sm"
                   label={wire.enabled ? 'Enabled' : 'Disabled'}
                 />
 

@@ -18,6 +18,8 @@ import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
 import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { WiresPanel } from '../wires/WiresPanel'
+import { ShowsPanel } from '../shows/ShowsPanel'
+import { TwitchPanel } from '../twitch/TwitchPanel'
 import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
@@ -119,7 +121,9 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'scene-machine') return <SceneMachinePanel />
   if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
-  if (selected.kind === 'wires') return <WiresPanel />
+  if (selected.kind === 'wires')  return <WiresPanel />
+  if (selected.kind === 'shows')  return <ShowsPanel />
+  if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
   if (selected.kind === 'asset-catalog')     return <AssetLibraryPanel tab="catalog" />
   if (selected.kind === 'asset-events')      return <AssetLibraryPanel tab="events" />
@@ -143,6 +147,8 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
   { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
   { icon: '⚙', label: 'Kernel Health',      kind: 'kernel-health' },
   { icon: '⚡', label: 'Wires',             kind: 'wires' },
+  { icon: '🎭', label: 'Show Sequencer',    kind: 'shows' },
+  { icon: '💬', label: 'Twitch Chat',       kind: 'twitch' },
   { icon: '⚙', label: 'Settings',           kind: 'settings' },
 ]
 
@@ -277,6 +283,8 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
   else if (selected.kind === 'wires')         { headerIcon = '⚡'; headerLabel = 'Wires';         headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
+  else if (selected.kind === 'shows')  { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
+  else if (selected.kind === 'twitch') { headerIcon = '💬'; headerLabel = 'Twitch Chat';    headerMeta = 'Engine' }
 
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden bg-[var(--color-bg-base)]">

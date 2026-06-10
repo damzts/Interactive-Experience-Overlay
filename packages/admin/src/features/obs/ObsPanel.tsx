@@ -85,6 +85,29 @@ export function ObsPanel() {
             )}
           </div>
 
+          {obsStatus.connected && (
+            <div className="mt-2 flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${obsStatus.streaming ? 'bg-red-400 animate-pulse' : 'bg-zinc-700'}`} />
+                <span className={`text-[10px] font-semibold ${obsStatus.streaming ? 'text-red-400' : 'text-zinc-600'}`}>
+                  {obsStatus.streaming ? 'Streaming' : 'Not streaming'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${obsStatus.recording ? 'bg-amber-400' : 'bg-zinc-700'}`} />
+                <span className={`text-[10px] font-semibold ${obsStatus.recording ? 'text-amber-400' : 'text-zinc-600'}`}>
+                  {obsStatus.recording ? 'Recording' : 'Not recording'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${obsStatus.virtualCamActive ? 'bg-violet-400' : 'bg-zinc-700'}`} />
+                <span className={`text-[10px] font-semibold ${obsStatus.virtualCamActive ? 'text-violet-400' : 'text-zinc-600'}`}>
+                  {obsStatus.virtualCamActive ? 'VCam on' : 'VCam off'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {!obsStatus.connected && obsStatus.nextRetryAt && (
             <div className="mt-2 text-[10px] text-zinc-500 tabular-nums">
               Attempt {obsStatus.reconnectAttempt} · {formatCountdown(obsStatus.nextRetryAt)}

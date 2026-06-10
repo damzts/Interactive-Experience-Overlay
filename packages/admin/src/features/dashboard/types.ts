@@ -27,6 +27,8 @@ export type SelectedItem =
   | { kind: 'asset-transitions' }
   | { kind: 'kernel-health' }
   | { kind: 'wires' }
+  | { kind: 'shows' }
+  | { kind: 'twitch' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState
