@@ -194,7 +194,7 @@ export class CloudSignaling {
           ?? (msg.payload['name'] as string)
         // If name looks like an email or is missing, use a generic guest name
         const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
-        if (userId) {
+        if (userId && !this.knownParticipants.has(userId)) {
           logger.info(`[cloud-signaling] participant joined: ${userId} (${displayName})`)
           this.participantNames.set(userId, displayName)
           this.pov.addParticipant(userId, displayName)
@@ -234,6 +234,11 @@ export class CloudSignaling {
           logger.info(`[cloud-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
           this.pendingCandidates.set(userId, [])
           this.hub.handleOffer(userId, sdp).then(answerSdp => {
+            if (!answerSdp) {
+              logger.error(`[cloud-signaling] handleOffer returned empty SDP for ${userId}, skipping answer`)
+              this.pendingCandidates.delete(userId)
+              return
+            }
             this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
             // Flush buffered ICE candidates after answer
             const buffered = this.pendingCandidates.get(userId) ?? []
