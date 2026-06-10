@@ -10,15 +10,56 @@ independent — you use one, both, or neither.
 ## Anatomy of a widget
 
 ```
-packages/overlay/src/desktop/YourWidget.tsx   ← your component
-packages/shared/src/contracts/socket.ts        ← add intent kinds here (if signalable)
-packages/overlay/src/desktop/widgetRegistry.ts ← register for lazy loading
-packages/shared/src/domain/application.ts      ← add componentType value here
+packages/shared/src/widgets/scoreboard/definition.ts  ← declare metadata (Step 1)
+packages/overlay/src/desktop/ScoreboardWidget.tsx      ← your component (Step 2)
+packages/overlay/src/desktop/widgetRegistry.ts         ← register for lazy loading (Step 3)
+packages/shared/src/contracts/socket.ts                ← add intent kinds here (if signalable)
 ```
+
+The `definition.ts` file is the single source of truth for the widget's metadata:
+its `id`, `componentType`, default size, z-index, and signal/action manifests. All
+lookup tables in `defaults.ts` and `widgetIntentManifests.ts` derive from it
+automatically — no other files need editing for a new system widget.
 
 ---
 
-## Step 1 — Create the component
+## Step 1 — Create the widget definition
+
+```ts
+// packages/shared/src/widgets/scoreboard/definition.ts
+import type { WidgetDefinition } from '../../contracts/widget.js'
+
+export const scoreboardDefinition: WidgetDefinition = {
+  id: 'scoreboard',
+  componentType: 'scoreboard',
+  defaultSize: { width: 260, height: 200 },
+  zIndex: 110,
+  system: false,   // true only for widgets that ship with every install
+  emits: [
+    { event: 'scoreboard:score-changed', label: 'Score changed' },
+  ],
+  accepts: [
+    { action: 'scoreboard:reset', label: 'Reset scores' },
+  ],
+}
+```
+
+Then re-export it from `packages/shared/src/widgets/index.ts`:
+
+```ts
+import { scoreboardDefinition } from './scoreboard/definition.js'
+export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
+  // existing definitions...
+  scoreboardDefinition,
+]
+```
+
+Rebuild `@ieomlabs/shared` (`pnpm --filter @ieomlabs/shared build`) so the server
+and overlay type-check against the updated dist.
+
+---
+
+## Step 2 — Create the component
 
 ```tsx
 // packages/overlay/src/desktop/ScoreboardWidget.tsx
@@ -124,7 +165,7 @@ export function ScoreboardWidget({
 
 ---
 
-## Step 2 — Register in the widget manifest
+## Step 3 — Register in the widget manifest
 
 In `widgetRegistry.ts`, add one line to `widgetManifest`:
 
@@ -135,13 +176,9 @@ In `widgetRegistry.ts`, add one line to `widgetManifest`:
 This is the only registration needed. The component loads lazily on first open
 and caches for all subsequent opens.
 
----
-
-## Step 3 — Add the componentType to shared
-
-In `packages/shared/src/domain/application.ts`, add `'scoreboard'` to
-`WidgetComponentType`. This is what links an `Application` config entry to your
-component:
+You also need to add `'scoreboard'` to `WidgetComponentType` in
+`packages/shared/src/domain/application.ts`. This links an `Application` config
+entry to your component:
 
 ```ts
 export type WidgetComponentType =
@@ -150,9 +187,6 @@ export type WidgetComponentType =
   | 'chat'
   // ...
 ```
-
-The admin panel uses this type to let the user configure which component a
-widget application uses.
 
 ---
 

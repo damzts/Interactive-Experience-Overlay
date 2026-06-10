@@ -9,7 +9,35 @@
  * event pair in the Socket.IO contract.
  */
 import type { AppConfig } from '../domain/config.js'
-import type { WidgetComponentType } from '../domain/application.js'
+import type { Application, WidgetComponentType } from '../domain/application.js'
+
+/**
+ * Declaration-first widget descriptor.
+ * Create one per system widget in packages/shared/src/widgets/{id}/definition.ts.
+ * All lookup tables (sizes, z-indices, component mappings, intent manifests) are derived
+ * from these declarations — adding a widget only requires this file + a React component.
+ */
+export interface WidgetDefinition {
+  /** Canonical widget instance ID, e.g. 'gallery', 'clock-tower' */
+  id: string
+  /** React component type key, e.g. 'gallery', 'weather-console' */
+  componentType: Exclude<WidgetComponentType, 'generic'>
+  /** Default window dimensions */
+  defaultSize: { width: number; height: number }
+  /** Default z-index for stacking order */
+  zIndex: number
+  /** True for all built-in system widgets */
+  system: boolean
+  /** Signals this widget type can emit */
+  emits: WidgetSignalDescriptor[]
+  /** Actions this widget type can receive */
+  accepts: WidgetActionDescriptor[]
+  /**
+   * Optional seed Application record used by bootstrapConfig to create
+   * the initial row for fresh installs. Fields here override the derived defaults.
+   */
+  defaultInstance?: Partial<Application>
+}
 
 /** Context provided to a widget when it mounts. */
 export interface WidgetContext {

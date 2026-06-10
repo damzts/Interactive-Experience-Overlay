@@ -64,12 +64,17 @@ Active immediately. Enable/disable individual wires with the toggle in the wire 
 
 ## Manifests — declaring signals and actions
 
-All built-in widget manifests live in `packages/shared/src/constants/widgetIntentManifests.ts` as a static `WIDGET_INTENT_MANIFESTS` array. This is pure data — no runtime, no DOM, importable by both the overlay and the server.
+Each built-in widget declares its manifest in its co-located definition file under
+`packages/shared/src/widgets/{id}/definition.ts`. The `WIDGET_INTENT_MANIFESTS`
+array is **derived** from these definitions automatically — you never edit
+`widgetIntentManifests.ts` directly.
 
 ```ts
-// In shared/src/constants/widgetIntentManifests.ts:
-{
+// packages/shared/src/widgets/weather/definition.ts
+export const weatherDefinition: WidgetDefinition = {
+  id: 'weather',
   componentType: 'weather-console',
+  // ...
   emits: [
     { event: 'weather:storm',  label: 'Storm detected' },
     { event: 'weather:clear',  label: 'Clear sky' },
@@ -77,6 +82,14 @@ All built-in widget manifests live in `packages/shared/src/constants/widgetInten
   ],
   accepts: [],
 }
+```
+
+`WIDGET_INTENT_MANIFESTS` in `widgetIntentManifests.ts` maps over `WIDGET_DEFINITIONS`:
+
+```ts
+export const WIDGET_INTENT_MANIFESTS = WIDGET_DEFINITIONS.map(d => ({
+  componentType: d.componentType, emits: d.emits, accepts: d.accepts,
+}))
 ```
 
 The server serves these at `GET /api/wires/manifests`. The admin Wires panel fetches from there — it never needs the overlay to be running to populate the pickers.
@@ -142,14 +155,16 @@ The overlay's `useSocket` evaluates chains. The kernel's `widget.ts` only handle
 
 ## Adding a new signal to a widget
 
-1. Add the event to `WIDGET_INTENT_MANIFESTS` in `packages/shared/src/constants/widgetIntentManifests.ts`.
-2. Call `dispatchWidgetSignal({ source: appId, event: 'your:event' })` inside the widget at the state change site.
-3. Done — admin panel picks it up immediately on next manifest fetch.
+1. Add the event to the widget's `emits` array in `packages/shared/src/widgets/{id}/definition.ts`.
+2. Rebuild `@ieomlabs/shared` (`pnpm --filter @ieomlabs/shared build`) — `WIDGET_INTENT_MANIFESTS` re-derives automatically.
+3. Call `dispatchWidgetSignal({ source: appId, event: 'your:event' })` inside the widget at the state change site.
+4. Done — admin panel picks it up immediately on next manifest fetch.
 
 No schema changes. No socket contract changes. No server restart.
 
 ## Adding a new action to a widget
 
-1. Add the action to `accepts` in `WIDGET_INTENT_MANIFESTS`.
-2. Add an `addWidgetChainActionListener` handler inside the widget.
-3. Done.
+1. Add the action to the widget's `accepts` array in its `definition.ts`.
+2. Rebuild `@ieomlabs/shared`.
+3. Add an `addWidgetChainActionListener` handler inside the widget.
+4. Done.

@@ -14,17 +14,17 @@ export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket)
   })
 
   socket.on('ambiance:simulate:accepted', (payload: AmbianceSimulationAcceptedPayload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.ambianceManager.markSimulationAccepted(payload.actionId)
   })
 
   socket.on('ambiance:simulate:started', (payload: AmbianceSimulationStartedPayload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.ambianceManager.markSimulationStarted(payload.actionId)
   })
 
   socket.on('ambiance:simulate:done', (payload: AmbianceSimulationDonePayload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.ambianceManager.markSimulationCompleted(payload.actionId, payload)
     if (!payload.ok) {
       logger.warn(`[ambiance] Simulation failure: ${payload.widgetId} (${payload.action}, actionId=${payload.actionId})`)
@@ -32,12 +32,12 @@ export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket)
   })
 
   socket.on('cursor:mirror', (payload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     socket.broadcast.emit('cursor:mirror', payload)
   })
 
   socket.on('cursor:mirror:menu-timeline', (payload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     socket.broadcast.emit('cursor:mirror:menu-timeline', payload)
   })
 }

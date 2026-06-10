@@ -13,6 +13,7 @@ import type { EventScheduler } from '../../../kernel/managers/scheduler.js'
 import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
 import type { KernelBus } from '../../../kernel/bus.js'
 import type { RuntimeStateStore } from '../../../kernel/managers/runtime.js'
+import type { IConfigService } from '../../../kernel/managers/config.js'
 
 export type IO = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
 export type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>
@@ -24,14 +25,13 @@ export interface HandlerContext {
   scheduler: EventScheduler
   ambianceManager: AmbianceManager
   runtimeState: RuntimeStateStore
-  configService: any | null
+  configService: IConfigService | null
   getObsStatus?: () => ObsStatusPayload
   getManagerStatuses?: () => Record<string, import('@ieomlabs/shared').ManagerStatus>
-  bus?: KernelBus
+  bus: KernelBus
 
   runtimeConfigOverride: RuntimeConfigOverridePayload
   cachedUserConfig: AppConfig
 
-  overlaySocketId: string | null
   socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>
 }

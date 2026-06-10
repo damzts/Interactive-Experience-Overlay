@@ -15,10 +15,11 @@ Managers are the brain of the system. Each one owns its own state, lifecycle, an
 ## Anatomy of a manager
 
 ```
-packages/server/src/kernel/managers/yourmanager.ts   ← implementation
-packages/server/src/desktop-entry.ts                 ← register with kernel
-packages/shared/src/contracts/signals.ts             ← add signals (if emitting)
-packages/shared/src/contracts/commands.ts            ← add commands (if receiving)
+packages/server/src/kernel/managers/yourmanager.ts          ← implementation
+packages/server/src/kernel/managers/yourmanager.signals.ts  ← bus event declarations (if emitting)
+packages/server/src/desktop-entry.ts                        ← register with kernel
+packages/shared/src/contracts/signals.ts                    ← add signals (if emitting to overlay)
+packages/shared/src/contracts/commands.ts                   ← add commands (if receiving)
 ```
 
 ---
@@ -89,10 +90,32 @@ Registration order matters: `boot()` calls `init()` then `start()` in registrati
 
 ---
 
-## Step 3 — Publish bus events (if the manager needs to notify others)
+## Step 3 — Declare your bus events in a co-located signals file
+
+Each manager owns its own `KernelEvents` augmentation. Create a `yourmanager.signals.ts` file next to your manager:
 
 ```ts
-import { KernelBus } from '../bus.js'
+// packages/server/src/kernel/managers/yourmanager.signals.ts
+declare module '../bus.js' {
+  interface KernelEvents {
+    'your:event': { detail: string }
+  }
+}
+```
+
+Then side-effect import it in `packages/server/src/kernel/index.ts` so the augmentation is always in scope:
+
+```ts
+import './managers/yourmanager.signals.js'
+```
+
+**Never edit `kernel/bus.ts` to add events.** `KernelEvents` in `bus.ts` holds only the three events that have no owning manager: `scene:changed`, `overlay:connected`, `overlay:disconnected`. All other events live in their manager's `*.signals.ts` file.
+
+Emit from your manager:
+
+```ts
+import type { KernelBus } from '../bus.js'
+import './yourmanager.signals.js' // ensure augmentation is loaded
 
 export class YourManager implements Manager {
   constructor(private bus: KernelBus) {}
@@ -100,15 +123,6 @@ export class YourManager implements Manager {
   private somethingHappened() {
     this.bus.emit('your:event', { detail: '...' })
   }
-}
-```
-
-To add a new bus event, extend `KernelEvents` in `kernel/bus.ts`:
-
-```ts
-export interface KernelEvents {
-  // existing...
-  'your:event': { detail: string }
 }
 ```
 
@@ -162,6 +176,7 @@ Add the command type in `packages/shared/src/contracts/commands.ts`.
 - [ ] Communicates via `KernelBus`, not by importing other managers
 - [ ] Registered in `desktop-entry.ts` after its dependencies
 - [ ] If third-party / untrusted: wrapped in `SafeManagerProxy` before registration
-- [ ] Bus events (if any) added to `KernelEvents` in `kernel/bus.ts`
+- [ ] Bus events (if any) declared in a co-located `yourmanager.signals.ts` (never edit `kernel/bus.ts` directly)
+- [ ] `yourmanager.signals.ts` side-effect imported in `kernel/index.ts`
 - [ ] Socket signals (if any) added to `ServerToClientEvents` in `signals.ts`
 - [ ] Socket commands (if any) added to `ClientToServerEvents` in `commands.ts`

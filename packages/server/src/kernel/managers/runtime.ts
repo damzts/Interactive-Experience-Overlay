@@ -34,6 +34,7 @@ export class RuntimeStateStore implements Manager {
   private _currentScene: STATE = STATE.DESKTOP
   private _transitionInProgress = false
   private _overlayConnected = false
+  private _overlaySocketId: string | null = null
   private _ambianceLeaderSocketId: string | null = null
   private _openWidgetIds = new Set<string>()
   private _recycleBinFull = false
@@ -54,6 +55,9 @@ export class RuntimeStateStore implements Manager {
 
   get overlayConnected(): boolean { return this._overlayConnected }
   setOverlayConnected(v: boolean): void { this._overlayConnected = v }
+
+  get overlaySocketId(): string | null { return this._overlaySocketId }
+  setOverlaySocketId(id: string | null): void { this._overlaySocketId = id }
 
   get ambianceLeaderSocketId(): string | null { return this._ambianceLeaderSocketId }
   setAmbianceLeaderSocketId(id: string | null): void { this._ambianceLeaderSocketId = id }

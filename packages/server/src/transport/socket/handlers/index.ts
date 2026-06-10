@@ -33,7 +33,7 @@ export function setupSocketHandlers(
     getManagerStatuses?: () => Record<string, import('@ieomlabs/shared').ManagerStatus>
     bus?: import('../../../kernel/bus.js').KernelBus
     runtimeState?: import('../../../kernel/managers/runtime.js').RuntimeStateStore
-    configService?: any
+    configService?: import('../../../kernel/managers/config.js').IConfigService
   },
 ): { isOverlaySlotTaken: () => boolean } {
   if (options?.runtimeState) {
@@ -50,12 +50,11 @@ export function setupSocketHandlers(
     configService: options?.configService ?? null,
     getObsStatus: options?.getObsStatus,
     getManagerStatuses: options?.getManagerStatuses,
-    bus: options?.bus,
+    bus: options?.bus ?? (() => { throw new Error('[kernel] bus required') })(),
 
     runtimeConfigOverride: {},
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,
 
-    overlaySocketId: null,
     socketClientTypes: new Map(),
   }
 
@@ -70,7 +69,7 @@ export function setupSocketHandlers(
 
   // Ambiance manager reads open widget state and the overlay socket ID for dispatch
   ambianceManager.setOpenWidgetIdsGetter(() => ctx.runtimeState.openWidgetIds as Set<string>)
-  ambianceManager.setSimulationLeaderGetter(() => ctx.overlaySocketId)
+  ambianceManager.setSimulationLeaderGetter(() => ctx.runtimeState.overlaySocketId)
 
   scheduler.setDiagnosticsListener(() => queueRuntimeDiagnosticsEmit(ctx))
   ambianceManager.setDiagnosticsListener(() => queueRuntimeDiagnosticsEmit(ctx))
@@ -78,22 +77,11 @@ export function setupSocketHandlers(
   registerMachineListeners(ctx)
 
   // Forward custom:* bus events to all connected overlay/admin clients
-  if (options?.bus) {
-    const rawEmitter = (options.bus as any).emitter as import('events').EventEmitter | undefined
-    rawEmitter?.on('newListener', (event: string) => {
-      // no-op — just ensures listener count doesn't silently overflow
-    })
-    // Subscribe to all custom:* events via wildcard-style listener on the EventEmitter
-    // We monkey-patch emit to intercept 'custom:*' events and forward them
-    const origEmit = (options.bus as any).emitter.emit.bind((options.bus as any).emitter)
-    ;(options.bus as any).emitter.emit = function (event: string, payload: unknown) {
-      const result = origEmit(event, payload)
-      if (typeof event === 'string' && event.startsWith('custom:')) {
-        io.emit('bus:custom', { event: event.slice(7), payload })
-      }
-      return result
+  ctx.bus.onAny((event, payload) => {
+    if (typeof event === 'string' && event.startsWith('custom:')) {
+      io.emit('bus:custom', { event: event.slice(7), payload })
     }
-  }
+  })
 
   const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'unknown' => {
     const auth = socket.handshake.auth as { clientType?: string } | undefined
@@ -106,12 +94,13 @@ export function setupSocketHandlers(
     logger.info(`[socket] connected: ${socket.id} (${clientType})`)
 
     if (clientType === 'overlay') {
-      if (ctx.overlaySocketId && io.sockets.sockets.has(ctx.overlaySocketId)) {
+      const currentOverlayId = ctx.runtimeState.overlaySocketId
+      if (currentOverlayId && io.sockets.sockets.has(currentOverlayId)) {
         socket.emit('overlay:rejected', { reason: 'View is already opened, close that before opening new one' })
         setTimeout(() => socket.disconnect(true), 1000)
         return
       }
-      ctx.overlaySocketId = socket.id
+      ctx.runtimeState.setOverlaySocketId(socket.id)
       ambianceManager.setOverlayReady(false)
       ambianceManager.recordHistory('leader-elected', 'overlay connected', { leaderSocketId: socket.id })
       io.emit('overlay:owner', { socketId: socket.id })
@@ -127,7 +116,7 @@ export function setupSocketHandlers(
     }
 
     socket.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
-    socket.emit('overlay:owner', { socketId: ctx.overlaySocketId })
+    socket.emit('overlay:owner', { socketId: ctx.runtimeState.overlaySocketId })
     socket.emit('runtime:config:override', ctx.runtimeConfigOverride)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
@@ -148,8 +137,8 @@ export function setupSocketHandlers(
     socket.on('disconnect', () => {
       logger.info(`[socket] disconnected: ${socket.id}`)
       ctx.socketClientTypes.delete(socket.id)
-      if (socket.id === ctx.overlaySocketId) {
-        ctx.overlaySocketId = null
+      if (socket.id === ctx.runtimeState.overlaySocketId) {
+        ctx.runtimeState.setOverlaySocketId(null)
         ctx.runtimeState.resetSimulationMetrics()
         ambianceManager.markSimulationCompleted(undefined, undefined, { recordHistory: false })
         ambianceManager.setOverlayReady(false)
@@ -160,5 +149,5 @@ export function setupSocketHandlers(
     })
   })
 
-  return { isOverlaySlotTaken: () => ctx.overlaySocketId !== null && io.sockets.sockets.has(ctx.overlaySocketId) }
+  return { isOverlaySlotTaken: () => ctx.runtimeState.overlaySocketId !== null && io.sockets.sockets.has(ctx.runtimeState.overlaySocketId) }
 }

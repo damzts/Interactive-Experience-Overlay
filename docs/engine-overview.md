@@ -68,7 +68,7 @@ The engine is presentation-agnostic. It manages state, schedules events, runs am
 
 ## What the engine does
 
-The engine has seven distinct responsibilities:
+The engine has eight distinct responsibilities:
 
 **State machine** — owns the current scene and valid transitions between scenes. Nothing outside the engine decides what the current visual state is.
 
@@ -79,6 +79,8 @@ The engine has seven distinct responsibilities:
 **Scheduler** — fires configured events on time-based or idle-based triggers. The overlay doesn't poll; the engine pushes.
 
 **Ambiance manager** — autonomous behavior that makes the stream feel alive between human interactions. Selects widgets to "interact with" based on cooldown scoring, then orchestrates the full simulation lifecycle.
+
+**Automation layer** — persisted "when event X → do Y" rules evaluated against every KernelBus event. No scripting, no loops — field-match conditions only. Managed via `GET/POST/PATCH/DELETE /api/automation/rules`.
 
 **Config persistence** — stores everything that should survive a restart in SQLite. Admin saves write here. The engine never reads SQLite on the real-time rendering path.
 
@@ -99,26 +101,32 @@ Four things, in order of how often they change:
 packages/server/src/
 ├── kernel/
 │   ├── index.ts            # Kernel class — register(), boot(), shutdown()
-│   ├── bus.ts              # Internal event bus (KernelBus, KernelEvents, emitCustom)
+│   ├── bus.ts              # Internal event bus (KernelBus, KernelEvents, onAny, emitCustom)
 │   ├── SafeManagerProxy.ts # Quarantine wrapper for untrusted managers
 │   └── managers/           # All kernel managers — the engine brain
 │       ├── scene.ts        # SceneMachine — state machine
 │       ├── ambiance.ts     # AmbianceManager — widget simulation (2-phase)
+│       ├── ambiance.signals.ts   # KernelEvents augmentation for ambiance:tick
 │       ├── scheduler.ts    # EventScheduler — time/idle triggers
+│       ├── scheduler.signals.ts  # KernelEvents augmentation for scheduler:fired
 │       ├── config.ts       # DesktopConfigService — SQLite persistence + widget wires
-│       ├── runtime.ts      # RuntimeStateStore — in-memory session state
+│       ├── config.signals.ts     # KernelEvents augmentation for config:changed
+│       ├── automation.ts   # AutomationManager — persisted "when event X → do Y" rules
+│       ├── runtime.ts      # RuntimeStateStore — in-memory session state (incl. overlaySocketId)
 │       ├── obs.ts          # ObsBridge — OBS WebSocket bridge
 │       └── pov.ts          # POVOrchestrator — video switching
 ├── transport/
-│   ├── http/               # Fastify routes (config, media, archive, room)
+│   ├── http/               # Fastify routes (config, media, archive, room, automation)
 │   ├── socket/             # Socket.IO handlers (all domain modules)
 │   └── webrtc/             # werift hub + overlay relay + cloud signaling
 ├── db/
-│   ├── desktop-db.ts       # SQLite init + migrations
+│   ├── desktop-db.ts       # SQLite init + migrations (incl. automation_rules table)
 │   └── repositories/       # Focused CRUD: SceneRepository, WidgetRepository,
-│                           #   EventRepository, ThemeRepository, UserRepository
+│                           #   EventRepository, ThemeRepository, UserRepository,
+│                           #   AutomationRuleRepository
 ├── lib/
-│   └── defaults.ts         # loadDefaultConfig() — loads data/fixtures/default-config.json
+│   ├── defaults.ts         # loadDefaultConfig() — returns bootstrapConfig()
+│   └── bootstrapConfig.ts  # bootstrapConfig() — assembles AppConfig from WIDGET_DEFINITIONS
 ├── online/                 # Online room feature (composes kernel + transport)
 └── desktop-entry.ts        # Thin bootstrap — creates Kernel, registers managers
 ```
@@ -129,6 +137,9 @@ packages/server/src/
 - "Add a socket event handler" → `transport/socket/handlers/`
 - "Change how scenes transition" → `kernel/managers/scene.ts`
 - "Add a new manager" → see `docs/manager-authoring.md`
+- "Add an automation rule" → `POST /api/automation/rules` or see `kernel/managers/automation.ts`
+- "Add a bus event for a manager" → create `kernel/managers/yourmanager.signals.ts`, see `docs/manager-authoring.md`
+- "Change fresh-install defaults" → `lib/bootstrapConfig.ts`
 
 ## Manager lifecycle
 

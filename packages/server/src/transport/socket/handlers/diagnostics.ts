@@ -30,7 +30,7 @@ export function queueRuntimeDiagnosticsEmit(ctx: HandlerContext): void {
 
 export function registerDiagnosticsHandlers(ctx: HandlerContext, socket: AppSocket): void {
   socket.on('overlay:runtime:status', (payload: OverlayRuntimeStatusPayload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.ambianceManager.setOverlayReady(payload.ready)
     queueRuntimeDiagnosticsEmit(ctx)
   })

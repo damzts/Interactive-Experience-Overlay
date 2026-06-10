@@ -18,6 +18,12 @@ import logger from '../lib/logger.js'
 import type { Manager } from '@ieomlabs/shared'
 import { KernelBus } from './bus.js'
 
+// Import all manager signal augmentations so KernelEvents is fully typed
+// whenever this module is imported. New managers should add a signals.ts entry here.
+import './managers/scheduler.signals.js'
+import './managers/ambiance.signals.js'
+import './managers/config.signals.js'
+
 export { KernelBus } from './bus.js'
 export type { KernelEvents } from './bus.js'
 export { SafeManagerProxy } from './SafeManagerProxy.js'

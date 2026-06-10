@@ -25,7 +25,9 @@ An orchestrator module owns the overlay slot gate (one overlay at a time), conne
 
 ## The HandlerContext pattern
 
-All domain modules receive a single `HandlerContext` object by reference. This object holds all shared mutable state: the open widget set, the current runtime config override, the simulation leader socket ID, the overlay socket ID, and references to the server-level services (socket.io instance, config service, ambiance manager, etc.).
+All domain modules receive a single `HandlerContext` object by reference. This object holds all shared mutable state: the open widget set, the current runtime config override, the simulation leader socket ID, and references to the server-level services (socket.io instance, config service, ambiance manager, kernel bus, etc.).
+
+`bus` is a required field — every handler has access to it, typed as `KernelBus`. `configService` is typed as `IConfigService` (not `any`). The overlay socket ID is no longer stored in `HandlerContext`; it lives in `RuntimeStateStore` as `runtimeState.overlaySocketId` / `runtimeState.setOverlaySocketId(id)`.
 
 **Mutations are direct.** When the widget handler opens a widget, it mutates `context.openWidgetIds` directly. The scene handler reading `context.openWidgetIds` a millisecond later sees the updated value. There is no pub/sub between domain modules, no message passing, no copying.
 

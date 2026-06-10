@@ -92,10 +92,11 @@ The kernel handles multiple concerns through specialized **managers**. Each mana
 | **SceneMachine** | State machine | Tracks the current scene, validates transitions, emits state change signals. The backbone of the system. |
 | **AmbianceManager** | Autonomous simulation | Drives "alive" behavior — opens/closes widgets, triggers interactions on a timer. 2-phase state machine (pending → running). |
 | **EventScheduler** | Time & idle triggers | Fires events on intervals or after idle periods. Supports priority, cooldown, chance-based firing. |
-| **RuntimeStateStore** | Runtime state (RAM) | In-memory state for the live session: current scene, open widgets, overlay connection status. Zero I/O on hot path. |
+| **RuntimeStateStore** | Runtime state (RAM) | In-memory state for the live session: current scene, open widgets, overlay socket ID, simulation metrics. Zero I/O on hot path. |
 | **OBSBridge** | Hardware bridge | WebSocket connection to OBS Studio. Mirrors scene state, reacts to OBS events. |
 | **POVOrchestrator** | Video switching | Picks which camera feed to show on stream. Audio-reactive scoring + manual override. |
 | **HubConnection** | WebRTC SFU | werift-based hub that receives participant video tracks and relays them. |
+| **AutomationManager** | Rules engine | Evaluates persisted "when event X → do Y" rules against every KernelBus event. Field-match conditions only; no scripting. `bootPriority=100` — boots last. |
 
 ### Manager Plugin Interface
 
@@ -104,17 +105,20 @@ Every manager implements the `Manager` interface from `@ieomlabs/shared/contract
 ```typescript
 interface Manager {
   readonly name: string
-  readonly bootPriority?: number   // Lower value = boots first. Default: 0
+  readonly bootPriority?: number    // Lower value = boots first. Default: 0
   readonly configNamespace?: string // For future plugin config injection
   init(): Promise<void> | void
   start(): Promise<void> | void
   stop(): Promise<void> | void
   dispose(): Promise<void> | void
   status(): ManagerStatus
+  onConfigChange?(config: AppConfig, section: string): void  // optional — called on every config persist
 }
 ```
 
 Third-party managers should be wrapped in `SafeManagerProxy` which quarantines a manager after 3 errors in 60s and emits a `bus:custom manager:quarantined` event.
+
+Each manager declares its own KernelBus events in a co-located `*.signals.ts` file using TypeScript declaration merging (`declare module '../bus'`). The base `KernelEvents` interface in `bus.ts` contains only kernel orchestration events (`scene:changed`, `overlay:connected`, `overlay:disconnected`). Adding a new manager event never requires editing `bus.ts`.
 
 ### Repository Layer
 
@@ -127,10 +131,9 @@ Third-party managers should be wrapped in `SafeManagerProxy` which quarantines a
 | `EventRepository` | `source_events` |
 | `ThemeRepository` | `desktop_config`, `desktop_ambiance` |
 | `WidgetWireRepository` | `widget_wires` |
+| `AutomationRuleRepository` | `automation_rules` |
 
 Config service remains as thin coordinator: cache invalidation, socket broadcast, defaults injection.
-
-### Widget Wires
 
 ### Widget Wires
 
@@ -158,7 +161,9 @@ Wires are managed via `GET/POST/PATCH/DELETE /api/wires`. After any mutation, th
 
 ### Custom Bus Events
 
-`KernelBus.emitCustom(event, payload)` lets managers emit arbitrary events. The socket orchestrator forwards `custom:*` events to overlay clients as `bus:custom { event, payload }`. This is the third-party manager IPC channel.
+`KernelBus.emitCustom(event, payload)` lets managers emit arbitrary events. The socket orchestrator subscribes via `KernelBus.onAny()` and forwards `custom:*` events to overlay clients as `bus:custom { event, payload }`. This is the third-party manager IPC channel.
+
+`KernelBus.onAny(handler)` provides a wildcard subscription that fires for every typed event and every `custom:*` event. It is the mechanism used by `AutomationManager` to evaluate rules against every bus event without manual per-event subscription.
 
 ### How the Kernel Emits Signals
 
@@ -240,11 +245,12 @@ Widgets are:
 Widgets can implement behaviors and freely communicate with any other system mechanism — emitting signals through the DOM bus (picked up by other widgets or the kernel), subscribing to `bus:custom` events from managers, triggering widget wires, or calling external APIs. A widget built by one collaborator can react to events produced by a widget or manager built by another, with no coordination required beyond the shared signal contract.
 
 **To add a new widget:**
-1. Create the component in `packages/overlay/src/desktop/`
-2. Add one line to the manifest in `widgetRegistry.ts`
-3. Add the `WidgetComponentType` string to `packages/shared/src/domain/application.ts`
+1. Create `packages/shared/src/widgets/{id}/definition.ts` (ID, component type, size, z-index, intent manifest)
+2. Create the React component in `packages/overlay/src/desktop/`
+3. Add one line to `widgetRegistry.ts` for the dynamic import
+4. Add the `WidgetComponentType` string to `packages/shared/src/domain/application.ts`
 
-No other files need to change.
+All derived lookup tables update automatically from the definition. No other files need to change.
 
 ### Desktop.tsx Facade Pattern
 
@@ -286,9 +292,9 @@ transitions/styles/transitions.css
 effects/styles/effects.css, misc.css
 ```
 
-### JSON Fixture Loading
+### Default Config Loading
 
-The server loads `DEFAULT_CONFIG` from `data/fixtures/default-config.json` at boot via `loadDefaultConfig()`. The overlay receives the real config from the server on socket connect — its initial Zustand state is a minimal empty stub. The fixture file is generated by `pnpm fixtures` and committed to the repository.
+The server assembles the default `AppConfig` from TypeScript declarations at boot via `loadDefaultConfig()` → `bootstrapConfig()`. The source of truth is `DEFAULT_CONFIG` in `@ieomlabs/shared` — no JSON file is read. The overlay receives the real config from the server on socket connect; its initial Zustand state is a minimal empty stub.
 
 ### Widget Communication (IPC)
 
@@ -345,8 +351,10 @@ The **ABI** of the system — the contract between kernel and userspace. No runt
 | Directory | Contents |
 |-----------|----------|
 | `domain/` | Data shape definitions — scenes, applications, widgets, transitions, effects, ambiance, desktop |
+| `widgets/` | Declaration-first widget descriptors (`WidgetDefinition`) — one `{id}/definition.ts` per system widget. All lookup tables (sizes, z-indices, component mappings, intent manifests) are derived from these. |
 | `contracts/socket.ts` | Typed Socket.IO event maps: `ServerToClientEvents` (signals) and `ClientToServerEvents` (syscalls) |
-| `contracts/widget.ts` | Widget lifecycle interface (opt-in: `onMount`, `onUnmount`, `onConfigUpdate`, `serialize`/`deserialize`) |
+| `contracts/widget.ts` | Widget lifecycle interface (opt-in: `onMount`, `onUnmount`, `onConfigUpdate`, `serialize`/`deserialize`). Also defines `WidgetDefinition`. |
+| `contracts/automation.ts` | `AutomationRule` type — the schema for server-side event→action rules |
 | `contracts/effects.ts` | Effect type registry |
 | `constants/` | Config normalization, merge utilities, ambiance defaults |
 
@@ -444,9 +452,9 @@ Like a real computer, the system has two kinds of memory:
 
 | Store | What lives here | Persists? |
 |-------|----------------|-----------|
-| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`), widget wires (`widget_wires`) | ✅ Yes |
-| `RuntimeStateStore` (in-memory) | Current scene, open widgets, overlay connected, ambiance leader | ❌ No |
-| `HandlerContext` (socket closure) | Runtime config overrides, simulation metrics, overlay slot | ❌ No |
+| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`), widget wires (`widget_wires`), automation rules (`automation_rules`) | ✅ Yes |
+| `RuntimeStateStore` (in-memory) | Current scene, open widgets, overlay socket ID, overlay connected, ambiance leader | ❌ No |
+| `HandlerContext` (socket closure) | Runtime config overrides, socket client type map | ❌ No |
 
 ### Userspace-side State (Overlay)
 
@@ -481,11 +489,13 @@ These modules are composed by a single **orchestrator** that wires them on socke
 
 ### Adding a New Widget (App in Userspace)
 
-Lowest friction. Three files, no kernel changes:
+Lowest friction. Two files, no kernel changes:
 
-1. Create your React component in `packages/overlay/src/desktop/`
-2. Add one entry to the widget manifest (`widgetRegistry.ts`)
-3. Add the type string to `packages/shared/src/domain/application.ts`
+1. Create `packages/shared/src/widgets/{id}/definition.ts` declaring the widget's ID, component type, default size, z-index, and intent manifest (what it emits and accepts)
+2. Create the React component in `packages/overlay/src/desktop/`
+3. Add one line to `packages/overlay/src/desktop/widgetRegistry.ts` for the dynamic import
+
+All lookup tables (sizes, z-indices, component mappings, intent manifests, system widget list) are derived automatically from the definition. The `WidgetComponentType` union in `packages/shared/src/domain/application.ts` still needs the type string added for full TypeScript coverage.
 
 Your widget can use local state, connect to APIs, animate with GSAP, render 3D — whatever you want. It just can't corrupt other widgets or the kernel.
 
@@ -502,9 +512,19 @@ The kernel can now fire your effect via `overlay:show` signals.
 When you need the kernel to handle a new autonomous concern:
 
 1. Implement the manager (state + timer logic + event emission)
-2. Wire it into the server factory (`desktop-entry.ts`)
-3. Add signal types to `@ieom/shared/contracts/socket.ts`
-4. Add diagnostic reporting if the manager has observable state
+2. Create a co-located `*.signals.ts` file with `declare module '../bus'` to contribute any new KernelEvents — no changes to `bus.ts` needed
+3. Wire the manager into the server factory (`desktop-entry.ts`) and import the signals file in `kernel/index.ts`
+4. Add socket signal types to `@ieom/shared/contracts/socket.ts` if the manager emits to clients
+5. Add diagnostic reporting if the manager has observable state
+
+### Adding an Automation Rule
+
+No code required for simple "when X → do Y" behaviors:
+
+- `POST /api/automation/rules` with `{ condition: { event, match? }, action: { kind, params } }`
+- Supported action kinds: `widget:toggle`, `scene:change`, `bus:emit`
+- Rules fire against every KernelBus event including `custom:*` events from managers
+- The admin panel CRUD lives at `GET/POST/PATCH/DELETE /api/automation/rules`
 
 ### Adding Admin UI for a Manager
 

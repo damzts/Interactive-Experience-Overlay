@@ -178,6 +178,15 @@ const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
   CREATE INDEX IF NOT EXISTS idx_users_slug ON users(slug);
+
+  CREATE TABLE IF NOT EXISTS automation_rules (
+    id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    condition_event TEXT NOT NULL,
+    condition_match_json TEXT,
+    action_kind TEXT NOT NULL CHECK(action_kind IN ('widget:toggle','scene:change','bus:emit')),
+    action_params_json TEXT NOT NULL DEFAULT '{}'
+  );
 `
 
 export function initDesktopDatabase(dbPath: string): DesktopDatabase {

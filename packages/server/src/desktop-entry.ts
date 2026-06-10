@@ -41,6 +41,9 @@ import { roomRoute } from './transport/http/room.js'
 import { wiresRoute } from './transport/http/wires.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
+import { AutomationManager } from './kernel/managers/automation.js'
+import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
+import { automationRoute } from './transport/http/automation.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
 import { authRoutes } from './auth/authRoutes.js'
 import { registerAuthMiddleware } from './auth/authMiddleware.js'
@@ -247,6 +250,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const obsBridge = new ObsBridge(io, machine)
   const hubConnection = new HubConnection()
   const povOrchestrator = new POVOrchestrator(hubConnection)
+  const automationRepo = new AutomationRuleRepository(db)
+  const automationManager = new AutomationManager(automationRepo, kernel.bus, io, machine)
   kernel.register(configService)
   kernel.register(runtimeState)
   kernel.register(machine, { after: ['DesktopConfigService'] })
@@ -254,6 +259,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   kernel.register(ambianceManager, { after: ['DesktopConfigService'] })
   kernel.register(obsBridge, { after: ['SceneMachine'] })
   kernel.register(povOrchestrator)
+  kernel.register(automationManager, { after: ['DesktopConfigService', 'SceneMachine', 'EventScheduler', 'AmbianceManager'] })
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
   machine.on('state:change', (payload: { state: import('@ieomlabs/shared').STATE }) => {
@@ -268,7 +274,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     getManagerStatuses: () => kernel.getManagerStatuses(),
     bus: kernel.bus,
     runtimeState,
-    configService: configService as any,
+    configService,
   })
 
   registerOverlayNamespace(io)
@@ -278,14 +284,15 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   app.get('/api/overlay/status', async () => ({ slotTaken: isOverlaySlotTaken() }))
   app.get('/api/defaults', async () => loadDefaultConfig())
   await app.register(authRoutes, { userRepository })
-  await app.register(configRoute, { machine, configService: configService as any })
+  await app.register(configRoute, { machine, configService })
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
+  await app.register(automationRoute, { automationRepo })
   await app.register(wiresRoute, {
     wires: configService.widgetWires,
     getManifests: () => WIDGET_INTENT_MANIFESTS,
     broadcastWires: (wires) => {
-      configService['_cachedConfig'] = null
+      configService.invalidateCache()
       io.emit('config:patch', { widgetWires: wires })
     },
   })

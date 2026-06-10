@@ -13,6 +13,7 @@ import type {
   WidgetLayoutSnapshot,
   WidgetLayoutSource,
 } from '../domain/application.js'
+import { WIDGET_DEFINITIONS } from '../widgets/index.js'
 import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
@@ -523,140 +524,58 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   },
 }
 
+// ── Widget lookup tables — derived from WIDGET_DEFINITIONS ────────
+// To add a widget: create packages/shared/src/widgets/{id}/definition.ts
+// and add one line to packages/overlay/src/desktop/widgetRegistry.ts.
+
+export const DEFAULT_SYSTEM_WIDGET_IDS: readonly string[] = WIDGET_DEFINITIONS
+  .filter((d) => d.system)
+  .map((d) => d.id)
+
 export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height: number }> = {
-  music: { width: 280, height: 250 },
+  // Derived from WIDGET_DEFINITIONS
+  ...Object.fromEntries(WIDGET_DEFINITIONS.map((d) => [d.id, d.defaultSize])),
+  // Legacy aliases kept for backward compat
   spotify: { width: 280, height: 250 },
-  archive: { width: 300, height: 260 },
-  chat: { width: 280, height: 290 },
-  'sticky-notes': { width: 260, height: 290 },
-  gallery: { width: 430, height: 320 },
   browser: { width: 430, height: 320 },
-  'spectrum-analyzer': { width: 300, height: 250 },
-  'equalizer-rack': { width: 320, height: 270 },
-  'wave-scope': { width: 320, height: 230 },
-  'playlist-deck': { width: 300, height: 280 },
-  'net-meter': { width: 280, height: 220 },
-  'media-deck': { width: 430, height: 340 },
-  'cd-ripper': { width: 420, height: 330 },
-  'signal-lab': { width: 410, height: 320 },
-  'broadcast-scheduler': { width: 430, height: 340 },
-  weather: { width: 420, height: 330 },
-  'clock-tower': { width: 500, height: 360 },
-  'newswire-desk': { width: 430, height: 340 },
-  'city-nav': { width: 450, height: 340 },
-  'lcd-dolphins': { width: 320, height: 240 },
 }
 
-export const DEFAULT_SYSTEM_WIDGET_IDS = ['gallery', 'music', 'archive', 'sticky-notes', 'chat', 'camera', 'media-deck', 'cd-ripper', 'signal-lab', 'broadcast-scheduler', 'weather', 'clock-tower', 'newswire-desk', 'city-nav', 'lcd-dolphins', 'pov-stream', 'participant-stream'] as const
+// Legacy aliases: ID strings that map to a component type but have no WidgetDefinition entry
+const WIDGET_COMPONENT_ALIASES: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
+  browser: 'gallery',
+  spotify: 'music',
+  'online-stream': 'pov-stream',
+}
 
 const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
-  browser: 'gallery',
-  gallery: 'gallery',
-  music: 'music',
-  spotify: 'music',
-  archive: 'archive',
-  chat: 'chat',
-  'sticky-notes': 'sticky-notes',
-  camera: 'camera',
-  'spectrum-analyzer': 'spectrum-analyzer',
-  'equalizer-rack': 'equalizer-rack',
-  'wave-scope': 'wave-scope',
-  'playlist-deck': 'playlist-deck',
-  'net-meter': 'net-meter',
-  'media-deck': 'media-deck',
-  'cd-ripper': 'cd-ripper',
-  'signal-lab': 'signal-lab',
-  'broadcast-scheduler': 'broadcast-scheduler',
-  weather: 'weather-console',
-  'clock-tower': 'clock-tower',
-  'newswire-desk': 'newswire-desk',
-  'city-nav': 'city-navigator',
-  'lcd-dolphins': 'lcd-dolphins',
-  'online-stream': 'pov-stream',
-  'pov-stream': 'pov-stream',
-  'participant-stream': 'participant-stream',
+  ...Object.fromEntries(WIDGET_DEFINITIONS.map((d) => [d.id, d.componentType])),
+  ...WIDGET_COMPONENT_ALIASES,
 }
 
 const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
-  'archive',
-  'camera',
-  'chat',
-  'gallery',
-  'music',
+  ...WIDGET_DEFINITIONS.map((d) => d.componentType),
   'source',
-  'sticky-notes',
-  'spectrum-analyzer',
-  'equalizer-rack',
-  'wave-scope',
-  'playlist-deck',
-  'net-meter',
-  'media-deck',
-  'cd-ripper',
-  'signal-lab',
-  'broadcast-scheduler',
-  'weather-console',
-  'clock-tower',
-  'newswire-desk',
-  'city-navigator',
-  'lcd-dolphins',
-  'pov-stream',
-  'participant-stream',
   'generic',
 ])
 
-const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width: number; height: number }> = {
-  archive: DEFAULT_WIDGET_WINDOW_SIZES.archive,
-  camera: { width: 400, height: 300 },
-  chat: DEFAULT_WIDGET_WINDOW_SIZES.chat,
-  gallery: DEFAULT_WIDGET_WINDOW_SIZES.gallery,
-  music: DEFAULT_WIDGET_WINDOW_SIZES.music,
-  source: { width: 420, height: 320 },
-  'sticky-notes': DEFAULT_WIDGET_WINDOW_SIZES['sticky-notes'],
-  'spectrum-analyzer': DEFAULT_WIDGET_WINDOW_SIZES['spectrum-analyzer'],
-  'equalizer-rack': DEFAULT_WIDGET_WINDOW_SIZES['equalizer-rack'],
-  'wave-scope': DEFAULT_WIDGET_WINDOW_SIZES['wave-scope'],
-  'playlist-deck': DEFAULT_WIDGET_WINDOW_SIZES['playlist-deck'],
-  'net-meter': DEFAULT_WIDGET_WINDOW_SIZES['net-meter'],
-  'media-deck': DEFAULT_WIDGET_WINDOW_SIZES['media-deck'],
-  'cd-ripper': DEFAULT_WIDGET_WINDOW_SIZES['cd-ripper'],
-  'signal-lab': DEFAULT_WIDGET_WINDOW_SIZES['signal-lab'],
-  'broadcast-scheduler': DEFAULT_WIDGET_WINDOW_SIZES['broadcast-scheduler'],
-  'weather-console': DEFAULT_WIDGET_WINDOW_SIZES.weather,
-  'clock-tower': DEFAULT_WIDGET_WINDOW_SIZES['clock-tower'],
-  'newswire-desk': DEFAULT_WIDGET_WINDOW_SIZES['newswire-desk'],
-  'city-navigator': DEFAULT_WIDGET_WINDOW_SIZES['city-nav'],
-  'lcd-dolphins': DEFAULT_WIDGET_WINDOW_SIZES['lcd-dolphins'],
-  'pov-stream': { width: 480, height: 360 },
-  'participant-stream': { width: 480, height: 360 },
-  generic: { width: 260, height: 240 },
-}
+const _componentSizeMap = new Map<WidgetComponentType, { width: number; height: number }>(
+  WIDGET_DEFINITIONS.map((d) => [d.componentType, d.defaultSize])
+)
+_componentSizeMap.set('source',  { width: 420, height: 320 })
+_componentSizeMap.set('camera',  { width: 400, height: 300 })
+_componentSizeMap.set('generic', { width: 260, height: 240 })
 
-const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> = {
-  archive: 20,
-  camera: 50,
-  chat: 40,
-  gallery: 0,
-  music: 10,
-  source: 25,
-  'sticky-notes': 30,
-  'spectrum-analyzer': 62,
-  'equalizer-rack': 61,
-  'wave-scope': 59,
-  'playlist-deck': 55,
-  'net-meter': 54,
-  'media-deck': 63,
-  'cd-ripper': 64,
-  'signal-lab': 60,
-  'broadcast-scheduler': 65,
-  'weather-console': 66,
-  generic: 0,
-  'clock-tower': 49,
-  'newswire-desk': 48,
-  'city-navigator': 47,
-  'lcd-dolphins': 46,
-  'pov-stream': 52,
-  'participant-stream': 51,
-}
+const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width: number; height: number }> =
+  Object.fromEntries(_componentSizeMap) as Record<WidgetComponentType, { width: number; height: number }>
+
+const _componentZIndexMap = new Map<WidgetComponentType, number>(
+  WIDGET_DEFINITIONS.map((d) => [d.componentType, d.zIndex])
+)
+_componentZIndexMap.set('source',  25)
+_componentZIndexMap.set('generic', 0)
+
+const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> =
+  Object.fromEntries(_componentZIndexMap) as Record<WidgetComponentType, number>
 
 function isWidgetComponentType(value: unknown): value is WidgetComponentType {
   return typeof value === 'string' && ALL_WIDGET_COMPONENT_TYPES.has(value as WidgetComponentType)

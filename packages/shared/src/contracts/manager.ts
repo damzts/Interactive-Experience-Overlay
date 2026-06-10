@@ -26,4 +26,9 @@ export interface Manager {
   stop(): Promise<void> | void
   dispose(): Promise<void> | void
   status(): ManagerStatus
+  /**
+   * Called by DesktopConfigService after each successful config persistence.
+   * Implement this instead of holding a callback reference via onConfigUpdate.
+   */
+  onConfigChange?(config: import('../domain/config.js').AppConfig, section: string): void
 }

@@ -76,9 +76,20 @@ function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<S
   }
 }
 
+// ── IConfigService ───────────────────────────────────────────────
+
+export interface IConfigService {
+  readonly cachedConfig: AppConfig | null
+  getForUser(userId: string): Promise<AppConfig>
+  persistForUser(userId: string, config: AppConfig, updates?: Partial<AppConfig>): Promise<AppConfig>
+  routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }>
+  onConfigUpdate(listener: (config: AppConfig) => void): void
+  invalidateCache(): void
+}
+
 // ── DesktopConfigService ─────────────────────────────────────────
 
-export class DesktopConfigService implements Manager {
+export class DesktopConfigService implements Manager, IConfigService {
   readonly name = 'DesktopConfigService'
   readonly bootPriority = 0
   private _status: ManagerStatus = 'idle'
@@ -161,6 +172,10 @@ export class DesktopConfigService implements Manager {
 
   onConfigUpdate(listener: (config: AppConfig) => void) {
     this.onConfigUpdateListener = listener
+  }
+
+  invalidateCache(): void {
+    this._cachedConfig = null
   }
 
   /**

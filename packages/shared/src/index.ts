@@ -9,8 +9,9 @@ export * from './domain/config.js'
 export * from './domain/pov.js'
 export * from './domain/online.js'
 
-// Contracts (socket, effects, state, diagnostics, widget lifecycle)
+// Contracts (socket, effects, state, diagnostics, widget lifecycle, automation)
 export * from './contracts/manager.js'
+export * from './contracts/automation.js'
 export * from './contracts/state.js'
 export * from './contracts/effects.js'
 // socket.ts is a backward-compat barrel that re-exports signals.ts + commands.ts + queries.ts
@@ -19,6 +20,9 @@ export * from './contracts/socket.js'
 export * from './contracts/diagnostics.js'
 export * from './contracts/online-socket.js'
 export * from './contracts/widget.js'
+
+// Widget declarations (declaration-first: one definition.ts per widget)
+export * from './widgets/index.js'
 
 // Constants and utilities
 export * from './constants/ambianceSimulation.js'

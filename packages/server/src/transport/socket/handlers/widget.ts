@@ -107,7 +107,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   })
 
   socket.on('widget:simulate', (widgetId: string) => {
-    if (socket.id !== ctx.overlaySocketId) {
+    if (socket.id !== ctx.runtimeState.overlaySocketId) {
       ctx.runtimeState.incrementRejected()
       ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
       logger.info({ socketId: socket.id }, 'socket disconnected')
@@ -119,7 +119,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   })
 
   socket.on('widget:simulate:action', (payload: WidgetSimulationCommandPayload) => {
-    if (socket.id !== ctx.overlaySocketId) {
+    if (socket.id !== ctx.runtimeState.overlaySocketId) {
       ctx.runtimeState.incrementRejected()
       ctx.io.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
       logger.info({ socketId: socket.id }, 'socket disconnected')
@@ -178,7 +178,7 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
   })
 
   socket.on('widget:simulate:intent', (payload) => {
-    if (socket.id !== ctx.overlaySocketId) return
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.io.emit('widget:simulate:intent', payload)
   })
 

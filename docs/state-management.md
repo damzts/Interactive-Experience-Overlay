@@ -13,7 +13,7 @@ There are exactly two places server-side state lives, and they must never be con
 
 **Config persistence** is everything that should survive a server restart — scenes, applications (including widget geometry), source events, source media, source presets, source transitions, widget layouts, desktop theme, keybinds, ambiance schedules. It lives in SQLite, managed by a dedicated service. Each table has a single owning admin panel. Reads and writes happen on the admin save path. The real-time rendering path never touches it.
 
-**Runtime state** is live session data that has no meaning across restarts — the current scene, which widgets are open, whether the overlay is connected, who the active ambiance leader is. It lives in memory, reconstructed from socket events on reconnect. It is never written to disk.
+**Runtime state** is live session data that has no meaning across restarts — the current scene, which widgets are open, whether the overlay is connected, who the active ambiance leader is, and the current overlay socket ID. It lives in memory, reconstructed from socket events on reconnect. It is never written to disk.
 
 ## The ownership rule
 
@@ -25,6 +25,8 @@ Any code that needs "which widgets are open right now" reads from the in-memory 
 ## Why this split exists
 
 Before this separation, runtime queries were either reading stale database values or reconstructing session state from scattered variables across the socket handler. The split gives each kind of state exactly one authoritative home, with a clear rule for which home to use.
+
+**`RuntimeStateStore` is the only place session state lives.** If you find yourself tracking live connection or widget state in `HandlerContext` fields or module-level variables, it belongs in `RuntimeStateStore` instead. An example of this rule applied: `overlaySocketId` was previously a field on `HandlerContext`; it now lives in `runtimeState.overlaySocketId` / `runtimeState.setOverlaySocketId(id)`.
 
 ## The client-side mirror
 
