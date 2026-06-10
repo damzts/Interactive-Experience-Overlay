@@ -46,9 +46,25 @@ This means any `EventAction` that works in an automation rule or scheduled event
 
 ---
 
+## Admin panel
+
+**System → Show Sequencer** in the admin dashboard.
+
+- The show list reads from `AppConfig.shows` (live via Socket.IO `config:update`).
+- Each show row has a **Run** button (POST `/api/shows/:id/run`) and a **Cancel** button if the show is currently running. Running shows are polled every 3 seconds from `GET /api/shows/running` and highlighted with a cyan `RUNNING` badge.
+- Clicking **Edit** opens the inline step editor. Each step has:
+  - `delayMs` — time from show start (not relative to previous step)
+  - Optional label
+  - Action type selector: **OBS Stream** (start/stop), **Widget Command** (widget + open/close/toggle), **Widget Layout** (layout picker)
+- **New Show** adds a blank show inline. Saving writes `AppConfig.shows` via the config API.
+
+The admin panel covers the most common step kinds. For advanced action types (`overlay-trigger`, `ambiance-patch`, `desktop-config`) configure shows via the config API directly.
+
+---
+
 ## Configuring a show
 
-Shows live in `AppConfig.shows[]`. Edit via the config API (`POST /api/config/section { section: 'shows', data: [...] }`).
+Shows live in `AppConfig.shows[]`. Edit via the admin panel (above) or the config API (`POST /api/config/section { section: 'shows', data: [...] }`).
 
 ```json
 {
@@ -99,3 +115,5 @@ Useful for debugging in the overlay console or triggering side-effects in automa
 | `packages/server/src/transport/http/shows.ts` | HTTP routes |
 | `packages/shared/src/domain/config.ts` | `ShowDefinition`, `ShowStep` types |
 | `packages/shared/src/domain/event.ts` | `EventObsStreamAction`, `EventAction` union |
+| `packages/admin/src/features/shows/ShowsPanel.tsx` | Admin panel (System → Show Sequencer) |
+| `packages/admin/src/api/showsApi.ts` | Admin API client for shows endpoints |

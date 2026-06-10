@@ -35,7 +35,9 @@ Connects to `wss://irc-ws.chat.twitch.tv:443` using the IRCv3 protocol.
 }
 ```
 
-Set via the config API: `POST /api/config/section { section: 'twitch', data: { channel: 'mychannel', enabled: true } }`.
+Set via the admin panel (**System → Twitch Chat**) or the config API: `POST /api/config/section { section: 'twitch', data: { channel: 'mychannel', enabled: true } }`.
+
+The connection status dot in the admin panel is driven live by the `bus:custom → chat:connected` Socket.IO event — it turns green as soon as IRC JOIN is confirmed.
 
 ### What gets emitted
 
@@ -118,7 +120,9 @@ Dispatch goes through `scheduler:fired` so every `EventAction` kind (including `
 }
 ```
 
-Set via: `POST /api/config/section { section: 'chatReactions', data: [...] }`.
+Set via the admin panel (**System → Twitch Chat → Chat Reactions**) or: `POST /api/config/section { section: 'chatReactions', data: [...] }`.
+
+The admin panel supports match type, match value, cooldown, and comma-separated effect types. For rules that also fire `EventAction` steps (widget commands, scene changes, etc.) use the config API directly.
 
 ---
 
@@ -131,3 +135,4 @@ Set via: `POST /api/config/section { section: 'chatReactions', data: [...] }`.
 | `packages/server/src/kernel/managers/chatReactions.ts` | Rule evaluation, cooldown, dispatch |
 | `packages/shared/src/domain/config.ts` | `TwitchConfig`, `ChatReactionMatch`, `ChatReactionRule` types |
 | `packages/overlay/src/desktop/ChatWidget.tsx` | Receives `bus:custom` chat:message events |
+| `packages/admin/src/features/twitch/TwitchPanel.tsx` | Admin panel (System → Twitch Chat) |

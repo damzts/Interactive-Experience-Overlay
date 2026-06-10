@@ -156,6 +156,7 @@ packages/server/src/
 - "Connect Twitch chat" → `kernel/managers/twitchChat.ts` (config: `AppConfig.twitch`)
 - "React to chat messages" → `kernel/managers/chatReactions.ts` (config: `AppConfig.chatReactions`)
 - "React to OBS stream/record events" → `kernel/managers/obs.signals.ts` + automation rules
+- "See OBS streaming/recording/vcam status in admin" → `features/obs/ObsPanel.tsx` (status badges shown when connected)
 
 ## Manager lifecycle
 

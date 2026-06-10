@@ -56,9 +56,10 @@ Open the admin panel → **System → Wires**.
 
 1. Click a source widget (left column) — its signals appear below in green.
 2. Click a target widget (right column) — its actions appear below in purple.
-3. Click **Add Wire**.
+3. Optionally toggle **LOBBY** / **DESKTOP** chips to restrict the wire to specific scenes.
+4. Click **Add Wire**.
 
-Active immediately. Enable/disable individual wires with the toggle in the wire list. Wires survive server restarts.
+Active immediately. Enable/disable individual wires with the toggle in the wire list. Wires survive server restarts. A scene condition badge (`[DESKTOP]`) is shown on the wire row when a condition is set.
 
 ---
 
