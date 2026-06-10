@@ -231,6 +231,10 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     }
   }
 
+  if (action.kind === 'obs-stream') {
+    return { kind: 'obs-stream', action: action.action, rtmpUrl: action.rtmpUrl, streamKey: action.streamKey }
+  }
+
   return {
     kind: 'ambiance-patch',
     timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),

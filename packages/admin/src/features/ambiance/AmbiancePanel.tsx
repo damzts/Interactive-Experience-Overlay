@@ -28,15 +28,6 @@ function formatRelativeTime(timestamp: number | null) {
   return `${hours}h ago`
 }
 
-function formatFutureTime(timestamp: number | null) {
-  if (!timestamp) return 'Not scheduled'
-  const diffMs = timestamp - Date.now()
-  if (diffMs <= 0) return 'Due now'
-  const seconds = Math.ceil(diffMs / 1000)
-  if (seconds < 60) return `In ${seconds}s`
-  const minutes = Math.ceil(seconds / 60)
-  return `In ${minutes}m`
-}
 
 function formatDateTime(timestamp: number | null) {
   if (!timestamp) return 'Never'
@@ -214,9 +205,7 @@ export function AmbiancePanel() {
   }, [sourceConfig])
 
   const simConfig = form.widgetSimulation
-  const scheduler = runtimeDiagnostics.scheduler
   const ambiance = runtimeDiagnostics.ambiance
-  const activeAutoEvents = scheduler.events.filter((eventDef) => eventDef.enabled)
 
   const requestOverlayResync = useCallback(() => {
     setResyncing(true)
@@ -331,29 +320,7 @@ export function AmbiancePanel() {
         </div>
       </ConfigPanel>
 
-      <ConfigPanel title="Scheduler Queue" collapsible>
-        {activeAutoEvents.length === 0 ? (
-          <Notice tone="info">No auto-events are enabled.</Notice>
-        ) : (
-          <div className="space-y-2">
-            {activeAutoEvents.map((eventDef) => (
-              <Card variant="default" padding="sm" key={eventDef.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-medium text-[var(--color-text-primary)]">{eventDef.label}</div>
-                    <div className="text-[10px] text-[var(--color-text-muted)]">{eventDef.mode === 'interval' ? `Interval every ~${eventDef.intervalMin}m` : `Idle after ${eventDef.idleMin}m`}</div>
-                  </div>
-                  <div className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${eventDef.due ? 'bg-[var(--color-accent-500)]/15 text-[var(--color-accent-200)]' : 'bg-[var(--color-primary-500)]/10 text-[var(--color-primary-200)]'}`}>
-                    {eventDef.mode === 'interval' ? formatFutureTime(eventDef.nextRunAt) : (eventDef.idleTriggered ? 'Idle fired' : 'Waiting')}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </ConfigPanel>
-
-      <ConfigPanel title="Ambiance Runtime" collapsible>
+<ConfigPanel title="Ambiance Runtime" collapsible>
         <div className="space-y-3">
           <div className="flex items-center justify-end gap-3">
             <Button
@@ -403,20 +370,6 @@ export function AmbiancePanel() {
             </div>
             <div className="border-t border-[var(--color-border-default)] pt-2">
               <div className="space-y-2">
-                <div className="flex items-start justify-between gap-3 text-sm">
-                  <div className="min-w-0">
-                    <div className="text-[var(--color-text-secondary)]">Scheduler tick</div>
-                    <div className="text-[11px] text-[var(--color-text-muted)]">Eval {formatRelativeTime(scheduler.lastEvaluatedAt)}</div>
-                  </div>
-                  <div className="text-right text-[var(--color-text-primary)]">{Math.round(scheduler.tickMs / 1000)}s</div>
-                </div>
-                <div className="flex items-start justify-between gap-3 text-sm">
-                  <div className="min-w-0">
-                    <div className="text-[var(--color-text-secondary)]">Last activity</div>
-                    <div className="text-[11px] text-[var(--color-text-muted)]">{scheduler.currentState}</div>
-                  </div>
-                  <div className="text-right text-[var(--color-text-primary)]">{formatRelativeTime(scheduler.lastActivityAt)}</div>
-                </div>
                 <div className="flex items-start justify-between gap-3 text-sm">
                   <div className="min-w-0">
                     <div className="text-[var(--color-text-secondary)]">Ambiance loop</div>

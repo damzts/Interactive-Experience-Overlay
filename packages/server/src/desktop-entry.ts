@@ -277,7 +277,10 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     kernel.bus,
   )
   kernel.register(twitchChatManager, { after: ['DesktopConfigService'] })
-  configService.onConfigUpdate((config) => twitchChatManager.onConfigChange(config))
+  configService.onConfigUpdate((config) => {
+    scheduler.onConfigChange()
+    twitchChatManager.onConfigChange(config)
+  })
 
   const chatReactionManager = new ChatReactionManager(
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,

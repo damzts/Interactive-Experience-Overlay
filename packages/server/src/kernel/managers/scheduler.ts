@@ -41,6 +41,13 @@ export class EventScheduler implements Manager {
   dispose(): void { this.stop(); this._status = 'stopped' }
   status(): ManagerStatus { return this._status }
 
+  onConfigChange(): void {
+    if (this._status !== 'running') return
+    this.buildQueue()
+    this.restartIdleTimers()
+    this.emitDiagnostics()
+  }
+
   setDiagnosticsListener(listener?: (payload: SchedulerDiagnosticsPayload) => void) {
     this.diagnosticsListener = listener
     this.emitDiagnostics()
