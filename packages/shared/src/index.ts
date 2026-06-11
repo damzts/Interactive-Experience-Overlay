@@ -17,6 +17,7 @@ export * from './contracts/effects.js'
 // socket.ts is a backward-compat barrel that re-exports signals.ts + commands.ts + queries.ts
 // Import from signals/commands/queries directly for focused access
 export * from './contracts/socket.js'
+export type { BusFrame } from './contracts/signals.js'
 export * from './contracts/diagnostics.js'
 export * from './contracts/online-socket.js'
 export * from './contracts/widget.js'

@@ -58,7 +58,7 @@ export class ShowSequencer implements Manager {
       const t = setTimeout(() => {
         const label = step.label ?? `step ${index}`
         logger.info(`[show:${showId}] ${label}`)
-        this.bus.emitCustom('show:step', { showId, stepIndex: index, label })
+        this.bus.emit('show:step', { showId, stepIndex: index, label })
         this.executeStep(showId, step.action)
       }, step.delayMs)
       timers.push(t)

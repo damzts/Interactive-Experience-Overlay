@@ -5,10 +5,10 @@
  * With `justinfan<random>` as the nick, no OAuth token is needed for public channels.
  * When an accessToken is configured, authenticated mode is used instead.
  *
- * On each PRIVMSG the manager emits bus.emitCustom('chat:message', payload).
- * This flows to overlay clients automatically via the existing onAny/bus:custom forwarder.
+ * On each PRIVMSG the manager emits bus.emit('chat:message', payload).
+ * The socket transport bridges this to all clients via the 'chat:message' signal.
  *
- * The overlay ChatWidget subscribes to 'bus:custom' for 'chat:message' events.
+ * The overlay ChatWidget subscribes to 'chat:message' for live Twitch messages.
  */
 
 import type { Manager, ManagerStatus, AppConfig, TwitchConfig } from '@ieomlabs/shared'
@@ -143,7 +143,7 @@ export class TwitchChatManager implements Manager {
       if (!this._connected) {
         this._connected = true
         logger.info(`[twitch] joined #${this._channel}`)
-        this.bus.emitCustom('chat:connected', { channel: this._channel })
+        this.bus.emit('chat:connected', { channel: this._channel })
       }
       return
     }
@@ -167,7 +167,7 @@ export class TwitchChatManager implements Manager {
     const color = tags['color'] || '#ffffff'
     const badges = (tags['badges'] || '').split(',').filter(Boolean)
 
-    this.bus.emitCustom('chat:message', { user, text, color, badges, channel, source: 'twitch' })
+    this.bus.emit('chat:message', { user, text, color, badges, channel, source: 'twitch' })
   }
 
   private disconnect(): void {

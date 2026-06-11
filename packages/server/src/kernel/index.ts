@@ -28,8 +28,7 @@ import './managers/showSequencer.signals.js'
 import './managers/twitchChat.signals.js'
 
 export { KernelBus } from './bus.js'
-export type { KernelEvents } from './bus.js'
-export { SafeManagerProxy } from './SafeManagerProxy.js'
+export type { KernelEvents, BusFrame, BoundBus } from './bus.js'
 
 export class Kernel {
   readonly bus: KernelBus = new KernelBus()

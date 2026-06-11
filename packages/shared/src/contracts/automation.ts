@@ -4,7 +4,7 @@
  * No scripting, no loops, field-match conditions only.
  */
 
-export type AutomationActionKind = 'widget:toggle' | 'scene:change' | 'bus:emit'
+export type AutomationActionKind = 'widget:toggle' | 'scene:change' | 'overlay:show' | 'desktop:notify'
 
 export interface AutomationRuleCondition {
   /** KernelEvent name to listen for, e.g. 'scene:changed' */

@@ -13,17 +13,15 @@ import type { OverlayTriggerPayload } from './effects.js'
 import type { EventConfig } from '../domain/event.js'
 import type { TransitionStep } from '../domain/scene.js'
 import type { WidgetLayoutItem } from '../domain/application.js'
+import type { AppConfig } from '../domain/config.js'
 import type {
-  CursorMirrorPayload,
   DesktopIconDragPayload,
   DesktopNotificationPayload,
   DesktopRecycleBinPayload,
   DesktopScreenSaverPreviewPayload,
-  DesktopStartMenuSimulationPhasePayload,
   DesktopStartMenuStatePayload,
   DesktopWidgetDragPayload,
   DesktopWidgetResizePayload,
-  OpenWidgetMenuTimelinePayload,
   WidgetSimulationCommandPayload,
   WidgetSimulationIntentPayload,
 } from './signals.js'
@@ -71,6 +69,12 @@ export interface DesktopRuntimeStatePayload {
   startMenuState?: DesktopStartMenuStatePayload
 }
 
+export interface OverlaySyncSnapshot {
+  state: STATE
+  desktop: DesktopRuntimeStatePayload
+  config: AppConfig
+}
+
 // Re-export for convenience (import from signals.ts or @ieomlabs/shared directly)
 // (types listed here are defined in signals.ts — re-exporting would duplicate in the barrel)
 
@@ -79,8 +83,20 @@ export interface DesktopRuntimeStatePayload {
 /**
  * Commands clients send to the kernel.
  * Server socket handlers register `socket.on(...)` for these.
+ *
+ * Categories:
+ *   Syscalls      — scene:change, widget:toggle, overlay:trigger, panic, keybind:execute,
+ *                   widget:layout:apply*, event:preview, transition:preview,
+ *                   desktop:notify, desktop:screen-saver:test, runtime:config:override:*
+ *   State reports — desktop:recycle-bin, desktop:start-menu:state, overlay:runtime:status,
+ *                   desktop:icon:drag, desktop:widget:drag, desktop:widget:resize
+ *   Ambiance      — ambiance:simulate:accepted/started/done, widget:simulate:intent,
+ *                   widget:simulate, widget:simulate:action, widget:signal
+ *   Queries       — state:request, desktop:state:request, overlay:sync
+ *   Dev tooling   — bus:trace:subscribe, bus:trace:unsubscribe
  */
 export interface ClientToServerEvents {
+  // ── Syscalls ─────────────────────────────────────────────────────
   /** Request a scene transition */
   'scene:change': (target: STATE, callback?: (err: string | null) => void) => void
   /** Fire an overlay effect/trigger immediately */
@@ -95,10 +111,38 @@ export interface ClientToServerEvents {
   'runtime:config:override:widget-layout:clear': (widgetIds: string[], callback?: (err: string | null) => void) => void
   /** Execute a keybind action */
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
-  /** Clear ambiance simulation history */
-  'ambiance:history:clear': () => void
+  /** Toggle a widget open/closed */
+  'widget:toggle': (widgetId: string) => void
+  /** Apply a named widget layout preset */
+  'widget:layout:apply': (layoutId: string) => void
+  /** Apply raw widget layout items */
+  'widget:layout:apply:items': (items: WidgetLayoutItem[]) => void
+  /** Trigger a desktop notification */
+  'desktop:notify': (payload: DesktopNotificationPayload) => void
+  /** Preview a screen saver preset */
+  'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
+  /** Preview a transition pipeline (admin use) */
+  'transition:preview': (steps: TransitionStep[]) => void
+  /** Immediate panic reset — clears all state to safe defaults */
+  'panic': () => void
+
+  // ── State reports ─────────────────────────────────────────────────
   /** Report the overlay's runtime status to the kernel */
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void
+  /** Set recycle bin fill state */
+  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
+  /** Update start menu visibility state */
+  'desktop:start-menu:state': (payload: DesktopStartMenuStatePayload) => void
+  /** Desktop icon drag event */
+  'desktop:icon:drag': (payload: DesktopIconDragPayload) => void
+  /** Desktop widget drag event */
+  'desktop:widget:drag': (payload: DesktopWidgetDragPayload) => void
+  /** Desktop widget resize event */
+  'desktop:widget:resize': (payload: DesktopWidgetResizePayload) => void
+
+  // ── Ambiance handshake ────────────────────────────────────────────
+  /** Clear ambiance simulation history */
+  'ambiance:history:clear': () => void
   /** Overlay accepted an ambiance simulation action */
   'ambiance:simulate:accepted': (payload: AmbianceSimulationAcceptedPayload) => void
   /** Overlay started executing an ambiance simulation action */
@@ -107,41 +151,10 @@ export interface ClientToServerEvents {
   'ambiance:simulate:done': (payload: AmbianceSimulationDonePayload) => void
   /** Widget-to-widget simulation intent forwarded through kernel */
   'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
-  /** Toggle a widget open/closed */
-  'widget:toggle': (widgetId: string) => void
   /** Simulate a widget open (ambiance-style) */
   'widget:simulate': (widgetId: string) => void
   /** Explicit widget action command */
   'widget:simulate:action': (payload: WidgetSimulationCommandPayload) => void
-  /** Apply a named widget layout preset */
-  'widget:layout:apply': (layoutId: string) => void
-  /** Apply raw widget layout items */
-  'widget:layout:apply:items': (items: WidgetLayoutItem[]) => void
-  /** Desktop icon drag event */
-  'desktop:icon:drag': (payload: DesktopIconDragPayload) => void
-  /** Desktop widget drag event */
-  'desktop:widget:drag': (payload: DesktopWidgetDragPayload) => void
-  /** Desktop widget resize event */
-  'desktop:widget:resize': (payload: DesktopWidgetResizePayload) => void
-  /** Cursor mirror event */
-  'cursor:mirror': (payload: CursorMirrorPayload) => void
-  /** Cursor menu navigation timeline */
-  'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload) => void
-  /** Trigger a desktop notification */
-  'desktop:notify': (payload: DesktopNotificationPayload) => void
-  /** Set recycle bin fill state */
-  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
-  /** Update start menu visibility state */
-  'desktop:start-menu:state': (payload: DesktopStartMenuStatePayload) => void
-  /** Update start menu simulation phase */
-  'desktop:start-menu:phase': (payload: DesktopStartMenuSimulationPhasePayload) => void
-  /** Preview a screen saver preset */
-  'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
-  /** Preview a transition pipeline (admin use) */
-  'transition:preview': (steps: TransitionStep[]) => void
-  /** Immediate panic reset — clears all state to safe defaults */
-  'panic': () => void
-
   /** Widget signal for widget wire routing */
   'widget:signal': (payload: { source: string; event: string; payload: unknown }) => void
 
@@ -150,4 +163,12 @@ export interface ClientToServerEvents {
   'state:request': (callback: (state: STATE) => void) => void
   /** Request desktop runtime state snapshot */
   'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
+  /** Atomic initial sync — returns scene state, desktop state, and config in one round-trip */
+  'overlay:sync': (callback: (snapshot: OverlaySyncSnapshot) => void) => void
+
+  // ── Dev tooling ───────────────────────────────────────────────────
+  /** Subscribe to live bus trace stream */
+  'bus:trace:subscribe': () => void
+  /** Unsubscribe from live bus trace stream */
+  'bus:trace:unsubscribe': () => void
 }

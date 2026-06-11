@@ -58,10 +58,7 @@ export const adminSignalHandlers: AdminSignalHandlerMap = {
     store.setRuntimeDiagnostics(payload)
   },
 
-  'bus:custom': ({ event, payload }: { event: string; payload: unknown }, store) => {
-    if (event === 'chat:connected') {
-      const p = payload as { channel: string }
-      store.setTwitchConnected(true, p.channel)
-    }
+  'chat:connected': ({ channel }: { channel: string }, store) => {
+    store.setTwitchConnected(true, channel)
   },
 }

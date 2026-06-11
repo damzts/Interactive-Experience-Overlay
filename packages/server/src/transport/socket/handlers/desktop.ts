@@ -3,7 +3,6 @@ import type {
   DesktopRecycleBinPayload,
   DesktopScreenSaverPreviewPayload,
   DesktopStartMenuStatePayload,
-  DesktopStartMenuSimulationPhasePayload,
   DesktopRuntimeStatePayload,
 } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
@@ -24,7 +23,6 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
 
   socket.on('desktop:icon:drag', (payload) => {
     ctx.scheduler?.noteActivity()
-    socket.broadcast.emit('desktop:icon:drag', payload)
   })
 
   socket.on('desktop:widget:drag', (payload) => {
@@ -36,7 +34,6 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
         },
       })
     }
-    socket.broadcast.emit('desktop:widget:drag', payload)
   })
 
   socket.on('desktop:widget:resize', (payload) => {
@@ -51,7 +48,6 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
         },
       })
     }
-    socket.broadcast.emit('desktop:widget:resize', payload)
   })
 
   socket.on('desktop:notify', (payload: DesktopNotificationPayload) => {
@@ -69,11 +65,6 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
     if (payload.open) ctx.scheduler?.noteActivity()
     ctx.runtimeState.setStartMenuState(payload.open, payload.open ? payload.activeRoot : null)
     ctx.io.emit('desktop:start-menu:state', ctx.runtimeState.startMenuState)
-  })
-
-  socket.on('desktop:start-menu:phase', (payload: DesktopStartMenuSimulationPhasePayload) => {
-    if (socket.id !== ctx.runtimeState.overlaySocketId) return
-    ctx.io.emit('desktop:start-menu:phase', payload)
   })
 
   socket.on('desktop:screen-saver:test', (payload: DesktopScreenSaverPreviewPayload) => {

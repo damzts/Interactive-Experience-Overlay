@@ -19,9 +19,10 @@ import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
 import { registerMachineListeners, registerSceneHandlers } from './scene.js'
 import { registerWidgetHandlers } from './widget.js'
 import { registerAmbianceHandlers } from './ambiance.js'
-import { registerDesktopHandlers } from './desktop.js'
+import { registerDesktopHandlers, getDesktopRuntimeState } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
+import { registerManagerSignals } from './managers.js'
 
 export function setupSocketHandlers(
   io: IO,
@@ -77,13 +78,7 @@ export function setupSocketHandlers(
   ambianceManager.setDiagnosticsListener(() => queueRuntimeDiagnosticsEmit(ctx))
 
   registerMachineListeners(ctx)
-
-  // Forward custom:* bus events to all connected overlay/admin clients
-  ctx.bus.onAny((event, payload) => {
-    if (typeof event === 'string' && event.startsWith('custom:')) {
-      io.emit('bus:custom', { event: event.slice(7), payload })
-    }
-  })
+  registerManagerSignals(ctx)
 
   const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'unknown' => {
     const auth = socket.handshake.auth as { clientType?: string } | undefined
@@ -128,6 +123,14 @@ export function setupSocketHandlers(
     if (options?.getObsStatus) {
       socket.emit('obs:status', options.getObsStatus())
     }
+
+    socket.on('overlay:sync', (callback) => {
+      callback({
+        state: ctx.machine.currentState,
+        desktop: getDesktopRuntimeState(ctx),
+        config: ctx.cachedUserConfig,
+      })
+    })
 
     registerSceneHandlers(ctx, socket)
     registerWidgetHandlers(ctx, socket)

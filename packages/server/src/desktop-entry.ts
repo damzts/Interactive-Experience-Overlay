@@ -48,6 +48,8 @@ import { ChatReactionManager } from './kernel/managers/chatReactions.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
 import { showsRoute } from './transport/http/shows.js'
+import { busHistoryRoute } from './transport/http/busHistory.js'
+import { BusHistoryRecorder } from './kernel/BusHistoryRecorder.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
 import { authRoutes } from './auth/authRoutes.js'
 import { registerAuthMiddleware } from './auth/authMiddleware.js'
@@ -317,6 +319,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
   await app.register(automationRoute, { automationRepo })
   await app.register(showsRoute, { sequencer: showSequencer, configService })
+  const busRecorder = new BusHistoryRecorder(kernel.bus, { capacity: 500, io })
+  await app.register(busHistoryRoute, { recorder: busRecorder })
   await app.register(wiresRoute, {
     wires: configService.widgetWires,
     getManifests: () => WIDGET_INTENT_MANIFESTS,

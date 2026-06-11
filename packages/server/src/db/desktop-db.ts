@@ -185,7 +185,7 @@ const SCHEMA = `
     enabled INTEGER NOT NULL DEFAULT 1,
     condition_event TEXT NOT NULL,
     condition_match_json TEXT,
-    action_kind TEXT NOT NULL CHECK(action_kind IN ('widget:toggle','scene:change','bus:emit')),
+    action_kind TEXT NOT NULL CHECK(action_kind IN ('widget:toggle','scene:change','overlay:show','desktop:notify')),
     action_params_json TEXT NOT NULL DEFAULT '{}'
   );
 
@@ -228,6 +228,8 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   }
   addColumn('scenes', 'ambient_track', 'TEXT')
   addColumn('widget_wires', 'condition_json', 'TEXT')
+  // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
+  try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }
   return db
 }
 

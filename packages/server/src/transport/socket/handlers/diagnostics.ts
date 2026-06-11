@@ -34,4 +34,12 @@ export function registerDiagnosticsHandlers(ctx: HandlerContext, socket: AppSock
     ctx.ambianceManager.setOverlayReady(payload.ready)
     queueRuntimeDiagnosticsEmit(ctx)
   })
+
+  socket.on('bus:trace:subscribe', () => {
+    void socket.join('bus:trace')
+  })
+
+  socket.on('bus:trace:unsubscribe', () => {
+    void socket.leave('bus:trace')
+  })
 }

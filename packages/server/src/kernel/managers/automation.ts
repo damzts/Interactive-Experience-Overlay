@@ -5,9 +5,9 @@
  * Rules are loaded from SQLite via AutomationRuleRepository.
  * Boot after all other managers (bootPriority: 100).
  */
-import type { Manager, ManagerStatus, AutomationRule } from '@ieomlabs/shared'
+import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload } from '@ieomlabs/shared'
 import { STATE } from '@ieomlabs/shared'
-import type { KernelBus } from '../bus.js'
+import type { KernelBus, BusFrame } from '../bus.js'
 import type { SceneMachine } from './scene.js'
 import type { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
 import type { Server as SocketIOServer } from 'socket.io'
@@ -30,8 +30,8 @@ export class AutomationManager implements Manager {
   init(): void { this._status = 'idle' }
 
   start(): void {
-    this._unsubscribe = this.bus.onAny((event, payload) => {
-      this.evaluate(event, payload)
+    this._unsubscribe = this.bus.onAny((frame: BusFrame) => {
+      this.evaluate(frame.event, frame.payload)
     })
     this._status = 'running'
   }
@@ -82,10 +82,11 @@ export class AutomationManager implements Manager {
           }
           break
         }
-        case 'bus:emit':
-          if (typeof params['event'] === 'string') {
-            this.bus.emitCustom(params['event'], params['payload'] ?? null)
-          }
+        case 'overlay:show':
+          this.io.emit('overlay:show', params as unknown as OverlayTriggerPayload)
+          break
+        case 'desktop:notify':
+          this.io.emit('desktop:notify', params as unknown as DesktopNotificationPayload)
           break
       }
     } catch (err) {

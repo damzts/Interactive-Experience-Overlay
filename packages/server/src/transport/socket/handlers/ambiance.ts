@@ -31,13 +31,4 @@ export function registerAmbianceHandlers(ctx: HandlerContext, socket: AppSocket)
     }
   })
 
-  socket.on('cursor:mirror', (payload) => {
-    if (socket.id !== ctx.runtimeState.overlaySocketId) return
-    socket.broadcast.emit('cursor:mirror', payload)
-  })
-
-  socket.on('cursor:mirror:menu-timeline', (payload) => {
-    if (socket.id !== ctx.runtimeState.overlaySocketId) return
-    socket.broadcast.emit('cursor:mirror:menu-timeline', payload)
-  })
 }

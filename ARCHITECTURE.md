@@ -116,8 +116,6 @@ interface Manager {
 }
 ```
 
-Third-party managers should be wrapped in `SafeManagerProxy` which quarantines a manager after 3 errors in 60s and emits a `bus:custom manager:quarantined` event.
-
 Each manager declares its own KernelBus events in a co-located `*.signals.ts` file using TypeScript declaration merging (`declare module '../bus'`). The base `KernelEvents` interface in `bus.ts` contains only kernel orchestration events (`scene:changed`, `overlay:connected`, `overlay:disconnected`). Adding a new manager event never requires editing `bus.ts`.
 
 ### Repository Layer
@@ -159,11 +157,32 @@ Wires are managed via `GET/POST/PATCH/DELETE /api/wires`. After any mutation, th
 4. **Managers are independent.** They communicate through an internal event bus, not by importing each other. A manager can be disabled without breaking the rest.
 5. **One overlay at a time.** The slot system ensures deterministic state — only one overlay connects, and it gets the full state on connect.
 
-### Custom Bus Events
+### Two Communication Planes
 
-`KernelBus.emitCustom(event, payload)` lets managers emit arbitrary events. The socket orchestrator subscribes via `KernelBus.onAny()` and forwards `custom:*` events to overlay clients as `bus:custom { event, payload }`. This is the third-party manager IPC channel.
+The system has two distinct communication planes that must not be confused:
 
-`KernelBus.onAny(handler)` provides a wildcard subscription that fires for every typed event and every `custom:*` event. It is the mechanism used by `AutomationManager` to evaluate rules against every bus event without manual per-event subscription.
+```
+@ieom/server
+  └─ KernelBus (EventEmitter)
+        │  internal bus — managers talk to each other
+        │  never crosses a network boundary
+        ▼
+  transport/socket/handlers/managers.ts  ← explicit per-event bridge
+        │  bus.on('chat:message', ...) → io.emit('chat:message', ...)
+        ▼
+  Socket.IO
+        │  external ABI — contract between server and clients
+        ▼
+overlay / admin / future clients
+```
+
+**KernelBus** is internal plumbing. Managers emit and subscribe without knowing who's listening. Nothing outside `@ieom/server` ever sees a KernelBus event directly.
+
+**Socket.IO** is the external ABI — the contract between server and clients. Every event in `@ieom/shared/contracts/` defines part of this contract.
+
+The bridge between the two planes is **explicit and per-event**: `handlers/managers.ts` contains one `bus.on(X) → io.emit(X)` line per event that managers need to push to clients. Adding a signal requires adding a line there; nothing is forwarded automatically.
+
+`KernelBus.onAny(handler)` fires for every typed bus event as a `BusFrame` envelope `{ event, payload, source?, t, seq }`. It is used by `AutomationManager` (rule evaluation against every event) and `BusHistoryRecorder` (diagnostics ring buffer, 500-entry capacity, exposed via `GET /api/diagnostics/bus-history` and the `bus:trace` Socket.IO room).
 
 ### How the Kernel Emits Signals
 
@@ -242,7 +261,7 @@ Widgets are:
 - **Kernel-unaware** — they never import the socket directly; they receive events through the DOM CustomEvent bus
 - **Composable** — a widget can be as simple as a static React component or as complex as a full app with its own API connections
 
-Widgets can implement behaviors and freely communicate with any other system mechanism — emitting signals through the DOM bus (picked up by other widgets or the kernel), subscribing to `bus:custom` events from managers, triggering widget wires, or calling external APIs. A widget built by one collaborator can react to events produced by a widget or manager built by another, with no coordination required beyond the shared signal contract.
+Widgets can implement behaviors and freely communicate with any other system mechanism — emitting signals through the DOM bus (picked up by other widgets or the kernel), subscribing to first-class Socket.IO signals from managers, triggering widget wires, or calling external APIs. A widget built by one collaborator can react to events produced by a widget or manager built by another, with no coordination required beyond the shared signal contract.
 
 **To add a new widget:**
 1. Create `packages/shared/src/widgets/{id}/definition.ts` (ID, component type, size, z-index, intent manifest)
@@ -402,7 +421,8 @@ Electron shell. The **physical machine** that wraps everything:
 |---------|-----------|---------|
 | Socket.IO signals | Kernel → Overlay | Push directives: scene changed, widget toggled, effect fired, config updated |
 | Socket.IO syscalls | Overlay → Kernel | Request actions: report status, send simulation completions, drag/resize events |
-| HTTP | Overlay → Kernel | Initial config fetch (`GET /api/config`), slot status (`GET /api/overlay/status`) |
+| Socket.IO query (`overlay:sync`) | Overlay → Kernel (ack) | Atomic connect sync — single round-trip returns `{ state, desktop, config }` |
+| HTTP | Overlay → Kernel | Slot status (`GET /api/overlay/status`), diagnostics |
 | WebRTC | Kernel → Overlay | Video relay — participant camera feeds routed through the werift SFU hub |
 
 **Single-instance rule:** only one overlay connects at a time (slot system). This guarantees deterministic state.
@@ -475,7 +495,7 @@ The kernel handles Socket.IO events through **domain-scoped handler modules**. E
 |--------|--------|--------------------|
 | **scene** | State transitions | `scene:change`, `overlay:trigger`, `event:preview`, `transition:preview`, `panic` |
 | **widget** | App management | `widget:toggle`, `widget:simulate`, `widget:layout:apply`, simulation intent |
-| **ambiance** | Autonomous behavior | `ambiance:simulate:*`, `cursor:mirror`, leader management |
+| **ambiance** | Autonomous behavior | `ambiance:simulate:*`, leader management |
 | **desktop** | Window management | `desktop:widget:drag/resize`, `desktop:notify`, `desktop:recycle-bin` |
 | **config** | Runtime overrides | Override clear operations, `keybind:execute` |
 | **diagnostics** | System health | `overlay:runtime:status`, throttled diagnostics broadcasting |
@@ -522,8 +542,8 @@ When you need the kernel to handle a new autonomous concern:
 No code required for simple "when X → do Y" behaviors:
 
 - `POST /api/automation/rules` with `{ condition: { event, match? }, action: { kind, params } }`
-- Supported action kinds: `widget:toggle`, `scene:change`, `bus:emit`
-- Rules fire against every KernelBus event including `custom:*` events from managers
+- Supported action kinds: `widget:toggle`, `scene:change`, `overlay:show`, `desktop:notify`
+- Rules fire against every KernelBus event
 - The admin panel CRUD lives at `GET/POST/PATCH/DELETE /api/automation/rules`
 
 ### Adding Admin UI for a Manager

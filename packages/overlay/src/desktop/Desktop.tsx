@@ -454,7 +454,6 @@ export function Desktop({ apps }: DesktopProps) {
           const recipe = getWidgetSimulationRecipe(app);
           const menuPath = recipe.menuPath(app);
           const timeline = buildOpenWidgetMenuTimeline(app.label, menuPath, app.id);
-          socket.emit('cursor:mirror:menu-timeline', timeline);
           simEmittingRef.current = true;
           try {
             const wasOpen = useAppStore.getState().openWidgets.has(app.id);
@@ -471,7 +470,6 @@ export function Desktop({ apps }: DesktopProps) {
                 if (phasePayload.phase === 'open') {
                   emitStartMenuState({ open: true, activeRoot: null })
                 }
-                socket.emit('desktop:start-menu:phase', phasePayload)
               },
               debugTag: `leader:${payload.actionId}:${app.id}`,
               closeStartMenuAfterPath: false,
@@ -486,7 +484,6 @@ export function Desktop({ apps }: DesktopProps) {
             }
             ok = true;
           } finally {
-            socket.emit('desktop:start-menu:phase', { phase: 'clear' })
             emitStartMenuState({ open: false, activeRoot: null });
             simEmittingRef.current = false;
           }
@@ -885,45 +882,6 @@ export function Desktop({ apps }: DesktopProps) {
       }
     }
   }, [])
-
-  useEffect(() => {
-    const onRemoteIconDrag = (payload: DesktopIconDragPayload) => {
-      if (autoArrangeIcons) return
-
-      const app = desktopApps.find((entry) => entry.id === payload.appId)
-      if (!app) return
-
-      const desktopBounds = desktopRef.current?.getBoundingClientRect()
-      const iconSize = resolveIconSize(app, defaultIconSize)
-      const nextPosition = desktopBounds
-        ? clampIconPosition(
-            { x: payload.x, y: payload.y },
-            iconSize,
-            { width: desktopBounds.width, height: desktopBounds.height },
-          )
-        : { x: payload.x, y: payload.y }
-
-      setDragPositions((prev) => {
-        const current = prev[payload.appId]
-        if (current && current.x === nextPosition.x && current.y === nextPosition.y) return prev
-        return { ...prev, [payload.appId]: nextPosition }
-      })
-
-      if (payload.phase === 'start' || payload.phase === 'move') {
-        if (!iconDragRef.current) setDraggingId(payload.appId)
-        return
-      }
-
-      if (!iconDragRef.current) {
-        setDraggingId((prev) => (prev === payload.appId ? null : prev))
-      }
-    }
-
-    socket.on('desktop:icon:drag', onRemoteIconDrag)
-    return () => {
-      socket.off('desktop:icon:drag', onRemoteIconDrag)
-    }
-  }, [autoArrangeIcons, defaultIconSize, desktopApps])
 
   useEffect(() => {
     setDragPositions((prev) => {

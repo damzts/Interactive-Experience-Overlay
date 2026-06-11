@@ -17,6 +17,33 @@ import type { TransitionStep } from '../domain/scene.js'
 import type { OverlayTriggerPayload } from './effects.js'
 import type { ObsStatusPayload, RuntimeDiagnosticsPayload } from './diagnostics.js'
 
+// ── BusFrame (shared type for bus trace tooling) ──────────────────
+
+export interface BusFrame {
+  event: string
+  payload: unknown
+  source?: string
+  t: number
+  seq: number
+}
+
+// ── Manager signal payloads ────────────────────────────────────────
+
+export interface ChatMessagePayload {
+  user: string
+  text: string
+  color: string
+  badges: string[]
+  channel: string
+  source: 'twitch' | 'simulation'
+}
+
+export interface ShowStepPayload {
+  showId: string
+  stepIndex: number
+  label: string
+}
+
 // ── Re-exported payload types ─────────────────────────────────────
 
 export type { ObsStatusPayload, RuntimeDiagnosticsPayload }
@@ -230,8 +257,24 @@ export interface ServerToClientEvents {
   'desktop:start-menu:phase': (payload: DesktopStartMenuSimulationPhasePayload) => void
   /** Screen saver preview command */
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
-  /** Custom kernel bus event forwarded from managers */
-  'bus:custom': (payload: { event: string; payload: unknown }) => void
   /** Widget wire triggered a widget action */
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }) => void
+  /** Twitch chat message received */
+  'chat:message': (payload: ChatMessagePayload) => void
+  /** Twitch chat connected to a channel */
+  'chat:connected': (payload: { channel: string }) => void
+  /** OBS stream started */
+  'obs:stream:started': (payload: Record<string, never>) => void
+  /** OBS stream stopped */
+  'obs:stream:stopped': (payload: Record<string, never>) => void
+  /** OBS recording started */
+  'obs:recording:started': (payload: Record<string, never>) => void
+  /** OBS recording stopped */
+  'obs:recording:stopped': (payload: Record<string, never>) => void
+  /** OBS virtual cam state changed */
+  'obs:virtualcam:changed': (payload: { active: boolean }) => void
+  /** Show sequencer executed a step */
+  'show:step': (payload: ShowStepPayload) => void
+  /** Bus trace frames batch (for dev tooling subscribers) */
+  'bus:trace:frames': (frames: BusFrame[]) => void
 }

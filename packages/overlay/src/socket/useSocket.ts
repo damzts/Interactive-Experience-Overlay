@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { STATE } from '@ieomlabs/shared'
-import type { DesktopRuntimeStatePayload } from '@ieomlabs/shared'
+import type { OverlaySyncSnapshot } from '@ieomlabs/shared'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
 import { useSignalReceiver } from './useSignalReceiver'
@@ -41,19 +41,16 @@ export function useSocket() {
     })
   }, [])
 
-  // On connect: fetch current state via queries (not signals — signals are push-only)
+  // On connect: atomic initial sync via overlay:sync (replaces three separate channels)
   useEffect(() => {
     const requestRuntimeState = () => {
-      socket.emit('state:request', (state: STATE) => {
-        if (state !== STATE.TRANSITIONING) {
-          setVisualState(state as Exclude<STATE, typeof STATE.TRANSITIONING>)
+      socket.emit('overlay:sync', (snapshot: OverlaySyncSnapshot) => {
+        if (snapshot.state !== STATE.TRANSITIONING) {
+          setVisualState(snapshot.state as Exclude<STATE, typeof STATE.TRANSITIONING>)
         }
+        syncDesktopRuntimeState(snapshot.desktop)
+        useAppStore.getState().setConfig(snapshot.config)
       })
-      socket.emit('desktop:state:request', (payload: DesktopRuntimeStatePayload) => {
-        syncDesktopRuntimeState(payload)
-      })
-      // Initial config fetch
-      fetch('/api/config').then((r) => r.json()).then(useAppStore.getState().setConfig).catch(() => {})
     }
 
     if (socket.connected) requestRuntimeState()

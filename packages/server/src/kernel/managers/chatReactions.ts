@@ -38,8 +38,8 @@ export class ChatReactionManager implements Manager {
   init(): void { this._status = 'idle' }
 
   start(): void {
-    this._unsubscribe = this.bus.onCustom('chat:message', (payload) => {
-      this.evaluate(payload as ChatMessage)
+    this._unsubscribe = this.bus.on('chat:message', (payload) => {
+      this.evaluate(payload)
     })
     this._status = 'running'
   }

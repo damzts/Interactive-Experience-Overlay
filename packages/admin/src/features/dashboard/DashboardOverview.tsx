@@ -7,6 +7,7 @@ import {
   Settings,
   Play,
   Activity,
+  Radio,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Card } from '../../components/molecules/Card';
@@ -76,6 +77,8 @@ export interface DashboardOverviewProps {
   onOpenOverlay?: () => void;
   /** Callback to open settings */
   onOpenSettings?: () => void;
+  /** Callback to open the bus trace popup */
+  onOpenBusTrace?: () => void;
 }
 
 export function DashboardOverview({
@@ -87,6 +90,7 @@ export function DashboardOverview({
   onToggleWidget,
   onOpenOverlay,
   onOpenSettings,
+  onOpenBusTrace,
 }: DashboardOverviewProps) {
   const overlayFlash = useStateChangeFlash(overlayStatus);
   const obsFlash = useStateChangeFlash(obsStatus);
@@ -243,7 +247,7 @@ export function DashboardOverview({
         <h2 className="text-[var(--text-sm)] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-3)]">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-3)]">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-[var(--space-3)]">
           <Button
             variant="secondary"
             size="md"
@@ -279,6 +283,15 @@ export function DashboardOverview({
             className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
           >
             Settings
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            icon={<Radio />}
+            onClick={onOpenBusTrace}
+            className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
+          >
+            Bus Trace
           </Button>
         </div>
       </section>

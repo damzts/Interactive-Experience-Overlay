@@ -88,9 +88,9 @@ The engine has eleven distinct responsibilities:
 
 **Show sequencer** — scripted show pipelines. A `ShowDefinition` is an ordered list of `ShowStep` records (each with a `delayMs` and an `EventAction`). POST `/api/shows/:id/run` starts the chain; POST `/api/shows/:id/cancel` aborts it. Each step fires via `scheduler:fired` so the existing action dispatch path handles it — the sequencer only needs to know about `obs-stream` actions, which it executes directly through `ObsBridge`.
 
-**Twitch chat bridge** — connects to Twitch IRC over WebSocket (anonymous read-only via `justinfan` nick, or authenticated). Parses IRCv3 PRIVMSG tags and emits `chat:message` onto the KernelBus, which is forwarded to the overlay via `bus:custom`. `ChatReactionManager` sits on top and fires configured effects and actions when chat messages match keyword, command, or regex rules.
+**Twitch chat bridge** — connects to Twitch IRC over WebSocket (anonymous read-only via `justinfan` nick, or authenticated). Parses IRCv3 PRIVMSG tags and emits `chat:message` onto the KernelBus; the explicit bridge in `handlers/managers.ts` forwards it to clients as the first-class `chat:message` Socket.IO signal. `ChatReactionManager` sits on top and fires configured effects and actions when chat messages match keyword, command, or regex rules.
 
-**OBS bridge** — full bidirectional OBS WebSocket integration. Records streaming, recording, and virtual camera state; emits `obs:stream:started/stopped`, `obs:recording:started/stopped`, and `obs:virtualcam:changed` events on the KernelBus. Show sequencer and automation rules can start/stop streams via the `obs-stream` `EventAction` kind.
+**OBS bridge** — full bidirectional OBS WebSocket integration. Records streaming, recording, and virtual camera state; emits `obs:stream:started/stopped`, `obs:recording:started/stopped`, and `obs:virtualcam:changed` events on the KernelBus. The explicit bridge in `handlers/managers.ts` forwards these to clients as first-class Socket.IO signals. Show sequencer and automation rules can start/stop streams via the `obs-stream` `EventAction` kind.
 
 ## What the engine exposes
 
@@ -107,8 +107,8 @@ Four things, in order of how often they change:
 packages/server/src/
 ├── kernel/
 │   ├── index.ts            # Kernel class — register(), boot(), shutdown()
-│   ├── bus.ts              # Internal event bus (KernelBus, KernelEvents, onAny, emitCustom)
-│   ├── SafeManagerProxy.ts # Quarantine wrapper for untrusted managers
+│   ├── bus.ts              # Internal event bus (KernelBus, KernelEvents, BusFrame, onAny, for())
+│   ├── BusHistoryRecorder.ts # 500-entry ring buffer; HTTP snapshot + bus:trace live room
 │   └── managers/           # All kernel managers — the engine brain
 │       ├── scene.ts        # SceneMachine — state machine
 │       ├── ambiance.ts     # AmbianceManager — widget simulation (2-phase)

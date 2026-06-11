@@ -307,51 +307,6 @@ export function DesktopWindow({
   }
 
   useEffect(() => {
-    const onRemoteWidgetDrag = (payload: DesktopWidgetDragPayload) => {
-      if (payload.widgetId !== id) return
-      if (dragging.current || resizing.current) return
-
-      const next = clampPosition({ x: payload.x, y: payload.y })
-      if (next.x === posRef.current.x && next.y === posRef.current.y) return
-
-      posRef.current = next
-      setPos(next)
-    }
-
-    socket.on('desktop:widget:drag', onRemoteWidgetDrag)
-    return () => {
-      socket.off('desktop:widget:drag', onRemoteWidgetDrag)
-    }
-  }, [id, liveSize.height, liveSize.width])
-
-  useEffect(() => {
-    const onRemoteWidgetResize = (payload: DesktopWidgetResizePayload) => {
-      if (payload.widgetId !== id) return
-      if (resizing.current || dragging.current) return
-
-      const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
-      const nextSize = {
-        width: clampDimension(payload.width, 180, 1400),
-        height: clampDimension(payload.height, 140, maxResizableHeight),
-      }
-      const nextPos = clampPosition({ x: payload.x, y: payload.y }, nextSize)
-
-      sizeRef.current = nextSize
-      setLiveSize(nextSize)
-
-      if (nextPos.x !== posRef.current.x || nextPos.y !== posRef.current.y) {
-        posRef.current = nextPos
-        setPos(nextPos)
-      }
-    }
-
-    socket.on('desktop:widget:resize', onRemoteWidgetResize)
-    return () => {
-      socket.off('desktop:widget:resize', onRemoteWidgetResize)
-    }
-  }, [id])
-
-  useEffect(() => {
     return () => {
       const broadcastState = dragBroadcastRef.current
       if (broadcastState.rafId !== null) {

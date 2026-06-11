@@ -54,18 +54,15 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
     })
   }, [appId])
 
-  // Real Twitch messages arrive via the server bus:custom channel
+  // Real Twitch messages arrive via the typed chat:message signal
   useEffect(() => {
-    const handleBusCustom = (payload: { event: string; payload: unknown }) => {
-      if (payload.event !== 'chat:message') return
-      const m = payload.payload as { user?: string; text?: string; color?: string }
-      if (!m?.user || !m?.text) return
-      const msg: Message = { user: m.user, text: m.text, color: m.color || '#ffffff' }
+    const handleChatMessage = (payload: { user: string; text: string; color: string }) => {
+      const msg: Message = { user: payload.user, text: payload.text, color: payload.color || '#ffffff' }
       setMessages((prev) => [...prev, msg])
       dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
     }
-    socket.on('bus:custom', handleBusCustom)
-    return () => { socket.off('bus:custom', handleBusCustom) }
+    socket.on('chat:message', handleChatMessage)
+    return () => { socket.off('chat:message', handleChatMessage) }
   }, [appId])
 
   const handleSend = () => {

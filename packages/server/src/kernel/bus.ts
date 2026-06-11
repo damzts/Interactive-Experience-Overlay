@@ -26,47 +26,47 @@ export interface KernelEvents {
   'overlay:disconnected': Record<string, never>
 }
 
+// ── BusFrame — metadata envelope for every bus event ─────────────
+
+export interface BusFrame {
+  /** Event name */
+  event: string
+  /** Event payload */
+  payload: unknown
+  /** Optional source identifier (set when emitting via bus.for(source)) */
+  source?: string
+  /** Millisecond timestamp at emit time */
+  t: number
+  /** Monotonically increasing sequence number */
+  seq: number
+}
+
 // ── Typed event bus ──────────────────────────────────────────────
 
 type Listener<T> = (payload: T) => void
 
 export class KernelBus {
   private emitter = new EventEmitter()
-  private _anyHandlers = new Set<(event: string, payload: unknown) => void>()
+  private _anyHandlers = new Set<(frame: BusFrame) => void>()
+  private _seq = 0
 
   constructor() {
     this.emitter.setMaxListeners(50)
   }
 
-  emit<K extends keyof KernelEvents>(event: K, payload: KernelEvents[K]): void {
+  emit<K extends keyof KernelEvents>(event: K, payload: KernelEvents[K], source?: string): void {
+    const frame: BusFrame = { event: event as string, payload, source, t: Date.now(), seq: ++this._seq }
     this.emitter.emit(event, payload)
-    for (const h of this._anyHandlers) h(event as string, payload)
+    for (const h of this._anyHandlers) h(frame)
   }
 
   /**
-   * Emit a custom event (any string name). Used by third-party managers to
-   * publish domain-specific signals without coupling to KernelEvents.
-   * The socket orchestrator subscribes to 'custom:*' and forwards to overlay clients.
-   */
-  emitCustom(event: string, payload: unknown): void {
-    const fullEvent = `custom:${event}`
-    this.emitter.emit(fullEvent, payload)
-    for (const h of this._anyHandlers) h(fullEvent, payload)
-  }
-
-  /**
-   * Subscribe to all events emitted by the bus (both typed KernelEvents and custom:* events).
+   * Subscribe to all events emitted by the bus.
    * Returns an unsubscribe function.
    */
-  onAny(handler: (event: string, payload: unknown) => void): () => void {
+  onAny(handler: (frame: BusFrame) => void): () => void {
     this._anyHandlers.add(handler)
     return () => { this._anyHandlers.delete(handler) }
-  }
-
-  onCustom(event: string, listener: (payload: unknown) => void): () => void {
-    const fullEvent = `custom:${event}`
-    this.emitter.on(fullEvent, listener)
-    return () => this.emitter.off(fullEvent, listener)
   }
 
   on<K extends keyof KernelEvents>(event: K, listener: Listener<KernelEvents[K]>): () => void {
@@ -80,5 +80,30 @@ export class KernelBus {
 
   removeAllListeners(): void {
     this.emitter.removeAllListeners()
+  }
+
+  /** Return a bound handle that stamps every emitted frame with the given source. */
+  for(source: string): BoundBus {
+    return new BoundBus(this, source)
+  }
+}
+
+/** Thin wrapper that attaches a fixed source to every emitted frame. */
+export class BoundBus {
+  constructor(
+    private readonly bus: KernelBus,
+    private readonly source: string,
+  ) {}
+
+  emit<K extends keyof KernelEvents>(event: K, payload: KernelEvents[K]): void {
+    this.bus.emit(event, payload, this.source)
+  }
+
+  on<K extends keyof KernelEvents>(event: K, listener: (payload: KernelEvents[K]) => void): () => void {
+    return this.bus.on(event, listener)
+  }
+
+  onAny(handler: (frame: BusFrame) => void): () => void {
+    return this.bus.onAny(handler)
   }
 }

@@ -11,9 +11,9 @@
  */
 
 import type { STATE } from './state.js'
-import type { DesktopRuntimeStatePayload, OverlayRuntimeStatusPayload } from './commands.js'
+import type { DesktopRuntimeStatePayload, OverlayRuntimeStatusPayload, OverlaySyncSnapshot } from './commands.js'
 
-export type { DesktopRuntimeStatePayload, OverlayRuntimeStatusPayload }
+export type { DesktopRuntimeStatePayload, OverlayRuntimeStatusPayload, OverlaySyncSnapshot }
 
 /**
  * Query event map — events that have a typed response callback.
@@ -33,4 +33,11 @@ export interface QueryEvents {
    * Use on connect/reconnect to restore UI without waiting for individual signals.
    */
   'desktop:state:request': (callback: (payload: DesktopRuntimeStatePayload) => void) => void
+
+  /**
+   * Atomic initial sync — returns scene state, desktop state, and config in one round-trip.
+   * Replaces the three separate channels (state:request + desktop:state:request + GET /api/config)
+   * that the overlay fires on connect.
+   */
+  'overlay:sync': (callback: (snapshot: OverlaySyncSnapshot) => void) => void
 }

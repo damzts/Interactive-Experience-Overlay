@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useAdminStore } from '../../store/useAdminStore';
 import { DashboardOverview } from './DashboardOverview';
+import { BusTraceModal } from './BusTraceModal';
 
 /**
  * DashboardContainer — Connects the DashboardOverview presentational component
@@ -28,6 +29,9 @@ export function DashboardContainer() {
 
   // ─── UI navigation actions ───
   const setActiveSection = useAdminStore((s) => s.setActiveSection);
+
+  // ─── Bus trace popup ───
+  const [busTraceOpen, setBusTraceOpen] = useState(false);
 
   // Derive overlay connection status from whether an overlay client owns the socket
   const overlayStatus: 'connected' | 'disconnected' =
@@ -66,17 +70,24 @@ export function DashboardContainer() {
     setActiveSection('system');
   }, []);
 
+  const handleOpenBusTrace = useCallback(() => setBusTraceOpen(true), []);
+  const handleCloseBusTrace = useCallback(() => setBusTraceOpen(false), []);
+
   return (
-    <DashboardOverview
-      overlayStatus={overlayStatus}
-      obsStatus={obsStatus}
-      onlineRoomCount={onlineRoomCount}
-      activeScene={activeScene}
-      onSwitchScene={handleSwitchScene}
-      onToggleWidget={handleToggleWidget}
-      onOpenOverlay={handleOpenOverlay}
-      onOpenSettings={handleOpenSettings}
-    />
+    <>
+      <DashboardOverview
+        overlayStatus={overlayStatus}
+        obsStatus={obsStatus}
+        onlineRoomCount={onlineRoomCount}
+        activeScene={activeScene}
+        onSwitchScene={handleSwitchScene}
+        onToggleWidget={handleToggleWidget}
+        onOpenOverlay={handleOpenOverlay}
+        onOpenSettings={handleOpenSettings}
+        onOpenBusTrace={handleOpenBusTrace}
+      />
+      <BusTraceModal open={busTraceOpen} onClose={handleCloseBusTrace} />
+    </>
   );
 }
 

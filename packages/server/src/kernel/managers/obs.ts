@@ -251,10 +251,10 @@ export class ObsBridge implements Manager {
       this.emitStatus()
       if (!prev && data.outputActive) {
         logger.info('[obs] stream started (event)')
-        this.bus?.emitCustom('obs:stream:started', {})
+        this.bus?.emit('obs:stream:started', {})
       } else if (prev && !data.outputActive) {
         logger.info('[obs] stream stopped (event)')
-        this.bus?.emitCustom('obs:stream:stopped', {})
+        this.bus?.emit('obs:stream:stopped', {})
       }
     })
 
@@ -264,17 +264,17 @@ export class ObsBridge implements Manager {
       this.emitStatus()
       if (!prev && data.outputActive) {
         logger.info('[obs] recording started (event)')
-        this.bus?.emitCustom('obs:recording:started', {})
+        this.bus?.emit('obs:recording:started', {})
       } else if (prev && !data.outputActive) {
         logger.info('[obs] recording stopped (event)')
-        this.bus?.emitCustom('obs:recording:stopped', {})
+        this.bus?.emit('obs:recording:stopped', {})
       }
     })
 
     this.obs.on('VirtualcamStateChanged', (data: { outputActive: boolean }) => {
       this._virtualCamActive = data.outputActive
       this.emitStatus()
-      this.bus?.emitCustom('obs:virtualcam:changed', { active: data.outputActive })
+      this.bus?.emit('obs:virtualcam:changed', { active: data.outputActive })
     })
   }
 

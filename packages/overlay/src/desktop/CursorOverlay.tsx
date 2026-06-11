@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import winCursor from './assets/win98-cursor.svg';
-import { socket } from '../socket/client';
 
 export interface CursorOverlayController {
   moveTo: (x: number, y: number, options?: { duration?: number }) => Promise<void>;
@@ -16,30 +15,15 @@ export function CursorOverlayProvider({ children }: { children: React.ReactNode 
   const [clickAnim, setClickAnim] = useState(false);
   const moveResolve = useRef<(() => void) | null>(null);
   const posRef = useRef({ x: 0, y: 0 });
-  const isSimulationLeaderRef = useRef(false);
 
   useEffect(() => {
     posRef.current = pos;
   }, [pos]);
 
-  useEffect(() => {
-    const updateLeaderStatus = (payload: { socketId: string | null }) => {
-      isSimulationLeaderRef.current = !!payload.socketId && payload.socketId === socket.id;
-    };
-
-    socket.on('ambiance:leader', updateLeaderStatus);
-    return () => {
-      socket.off('ambiance:leader', updateLeaderStatus);
-    };
-  }, []);
-
   // Expose controller
   const controller = useRef<CursorOverlayController>({
     moveTo: (x, y, { duration = 600 } = {}) => {
       setVisible(true);
-      if (!(window as any).__cursorMirrorApplying && isSimulationLeaderRef.current) {
-        socket.emit('cursor:mirror', { kind: 'move', x, y, duration });
-      }
       return new Promise<void>((resolve) => {
         const start = { ...posRef.current };
         const dx = x - start.x;
@@ -60,9 +44,6 @@ export function CursorOverlayProvider({ children }: { children: React.ReactNode 
     },
     click: () => {
       setClickAnim(true);
-      if (!(window as any).__cursorMirrorApplying && isSimulationLeaderRef.current) {
-        socket.emit('cursor:mirror', { kind: 'click' });
-      }
       return new Promise<void>((resolve) => {
         setTimeout(() => {
           setClickAnim(false);
@@ -72,9 +53,6 @@ export function CursorOverlayProvider({ children }: { children: React.ReactNode 
     },
     setVisible: (v) => {
       setVisible(v)
-      if (!(window as any).__cursorMirrorApplying && isSimulationLeaderRef.current) {
-        socket.emit('cursor:mirror', { kind: 'visible', visible: v });
-      }
     },
   });
 

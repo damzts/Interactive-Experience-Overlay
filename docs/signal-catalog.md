@@ -46,25 +46,16 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `desktop:icon:drag` | `DesktopIconDragPayload` | Ambiance drags an icon | Animate icon to new position |
 | `desktop:widget:drag` | `DesktopWidgetDragPayload` | Ambiance drags a window | Move widget to new position |
 | `desktop:widget:resize` | `DesktopWidgetResizePayload` | Ambiance resizes a window | Resize widget |
-| `cursor:mirror` | `CursorMirrorPayload` | Ambiance moves/clicks cursor | Move/click/show-hide the cursor overlay |
-| `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Ambiance opens a widget via menu | Play full menu navigation animation |
-| `bus:custom` | `{ event: string; payload: unknown }` | Manager calls `bus.emitCustom()` | Forward custom manager event to overlay |
 | `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Widget wire fires a non-toggle action | Widget receives custom wire action |
-
-### `bus:custom` event catalog
-
-The `bus:custom` signal is a generic envelope. The inner `event` field determines the meaning:
-
-| Inner event | Payload | Emitted by | When |
-|-------------|---------|-----------|------|
-| `chat:message` | `{ user, text, color, badges[], channel, source: 'twitch'\|'simulation' }` | TwitchChatManager | Every Twitch PRIVMSG received |
-| `chat:connected` | `{ channel }` | TwitchChatManager | IRC JOIN confirmed |
-| `obs:stream:started` | `{}` | ObsBridge | OBS starts streaming |
-| `obs:stream:stopped` | `{}` | ObsBridge | OBS stops streaming |
-| `obs:recording:started` | `{}` | ObsBridge | OBS starts recording |
-| `obs:recording:stopped` | `{}` | ObsBridge | OBS stops recording |
-| `obs:virtualcam:changed` | `{ active: boolean }` | ObsBridge | Virtual camera toggled |
-| `show:step` | `{ showId, stepIndex, label }` | ShowSequencer | Each step of a running show executes |
+| `chat:message` | `ChatMessagePayload` | TwitchChatManager (via explicit bridge) | Every Twitch PRIVMSG received |
+| `chat:connected` | `{ channel: string }` | TwitchChatManager (via explicit bridge) | IRC JOIN confirmed |
+| `obs:stream:started` | `{}` | ObsBridge (via explicit bridge) | OBS starts streaming |
+| `obs:stream:stopped` | `{}` | ObsBridge (via explicit bridge) | OBS stops streaming |
+| `obs:recording:started` | `{}` | ObsBridge (via explicit bridge) | OBS starts recording |
+| `obs:recording:stopped` | `{}` | ObsBridge (via explicit bridge) | OBS stops recording |
+| `obs:virtualcam:changed` | `{ active: boolean }` | ObsBridge (via explicit bridge) | Virtual camera toggled |
+| `show:step` | `ShowStepPayload` | ShowSequencer (via explicit bridge) | Each step of a running show executes |
+| `bus:trace:frames` | `BusFrame[]` | BusHistoryRecorder | Batched bus frames pushed to `bus:trace` room subscribers |
 
 ---
 
@@ -93,17 +84,16 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `ambiance:simulate:done` | `AmbianceSimulationDonePayload` | Overlay finishes simulation | Kernel records outcome, updates metrics |
 | `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Widget interaction | Kernel broadcasts to all clients |
 | `widget:signal` | `{ source, event, payload }` | Widget emits a signal | Overlay routes through widget wires |
-| `cursor:mirror` | `CursorMirrorPayload` | Overlay cursor moved | Broadcast to all admins |
-| `cursor:mirror:menu-timeline` | `OpenWidgetMenuTimelinePayload` | Overlay menu animation | Broadcast to all admins |
 | `desktop:notify` | `DesktopNotificationPayload` | Admin send notification | Broadcast notification to overlay |
 | `desktop:recycle-bin` | `{ full }` | Overlay state change | Update runtime state |
 | `desktop:start-menu:state` | `DesktopStartMenuStatePayload` | Overlay start menu toggle | Update runtime state |
-| `desktop:start-menu:phase` | `DesktopStartMenuSimulationPhasePayload` | Ambiance sim phase | Broadcast to leader overlay |
 | `desktop:screen-saver:test` | `{ preset }` | Admin preview button | Emit to overlay |
 | `desktop:icon:drag` | `DesktopIconDragPayload` | Overlay drag event | Forward to all clients |
 | `desktop:widget:drag` | `DesktopWidgetDragPayload` | Overlay drag event | Update runtime widget position |
 | `desktop:widget:resize` | `DesktopWidgetResizePayload` | Overlay resize event | Update runtime widget size |
 | `overlay:runtime:status` | `OverlayRuntimeStatusPayload` | Overlay on mount | Kernel records overlay readiness |
+| `bus:trace:subscribe` | — | Admin diagnostics panel | Join `bus:trace` Socket.IO room; receive `bus:trace:frames` |
+| `bus:trace:unsubscribe` | — | Admin diagnostics panel | Leave `bus:trace` room |
 
 ---
 
@@ -113,8 +103,7 @@ Defined in `packages/shared/src/contracts/queries.ts`.
 
 | Event | Response | When | Use |
 |-------|----------|------|-----|
-| `state:request` | `STATE` | On connect/reconnect | Sync scene without waiting for next `state:update` |
-| `desktop:state:request` | `DesktopRuntimeStatePayload` | On connect/reconnect | Restore widget state, recycle bin, start menu |
+| `overlay:sync` | `OverlaySyncSnapshot` | On connect/reconnect | Atomic initial sync — returns `{ state, desktop, config }` in one round-trip |
 
 ---
 

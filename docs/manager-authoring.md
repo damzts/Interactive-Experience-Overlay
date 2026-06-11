@@ -138,15 +138,17 @@ In `packages/shared/src/contracts/signals.ts`, add to `ServerToClientEvents`:
 'your:signal': (payload: YourSignalPayload) => void
 ```
 
-In the socket handler layer (`transport/socket/handlers/`), subscribe to the bus event and forward:
+In `transport/socket/handlers/managers.ts`, add one line to `registerManagerSignals`:
 
 ```ts
 bus.on('your:event', (payload) => {
-  io.emit('your:signal', { ... })
+  io.emit('your:signal', payload)
 })
 ```
 
-**Why separate bus events from socket signals?** Bus events are internal. Multiple consumers can listen (diagnostics, logging, other managers). Socket signals are external ABI — once you emit them, the overlay depends on them. Keeping them separate means you can change internal plumbing without touching the ABI.
+This is the **explicit bridge** between the two communication planes. Nothing is forwarded automatically — every signal that crosses from KernelBus to Socket.IO requires a line here.
+
+**Why separate bus events from socket signals?** Bus events are internal. Multiple consumers can listen (diagnostics, logging, other managers). Socket signals are external ABI — once you emit them, clients depend on them. Keeping the bridge explicit means you can change internal plumbing without touching the ABI.
 
 ---
 
@@ -175,7 +177,6 @@ Add the command type in `packages/shared/src/contracts/commands.ts`.
 - [ ] `status()` reflects actual lifecycle state
 - [ ] Communicates via `KernelBus`, not by importing other managers
 - [ ] Registered in `desktop-entry.ts` after its dependencies
-- [ ] If third-party / untrusted: wrapped in `SafeManagerProxy` before registration
 - [ ] Bus events (if any) declared in a co-located `yourmanager.signals.ts` (never edit `kernel/bus.ts` directly)
 - [ ] `yourmanager.signals.ts` side-effect imported in `kernel/index.ts`
 - [ ] Socket signals (if any) added to `ServerToClientEvents` in `signals.ts`
