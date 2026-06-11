@@ -8,6 +8,7 @@
 
 import type Database from 'better-sqlite3'
 import type { Server as SocketIOServer } from 'socket.io'
+import type { KernelBus } from '../bus.js'
 import logger from '../../lib/logger.js'
 import {
   DEFAULT_CONFIG,
@@ -108,6 +109,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   constructor(
     private db: DesktopDatabase,
     private io: SocketIOServer | null = null,
+    private bus: KernelBus | null = null,
   ) {
     this.sceneRepo = new SceneRepository(db)
     this.widgetRepo = new WidgetRepository(db)
@@ -218,6 +220,13 @@ export class DesktopConfigService implements Manager, IConfigService {
       this.io.emit('config:update', config)
       if (updates && Object.keys(updates).length > 0) {
         this.io.emit('config:patch', updates)
+      }
+    }
+
+    if (this.bus) {
+      const sections = updates ? Object.keys(updates) : ['all']
+      for (const section of sections) {
+        this.bus.emit('config:changed', { section })
       }
     }
 

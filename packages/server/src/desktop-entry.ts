@@ -233,8 +233,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     transports: ['websocket', 'polling'],
   })
 
+  // ── Kernel ────────────────────────────────────────────────────
+  const kernel = new Kernel()
+
   // ── Managers ──────────────────────────────────────────────────
-  const configService = new DesktopConfigService(db, io)
+  const configService = new DesktopConfigService(db, io, kernel.bus)
   const dbQueryAdapter = {
     query: async (sql: string, params: unknown[] = []) => {
       const positional = sql.replace(/\$\d+/g, '?')
@@ -245,14 +248,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     },
   }
   const userRepository = new UserRepository(dbQueryAdapter)
-  const machine = new SceneMachine()
+  const machine = new SceneMachine(kernel.bus)
   const runtimeState = new RuntimeStateStore()
 
-  // ── Kernel ────────────────────────────────────────────────────
-  const kernel = new Kernel()
-
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
-  const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig)
+  const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const obsBridge = new ObsBridge(io, machine, kernel.bus)
   const hubConnection = new HubConnection()
   const povOrchestrator = new POVOrchestrator(hubConnection)

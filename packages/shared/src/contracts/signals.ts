@@ -20,10 +20,15 @@ import type { ObsStatusPayload, RuntimeDiagnosticsPayload } from './diagnostics.
 // ── BusFrame (shared type for bus trace tooling) ──────────────────
 
 export interface BusFrame {
+  /** Name of the event being sent over the bus. */
   event: string
+  /** Event payload; shape depends on the specific event. */
   payload: unknown
+  /** Optional origin of the event, such as a subsystem or client. */
   source?: string
+  /** Timestamp when the frame was created, in milliseconds. */
   t: number
+  /** Monotonic sequence number used for ordering frames. */
   seq: number
 }
 

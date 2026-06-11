@@ -100,6 +100,7 @@ export function setupSocketHandlers(
       ctx.runtimeState.setOverlaySocketId(socket.id)
       ambianceManager.setOverlayReady(false)
       ambianceManager.recordHistory('leader-elected', 'overlay connected', { leaderSocketId: socket.id })
+      ctx.bus.emit('overlay:connected', { socketId: socket.id })
       io.emit('overlay:owner', { socketId: socket.id })
       queueRuntimeDiagnosticsEmit(ctx)
     }
@@ -148,6 +149,7 @@ export function setupSocketHandlers(
         ambianceManager.markSimulationCompleted(undefined, undefined, { recordHistory: false })
         ambianceManager.setOverlayReady(false)
         ambianceManager.recordHistory('leader-cleared', 'overlay disconnected', {})
+        ctx.bus.emit('overlay:disconnected', {})
         io.emit('overlay:owner', { socketId: null })
         queueRuntimeDiagnosticsEmit(ctx)
       }

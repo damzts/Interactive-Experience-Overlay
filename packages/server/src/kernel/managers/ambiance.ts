@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io'
 import { buildWidgetSimulationIntent, getAmbianceInteractMirrorPolicy, pickAmbianceInteractionIntent, withDesktopAmbianceDefaults } from '@ieomlabs/shared'
 import type { AppConfig, Manager, ManagerStatus } from '@ieomlabs/shared'
+import type { KernelBus } from '../bus.js'
 import logger from '../../lib/logger.js'
 import type {
   AmbianceDiagnosticsPayload,
@@ -86,7 +87,7 @@ export class AmbianceManager implements Manager {
   private historySequence = 0
   private diagnosticsListener?: (payload: AmbianceDiagnosticsPayload) => void
 
-  constructor(private io: Server, private getConfig: () => AppConfig) {}
+  constructor(private io: Server, private getConfig: () => AppConfig, private bus?: KernelBus) {}
 
   // ── Manager interface ────────────────────────────────────────
   init(): void { this._status = 'idle' }
@@ -436,6 +437,7 @@ export class AmbianceManager implements Manager {
       sharedIntent,
     }
     this.io.to(leaderSocketId).emit('ambiance:simulate', payload)
+    this.bus?.emit('ambiance:tick', { widgetId: picked.widgetId, action: picked.action })
     this.markSimulationDispatched(payload)
     this.lastActionAtByWidget.set(picked.widgetId, Date.now())
     this.lastWidgetId = picked.widgetId

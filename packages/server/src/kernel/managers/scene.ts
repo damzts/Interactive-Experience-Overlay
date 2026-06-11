@@ -6,6 +6,7 @@ import {
   type Manager,
   type ManagerStatus,
 } from '@ieomlabs/shared'
+import type { KernelBus } from '../bus.js'
 
 interface MachineSnapshot {
   current: STATE
@@ -26,6 +27,8 @@ export class SceneMachine extends EventEmitter implements Manager {
     current: STATE.DESKTOP,
     previous: STATE.DESKTOP,
   }
+
+  constructor(private bus?: KernelBus) { super() }
 
   get currentState() { return this.snap.current }
   get previousState() { return this.snap.previous }
@@ -52,6 +55,8 @@ export class SceneMachine extends EventEmitter implements Manager {
     const previous = this.snap.current
     this.snap.previous = previous
     this.snap.current = target
+
+    this.bus?.emit('scene:changed', { from: previous, to: target })
 
     // Fire transition pipeline to overlay (fire-and-forget)
     this.emit('transition:start', {
