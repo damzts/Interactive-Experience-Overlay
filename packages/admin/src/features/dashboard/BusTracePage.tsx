@@ -2,8 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Pause, Play, Trash2 } from 'lucide-react';
 import type { BusFrame } from '@ieomlabs/shared';
 import { socket } from '../../socket/client';
-import { Modal } from '../../components/organisms/Modal';
-import { Button } from '../../components/atoms/Button';
 import { cn } from '../../utils/cn';
 
 const MAX_FRAMES = 500;
@@ -11,12 +9,12 @@ const MAX_FRAMES = 500;
 function eventColor(event: string): string {
   const prefix = event.split(':')[0] ?? '';
   const map: Record<string, string> = {
-    obs:      'text-[var(--color-warning-400)]',
-    chat:     'text-[var(--color-success-400)]',
-    scene:    'text-[var(--color-primary-400)]',
-    overlay:  'text-[var(--color-primary-400)]',
-    show:     'text-[var(--color-primary-300)]',
-    bus:      'text-[var(--color-danger-400)]',
+    obs:     'text-[var(--color-warning-400)]',
+    chat:    'text-[var(--color-success-400)]',
+    scene:   'text-[var(--color-primary-400)]',
+    overlay: 'text-[var(--color-primary-400)]',
+    show:    'text-[var(--color-primary-300)]',
+    bus:     'text-[var(--color-danger-400)]',
   };
   return map[prefix] ?? 'text-[var(--color-text-primary)]';
 }
@@ -39,25 +37,16 @@ function fmtTime(t: number): string {
   );
 }
 
-interface BusTraceModalProps {
-  open: boolean;
-  onClose: () => void;
-}
-
-export function BusTraceModal({ open, onClose }: BusTraceModalProps) {
+export function BusTracePage() {
   const [frames, setFrames] = useState<BusFrame[]>([]);
   const [paused, setPaused] = useState(false);
+  const [connected, setConnected] = useState(false);
   const pausedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Keep ref in sync so the socket callback closure always reads the current value
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   useEffect(() => {
-    if (!open) return;
-    setFrames([]);
-    setPaused(false);
-
     const handler = (incoming: BusFrame[]) => {
       if (pausedRef.current) return;
       setFrames((prev) => {
@@ -66,16 +55,37 @@ export function BusTraceModal({ open, onClose }: BusTraceModalProps) {
       });
     };
 
-    socket.emit('bus:trace:subscribe');
+    const onConnect = () => {
+      setConnected(true);
+      socket.emit('bus:trace:subscribe');
+    };
+    const onDisconnect = () => setConnected(false);
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
     socket.on('bus:trace:frames', handler);
+
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      setConnected(true);
+      socket.emit('bus:trace:subscribe');
+    }
+
+    // beforeunload fires synchronously before the window closes; emit here
+    // because the useEffect cleanup won't run on window close.
+    const onBeforeUnload = () => socket.emit('bus:trace:unsubscribe');
+    window.addEventListener('beforeunload', onBeforeUnload);
 
     return () => {
       socket.emit('bus:trace:unsubscribe');
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
       socket.off('bus:trace:frames', handler);
+      window.removeEventListener('beforeunload', onBeforeUnload);
     };
-  }, [open]);
+  }, []);
 
-  // Auto-scroll to bottom on new frames when not paused
   useEffect(() => {
     if (!paused && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -86,42 +96,53 @@ export function BusTraceModal({ open, onClose }: BusTraceModalProps) {
   const togglePause = useCallback(() => setPaused((p) => !p), []);
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Bus Trace"
-      className="max-w-4xl"
-    >
-      {/* Toolbar */}
-      <div className="flex items-center gap-[var(--space-3)] mb-[var(--space-3)]">
-        <span className="text-[var(--text-xs)] text-[var(--color-text-muted)] tabular-nums">
-          {frames.length} / {MAX_FRAMES} frames
+    <div className="flex flex-col h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+      {/* Title bar */}
+      <div className="flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)] border-b border-[var(--color-border-subtle)] shrink-0">
+        <span className="text-[var(--text-sm)] font-semibold text-[var(--color-text-primary)]">
+          Bus Trace
+        </span>
+        <span
+          className={cn(
+            'text-[9px] font-medium px-[5px] py-[1px] rounded',
+            connected
+              ? 'bg-[var(--color-success-400)]/15 text-[var(--color-success-400)]'
+              : 'bg-[var(--color-danger-400)]/15 text-[var(--color-danger-400)]',
+          )}
+        >
+          {connected ? 'connected' : 'disconnected'}
         </span>
         <div className="flex-1" />
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+        <span className="text-[var(--text-xs)] text-[var(--color-text-muted)] tabular-nums">
+          {frames.length} / {MAX_FRAMES}
+        </span>
+        <button
           onClick={togglePause}
+          className="flex items-center gap-[var(--space-1)] text-[var(--text-xs)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-[var(--space-2)] py-[var(--space-1)] rounded hover:bg-[var(--color-bg-subtle)] transition-colors"
         >
-          {paused ? 'Resume' : 'Pause'}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<Trash2 className="h-3.5 w-3.5" />}
+          {paused
+            ? <><Play className="h-3.5 w-3.5" /> Resume</>
+            : <><Pause className="h-3.5 w-3.5" /> Pause</>}
+        </button>
+        <button
           onClick={handleClear}
+          className="flex items-center gap-[var(--space-1)] text-[var(--text-xs)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-[var(--space-2)] py-[var(--space-1)] rounded hover:bg-[var(--color-bg-subtle)] transition-colors"
         >
-          Clear
-        </Button>
+          <Trash2 className="h-3.5 w-3.5" /> Clear
+        </button>
       </div>
 
+      {/* Pause warning */}
+      {paused && (
+        <div className="px-[var(--space-4)] py-[var(--space-2)] bg-[var(--color-warning-400)]/10 border-b border-[var(--color-warning-400)]/20 shrink-0">
+          <span className="text-[var(--text-xs)] text-[var(--color-warning-400)]">
+            Paused — incoming frames are dropped until resumed
+          </span>
+        </div>
+      )}
+
       {/* Frame list */}
-      <div
-        ref={scrollRef}
-        className="overflow-y-auto rounded-[var(--radius-md)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)]"
-        style={{ height: '60vh' }}
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {frames.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[var(--text-sm)] text-[var(--color-text-muted)]">
             Waiting for bus events…
@@ -133,25 +154,20 @@ export function BusTraceModal({ open, onClose }: BusTraceModalProps) {
                 key={frame.seq}
                 className="flex items-baseline gap-[var(--space-2)] px-2 py-[3px] rounded hover:bg-[var(--color-bg-subtle)]"
               >
-                {/* seq */}
                 <span className="shrink-0 w-9 text-right text-[10px] text-[var(--color-text-disabled)]">
                   #{frame.seq}
                 </span>
-                {/* timestamp */}
                 <span className="shrink-0 text-[10px] text-[var(--color-text-muted)] tabular-nums">
                   {fmtTime(frame.t)}
                 </span>
-                {/* source badge */}
                 {frame.source != null && (
                   <span className="shrink-0 px-[5px] py-[1px] rounded text-[9px] bg-[var(--color-bg-overlay)] text-[var(--color-text-muted)] border border-[var(--color-border-subtle)]">
                     {frame.source}
                   </span>
                 )}
-                {/* event */}
                 <span className={cn('shrink-0 font-semibold', eventColor(frame.event))}>
                   {frame.event}
                 </span>
-                {/* payload */}
                 <span className="truncate text-[var(--color-text-secondary)]">
                   {fmtPayload(frame.payload)}
                 </span>
@@ -160,12 +176,6 @@ export function BusTraceModal({ open, onClose }: BusTraceModalProps) {
           </div>
         )}
       </div>
-
-      {paused && (
-        <p className="mt-[var(--space-2)] text-[var(--text-xs)] text-[var(--color-warning-400)] text-center">
-          Paused — incoming frames are dropped until resumed
-        </p>
-      )}
-    </Modal>
+    </div>
   );
 }

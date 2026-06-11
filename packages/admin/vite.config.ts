@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import path from 'path'
 
 const blockUnknownRoutes = {
   name: 'block-unknown-routes',
@@ -37,5 +38,11 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'esnext',
     chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        'bus-trace': path.resolve(__dirname, 'bus-trace.html'),
+      },
+    },
   },
 })
