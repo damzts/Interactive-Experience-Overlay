@@ -9,8 +9,7 @@
     "build:desktop": "pnpm --filter @ieomlabs/shared build && pnpm --filter @ieom/server build && pnpm --filter @ieom/overlay build && pnpm --filter @ieom/admin build && pnpm --filter @ieom/desktop build",
     "start": "pnpm build && pnpm --filter @ieom/server start",
     "server": "pnpm --filter @ieom/server dev",
-    "desktop": "pnpm --filter @ieom/desktop dev",
-    "fixtures": "pnpm --filter @ieom/server exec tsx ../../scripts/generate-fixtures.ts"
+    "desktop": "pnpm --filter @ieom/desktop dev"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
