@@ -283,18 +283,6 @@ All derived lookup tables update automatically from the definition. No other fil
 | `WindowManager` | Widget window rendering, GenericWidget fallback |
 | `ThemeEngine.ts` | `buildDesktopThemeVars()` — pure CSS variable computation, no React |
 
-### External Widget Plugins
-
-Drop a widget into `plugins/<name>/manifest.json` to register it at runtime without rebuilding:
-
-```json
-{ "id": "my-widget", "label": "My Widget", "icon": "🔌",
-  "component": "/plugins/my-widget/index.js",
-  "defaultGeometry": { "width": 320, "height": 240 } }
-```
-
-`plugins/loader.ts` fetches `index.json` → loads each manifest → calls `registerExternalWidget()`. The widget JS module is dynamically imported (`/* @vite-ignore */`) and cached in the overlay registry.
-
 ### CSS Module Structure
 
 CSS is split per domain. Each component imports its own styles. The build chunks CSS per component:

@@ -75,8 +75,6 @@ export interface DesktopServerOptions {
   overlayDir: string
   /** Path to the admin dist directory */
   adminDir: string
-  /** Path to the plugins directory (optional, served at /plugins/) */
-  pluginsDir?: string
   /**
    * Overlay admin token for authenticating admin HTTP + Socket.IO connections.
    * If set, protects /api/config, /api/online, /api/pov, etc.
@@ -434,12 +432,6 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   // ── Overlay static files ──────────────────────────────────────
   if (existsSync(overlayDir)) {
     await app.register(fastifyStatic, { root: overlayDir, prefix: '/', wildcard: false, decorateReply: false })
-  }
-
-  // ── Plugin static files ────────────────────────────────────────
-  const { pluginsDir } = options
-  if (pluginsDir && existsSync(pluginsDir)) {
-    await app.register(fastifyStatic, { root: pluginsDir, prefix: '/plugins/', decorateReply: false })
   }
 
   // ── Global crash handler ────────────────────────────────────────
