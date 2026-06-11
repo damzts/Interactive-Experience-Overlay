@@ -47,9 +47,8 @@ function EventRow({
 
   return (
     <ConfigCard>
-      <button
-        type="button"
-        className="flex w-full items-center gap-3 text-left"
+      <div
+        className="flex w-full cursor-pointer items-center gap-3"
         onClick={() => setExpanded((e) => !e)}
       >
         <span className="text-base shrink-0">{event.icon || '⚡'}</span>
@@ -64,7 +63,10 @@ function EventRow({
             {' · '}{event.actions?.length ?? 0} actions · {event.effects.length} fx
           </span>
         </span>
-        <div className="flex items-center gap-2 shrink-0">
+        <div
+          className="flex items-center gap-2 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
           {!hasWork && auto.enabled && (
             <span className="text-[9px] font-bold text-rose-400 tracking-widest">NO WORK</span>
           )}
@@ -77,10 +79,9 @@ function EventRow({
           <Toggle
             checked={auto.enabled}
             onChange={(v) => onChange({ enabled: v })}
-            onClick={(e) => e.stopPropagation()}
           />
         </div>
-      </button>
+      </div>
 
       {expanded && (
         <div className="mt-4 space-y-4 border-t border-white/8 pt-4">

@@ -29,15 +29,6 @@ function formatRelativeTime(timestamp: number | null) {
 }
 
 
-function formatDateTime(timestamp: number | null) {
-  if (!timestamp) return 'Never'
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
-
 /** Notice component for informational/warning messages within config panels */
 function Notice({ tone = 'info', children }: { tone?: 'info' | 'warning' | 'danger' | 'success'; children: React.ReactNode }) {
   const toneStyles: Record<string, string> = {
@@ -131,7 +122,6 @@ export function AmbiancePanel() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [resyncing, setResyncing] = useState(false)
-  const [historyCopyState, setHistoryCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const widgetApps = allApps
 
@@ -213,42 +203,6 @@ export function AmbiancePanel() {
     window.setTimeout(() => setResyncing(false), 800)
   }, [])
 
-  const copyHistory = useCallback(async () => {
-    if (!ambiance.history.length) return
-
-    const text = ambiance.history
-      .map((entry) => {
-        const metadata = [
-          entry.widgetId,
-          entry.action,
-          entry.actionId,
-          entry.leaderSocketId,
-        ].filter(Boolean).join(' | ')
-
-        return [
-          `${formatDateTime(entry.timestamp)} ${entry.type}`,
-          entry.message,
-          metadata,
-        ].filter(Boolean).join('\n')
-      })
-      .join('\n\n')
-
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
-      await navigator.clipboard.writeText(text)
-      setHistoryCopyState('copied')
-      window.setTimeout(() => setHistoryCopyState('idle'), 1500)
-    } catch {
-      setHistoryCopyState('error')
-      window.setTimeout(() => setHistoryCopyState('idle'), 1800)
-    }
-  }, [ambiance.history])
-
-  const clearHistory = useCallback(() => {
-    if (!ambiance.history.length) return
-    socket.emit('ambiance:history:clear')
-    setHistoryCopyState('idle')
-  }, [ambiance.history.length])
 
   return (
     <div className="w-full max-w-none space-y-0 pt-1">
@@ -312,11 +266,6 @@ export function AmbiancePanel() {
               unit="%"
             />
           </Card>
-          {!simConfig.enabled && (
-            <Notice tone="info">
-              Enable widget simulation to expose cadence and per-widget behavior controls.
-            </Notice>
-          )}
         </div>
       </ConfigPanel>
 
@@ -391,74 +340,24 @@ export function AmbiancePanel() {
       </ConfigPanel>
 
       <ConfigPanel title="Widget Behaviors" collapsible>
-        {simConfig.enabled ? (
-          <div className="space-y-4">
-            {widgetApps.length === 0 ? (
-              <Notice tone="info">No widgets are available yet. Create a widget before configuring simulated behavior.</Notice>
-            ) : (
-              <div className="space-y-3">
-                {widgetApps.map((app) => (
-                  <WidgetBehaviorEditor
-                    key={app.id}
-                    app={app}
-                    behavior={simConfig.behaviors[app.id] ?? createDefaultBehavior(false)}
-                    onChange={(updater) => updateBehavior(app.id, updater)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <Notice tone="info">
-            Enable widget simulation to expose cadence and per-widget behavior controls.
-          </Notice>
-        )}
-      </ConfigPanel>
-
-      <ConfigPanel title="Ambiance History" collapsible>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 text-[10px] text-[var(--color-text-muted)]">Lifecycle log</div>
-            <span className="rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-base)] px-2 py-1 text-[10px] font-mono text-[var(--color-text-muted)]">
-              {ambiance.history.length} entr{ambiance.history.length === 1 ? 'y' : 'ies'}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={copyHistory}
-              disabled={!ambiance.history.length}
-            >
-              {historyCopyState === 'copied' ? 'Copied' : historyCopyState === 'error' ? 'Copy Failed' : 'Copy All'}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={clearHistory}
-              disabled={!ambiance.history.length}
-            >
-              Clear
-            </Button>
-          </div>
-          {ambiance.history.length === 0 ? (
-            <Notice tone="info">No lifecycle events recorded yet.</Notice>
+        <div className="space-y-4">
+          {widgetApps.length === 0 ? (
+            <Notice tone="info">No widgets are available yet. Create a widget before configuring simulated behavior.</Notice>
           ) : (
-            <div className="max-h-[28rem] space-y-2 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-base)] p-3">
-              {ambiance.history.slice(0, 50).map((entry) => (
-                <Card variant="default" padding="sm" key={entry.id}>
-                  <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.12em] text-[var(--color-text-muted)]">
-                    <span>{entry.type}</span>
-                    <span>{formatDateTime(entry.timestamp)}</span>
-                  </div>
-                  <div className="mt-1 text-sm text-[var(--color-text-primary)]">{entry.message}</div>
-                  <div className="mt-1 text-[11px] text-[var(--color-text-muted)]">
-                    {[entry.widgetId, entry.action, entry.leaderSocketId ? entry.leaderSocketId.slice(0, 8) : null].filter(Boolean).join(' · ') || 'No extra metadata'}
-                  </div>
-                </Card>
+            <div className="space-y-3">
+              {widgetApps.map((app) => (
+                <WidgetBehaviorEditor
+                  key={app.id}
+                  app={app}
+                  behavior={simConfig.behaviors[app.id] ?? createDefaultBehavior(false)}
+                  onChange={(updater) => updateBehavior(app.id, updater)}
+                />
               ))}
             </div>
           )}
         </div>
       </ConfigPanel>
+
 
       </div>
       <ConfigApplyBar label="Ambiance Settings" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
