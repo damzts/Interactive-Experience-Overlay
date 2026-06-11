@@ -111,25 +111,99 @@ export class CloudSignaling {
     })
   }
 
-  async connect(config: CloudSignalingConfig): Promise<void> {
+  /**
+   * Connect to cloud room as hub.
+   * Returns when the WebSocket is open (or throws on timeout/error).
+   */
+  async connect(config: CloudSignalingConfig, timeoutMs = 10_000): Promise<void> {
     this.disconnect()
     this.config = config
     this.intentionalClose = false
     this.reconnectAttempt = 0
     this.frozenParticipants.clear()
-    this.openSocket()
+
+    return new Promise<void>((resolve, reject) => {
+      const connId = ++this.connCounter
+      const { cloudUrl, token, roomId } = config
+
+      const base = cloudUrl.replace(/^http/, 'ws')
+      const url = `${base}/api/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
+
+      const ws = new WebSocket(url)
+      this.ws = ws
+
+      const isStale = () => this.connCounter !== connId
+      let settled = false
+
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true
+          ws.close()
+          reject(new Error(`WebSocket connect timeout (${timeoutMs}ms)`))
+        }
+      }, timeoutMs)
+
+      ws.on('open', () => {
+        if (isStale() || settled) return
+        settled = true
+        clearTimeout(timeout)
+        this.reconnectAttempt = 0
+        logger.info({ value: roomId }, '[cloud-signaling] connected to room')
+        this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
+        this.emitStatus()
+        this.startPingTimer()
+        resolve()
+      })
+
+      ws.on('message', (data: WebSocket.Data) => {
+        if (isStale()) return
+        let msg: WsMessage
+        try { msg = JSON.parse(data.toString()) }
+        catch { return }
+        this.handleMessage(msg)
+      })
+
+      ws.on('close', (code?: number, reason?: Buffer) => {
+        if (isStale()) return
+        if (!settled) {
+          settled = true
+          clearTimeout(timeout)
+          reject(new Error(`WebSocket closed before open (code=${code})`))
+          return
+        }
+        logger.info({ value: code, msg: reason?.toString() }, '[cloud-signaling] disconnected')
+        this.ws = null
+        this.stopPingTimer()
+        this.emitStatus()
+        if (!this.intentionalClose) {
+          if (code === 4401) {
+            this.fetchFreshToken().finally(() => this.scheduleReconnect())
+            return
+          }
+          this.scheduleReconnect()
+        }
+      })
+
+      ws.on('error', (err) => {
+        if (isStale() || settled) return
+        settled = true
+        clearTimeout(timeout)
+        const msg = (err as any).message ?? err
+        logger.info('[cloud-signaling] error:', msg)
+        reject(new Error(`WebSocket error: ${msg}`))
+      })
+    })
   }
 
-  private openSocket(): void {
+  /**
+   * Reconnect (reconnection path) — non-blocking, fires and forgets.
+   * Signals are wired so the emitStatus / startPingTimer happen on 'open'.
+   */
+  private reconnectSocket(): void {
     if (!this.config) return
     const { cloudUrl, token, roomId } = this.config
 
-    // Connection counter para detectar sockets stale
-    // Cuando disconnect()+openSocket() se llaman en secuencia, el close
-    // asíncrono del socket viejo no debe afectar al nuevo.
     const connId = ++this.connCounter
-
-    // Build WebSocket URL: ws(s)://host/api/ws/rooms/:roomId?token=***
     const base = cloudUrl.replace(/^http/, 'ws')
     const url = `${base}/api/ws/rooms/${roomId}?token=${encodeURIComponent(token)}`
 
@@ -141,7 +215,7 @@ export class CloudSignaling {
     ws.on('open', () => {
       if (isStale()) return
       this.reconnectAttempt = 0
-      logger.info({ value: roomId }, '[cloud-signaling] connected to room')
+      logger.info({ value: roomId }, '[cloud-signaling] reconnected to room')
       this.send({ type: 'join-as-hub', payload: {}, senderId: 'self', timestamp: new Date().toISOString() })
       this.emitStatus()
       this.startPingTimer()
@@ -156,13 +230,12 @@ export class CloudSignaling {
     })
 
     ws.on('close', (code?: number, reason?: Buffer) => {
-      if (isStale()) return // <-- CRÍTICO: no nullificar el socket nuevo
-      logger.info({ value: code, msg: reason?.toString() }, '[cloud-signaling] disconnected')
+      if (isStale()) return
+      logger.info({ value: code, msg: reason?.toString() }, '[cloud-signaling] reconnection socket disconnected')
       this.ws = null
       this.stopPingTimer()
       this.emitStatus()
       if (!this.intentionalClose) {
-        // Token expired/invalid — refresh before reconnecting
         if (code === 4401) {
           this.fetchFreshToken().finally(() => this.scheduleReconnect())
           return
@@ -173,7 +246,7 @@ export class CloudSignaling {
 
     ws.on('error', (err) => {
       if (isStale()) return
-      logger.info('[cloud-signaling] error:', (err as any).message ?? err)
+      logger.info('[cloud-signaling] reconnection error:', (err as any).message ?? err)
     })
   }
 
@@ -322,7 +395,7 @@ export class CloudSignaling {
     logger.info(`[cloud-signaling] scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempt})`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      this.openSocket()
+      this.reconnectSocket()
     }, delay)
   }
 

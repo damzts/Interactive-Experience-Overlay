@@ -194,9 +194,15 @@ export class OnlineRoomManager {
       return { ok: false, error: e.name === 'AbortError' ? 'cloud_timeout' : (e.message ?? 'cloud_unreachable') }
     }
 
-    // Connect as hub
+    // Connect as hub — wait for WebSocket to be fully open
     this.hubRoomId = roomCode
-    await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+    try {
+      await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+    } catch (e: any) {
+      this.hubRoomId = null
+      logger.error({ err: e?.message ?? e }, '[online] Hub connect failed after room creation')
+      return { ok: false, error: 'hub_connect_failed' }
+    }
 
     const room: OnlineRoom = {
       roomCode,
@@ -281,7 +287,13 @@ export class OnlineRoomManager {
 
     // Reconnect to this room
     this.hubRoomId = roomCode
-    await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+    try {
+      await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+    } catch (e: any) {
+      this.hubRoomId = null
+      logger.error({ err: e?.message ?? e }, '[online] Rejoin room failed')
+      return { ok: false, error: 'hub_connect_failed' }
+    }
     logger.info({ err: roomCode }, '[online] Rejoined room as hub')
     // Emit updated status so admin UI reflects the connection
     this.emit('pov-online:status', this.toStatus(room))
@@ -345,10 +357,15 @@ export class OnlineRoomManager {
       if (!this.hubRoomId && cloudRooms.length > 0) {
         const firstRoom = cloudRooms[0]
         this.hubRoomId = firstRoom.id
-        await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
-        // Emit status so admin UI sees hub connected
-        const room = this.rooms.get(firstRoom.id)
-        if (room) this.emit('pov-online:status', this.toStatus(room))
+        try {
+          await this.cloudSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
+          // Emit status so admin UI sees hub connected
+          const room = this.rooms.get(firstRoom.id)
+          if (room) this.emit('pov-online:status', this.toStatus(room))
+        } catch (e: any) {
+          this.hubRoomId = null
+          logger.info({ err: e?.message ?? e }, '[online] syncFromCloud: hub reconnect failed')
+        }
       }
     } catch (e: any) { logger.info({ err: e.message }, '[online] syncFromCloud error') }
   }
