@@ -149,7 +149,21 @@ export class OnlineRoomManager {
       return { ok: false, error: 'max_rooms_reached' }
     }
 
-    const token = this.getToken()
+    let token = this.getToken()
+    if (!token) {
+      // Try to get a guest token from the cloud
+      try {
+        const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
+        if (res.ok) {
+          const data = await res.json() as { token: string }
+          token = data.token
+          this.setToken(token)
+          logger.info('[online] obtained fresh guest token for hub connection')
+        }
+      } catch (e) {
+        logger.warn({ err: e }, '[online] failed to get guest token')
+      }
+    }
     if (!token) {
       return { ok: false, error: 'not_authenticated' }
     }
@@ -238,7 +252,21 @@ export class OnlineRoomManager {
     const room = this.rooms.get(roomCode)
     if (!room) return { ok: false, error: 'room_not_found' }
 
-    const token = this.getToken()
+    let token = this.getToken()
+    if (!token) {
+      // Try to get a guest token from the cloud
+      try {
+        const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
+        if (res.ok) {
+          const data = await res.json() as { token: string }
+          token = data.token
+          this.setToken(token)
+          logger.info('[online] obtained fresh guest token for rejoin')
+        }
+      } catch (e) {
+        logger.warn({ err: e }, '[online] failed to get guest token for rejoin')
+      }
+    }
     if (!token) return { ok: false, error: 'not_authenticated' }
 
     // If hub is already connected to this room, nothing to do
@@ -272,7 +300,17 @@ export class OnlineRoomManager {
   }
 
   async syncFromCloud(): Promise<void> {
-    const token = this.getToken()
+    let token = this.getToken()
+    if (!token) {
+      try {
+        const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
+        if (res.ok) {
+          const data = await res.json() as { token: string }
+          token = data.token
+          this.setToken(token)
+        }
+      } catch { /* ignore */ }
+    }
     if (!token) { logger.info('[online] syncFromCloud: no token'); return }
     try {
       const res = await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms`, {

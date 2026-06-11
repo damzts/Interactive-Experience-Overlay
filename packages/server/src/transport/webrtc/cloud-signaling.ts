@@ -155,13 +155,20 @@ export class CloudSignaling {
       this.handleMessage(msg)
     })
 
-    ws.on('close', () => {
+    ws.on('close', (code?: number, reason?: Buffer) => {
       if (isStale()) return // <-- CRÍTICO: no nullificar el socket nuevo
-      logger.info('[cloud-signaling] disconnected')
+      logger.info({ value: code, msg: reason?.toString() }, '[cloud-signaling] disconnected')
       this.ws = null
       this.stopPingTimer()
       this.emitStatus()
-      if (!this.intentionalClose) this.scheduleReconnect()
+      if (!this.intentionalClose) {
+        // Token expired/invalid — refresh before reconnecting
+        if (code === 4401) {
+          this.fetchFreshToken().finally(() => this.scheduleReconnect())
+          return
+        }
+        this.scheduleReconnect()
+      }
     })
 
     ws.on('error', (err) => {
@@ -317,6 +324,23 @@ export class CloudSignaling {
       this.reconnectTimer = null
       this.openSocket()
     }, delay)
+  }
+
+  // ── Token refresh ──────────────────────────────────────────
+  private async fetchFreshToken(): Promise<void> {
+    if (!this.config) return
+    try {
+      const res = await fetch(`${this.config.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
+      if (res.ok) {
+        const data = await res.json() as { token: string }
+        this.config = { ...this.config, token: data.token }
+        logger.info('[cloud-signaling] obtained fresh guest token')
+      } else {
+        logger.warn({ status: res.status }, '[cloud-signaling] failed to refresh token')
+      }
+    } catch (e) {
+      logger.warn({ err: e }, '[cloud-signaling] failed to refresh token')
+    }
   }
 
   // ── Public API ─────────────────────────────────────────────────
