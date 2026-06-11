@@ -5,10 +5,9 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Resolve monorepo root from packages/server/src/services/
-const MONO_ROOT    = join(__dirname, '../../../../..')
+// Resolve monorepo root from packages/server/dist/services/ (compiled output)
+const MONO_ROOT    = join(__dirname, '../../../..')
 const GAMES_ASSETS = join(MONO_ROOT, 'assets/images/games')
-const GAMES_LEGACY = join(MONO_ROOT, '../imagescrap/output')
 
 const ASSET_ROOT = join(MONO_ROOT, 'assets')
 
@@ -44,14 +43,7 @@ export class MediaService {
   private mediaCache: MediaCache | null = null
   private assetCatalogCache: AssetCatalogCache | null = null
 
-  private readonly gamesDir: string
-
-  constructor() {
-    this.gamesDir =
-      existsSync(GAMES_ASSETS) && readdirSync(GAMES_ASSETS).length > 0
-        ? GAMES_ASSETS
-        : GAMES_LEGACY
-  }
+  constructor() {}
 
   clearCaches(): void {
     this.mediaCache = null
@@ -99,19 +91,16 @@ export class MediaService {
   getGames(): MediaCache {
     if (this.mediaCache) return this.mediaCache
 
-    if (!existsSync(this.gamesDir)) {
-      logger.warn({ dir: this.gamesDir }, '[media] games directory not found')
+    if (!existsSync(GAMES_ASSETS)) {
+      logger.warn({ dir: GAMES_ASSETS }, '[media] games directory not found')
       return (this.mediaCache = { games: {}, total: 0 })
     }
 
     const games: Record<string, string[]> = {}
     let total = 0
 
-    const isCanonical = this.gamesDir === GAMES_ASSETS
-    const urlBase = isCanonical ? '/assets/images/games' : '/media/games'
-
-    for (const gameName of readdirSync(this.gamesDir).sort()) {
-      const gameDir = join(this.gamesDir, gameName)
+    for (const gameName of readdirSync(GAMES_ASSETS).sort()) {
+      const gameDir = join(GAMES_ASSETS, gameName)
       try {
         if (!statSync(gameDir).isDirectory()) continue
       } catch {
@@ -121,7 +110,7 @@ export class MediaService {
       const images: string[] = []
       for (const file of readdirSync(gameDir).sort()) {
         if (!IMAGE_EXTS.has(extname(file).toLowerCase())) continue
-        images.push(`${urlBase}/${encodeURIComponent(gameName)}/${encodeURIComponent(file)}`)
+        images.push(`/assets/images/games/${encodeURIComponent(gameName)}/${encodeURIComponent(file)}`)
       }
 
       if (images.length > 0) {
@@ -130,7 +119,7 @@ export class MediaService {
       }
     }
 
-    logger.info(`[media] scanned ${Object.keys(games).length} games, ${total} images from ${this.gamesDir}`)
+    logger.info(`[media] scanned ${Object.keys(games).length} games, ${total} images from ${GAMES_ASSETS}`)
     return (this.mediaCache = { games, total })
   }
 

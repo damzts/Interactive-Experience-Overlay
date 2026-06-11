@@ -148,15 +148,19 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   }
 
   // ── Static files ──────────────────────────────────────────────
+  mkdirSync(assetsDir, { recursive: true })
   if (existsSync(adminDir)) {
     await app.register(fastifyStatic, { root: adminDir, prefix: '/admin/', decorateReply: true })
     const adminAssetsDir = join(adminDir, 'assets')
-    if (existsSync(adminAssetsDir)) {
-      await app.register(fastifyStatic, { root: adminAssetsDir, prefix: '/assets/', decorateReply: false })
-    }
+    // Serve both admin Vite chunks and project assets (images/audio/video) under /assets/.
+    // @fastify/static v9 tries each root in order, so hashed Vite filenames in adminAssetsDir
+    // are found first; project assets in subdirectories (images/, audio/, etc.) come from assetsDir.
+    const assetsRoots: string[] = existsSync(adminAssetsDir) ? [adminAssetsDir, assetsDir] : [assetsDir]
+    await app.register(fastifyStatic, { root: assetsRoots, prefix: '/assets/', decorateReply: false })
     app.get('/admin', async (_req, reply) => reply.sendFile('index.html', adminDir))
+  } else {
+    await app.register(fastifyStatic, { root: assetsDir, prefix: '/assets/', decorateReply: false })
   }
-  mkdirSync(assetsDir, { recursive: true })
   await app.register(fastifyStatic, { root: assetsDir, prefix: '/media/', decorateReply: false })
 
   // ── File upload ───────────────────────────────────────────────
@@ -199,7 +203,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     }
 
     const sizeLimit = isVideo ? VIDEO_SIZE_LIMIT : IMAGE_SIZE_LIMIT
-    const subfolder = isVideo ? 'video' : 'images'
+    const subfolder = isVideo ? 'videos' : 'images'
     const destDir = join(assetsDir, subfolder)
     mkdirSync(destDir, { recursive: true })
     const safeName = rawName
