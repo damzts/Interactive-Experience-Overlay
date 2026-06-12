@@ -15,9 +15,6 @@ import { clockTowerDefinition } from './clock-tower/definition.js'
 import { newswireDeskDefinition } from './newswire-desk/definition.js'
 import { cityNavDefinition } from './city-nav/definition.js'
 import { lcdDolphinsDefinition } from './lcd-dolphins/definition.js'
-import { povStreamDefinition } from './pov-stream/definition.js'
-import { participantStreamDefinition } from './participant-stream/definition.js'
-
 export type { WidgetDefinition }
 
 export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
@@ -36,6 +33,4 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   newswireDeskDefinition,
   cityNavDefinition,
   lcdDolphinsDefinition,
-  povStreamDefinition,
-  participantStreamDefinition,
 ]

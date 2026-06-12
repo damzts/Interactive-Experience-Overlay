@@ -9,7 +9,7 @@ export type WidgetComponentType =
   | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
   | 'playlist-deck' | 'net-meter' | 'media-deck' | 'cd-ripper' | 'signal-lab'
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
-  | 'city-navigator' | 'lcd-dolphins' | 'pov-stream' | 'participant-stream' | 'generic'
+  | 'city-navigator' | 'lcd-dolphins' | 'generic'
 
 // ── Widget theme types ────────────────────────────────────────────
 
@@ -75,13 +75,6 @@ export interface WidgetLayoutDefinition {
 
 // ── Widget-specific settings ─────────────────────────────────────
 
-export interface PovStreamSettings {
-  roomCode?: string
-}
-
-/** @deprecated Use PovStreamSettings */
-export type OnlineStreamSettings = PovStreamSettings
-
 export interface WindowWidgetSettings {
   sceneId?: string
   windowId?: string
@@ -134,8 +127,6 @@ export interface Application {
   }
   /** Optional window binding for window-backed widget windows. */
   windowWidgetSettings?: WindowWidgetSettings
-  /** Optional settings for the pov stream widget. */
-  povStreamSettings?: PovStreamSettings
   /** Optional persisted content for the Sticky Notes system widget. */
   stickyNotesSettings?: StickyNotesSettings
   /** Persisted widget chrome override for this specific widget. */

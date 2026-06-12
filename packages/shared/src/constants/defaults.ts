@@ -549,7 +549,6 @@ export const DEFAULT_WIDGET_WINDOW_SIZES: Record<string, { width: number; height
 const WIDGET_COMPONENT_ALIASES: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
   browser: 'gallery',
   spotify: 'music',
-  'online-stream': 'pov-stream',
 }
 
 const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType, 'generic'>> = {
@@ -1366,8 +1365,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
     { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
-    { id: 'pov-stream',           label: 'POV Stream (Auto)',    icon: '🎯',   widgetSource: 'system' as const, widgetComponent: 'pov-stream' as const },
-    { id: 'participant-stream',   label: 'Participant Stream',   icon: '📹',   widgetSource: 'system' as const, widgetComponent: 'participant-stream' as const },
   ],
 
   keybinds: {

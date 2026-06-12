@@ -47,7 +47,6 @@ export class WidgetRepository {
       if (app.windowWidgetSettings) settings.windowWidgetSettings = app.windowWidgetSettings
       if (app.stickyNotesSettings) settings.stickyNotesSettings = app.stickyNotesSettings
       if (app.themeOverride) settings.themeOverride = app.themeOverride
-      if (app.onlineStreamSettings) settings.onlineStreamSettings = app.onlineStreamSettings
       if (app.iconSize) settings.iconSize = app.iconSize
       if (app.iconPosition) settings.iconPosition = app.iconPosition
       if (app.recycleBinSettings) settings.recycleBinSettings = app.recycleBinSettings
