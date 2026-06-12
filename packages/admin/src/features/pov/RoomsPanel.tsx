@@ -797,49 +797,6 @@ export function RoomsPanel() {
           </ConfigPanel>
         </FeatureGate>
 
-        <ConfigPanel title="Switching Mode" collapsible={false}>
-          <div className="flex items-center justify-between gap-6">
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Camera Switching Mode</div>
-              <div className="text-xs text-[var(--color-text-secondary)]">
-                {rooms.some(r => r.mode === 'automatic')
-                  ? 'Active: Automatic mode — system switches based on audio/motion activity'
-                  : rooms.some(r => r.mode === 'manual')
-                    ? 'Active: Manual mode — host manually selects camera'
-                    : 'No active rooms'}
-              </div>
-            </div>
-            <div className="flex gap-3">
-              {[
-                { mode: 'automatic', label: '⚡ Auto' },
-                { mode: 'manual', label: '✋ Manual' }
-              ].map(({ mode, label }) => {
-                const isSelected = rooms.length > 0 && rooms.some(r => r.mode === mode)
-                return (
-                  <button
-                    key={mode}
-                    onClick={() => {
-                      for (const room of rooms) {
-                        handleModeSet(room.roomCode, mode as any)
-                      }
-                    }}
-                    disabled={rooms.length === 0}
-                    className={`px-4 py-2.5 rounded-md font-semibold text-sm transition-all ${
-                      isSelected
-                        ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
-                        : rooms.length === 0
-                          ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] cursor-not-allowed opacity-50'
-                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20 hover:text-[var(--color-primary-400)] cursor-pointer'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </ConfigPanel>
-
         {/* ── AUTO MODE CONFIGURATION ── */}
         <ConfigPanel title="Auto Mode: Activity Detection" collapsible>
           <Notice tone="info" className="mb-4">
