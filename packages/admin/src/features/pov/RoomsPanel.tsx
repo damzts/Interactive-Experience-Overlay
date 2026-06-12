@@ -12,7 +12,7 @@ import type {
   RoomServerToAdminEvents,
   RoomClientToServerEvents,
 } from '@ieomlabs/shared'
-import { getRoomConfig, updateRoomConfig, getRooms, provideAuthToken } from '../../api/roomApi'
+import { getRoomConfig, updateRoomConfig, getRooms, provideAuthToken, getActiveRoomCode, setActiveRoomCode } from '../../api/roomApi'
 import { getStoredAuthToken } from '../../auth/sessionToken'
 import { apiFetch } from '../../api/client'
 import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'
@@ -192,6 +192,8 @@ function RoomCard({
   onModeSet,
   onSelect,
   onKick,
+  isActive,
+  onSetActive,
   socket: roomSocket,
 }: {
   room: RoomStatus
@@ -200,6 +202,8 @@ function RoomCard({
   onModeSet: (roomCode: string, mode: SwitchMode) => void
   onSelect: (roomCode: string, participantId: string) => void
   onKick: (roomCode: string, participantId: string) => void
+  isActive: boolean
+  onSetActive: (roomCode: string) => void
   socket: RoomSocket | null
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -287,6 +291,18 @@ function RoomCard({
         </span>
 
         <div className="flex-1" />
+
+        <button
+          onClick={() => onSetActive(room.roomCode)}
+          className={`text-[10px] px-3 py-1.5 rounded-md font-medium transition-all ${
+            isActive
+              ? 'bg-[var(--color-accent-500)] text-white shadow-md shadow-[var(--color-accent-500)]/50'
+              : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-500)]/20'
+          }`}
+          title="Make this room the active POV source"
+        >
+          {isActive ? '📺 Active POV' : 'POV'}
+        </button>
 
         <Button
           variant={room.mode === 'automatic' ? 'primary' : 'ghost'}
@@ -382,6 +398,7 @@ export function RoomsPanel() {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [activityLog, setActivityLog] = useState<Array<{ id: number; time: number; icon: string; text: string }>>([])
+  const [activeRoomCode, setActiveRoomCode] = useState<string | null>(null)
 
   const socketRef = useRef<RoomSocket | null>(null)
   const mountedRef = useRef(true)
@@ -548,11 +565,12 @@ export function RoomsPanel() {
     async function load() {
       try {
         await provideAuthToken()
-        const [roomsData, configData] = await Promise.all([getRooms(), getRoomConfig()])
+        const [roomsData, configData, activeRoom] = await Promise.all([getRooms(), getRoomConfig(), getActiveRoomCode()])
         if (!cancelled) {
           setRooms(roomsData)
           setConfig(configData)
           setConfigDraft(configData)
+          setActiveRoomCode(activeRoom)
         }
       } catch {
         if (!cancelled) {
@@ -649,6 +667,21 @@ export function RoomsPanel() {
     setError(null)
   }, [config])
 
+  const handleSetActiveRoom = useCallback(async (roomCode: string | null) => {
+    try {
+      const result = await setActiveRoomCode(roomCode)
+      if (result.ok) {
+        setActiveRoomCode(roomCode)
+        setToast(`✓ POV relay switched to ${roomCode ? `room ${roomCode}` : 'LAN'}`)
+        setTimeout(() => setToast(null), 3000)
+      } else {
+        setError(result.error || 'Failed to set active room')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to set active room')
+    }
+  }, [])
+
   const updateConfigDraft = useCallback(<K extends keyof RoomConfig>(
     key: K,
     value: RoomConfig[K],
@@ -681,8 +714,27 @@ export function RoomsPanel() {
       )}
 
       <div className="space-y-6 pt-3">
-        <ConfigPanel title="LAN Participants" collapsible>
+        <ConfigPanel title="LAN Room" collapsible>
           <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-primary-500)]/10 border border-[var(--color-primary-400)]/20">
+              <button
+                onClick={() => handleSetActiveRoom(null)}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                  activeRoomCode === null ? 'bg-[var(--color-primary-500)]' : 'bg-[var(--color-bg-elevated)]'
+                }`}
+                title="Use LAN room for POV relay"
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  activeRoomCode === null ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />
+              </button>
+              <div>
+                <div className="text-sm font-medium text-[var(--color-text-primary)]">LAN Room POV</div>
+                <div className="text-[10px] text-[var(--color-text-muted)]">
+                  {activeRoomCode === null ? '✓ Active - displaying LAN participants' : 'Inactive - switch to show LAN POV'}
+                </div>
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <div>
                 <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Room Code</div>
@@ -735,7 +787,7 @@ export function RoomsPanel() {
         </ConfigPanel>
 
         <FeatureGate feature="stream-rooms">
-          <ConfigPanel title="Active Rooms" collapsible>
+          <ConfigPanel title="Cloud Rooms" collapsible>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-[var(--color-text-secondary)]">
                 {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
@@ -760,6 +812,8 @@ export function RoomsPanel() {
                     onModeSet={handleModeSet}
                     onSelect={handleSelect}
                     onKick={handleKick}
+                    isActive={activeRoomCode === room.roomCode}
+                    onSetActive={handleSetActiveRoom}
                     socket={socketRef.current}
                   />
                 ))}

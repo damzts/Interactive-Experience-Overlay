@@ -33,6 +33,7 @@ export class RoomManager {
   private cloudUrl: string
   private getToken: () => string | null
   private hubRoomId: string | null = null
+  private activeRoomCode: string | null = null  // Room whose POV is relayed to overlay
 
   private circuitBreaker = new CircuitBreaker({
     failureThreshold: 3,
@@ -297,6 +298,23 @@ export class RoomManager {
 
   getRooms(): RoomStatus[] {
     return [...this.rooms.values()].map((r) => this.toStatus(r))
+  }
+
+  getActiveRoomCode(): string | null {
+    return this.activeRoomCode
+  }
+
+  setActiveRoomCode(roomCode: string | null): { ok: boolean; error?: string } {
+    if (roomCode && !this.rooms.has(roomCode)) {
+      return { ok: false, error: 'room_not_found' }
+    }
+    const prev = this.activeRoomCode
+    this.activeRoomCode = roomCode
+    if (prev !== roomCode) {
+      this.emit('pov-online:active-room', { roomCode })
+      logger.info(`[room] active room changed: ${prev ?? 'none'} → ${roomCode ?? 'none'}`)
+    }
+    return { ok: true }
   }
 
   async syncFromCloud(): Promise<void> {

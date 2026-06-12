@@ -36,6 +36,15 @@ export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
     roomManager.setToken(token)
     return { ok: true }
   })
+
+  app.get('/api/online/active-room', async () => {
+    return { roomCode: roomManager.getActiveRoomCode() }
+  })
+
+  app.patch<{ Body: { roomCode: string | null } }>('/api/online/active-room', async (req) => {
+    const { roomCode } = req.body ?? {}
+    return roomManager.setActiveRoomCode(roomCode ?? null)
+  })
 }
 
 /** @deprecated Use roomRoute */

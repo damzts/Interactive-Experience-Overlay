@@ -146,13 +146,9 @@ export function registerStudioNamespace(
           povOrchestrator.addParticipant(userId, displayName)
           addedToPov = true
           logger.info(`[studio] ${userId} (${displayName}) added to POV pipeline`)
-
-          if (roomManager) {
-            const rooms = roomManager.getRooms()
-            if (rooms.length > 0) {
-              roomManager.addParticipant(rooms[0].roomCode, userId, displayName)
-            }
-          }
+          // Note: LAN participants no longer auto-join cloud rooms.
+          // They exist in a separate LAN room managed by the POV orchestrator.
+          // To include them in a cloud room, use the admin API to select which room to relay.
         }
       } catch (err: any) {
         pendingAnswer = false

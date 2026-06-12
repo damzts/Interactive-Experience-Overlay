@@ -30,6 +30,19 @@ export async function getRooms(): Promise<RoomStatus[]> {
   return apiFetch<RoomStatus[]>('/api/online/rooms')
 }
 
+export async function getActiveRoomCode(): Promise<string | null> {
+  const result = await apiFetch<{ roomCode: string | null }>('/api/online/active-room')
+  return result.roomCode
+}
+
+export async function setActiveRoomCode(roomCode: string | null): Promise<{ ok: boolean; error?: string }> {
+  return apiFetch<{ ok: boolean; error?: string }>('/api/online/active-room', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomCode }),
+  })
+}
+
 /** @deprecated Use getRoomConfig */
 export const getOnlineConfig = getRoomConfig
 /** @deprecated Use updateRoomConfig */
