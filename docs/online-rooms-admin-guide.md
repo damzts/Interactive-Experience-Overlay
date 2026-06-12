@@ -10,27 +10,35 @@ The **Online Rooms** admin panel provides centralized control over WebRTC-based 
 ## Quick Start
 
 1. Navigate to **Settings → Online Rooms** in the admin panel
-2. Choose your switching mode (toggle button at the top)
-3. Configure mode-specific settings
-4. Create or manage active rooms
-5. Click **Apply All Configuration** to save changes
+2. Create or manage active rooms
+3. For each room, configure:
+   - **Auto Mode settings** (activity detection, thresholds)
+   - **Transitions** (cut vs fade, duration)
+   - **Participant effects** (select transition for each participant)
+4. LAN Room has the same config sections (used as defaults for new cloud rooms)
+5. Changes apply immediately to each room
 
 ---
 
-## Switching Modes
+## Per-Room Configuration
 
-### 🌐 Quick Toggle
+Each room has independent configuration for auto-mode behavior and transitions. Configuration is scoped to that room and doesn't affect other rooms.
 
-At the top of the Online Rooms panel, prominently displayed buttons let you switch between:
+### Mode Switching
 
+Each room card shows a **mode toggle button**:
 - **⚡ Auto** — Activity-driven camera switching (glows blue when active)
 - **✋ Manual** — Host-controlled camera selection (glows blue when active)
 
-Buttons show clear visual feedback (highlight + shadow) when selected. When you toggle, all active rooms immediately switch to the new mode.
+Toggle to switch that specific room's mode immediately.
 
 ---
 
 ## Auto Mode Configuration
+
+**Per-Room Setting:** Each room has its own auto-mode configuration section.
+
+When a room becomes the active POV source, its auto-mode settings are applied to the POV orchestrator. When switching to a different room, that room's settings take over.
 
 **Activity Threshold** (0.01-1.0, default 0.15)
 - Score difference required to trigger an automatic switch
@@ -74,7 +82,9 @@ Buttons show clear visual feedback (highlight + shadow) when selected. When you 
 
 ---
 
-## Manual Mode Configuration
+## Transitions Configuration
+
+**Per-Room Setting:** Each room has its own transitions configuration section.
 
 **Default Camera**
 - **Auto-select First** — Display the first participant who joins (good for immediate streaming)
@@ -85,6 +95,21 @@ Buttons show clear visual feedback (highlight + shadow) when selected. When you 
 - **Fade** — Smooth fade animation between cameras (best for polished, professional streaming)
   - Duration: 100-5000ms (default 500ms)
   - Adjust to match your branding and content pacing
+
+### Per-Participant Transition Effects
+
+Each participant in a room can have a custom transition effect. When you expand a room to view participants:
+
+- **⚡ Transition Selector Button** — Click the lightning bolt icon next to each participant
+- **Choose Effect** — Select "Cut" or "Fade" for that participant
+- **Apply Immediately** — Effect is saved and used when that participant is selected
+
+When a participant is selected (manually or automatically by auto-mode):
+1. The system emits the participant's name (useful for text overlay)
+2. The system applies that participant's chosen transition effect
+3. Camera switches with the selected transition
+
+This allows creating custom switching experiences: e.g., "smooth fade for speakers, sharp cuts for reactions."
 
 ---
 
@@ -355,8 +380,28 @@ The room management system uses these Socket.IO events:
 - `pov-online:room:created` — Room created
 - `pov-online:participant:joined` — User joined
 - `pov-online:participant:left` — User left
+- `pov-online:participant:selected` — **NEW** Participant selected (manual or automatic)
+  - Payload: `{ roomCode, participantId, displayName, transition, timestamp }`
+  - Fired before `pov-online:switch` event
+  - Useful for rendering participant name on overlay
 - `pov-online:scores` — Activity score update
 - `pov-online:switch` — Camera switched
 - `pov-online:status` — Room status update
+
+### Participant Selection Signal
+
+When a participant is selected (either manually via admin or automatically via auto-mode):
+
+1. **`pov-online:participant:selected`** event is emitted first with:
+   - Participant's display name (for text overlays)
+   - Their configured transition effect
+   - Room code and timestamp
+
+2. **`pov-online:switch`** event follows with camera switch details
+
+This dual-event pattern allows overlays to:
+- Show "Now talking: John Smith" while the transition plays
+- Apply custom transition effects per participant
+- Render smooth participant name animations in sync with camera switches
 
 See `packages/shared/src/contracts/online-socket.ts` for full type definitions.
