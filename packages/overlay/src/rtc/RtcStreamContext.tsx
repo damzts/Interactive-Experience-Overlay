@@ -47,11 +47,23 @@ export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        let reconnectAttempt = 0;
+        const RECONNECT_MAX_DELAY = 10000;
+
         pc.onconnectionstatechange = () => {
-          if (pcRef.current?.connectionState === 'failed' && !cancelled) {
-            subscribe()
+          if (pcRef.current?.connectionState === 'connected') {
+            reconnectAttempt = 0;
           }
-        }
+          if (pcRef.current?.connectionState === 'failed' && !cancelled) {
+            reconnectAttempt++;
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), RECONNECT_MAX_DELAY);
+            setTimeout(() => {
+              if (!cancelled) {
+                subscribe();
+              }
+            }, delay);
+          }
+        };
 
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp })
         const answer = await pc.createAnswer()
