@@ -88,7 +88,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   }
 
   if (selected.kind === 'scene') {
-    return <ScenePanel sceneId={selected.sceneState} />
+    return <ScenePanel sceneId={selected.sceneState} onDeleted={onDeleted} />
   }
 
   if (selected.kind === 'app') {
@@ -316,20 +316,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
             <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
             {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
           </span>
-          {selected.kind === 'scene' && selected.sceneState !== STATE.LOBBY && selected.sceneState !== STATE.DESKTOP && (
-            <button
-              onClick={async () => {
-                const sceneIdToDelete = selected.sceneState
-                const updatedScenes = Object.fromEntries(
-                  Object.entries(scenes).filter(([id]) => id !== sceneIdToDelete)
-                )
-                await useAdminStore.getState().saveConfig({ scenes: updatedScenes })
-                onClose()
-              }}
-              className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
-              Delete
-            </button>
-          )}
           {selected.kind === 'widget-layout' && (() => {
             const layout = widgetLayouts.find((l) => l.id === selected.layoutId)
             return layout?.source !== 'system' ? (

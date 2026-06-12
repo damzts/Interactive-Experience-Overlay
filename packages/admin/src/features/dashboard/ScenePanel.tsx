@@ -32,11 +32,12 @@ function buildDraft(
   }
 }
 
-export function ScenePanel({ sceneId }: { sceneId: string }) {
+export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?: () => void }) {
   const config        = useAdminStore((s) => s.config)
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const isDesktop     = sceneId === STATE.DESKTOP
   const isUser        = sceneId !== STATE.LOBBY && sceneId !== STATE.DESKTOP
+  const isSystemScene = !isUser
   const sourcePresets = config.sourcePresets ?? []
 
   const baseDraft = buildDraft(sceneId, config)
@@ -159,6 +160,24 @@ export function ScenePanel({ sceneId }: { sceneId: string }) {
       )}
 
       <ConfigApplyBar label={label} dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
+
+      {isUser && (
+        <button onClick={async () => {
+          const sceneIdToDelete = sceneId
+          const updatedScenes = Object.fromEntries(
+            Object.entries(config.scenes).filter(([id]) => id !== sceneIdToDelete)
+          )
+          await saveConfig({ scenes: updatedScenes })
+          onDeleted?.()
+        }}
+          className={'text-xs px-2 py-1 rounded border transition-colors ' + (
+            isSystemScene
+              ? 'border-[var(--color-border-default)] text-[var(--color-text-muted)] cursor-not-allowed'
+              : 'text-[var(--color-danger-400)] hover:text-[var(--color-danger-400)] border-[var(--color-danger-500)]/50 hover:border-[var(--color-danger-400)]'
+          )}>
+          {isSystemScene ? 'Protected' : 'Delete Scene'}
+        </button>
+      )}
     </div>
   )
 }
