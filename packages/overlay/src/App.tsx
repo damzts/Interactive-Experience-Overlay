@@ -9,6 +9,7 @@ import { TransitionLayer } from './layers/TransitionLayer'
 import { Desktop } from './desktop/Desktop'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
+import { RtcStreamProvider } from './rtc/RtcStreamContext'
 
 const LobbyScene = React.lazy(() => import('./lobby/LobbyScene').then(m => ({ default: m.LobbyScene })))
 
@@ -44,40 +45,42 @@ export default function App() {
   }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div
-      id="overlay-root"
-      className={`state-${visualState.toLowerCase()}`}
-      data-desktop={String(showDesktop)}
-    >
-      <LayerErrorBoundary name="scene">
-        <SceneCompositor
-          windows={visibleWindows}
-          overlayStyle={overlayStyle}
-          sceneAge={sceneAge}
-        />
-      </LayerErrorBoundary>
-
-      <div id="lobby-layer">
-        <LayerErrorBoundary name="lobby">
-          {visualState === STATE.LOBBY && (
-            <React.Suspense fallback={null}>
-              <LobbyScene />
-            </React.Suspense>
-          )}
+    <RtcStreamProvider>
+      <div
+        id="overlay-root"
+        className={`state-${visualState.toLowerCase()}`}
+        data-desktop={String(showDesktop)}
+      >
+        <LayerErrorBoundary name="scene">
+          <SceneCompositor
+            windows={visibleWindows}
+            overlayStyle={overlayStyle}
+            sceneAge={sceneAge}
+          />
         </LayerErrorBoundary>
-      </div>
 
-      <div id="desktop-layer">
-        <LayerErrorBoundary name="desktop">
-          <Desktop apps={config.applications} />
-        </LayerErrorBoundary>
-      </div>
+        <div id="lobby-layer">
+          <LayerErrorBoundary name="lobby">
+            {visualState === STATE.LOBBY && (
+              <React.Suspense fallback={null}>
+                <LobbyScene />
+              </React.Suspense>
+            )}
+          </LayerErrorBoundary>
+        </div>
 
-      <div id="transition-layer">
-        <TransitionLayer />
-      </div>
+        <div id="desktop-layer">
+          <LayerErrorBoundary name="desktop">
+            <Desktop apps={config.applications} />
+          </LayerErrorBoundary>
+        </div>
 
-      <TransitionEngine />
-    </div>
+        <div id="transition-layer">
+          <TransitionLayer />
+        </div>
+
+        <TransitionEngine />
+      </div>
+    </RtcStreamProvider>
   )
 }
