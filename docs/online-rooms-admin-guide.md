@@ -92,20 +92,22 @@ Buttons show clear visual feedback (highlight + shadow) when selected. When you 
 
 ### Hub Connection & Rejoin
 
-When the hub loses connection to the cloud, a room goes **idle**. The system has two reconnection mechanisms:
+The hub manages cloud room connectivity. When the hub loses connection, it automatically tries to reconnect with exponential backoff.
 
 **Automatic Reconnect** (background)
-- Activates immediately on disconnect
+- Activates immediately on cloud disconnect
 - Uses exponential backoff: 1s → 2s → 4s → 8s → 30s (max)
 - Runs silently in the background
-- Participants cannot join while reconnecting
+- Cloud participants cannot join while hub is disconnected, but LAN participants can still join
 
-**Rejoin Button** (manual override for hub)
-- Appears only when room is **idle**
+**Rejoin Button** (manual override)
+- Appears only when **Hub is disconnected** (red dot in room card)
 - Forces an **immediate** reconnection attempt
 - Bypasses the auto-reconnect backoff timer
 - Use this to recover quickly without waiting for exponential backoff
 - Useful when you know the cloud service is back online
+
+**Important:** LAN participants can join and stream directly without hub connection. The hub is only needed for cloud room participants and to relay the POV stream to the overlay.
 
 ### Active Rooms Panel
 

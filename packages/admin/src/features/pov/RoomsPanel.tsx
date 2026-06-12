@@ -297,14 +297,14 @@ function RoomCard({
           {room.mode === 'automatic' ? '⚡ Auto' : '✋ Manual'}
         </Button>
 
-        {room.status === 'idle' && (
+        {!room.hubConnected && (
           <Button
             variant="primary"
             size="sm"
             onClick={handleRejoin}
             disabled={rejoining}
             className="text-[10px] px-2 py-0.5"
-            title="Reconnect hub to room (manual override of auto-reconnect backoff)"
+            title="Reconnect hub to cloud room (manual override of auto-reconnect backoff)"
           >
             {rejoining ? '🔄 Reconnecting…' : '🔌 Reconnect Hub'}
           </Button>
