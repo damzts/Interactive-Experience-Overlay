@@ -357,6 +357,9 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const roomSignaling = new RoomSignaling(roomHub, povOrchestrator)
 
   io.on('connection', (socket) => {
+    const clientType = (socket.handshake.auth as { clientType?: string } | undefined)?.clientType
+    if (clientType !== 'overlay') return
+
     socket.on('pov-online:relay:subscribe', () => {
       logger.info('[pov-relay] overlay subscribed')
       roomRelay.createOffer((event, payload) => socket.emit(event, payload))
