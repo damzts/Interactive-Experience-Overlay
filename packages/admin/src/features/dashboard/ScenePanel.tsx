@@ -159,8 +159,6 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
         </div>
       )}
 
-      <ConfigApplyBar label={label} dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
-
       {isUser && (
         <button onClick={async () => {
           const sceneIdToDelete = sceneId
@@ -178,6 +176,8 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
           {isSystemScene ? 'Protected' : 'Delete Scene'}
         </button>
       )}
+
+      <ConfigApplyBar label={label} dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
     </div>
   )
 }
