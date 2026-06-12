@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import type { SourcePreset } from '@ieomlabs/shared'
 import { AssetSelectionInput } from './AssetLibrary'
-import { findSourceCatalogEntry, SOURCE_CATALOG, type CatalogEntry, type FieldDef } from '../../shared/sourceCatalog'
+import { findPluginCatalogEntry as findSourceCatalogEntry, PLUGIN_CATALOG as SOURCE_CATALOG, type PluginCatalogEntry as CatalogEntry, type PluginFieldDef as FieldDef } from '@ieomlabs/shared'
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
@@ -339,7 +339,7 @@ export function SourcesTabContent({
     <div className="grid gap-2 lg:grid-cols-2">
       {SOURCE_CATALOG.map((entry) => (
         <button
-          key={entry.type}
+          key={entry.id}
           type="button"
           onClick={() => createSourcePresetDraft(entry)}
           className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75"

@@ -8,7 +8,7 @@
 import { useRef } from 'react'
 import type { SourceInstance } from '@ieomlabs/shared'
 import { OverlayCanvas, OverlayPreviewItem } from '../../shared/ui'
-import { SOURCE_CATALOG } from '../../shared/sourceCatalog'
+import { PLUGIN_CATALOG as SOURCE_CATALOG } from '@ieomlabs/shared'
 import { getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
 
 interface Props {
@@ -57,7 +57,7 @@ export function ScenePreview({ sources, selectedId, onSelect, onChangePosition }
             onChangePosition(id, { ...src.position, ...patch })
           }}
           renderItem={(item, selected) => {
-            const meta = SOURCE_CATALOG.find((c) => c.type === item._pluginType)
+            const meta = SOURCE_CATALOG.find((c) => c.id === item._pluginType)
             return (
               <div className={`absolute inset-0 flex items-start p-1 ${selected ? 'bg-cyan-500/10' : ''}`}>
                 <span className="text-[9px] rounded bg-black/60 px-1 text-white leading-tight">

@@ -1,5 +1,7 @@
 // Domain entities
+export * from './domain/geometry.js'
 export * from './domain/overlay.js'
+export * from './domain/plugin.js'
 export * from './domain/scene.js'
 export * from './domain/application.js'
 export * from './domain/desktop.js'

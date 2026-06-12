@@ -95,7 +95,7 @@ The kernel handles multiple concerns through specialized **managers**. Each mana
 | **RuntimeStateStore** | Runtime state (RAM) | In-memory state for the live session: current scene, open widgets, overlay socket ID, simulation metrics. Zero I/O on hot path. |
 | **OBSBridge** | Hardware bridge | WebSocket connection to OBS Studio. Mirrors scene state, reacts to OBS events. |
 | **POVOrchestrator** | Video switching | Picks which camera feed to show on stream. Audio-reactive scoring + manual override. |
-| **HubConnection** | WebRTC SFU | werift-based hub that receives participant video tracks and relays them. |
+| **RoomHub** | WebRTC SFU | werift-based hub that receives participant video tracks and relays them. |
 | **AutomationManager** | Rules engine | Evaluates persisted "when event X → do Y" rules against every KernelBus event. Field-match conditions only; no scripting. `bootPriority=100` — boots last. |
 
 ### Manager Plugin Interface
@@ -358,6 +358,8 @@ The **ABI** of the system — the contract between kernel and userspace. No runt
 | Directory | Contents |
 |-----------|----------|
 | `domain/` | Data shape definitions — scenes, applications, widgets, transitions, effects, ambiance, desktop |
+| `domain/plugin.ts` | `PLUGIN_CATALOG` — single source of truth for all source plugin definitions. Both admin (UI field generation) and overlay (plugin resolver) import from here. |
+| `domain/scene.ts` | `SourceInstance` — includes `tier?: TierName` for explicit compositor tier assignment. |
 | `widgets/` | Declaration-first widget descriptors (`WidgetDefinition`) — one `{id}/definition.ts` per system widget. All lookup tables (sizes, z-indices, component mappings, intent manifests) are derived from these. |
 | `contracts/socket.ts` | Typed Socket.IO event maps: `ServerToClientEvents` (signals) and `ClientToServerEvents` (syscalls) |
 | `contracts/widget.ts` | Widget lifecycle interface (opt-in: `onMount`, `onUnmount`, `onConfigUpdate`, `serialize`/`deserialize`). Also defines `WidgetDefinition`. |
@@ -421,20 +423,20 @@ Electron shell. The **physical machine** that wraps everything:
 |---------|-----------|---------|
 | HTTP | Admin → Kernel | CRUD configuration, media uploads, archive management |
 | Socket.IO | Both | Admin sends commands, kernel pushes real-time state & diagnostics |
-| `/online` namespace | Both | Online room management, participant events, POV scores |
+| `/room` namespace | Both | Online room management, participant events, POV scores |
 
-### Kernel ↔ LAN Guests (`/join`)
+### Kernel ↔ LAN Guests (`/studio`)
 
-LAN guests (same network, no cloud) connect via the `/join` Socket.IO namespace for WebRTC signaling. No STUN/TURN required. They enter the same POV pipeline as cloud participants.
+LAN guests (same network, no cloud) connect via the `/studio` Socket.IO namespace for WebRTC signaling. No STUN/TURN required. They enter the same POV pipeline as cloud participants.
 
 ```
-GET /join  →  join.html (camera/mic + WebRTC client)
-WS  /join  →  Socket.IO signaling (offer/answer/ICE)
-             ↓
-         HubConnection (werift) → POVOrchestrator → OverlayRelay
+GET /studio  →  studio.html (camera/mic + WebRTC client)
+WS  /studio  →  Socket.IO signaling (offer/answer/ICE)
+               ↓
+           RoomHub (werift) → POVOrchestrator → RoomRelay
 ```
 
-**Security:** `/join` requires a 6-character room code (generated at server start, displayed in admin at `GET /api/room/code`, regenerable via `POST /api/room/code/regenerate`). Rate-limited to 10 attempts/IP/minute. Disable with `JOIN_CODE_DISABLED=true` env var.
+**Security:** `/studio` requires a 6-character room code (generated at server start, displayed in admin at `GET /api/room/code`, regenerable via `POST /api/room/code/regenerate`). Rate-limited to 10 attempts/IP/minute. Disable with `JOIN_CODE_DISABLED=true` env var.
 
 ### Kernel → Cloud (optional, external)
 

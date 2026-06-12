@@ -1,3 +1,4 @@
+import type { Rect } from './geometry.js'
 import type { OverlayStyle } from './overlay.js'
 
 // ── Source preset and instance ───────────────────────────────────
@@ -7,7 +8,7 @@ export interface SourcePreset {
   label: string
   pluginType: string
   config: Record<string, unknown>
-  defaultPosition?: { x: number; y: number; width: number; height: number }
+  defaultPosition?: Rect
 }
 
 /** Conditions that gate source visibility locally, without kernel round-trips */
@@ -26,7 +27,7 @@ export interface SourceInstance {
   sourcePresetId?: string
   pluginType?: string
   config?: Record<string, unknown>
-  position: { x: number; y: number; width: number; height: number }
+  position: Rect
   zIndex: number
   visible: boolean
   /** CSS mix-blend-mode for compositing against layers below */
@@ -39,6 +40,8 @@ export interface SourceInstance {
   transition?: { in: string; out: string; duration: number }
   /** Local visibility conditions evaluated from store state */
   conditions?: SourceConditions
+  /** Explicit render tier — overrides the compositor's default 'content' bucket */
+  tier?: TierName
 }
 
 /** A z-ordered tier of sources within a scene */

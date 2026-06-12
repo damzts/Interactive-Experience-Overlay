@@ -1,4 +1,6 @@
 import type { ComponentType } from 'react'
+import type { PluginCatalogEntry } from '@ieomlabs/shared'
+import { findPluginCatalogEntry } from '@ieomlabs/shared'
 
 export interface PluginProps {
   config: Record<string, unknown>
@@ -11,6 +13,8 @@ export interface PluginProps {
 
 export interface PluginDefinition {
   Renderer: ComponentType<PluginProps>
+  /** Catalog entry for this plugin — populated by resolvePlugin when available */
+  catalog?: PluginCatalogEntry
   /** JSON Schema for admin UI generation */
   configSchema?: Record<string, unknown>
   /** Signal names this plugin subscribes to */
@@ -36,6 +40,7 @@ export const pluginManifest: PluginManifest = {
   'noise-grain':     () => import('./NoiseGrain').then((m) => ({ Renderer: m.NoiseGrainRenderer })),
   'clock-widget':    () => import('./ClockWidget').then((m) => ({ Renderer: m.ClockWidgetRenderer })),
   'camera':          () => import('./Camera').then((m) => ({ Renderer: m.CameraRenderer })),
+  'pov-stream':      () => import('./PovStream').then((m) => ({ Renderer: m.PovStreamRenderer })),
   // Builtin tier sources — wrap legacy layer components as plugins
   'builtin:background': () => import('./builtins/Background').then((m) => ({ Renderer: m.BuiltinBackgroundRenderer })),
   'builtin:particles':  () => import('./builtins/Particles').then((m) => ({ Renderer: m.BuiltinParticlesRenderer })),
@@ -50,6 +55,7 @@ export async function resolvePlugin(id: string): Promise<PluginDefinition | null
   const factory = pluginManifest[id]
   if (!factory) return null
   const def = await factory()
+  def.catalog = findPluginCatalogEntry(id)
   cache.set(id, def)
   return def
 }

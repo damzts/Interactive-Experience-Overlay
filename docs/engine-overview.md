@@ -130,7 +130,12 @@ packages/server/src/
 ├── transport/
 │   ├── http/               # Fastify routes (config, media, archive, room, automation, shows, wires)
 │   ├── socket/             # Socket.IO handlers (all domain modules)
-│   └── webrtc/             # werift hub + overlay relay + cloud signaling
+│   │   └── roomNamespace.ts  # /studio LAN namespace (registerStudioNamespace)
+│   └── webrtc/             # werift hub + overlay relay + signaling
+│       ├── room-hub.ts       # RoomHub — werift SFU, receives participant tracks
+│       ├── room-relay.ts     # RoomRelay — server→overlay WebRTC relay
+│       ├── room-signaling.ts # RoomSignaling — cloud WebSocket signaling
+│       └── room-preview-relay.ts # RoomPreviewRelay — admin preview relay
 ├── db/
 │   ├── desktop-db.ts       # SQLite init + migrations (addColumn helper, all table schemas)
 │   └── repositories/       # Focused CRUD: SceneRepository, WidgetRepository,
@@ -139,7 +144,12 @@ packages/server/src/
 ├── lib/
 │   ├── defaults.ts         # loadDefaultConfig() — returns bootstrapConfig()
 │   └── bootstrapConfig.ts  # bootstrapConfig() — assembles AppConfig from WIDGET_DEFINITIONS
-├── online/                 # Online room feature (composes kernel + transport)
+├── room/                   # Room management feature (RoomManager, /room namespace, REST routes)
+│   ├── manager.ts          # RoomManager — in-memory room state, participant tracking
+│   ├── namespace.ts        # /room Socket.IO namespace (registerRoomNamespace)
+│   ├── routes.ts           # REST routes /api/config/online, /api/online/rooms
+│   └── index.ts
+├── online/                 # Deprecated re-exports → room/ (backward compat)
 └── desktop-entry.ts        # Thin bootstrap — creates Kernel, registers managers
 ```
 
@@ -184,6 +194,24 @@ The Desktop OS is one interpretation of engine primitives. It is not the engine.
 type, no icon-only type. Every entry in the `widgets` table is a window that
 can be opened, closed, moved, and resized. The Desktop OS renders desktop icons
 for all widgets regardless of state — the icon is just the widget's closed face.
+
+## Sources, Plugins, and Widgets
+
+Three distinct things that are easy to confuse:
+
+| | Source | Plugin | Widget |
+|---|---|---|---|
+| **What it is** | A slot in a scene's `sources[]` array | The renderer that draws a source | A desktop window (application) |
+| **Where it lives** | `SourceInstance` in `AppConfig.scenes[n].sources` | `pluginManifest` in overlay `registry.ts` | `widgets` DB table |
+| **What identifies it** | `pluginType` string (e.g. `'image-static'`) | Entry key in `pluginManifest` | `widgetComponent` string |
+| **Catalog** | `PLUGIN_CATALOG` in `@ieomlabs/shared` | `PluginDefinition.catalog` (attached on resolve) | `WIDGET_DEFINITIONS` in `@ieomlabs/shared` |
+| **Admin UI** | SourcesEditor in SceneConfig, SourcesTab presets | Fields driven by `PluginCatalogEntry.fields` | Widget panel, layout editor |
+
+**`PLUGIN_CATALOG`** is the single source of truth for both admin UI generation (field editors, catalog grid, preset creation) and overlay rendering (default tier, default config). It lives in `@ieomlabs/shared/domain/plugin.ts` so the server, admin, and overlay all import from the same definition.
+
+**`SourceInstance.tier`** — optional field that overrides the compositor's default `'content'` bucket. Set automatically from `PluginCatalogEntry.defaultTier` when adding from the catalog. Builtin sources (`builtin:background`, `builtin:particles`, `builtin:effects`) always resolve to their tier.
+
+**`PluginDefinition.catalog`** — populated by `resolvePlugin()` at load time. Overlay plugins can read their own metadata (label, icon, fields) without a separate import.
 
 ## Adding a second presentation
 

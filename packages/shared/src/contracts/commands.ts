@@ -10,6 +10,7 @@
 
 import type { STATE } from './state.js'
 import type { OverlayTriggerPayload } from './effects.js'
+import type { RTCIceCandidateInit } from './webrtc-types.js'
 import type { EventConfig } from '../domain/event.js'
 import type { TransitionStep } from '../domain/scene.js'
 import type { WidgetLayoutItem } from '../domain/application.js'
@@ -171,4 +172,12 @@ export interface ClientToServerEvents {
   'bus:trace:subscribe': () => void
   /** Unsubscribe from live bus trace stream */
   'bus:trace:unsubscribe': () => void
+
+  // ── POV relay (overlay ↔ server WebRTC) ──────────────────────────
+  /** Subscribe to the POV relay stream — server creates a sendonly WebRTC PC and offers it */
+  'pov-online:relay:subscribe': () => void
+  /** SDP answer from overlay back to server for the relay connection */
+  'pov-online:relay:answer': (payload: { sdp: string }) => void
+  /** ICE candidate from overlay to server for the relay connection */
+  'pov-online:relay:ice': (candidate: RTCIceCandidateInit) => void
 }

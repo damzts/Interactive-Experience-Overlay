@@ -143,6 +143,7 @@ export function withSourcePresetListDefaults(sourcePresets?: SourcePreset[] | nu
 
 export function withSourceInstanceDefaults(source: SourceInstance): SourceInstance {
   return {
+    ...source,
     id: source.id.trim(),
     sourcePresetId: source.sourcePresetId?.trim() || undefined,
     pluginType: source.pluginType?.trim() || undefined,

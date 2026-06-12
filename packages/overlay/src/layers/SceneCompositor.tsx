@@ -44,7 +44,7 @@ export function SceneCompositor({ sources, overlayStyle, sceneAge, openWidgets, 
     background: [], particles: [], content: [], post: [], transition: [],
   }
   for (const s of sources) {
-    const tier = ((s as SourceInstance & { tier?: TierName }).tier ?? 'content') as TierName
+    const tier: TierName = s.tier ?? 'content'
     tierBuckets[tier].push(s)
   }
 

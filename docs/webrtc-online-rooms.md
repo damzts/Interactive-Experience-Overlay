@@ -23,7 +23,7 @@ Once WebRTC establishes, the cloud is no longer in the media path. All video and
 
 ## LAN join (no cloud required)
 
-Participants on the same local network can connect without a cloud account. They navigate directly to the local server's join page (`/join`) on their browser and enter the host's room code.
+Participants on the same local network can connect without a cloud account. They navigate directly to the local server's studio page (`/studio`) on their browser and enter the host's room code.
 
 The room code is a 6-character alphanumeric string generated at server start. The host retrieves it from `GET /api/room/code` and can regenerate it via `POST /api/room/code/regenerate`. Set `JOIN_CODE_DISABLED=true` to skip code validation in fully trusted local environments.
 
@@ -37,7 +37,7 @@ Browsers enforce that `getUserMedia` (camera/mic access) and other sensitive API
 
 **Setup:** Run `node scripts/generate-cert.js` once to generate a self-signed certificate at `scripts/certs/`. The server auto-detects the cert on startup and switches to HTTPS. Restart after generating.
 
-**Guest devices:** Navigate to `https://<host-ip>:3000/join`. The browser will show a security warning for the self-signed cert — click "Advanced → Proceed" once per device. After that, `getUserMedia` works normally.
+**Guest devices:** Navigate to `https://<host-ip>:3000/studio`. The browser will show a security warning for the self-signed cert — click "Advanced → Proceed" once per device. After that, `getUserMedia` works normally.
 
 The cert files are gitignored. Regenerate them at any time — the server picks up the new cert on next restart.
 
@@ -59,26 +59,26 @@ Once a participant's tracks arrive at the hub, three things happen:
 
 Two overlay widgets consume video from the server:
 
-**POV Stream (Auto)** (`pov-stream`) — subscribes via `pov:subscribe` on the main Socket.IO connection. The server's `OverlayRelay` creates a sendonly WebRTC PC and relays whichever participant the POV switcher has selected. Track swaps are seamless via `replaceTrack`. Use this when you want the server to automatically manage who is on screen.
+**POV Stream (Auto)** (`pov-stream`) — subscribes via `pov-online:relay:subscribe` on the main Socket.IO connection. The server's `RoomRelay` creates a sendonly WebRTC PC and relays whichever participant the POV switcher has selected. Track swaps are seamless via `replaceTrack`. Use this when you want the server to automatically manage who is on screen.
 
-**Participant Stream** (`participant-stream`) — connects to the `/online` namespace as an admin client and receives `admin:offer` events from `AdminRelay`. Shows the raw stream of whatever participant is currently being relayed, bypassing the switcher. Use this for a direct feed.
+**Participant Stream** (`participant-stream`) — connects to the `/room` namespace as an admin client and receives `pov-online:preview:offer` events from `RoomPreviewRelay`. Shows the raw stream of whatever participant is currently being relayed, bypassing the switcher. Use this for a direct feed.
 
-**Important:** `AdminRelay` uses one WebRTC PC per participant. Only one consumer can answer a given offer — the first to send `admin:answer` gets the stream. The admin panel's preview grid (inside Online Rooms → Active Rooms) is a consumer of the same relay. It is **off by default** so the overlay widget gets priority. Enable it in the panel only for debugging.
+**Important:** `RoomPreviewRelay` uses one WebRTC PC per participant. Only one consumer can answer a given offer — the first to send `pov-online:preview:answer` gets the stream. The admin panel's preview grid (inside Online Rooms → Active Rooms) is a consumer of the same relay. It is **off by default** so the overlay widget gets priority. Enable it in the panel only for debugging.
 
 ## Overlay relay wiring
 
-`OverlayRelay` is owned entirely by `desktop-entry.ts`. Two hooks drive it:
+`RoomRelay` is owned entirely by `desktop-entry.ts`. Two hooks drive it:
 
-- `povOrchestrator.onSwitch(next => overlayRelay.switchTo(...))` — fires on every POV switch, updates the relay's active track
-- `hubConnection.onTrack(userId => ...)` — auto-selects the first participant and calls `switchTo` on re-offer (new track objects after reconnect)
+- `povOrchestrator.onSwitch(next => roomRelay.switchTo(...))` — fires on every POV switch, updates the relay's active track
+- `roomHub.onTrack(userId => ...)` — auto-selects the first participant and calls `switchTo` on re-offer (new track objects after reconnect)
 
-`CloudSignaling` does not touch `OverlayRelay`. This ensures LAN-only mode works without any cloud room active.
+`RoomSignaling` does not touch `RoomRelay`. This ensures LAN-only mode works without any cloud room active.
 
 ## ICE servers
 
-The `OverlayRelay` and `POVStreamWidget` use **no ICE servers** (empty `iceServers: []`). The server and overlay are both on localhost — ICE resolves immediately via host candidates. STUN is unnecessary and was causing ~12s delays before being removed.
+The `RoomRelay` and `POVStreamWidget` use **no ICE servers** (empty `iceServers: []`). The server and overlay are both on localhost — ICE resolves immediately via host candidates. STUN is unnecessary and was causing ~12s delays before being removed.
 
-`HubConnection` and `AdminRelay` still use `stun:stun.l.google.com:19302` because participants may connect from different network segments (LAN or cloud).
+`RoomHub` and `RoomPreviewRelay` still use `stun:stun.l.google.com:19302` because participants may connect from different network segments (LAN or cloud).
 
 ## ICE candidate ordering constraint
 

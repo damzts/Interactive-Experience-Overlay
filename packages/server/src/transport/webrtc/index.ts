@@ -1,3 +1,4 @@
-export { HubConnection } from './hub-connection.js'
-export { OverlayRelay } from './overlay-relay.js'
-export { CloudSignaling } from './cloud-signaling.js'
+export { RoomHub, RoomHub as HubConnection } from './room-hub.js'
+export { RoomRelay, RoomRelay as OverlayRelay } from './room-relay.js'
+export { RoomSignaling, RoomSignaling as CloudSignaling } from './room-signaling.js'
+export { RoomPreviewRelay, RoomPreviewRelay as AdminRelay } from './room-preview-relay.js'

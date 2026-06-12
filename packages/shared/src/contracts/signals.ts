@@ -8,8 +8,10 @@
  * Direction: server emits → client listens
  */
 
+import type { Rect } from '../domain/geometry.js'
 import type { STATE } from './state.js'
 import type { AppConfig } from '../domain/config.js'
+import type { RTCIceCandidateInit } from './webrtc-types.js'
 import type { DesktopConfig } from '../domain/desktop.js'
 import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { WidgetLayoutItem } from '../domain/application.js'
@@ -140,12 +142,8 @@ export interface DesktopWidgetDragPayload {
   phase: 'start' | 'move' | 'end'
 }
 
-export interface DesktopWidgetResizePayload {
+export interface DesktopWidgetResizePayload extends Rect {
   widgetId: string
-  x: number
-  y: number
-  width: number
-  height: number
   phase: 'start' | 'move' | 'end'
 }
 
@@ -282,4 +280,8 @@ export interface ServerToClientEvents {
   'show:step': (payload: ShowStepPayload) => void
   /** Bus trace frames batch (for dev tooling subscribers) */
   'bus:trace:frames': (frames: BusFrame[]) => void
+  /** POV relay: SDP offer from server to overlay for active participant stream */
+  'pov-online:relay:offer': (payload: { sdp: string }) => void
+  /** POV relay: ICE candidate from server to overlay */
+  'pov-online:relay:ice': (candidate: RTCIceCandidateInit) => void
 }

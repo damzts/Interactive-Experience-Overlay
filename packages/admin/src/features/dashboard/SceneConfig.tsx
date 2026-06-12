@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { SourceInstance, SourcePreset } from '@ieomlabs/shared'
 import { resolveSourceInstance } from '@ieomlabs/shared'
-import { SOURCE_CATALOG } from '../../shared/sourceCatalog'
+import { PLUGIN_CATALOG as SOURCE_CATALOG } from '@ieomlabs/shared'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import type { TierName } from '@ieomlabs/shared'
@@ -63,21 +63,21 @@ export function SourcesEditor({
     onChange(sources.map((s) => s.id === id ? { ...s, sourcePresetId: presetId || undefined, pluginType: undefined } : s))
 
   const updatePluginType = (id: string, pluginType: string) => {
-    const entry = SOURCE_CATALOG.find((c) => c.type === pluginType)
+    const entry = SOURCE_CATALOG.find((c) => c.id === pluginType)
     onChange(sources.map((s) => s.id === id
       ? { ...s, pluginType, sourcePresetId: undefined, config: entry?.defaultConfig ?? {} }
       : s))
   }
 
   const addFromCatalog = (type: string) => {
-    const entry = SOURCE_CATALOG.find((c) => c.type === type)
+    const entry = SOURCE_CATALOG.find((c) => c.id === type)
     if (!entry) return
     const isTierSource = type.startsWith('builtin:')
     const tier: TierName = type === 'builtin:background' ? 'background'
       : type === 'builtin:particles' ? 'particles'
       : type === 'builtin:effects'   ? 'post'
       : 'content'
-    const newSrc: SourceInstance & { tier?: TierName } = {
+    const newSrc: SourceInstance = {
       id: `src-${Date.now()}`,
       pluginType: type,
       config: structuredClone(entry.defaultConfig),
@@ -86,7 +86,7 @@ export function SourcesEditor({
       visible: true,
       ...(isTierSource ? { tier } : {}),
     }
-    onChange([...sources, newSrc as SourceInstance])
+    onChange([...sources, newSrc])
   }
 
   const addFromPreset = () => {
@@ -106,8 +106,8 @@ export function SourcesEditor({
       {sorted.map((src) => {
         const resolved = resolveSourceInstance(src, sourcePresets)
         const pluginType = resolved?.pluginType ?? (src as any).pluginType ?? src.pluginType
-        const meta = SOURCE_CATALOG.find((c) => c.type === pluginType)
-        const srcTier = (src as any).tier as TierName | undefined
+        const meta = SOURCE_CATALOG.find((c) => c.id === pluginType)
+        const srcTier = src.tier
         return (
           <Card key={src.id} variant="default" padding="sm" className="overflow-hidden !p-0">
             <div className="flex items-center gap-2 px-3 py-2">
@@ -127,7 +127,7 @@ export function SourcesEditor({
                     <select value={src.sourcePresetId ?? ''} onChange={(e) => updateSourcePreset(src.id, e.target.value)} className="w-full text-xs">
                       <option value="">— preset —</option>
                       {sourcePresets.map((p) => {
-                        const m = SOURCE_CATALOG.find((c) => c.type === p.pluginType)
+                        const m = SOURCE_CATALOG.find((c) => c.id === p.pluginType)
                         return <option key={p.id} value={p.id}>{p.label} · {m?.label ?? p.pluginType}</option>
                       })}
                     </select>
@@ -136,7 +136,7 @@ export function SourcesEditor({
                   <select value={pluginType ?? ''} onChange={(e) => updatePluginType(src.id, e.target.value)} className="w-full text-xs">
                     <option value="">— type —</option>
                     {SOURCE_CATALOG.map((c) => (
-                      <option key={c.type} value={c.type}>{c.icon} {c.label}</option>
+                      <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                     ))}
                   </select>
                 )}
@@ -185,10 +185,10 @@ export function SourcesEditor({
       <div className="grid grid-cols-4 gap-1">
         {SOURCE_CATALOG.map((entry) => (
           <button
-            key={entry.type}
+            key={entry.id}
             type="button"
             title={entry.desc}
-            onClick={() => addFromCatalog(entry.type)}
+            onClick={() => addFromCatalog(entry.id)}
             className="flex flex-col items-center gap-0.5 rounded-lg border border-[var(--color-border-strong)] bg-white/[0.02] px-1 py-2 text-center hover:bg-white/[0.06] transition-colors"
           >
             <span className="text-lg leading-none">{entry.icon}</span>

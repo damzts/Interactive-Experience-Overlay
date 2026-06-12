@@ -46,16 +46,42 @@ function clampWindowPosition(
   }
 }
 
-interface WidgetDragBroadcastState {
+interface BroadcastState<T> {
   lastSentAt: number
   rafId: number | null
-  pending: DesktopWidgetDragPayload | null
+  pending: T | null
 }
 
-interface WidgetResizeBroadcastState {
-  lastSentAt: number
-  rafId: number | null
-  pending: DesktopWidgetResizePayload | null
+function makeThrottledEmitter<T>(event: string, stateRef: { current: BroadcastState<T> }) {
+  return (payload: T & { phase: string }, immediate = false) => {
+    if (!socket.connected) return
+    const state = stateRef.current
+    const flush = (next: T) => {
+      socket.emit(event, next)
+      state.lastSentAt = Date.now()
+    }
+    if (immediate || payload.phase !== 'move') {
+      if (state.rafId !== null) {
+        window.cancelAnimationFrame(state.rafId)
+        state.rafId = null
+        state.pending = null
+      }
+      flush(payload)
+      return
+    }
+    if (Date.now() - state.lastSentAt >= 33) {
+      flush(payload)
+      return
+    }
+    state.pending = payload
+    if (state.rafId !== null) return
+    state.rafId = window.requestAnimationFrame(() => {
+      state.rafId = null
+      const pending = state.pending
+      state.pending = null
+      if (pending) flush(pending)
+    })
+  }
 }
 
 interface DesktopWindowProps {
@@ -120,90 +146,10 @@ export function DesktopWindow({
   }
   const [pos, setPos] = useState(() => clampPosition(configPos ?? defaultPosition, liveSize))
   const posRef = useRef(pos)
-  const dragBroadcastRef = useRef<WidgetDragBroadcastState>({
-    lastSentAt: 0,
-    rafId: null,
-    pending: null,
-  })
-  const resizeBroadcastRef = useRef<WidgetResizeBroadcastState>({
-    lastSentAt: 0,
-    rafId: null,
-    pending: null,
-  })
-
-  const emitWidgetDrag = (payload: DesktopWidgetDragPayload, immediate = false) => {
-    if (!socket.connected) return
-
-    const broadcastState = dragBroadcastRef.current
-    const flush = (next: DesktopWidgetDragPayload) => {
-      socket.emit('desktop:widget:drag', next)
-      broadcastState.lastSentAt = Date.now()
-    }
-
-    if (immediate || payload.phase !== 'move') {
-      if (broadcastState.rafId !== null) {
-        window.cancelAnimationFrame(broadcastState.rafId)
-        broadcastState.rafId = null
-        broadcastState.pending = null
-      }
-      flush(payload)
-      return
-    }
-
-    const now = Date.now()
-    if (now - broadcastState.lastSentAt >= 33) {
-      flush(payload)
-      return
-    }
-
-    broadcastState.pending = payload
-    if (broadcastState.rafId !== null) return
-
-    broadcastState.rafId = window.requestAnimationFrame(() => {
-      broadcastState.rafId = null
-      const pending = broadcastState.pending
-      broadcastState.pending = null
-      if (!pending) return
-      flush(pending)
-    })
-  }
-
-  const emitWidgetResize = (payload: DesktopWidgetResizePayload, immediate = false) => {
-    if (!socket.connected) return
-
-    const broadcastState = resizeBroadcastRef.current
-    const flush = (next: DesktopWidgetResizePayload) => {
-      socket.emit('desktop:widget:resize', next)
-      broadcastState.lastSentAt = Date.now()
-    }
-
-    if (immediate || payload.phase !== 'move') {
-      if (broadcastState.rafId !== null) {
-        window.cancelAnimationFrame(broadcastState.rafId)
-        broadcastState.rafId = null
-        broadcastState.pending = null
-      }
-      flush(payload)
-      return
-    }
-
-    const now = Date.now()
-    if (now - broadcastState.lastSentAt >= 33) {
-      flush(payload)
-      return
-    }
-
-    broadcastState.pending = payload
-    if (broadcastState.rafId !== null) return
-
-    broadcastState.rafId = window.requestAnimationFrame(() => {
-      broadcastState.rafId = null
-      const pending = broadcastState.pending
-      broadcastState.pending = null
-      if (!pending) return
-      flush(pending)
-    })
-  }
+  const dragBroadcastRef = useRef<BroadcastState<DesktopWidgetDragPayload>>({ lastSentAt: 0, rafId: null, pending: null })
+  const resizeBroadcastRef = useRef<BroadcastState<DesktopWidgetResizePayload>>({ lastSentAt: 0, rafId: null, pending: null })
+  const emitWidgetDrag = makeThrottledEmitter<DesktopWidgetDragPayload>('desktop:widget:drag', dragBroadcastRef)
+  const emitWidgetResize = makeThrottledEmitter<DesktopWidgetResizePayload>('desktop:widget:resize', resizeBroadcastRef)
 
   useEffect(() => {
     if (resizing.current) return

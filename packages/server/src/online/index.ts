@@ -1,10 +1,4 @@
-/**
- * Online rooms module — provides REST routes and Socket.IO /online namespace
- * so the admin OnlineRoomsPanel can create/manage rooms and see live status.
- *
- * Bridges the CloudSignaling (WebRTC hub) with the admin UI.
- */
-
-export { onlineRoute } from './routes.js'
-export { registerOnlineNamespace } from './namespace.js'
-export { OnlineRoomManager } from './manager.js'
+/** @deprecated Import from room/ instead */
+export { roomRoute as onlineRoute } from '../room/routes.js'
+export { registerRoomNamespace as registerOnlineNamespace } from '../room/namespace.js'
+export { RoomManager as OnlineRoomManager } from '../room/manager.js'

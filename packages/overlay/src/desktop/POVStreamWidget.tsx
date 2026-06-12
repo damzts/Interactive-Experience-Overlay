@@ -48,14 +48,14 @@ export function POVStreamWidget({ appId, onClose, onMinimize, onFocus, windowSta
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            socket.emit('pov:ice-candidate' as any, event.candidate.toJSON())
+            socket.emit('pov-online:relay:ice' as any, event.candidate.toJSON())
           }
         }
 
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp })
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
-        socket.emit('pov:answer' as any, { sdp: answer.sdp })
+        socket.emit('pov-online:relay:answer' as any, { sdp: answer.sdp })
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'WebRTC connection failed')
       }
@@ -69,11 +69,11 @@ export function POVStreamWidget({ appId, onClose, onMinimize, onFocus, windowSta
       console.log('[pov-stream] subscribing, socket.id:', socket.id)
       cleanup()
       setError(null)
-      socket.emit('pov:subscribe' as any)
+      socket.emit('pov-online:relay:subscribe' as any)
     }
 
-    socket.on('pov:offer' as any, handleOffer)
-    socket.on('pov:ice-candidate' as any, handleIceCandidate)
+    socket.on('pov-online:relay:offer' as any, handleOffer)
+    socket.on('pov-online:relay:ice' as any, handleIceCandidate)
     socket.on('connect', subscribe)
 
     // Subscribe immediately if already connected
@@ -81,8 +81,8 @@ export function POVStreamWidget({ appId, onClose, onMinimize, onFocus, windowSta
 
     return () => {
       cancelled = true
-      socket.off('pov:offer' as any, handleOffer)
-      socket.off('pov:ice-candidate' as any, handleIceCandidate)
+      socket.off('pov-online:relay:offer' as any, handleOffer)
+      socket.off('pov-online:relay:ice' as any, handleIceCandidate)
       socket.off('connect', subscribe)
       cleanup()
       pcRef.current = null

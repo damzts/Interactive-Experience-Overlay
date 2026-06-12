@@ -56,6 +56,8 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `obs:virtualcam:changed` | `{ active: boolean }` | ObsBridge (via explicit bridge) | Virtual camera toggled |
 | `show:step` | `ShowStepPayload` | ShowSequencer (via explicit bridge) | Each step of a running show executes |
 | `bus:trace:frames` | `BusFrame[]` | BusHistoryRecorder | Batched bus frames pushed to `bus:trace` room subscribers |
+| `pov-online:relay:offer` | `{ sdp: string }` | RoomRelay when active participant changes | Overlay creates answer PC, calls `pov-online:relay:answer` |
+| `pov-online:relay:ice` | `RTCIceCandidateInit` | RoomRelay during ICE negotiation | Overlay adds ICE candidate to its PC |
 
 ---
 
@@ -94,6 +96,9 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `overlay:runtime:status` | `OverlayRuntimeStatusPayload` | Overlay on mount | Kernel records overlay readiness |
 | `bus:trace:subscribe` | — | Admin diagnostics panel | Join `bus:trace` Socket.IO room; receive `bus:trace:frames` |
 | `bus:trace:unsubscribe` | — | Admin diagnostics panel | Leave `bus:trace` room |
+| `pov-online:relay:subscribe` | — | POVStreamWidget / PovStream plugin on connect | Server begins relay; creates offer for this overlay client |
+| `pov-online:relay:answer` | `{ sdp: string }` | POVStreamWidget after receiving offer | Server sets remote description on RoomRelay PC |
+| `pov-online:relay:ice` | `RTCIceCandidateInit` | POVStreamWidget during ICE | Server adds ICE candidate to RoomRelay PC |
 
 ---
 

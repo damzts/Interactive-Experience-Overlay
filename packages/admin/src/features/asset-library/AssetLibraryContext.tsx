@@ -3,7 +3,8 @@ import { DEFAULT_EVENT_DEFS, EVENT_PRESET_OPTIONS, createEventPreset, type Event
 import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
-import { SOURCE_CATALOG, findSourceCatalogEntry, getSafeSceneSources } from '../../shared/sourceCatalog'
+import { PLUGIN_CATALOG as SOURCE_CATALOG, findPluginCatalogEntry as findSourceCatalogEntry } from '@ieomlabs/shared'
+import { getSafeSceneSources } from '../../shared/sourceCatalog'
 import { TRANSITION_OPTIONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
 import type { MediaEntry, SourcePreset } from '@ieomlabs/shared'
 
@@ -264,7 +265,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
 
   const createSourcePresetDraft = (entry: typeof SOURCE_CATALOG[number]) => {
     const defaultPosition = entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }
-    const newPreset: SourcePreset = { id: `${entry.type}-${Date.now()}`, label: entry.label, pluginType: entry.type, config: { ...entry.defaultConfig }, defaultPosition: { ...defaultPosition } }
+    const newPreset: SourcePreset = { id: `${entry.id}-${Date.now()}`, label: entry.label, pluginType: entry.id, config: { ...entry.defaultConfig }, defaultPosition: { ...defaultPosition } }
     setSourcePresetDraft({ preset: newPreset, originalId: null, originalLabel: null })
     setSelectedSourcePresetId(null)
     setTab('sources')

@@ -1,3 +1,5 @@
+import type { Rect } from './geometry.js'
+
 // ── Widget types ─────────────────────────────────────────────────
 
 export type WidgetLayoutSource = 'system' | 'user'
@@ -48,13 +50,9 @@ export interface WidgetWindowSize {
   height?: number
 }
 
-export interface WidgetLayoutItem {
+export interface WidgetLayoutItem extends Rect {
   widgetId: string
   enabled: boolean
-  x: number
-  y: number
-  width: number
-  height: number
   focusPriority: number
 }
 
@@ -77,9 +75,12 @@ export interface WidgetLayoutDefinition {
 
 // ── Widget-specific settings ─────────────────────────────────────
 
-export interface OnlineStreamSettings {
+export interface PovStreamSettings {
   roomCode?: string
 }
+
+/** @deprecated Use PovStreamSettings */
+export type OnlineStreamSettings = PovStreamSettings
 
 export interface SourceWidgetSettings {
   sceneId?: string
@@ -133,8 +134,8 @@ export interface Application {
   }
   /** Optional source binding for source-backed widget windows. */
   sourceWidgetSettings?: SourceWidgetSettings
-  /** Optional settings for the online stream widget. */
-  onlineStreamSettings?: OnlineStreamSettings
+  /** Optional settings for the pov stream widget. */
+  povStreamSettings?: PovStreamSettings
   /** Optional persisted content for the Sticky Notes system widget. */
   stickyNotesSettings?: StickyNotesSettings
   /** Persisted widget chrome override for this specific widget. */

@@ -3,24 +3,24 @@
  * via WebRTC relay from the hub server.
  *
  * Each participant with a video track gets a sendonly PC on the server.
- * The server signals the offer via Socket.IO (admin:offer).
+ * The server signals the offer via Socket.IO (pov-online:preview:offer).
  * This component creates answer PCs per participant and renders the stream.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import type {
-  OnlineServerToAdminEvents,
-  OnlineClientToServerEvents,
-  AdminStreamOfferPayload,
-  AdminStreamRemovedPayload,
-  AdminStreamInfo,
-  AdminStreamIceCandidatePayload,
+  RoomServerToAdminEvents,
+  RoomClientToServerEvents,
+  RoomPreviewOfferPayload,
+  RoomPreviewRemovedPayload,
+  RoomPreviewStreamInfo,
+  RoomPreviewIcePayload,
 } from '@ieomlabs/shared'
 
 // ── Types ──────────────────────────────────────────────────────────
 
-type OnlineSocket = Socket<OnlineServerToAdminEvents, OnlineClientToServerEvents>
+type RoomSocket = Socket<RoomServerToAdminEvents, RoomClientToServerEvents>
 
 interface StreamState {
   userId: string
@@ -39,9 +39,8 @@ const ICE_CONFIG: RTCConfiguration = {
 
 // ── Component ──────────────────────────────────────────────────────
 
-export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
+export function AdminStreamGrid({ socket }: { socket: RoomSocket | null }) {
   const [streams, setStreams] = useState<Map<string, StreamState>>(new Map())
-  /** Store peer connections by userId so we can close them */
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const mountedRef = useRef(true)
 
@@ -62,12 +61,11 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
 
   // ── Handle a new WebRTC offer from the server ──────────────────
 
-  const handleOffer = useCallback(async (payload: AdminStreamOfferPayload) => {
+  const handleOffer = useCallback(async (payload: RoomPreviewOfferPayload) => {
     const { userId, sdp, displayName, hasAudio, hasVideo } = payload
-    if (!hasVideo) return // Only render video streams
+    if (!hasVideo) return
     if (!mountedRef.current) return
 
-    // Close existing PC for this user if any
     const existing = pcsRef.current.get(userId)
     if (existing) {
       existing.close()
@@ -77,7 +75,6 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
     const pc = new RTCPeerConnection(ICE_CONFIG)
     pcsRef.current.set(userId, pc)
 
-    // Track ICE state changes
     pc.oniceconnectionstatechange = () => {
       setStreams((prev) => {
         const entry = prev.get(userId)
@@ -88,12 +85,10 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
       })
     }
 
-    // When a track arrives, attach it to the stream
     pc.ontrack = (event) => {
       if (!mountedRef.current) return
       setStreams((prev) => {
         const updated = new Map(prev)
-        const existing = updated.get(userId)
         updated.set(userId, {
           userId,
           displayName,
@@ -105,19 +100,17 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
       })
     }
 
-    // Forward ICE candidates to the server
     pc.onicecandidate = (event) => {
       if (!event.candidate || !mountedRef.current) return
       const sock = socket
       if (sock?.connected) {
-        sock.emit('admin:ice-candidate', {
+        sock.emit('pov-online:preview:ice', {
           userId,
           candidate: event.candidate.toJSON(),
         })
       }
     }
 
-    // Create initial entry
     setStreams((prev) => {
       const updated = new Map(prev)
       if (!updated.has(userId)) {
@@ -138,7 +131,7 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
       await pc.setLocalDescription(answer)
 
       if (mountedRef.current && socket?.connected) {
-        socket.emit('admin:answer', { userId, sdp: pc.localDescription!.sdp! })
+        socket.emit('pov-online:preview:answer', { userId, sdp: pc.localDescription!.sdp! })
       }
     } catch (err) {
       console.error(`[AdminStreamGrid] Failed to handle offer for ${userId}:`, err)
@@ -148,7 +141,7 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
 
   // ── Handle ICE candidates from the server ──────────────────────
 
-  const handleIceCandidate = useCallback((payload: AdminStreamIceCandidatePayload) => {
+  const handleIceCandidate = useCallback((payload: RoomPreviewIcePayload) => {
     const { userId, candidate } = payload
     const pc = pcsRef.current.get(userId)
     if (!pc) return
@@ -163,13 +156,12 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
     mountedRef.current = true
     if (!socket) return
 
-    socket.on('admin:offer', handleOffer)
-    socket.on('admin:ice-candidate', handleIceCandidate)
-    socket.on('admin:stream-removed', (payload: AdminStreamRemovedPayload) => {
+    socket.on('pov-online:preview:offer', handleOffer)
+    socket.on('pov-online:preview:ice', handleIceCandidate)
+    socket.on('pov-online:preview:removed', (payload: RoomPreviewRemovedPayload) => {
       removeStream(payload.userId)
     })
-    socket.on('admin:stream-status', (payload: AdminStreamInfo[]) => {
-      // Remove streams no longer present in status
+    socket.on('pov-online:preview:status', (payload: RoomPreviewStreamInfo[]) => {
       const activeIds = new Set(payload.map((s) => s.userId))
       setStreams((prev) => {
         let changed = false
@@ -189,10 +181,10 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
     return () => {
       mountedRef.current = false
       if (!socket) return
-      socket.off('admin:offer', handleOffer)
-      socket.off('admin:ice-candidate', handleIceCandidate)
-      socket.off('admin:stream-removed')
-      socket.off('admin:stream-status')
+      socket.off('pov-online:preview:offer', handleOffer)
+      socket.off('pov-online:preview:ice', handleIceCandidate)
+      socket.off('pov-online:preview:removed')
+      socket.off('pov-online:preview:status')
     }
   }, [socket, handleOffer, handleIceCandidate, removeStream])
 
@@ -200,7 +192,7 @@ export function AdminStreamGrid({ socket }: { socket: OnlineSocket | null }) {
 
   useEffect(() => {
     return () => {
-      for (const [userId, pc] of pcsRef.current) {
+      for (const [_userId, pc] of pcsRef.current) {
         pc.close()
       }
       pcsRef.current.clear()
@@ -256,7 +248,6 @@ function StreamTile({ stream }: { stream: StreamState }) {
 
   return (
     <div className="relative aspect-video rounded-lg overflow-hidden bg-[var(--color-bg-elevated)] border border-[var(--color-border-default)] group">
-      {/* Video element */}
       <video
         ref={videoRef}
         autoPlay
@@ -265,10 +256,8 @@ function StreamTile({ stream }: { stream: StreamState }) {
         className={`h-full w-full object-cover ${connecting ? 'opacity-60' : ''}`}
       />
 
-      {/* Overlay: name + status */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
         <div className="flex items-center gap-1.5">
-          {/* ICE state indicator */}
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${
               stream.iceState === 'connected' || stream.iceState === 'completed'

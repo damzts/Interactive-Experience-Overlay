@@ -21,6 +21,7 @@ const SCHEMA = `
     on_entry_json TEXT NOT NULL DEFAULT '[]',
     on_exit_json TEXT NOT NULL DEFAULT '[]',
     music_track TEXT,
+    ambient_track TEXT,
     show_desktop INTEGER NOT NULL DEFAULT 0
   );
 

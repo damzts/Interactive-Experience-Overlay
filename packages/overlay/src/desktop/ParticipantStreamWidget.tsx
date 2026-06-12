@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
-import type { OnlineServerToAdminEvents, OnlineClientToServerEvents, AdminStreamOfferPayload, AdminStreamIceCandidatePayload } from '@ieomlabs/shared'
+import type { RoomServerToAdminEvents, RoomClientToServerEvents, RoomPreviewOfferPayload, RoomPreviewIcePayload } from '@ieomlabs/shared'
 import { DesktopWindow } from './DesktopWindow'
 
-type OnlineSocket = Socket<OnlineServerToAdminEvents, OnlineClientToServerEvents>
+type RoomSocket = Socket<RoomServerToAdminEvents, RoomClientToServerEvents>
 
 interface DesktopWidgetProps {
   appId?: string
@@ -21,7 +21,7 @@ const ICE_CONFIG: RTCConfiguration = {
 export function ParticipantStreamWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
-  const socketRef = useRef<OnlineSocket | null>(null)
+  const socketRef = useRef<RoomSocket | null>(null)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +29,7 @@ export function ParticipantStreamWidget({ appId, onClose, onMinimize, onFocus, w
   useEffect(() => {
     let cancelled = false
 
-    const sock: OnlineSocket = io(`${window.location.origin}/online`, {
+    const sock: RoomSocket = io(`${window.location.origin}/room`, {
       forceNew: false,
       auth: { clientType: 'admin' },
     })
@@ -41,7 +41,7 @@ export function ParticipantStreamWidget({ appId, onClose, onMinimize, onFocus, w
       if (!userId || !cancelled) setConnected(false)
     }
 
-    const handleOffer = async (payload: AdminStreamOfferPayload) => {
+    const handleOffer = async (payload: RoomPreviewOfferPayload) => {
       if (cancelled || !payload.hasVideo) return
       cleanup(payload.userId)
 
@@ -58,41 +58,40 @@ export function ParticipantStreamWidget({ appId, onClose, onMinimize, onFocus, w
       }
 
       pc.onicecandidate = (e) => {
-        if (e.candidate) sock.emit('admin:ice-candidate', { userId: payload.userId, candidate: e.candidate.toJSON() })
+        if (e.candidate) sock.emit('pov-online:preview:ice', { userId: payload.userId, candidate: e.candidate.toJSON() })
       }
 
       try {
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp } as RTCSessionDescriptionInit)
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
-        sock.emit('admin:answer', { userId: payload.userId, sdp: pc.localDescription!.sdp! })
+        sock.emit('pov-online:preview:answer', { userId: payload.userId, sdp: pc.localDescription!.sdp! })
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'WebRTC failed')
       }
     }
 
-    const handleIce = ({ userId, candidate }: AdminStreamIceCandidatePayload) => {
+    const handleIce = ({ userId: _userId, candidate }: RoomPreviewIcePayload) => {
       if (pcRef.current) {
-        // Only handle if this matches our current participant
         pcRef.current.addIceCandidate(candidate as RTCIceCandidateInit).catch(() => {})
       }
     }
 
-    const handleRemoved = ({ userId }: { userId: string }) => {
+    const handleRemoved = ({ userId: _userId }: { userId: string }) => {
       cleanup()
       setDisplayName(null)
     }
 
-    sock.on('admin:offer', handleOffer)
-    sock.on('admin:ice-candidate', handleIce)
-    sock.on('admin:stream-removed', handleRemoved as any)
+    sock.on('pov-online:preview:offer', handleOffer)
+    sock.on('pov-online:preview:ice', handleIce)
+    sock.on('pov-online:preview:removed', handleRemoved as any)
     sock.on('connect_error', (e) => { if (!cancelled) setError(e.message) })
 
     return () => {
       cancelled = true
-      sock.off('admin:offer', handleOffer)
-      sock.off('admin:ice-candidate', handleIce)
-      sock.off('admin:stream-removed', handleRemoved as any)
+      sock.off('pov-online:preview:offer', handleOffer)
+      sock.off('pov-online:preview:ice', handleIce)
+      sock.off('pov-online:preview:removed', handleRemoved as any)
       sock.disconnect()
       socketRef.current = null
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null }

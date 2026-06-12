@@ -23,7 +23,7 @@ import logger from './lib/logger.js'
 import { DEFAULT_CONFIG, withDesktopAmbianceDefaults, WIDGET_INTENT_MANIFESTS } from '@ieomlabs/shared'
 import type { AppConfig } from '@ieomlabs/shared'
 
-import { AdminRelay } from './transport/webrtc/admin-relay.js'
+import { RoomPreviewRelay } from './transport/webrtc/room-preview-relay.js'
 import { Kernel } from './kernel/index.js'
 import { loadDefaultConfig } from './lib/defaults.js'
 import { SceneMachine } from './kernel/managers/scene.js'
@@ -37,7 +37,7 @@ import { clearMediaCaches } from './services/MediaService.js'
 import { configRoute } from './transport/http/config.js'
 import { mediaRoute } from './transport/http/media.js'
 import { archiveRoute } from './transport/http/archive.js'
-import { roomRoute } from './transport/http/room.js'
+import { roomRoute as roomHttpRoute } from './transport/http/room.js'
 import { wiresRoute } from './transport/http/wires.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
@@ -53,14 +53,14 @@ import { BusHistoryRecorder } from './kernel/BusHistoryRecorder.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
 import { authRoutes } from './auth/authRoutes.js'
 import { registerAuthMiddleware } from './auth/authMiddleware.js'
-import { HubConnection } from './transport/webrtc/hub-connection.js'
+import { RoomHub } from './transport/webrtc/room-hub.js'
 import { POVOrchestrator } from './kernel/managers/pov.js'
-import { OverlayRelay } from './transport/webrtc/overlay-relay.js'
-import { CloudSignaling } from './transport/webrtc/cloud-signaling.js'
-import { OnlineRoomManager } from './online/manager.js'
-import { onlineRoute } from './online/routes.js'
-import { registerOnlineNamespace } from './online/namespace.js'
-import { registerJoinNamespace } from './transport/socket/joinNamespace.js'
+import { RoomRelay } from './transport/webrtc/room-relay.js'
+import { RoomSignaling } from './transport/webrtc/room-signaling.js'
+import { RoomManager } from './room/manager.js'
+import { roomRoute as onlineRoomRoute } from './room/routes.js'
+import { registerRoomNamespace } from './room/namespace.js'
+import { registerStudioNamespace } from './transport/socket/roomNamespace.js'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -256,8 +256,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const obsBridge = new ObsBridge(io, machine, kernel.bus)
-  const hubConnection = new HubConnection()
-  const povOrchestrator = new POVOrchestrator(hubConnection)
+  const roomHub = new RoomHub()
+  const povOrchestrator = new POVOrchestrator(roomHub)
   const automationRepo = new AutomationRuleRepository(db)
   const automationManager = new AutomationManager(automationRepo, kernel.bus, io, machine)
   const showSequencer = new ShowSequencer(
@@ -333,75 +333,75 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   })
 
   // ── Room system ───────────────────────────────────────────────
-  const overlayRelay = new OverlayRelay()
+  const roomRelay = new RoomRelay()
   // Start WebRTC freeze detection (monitorea tracks congelados cada 2s)
-  hubConnection.startFreezeDetection()
+  roomHub.startFreezeDetection()
 
-  // Wire POV → overlay relay for all participants (LAN and cloud)
+  // Wire POV → room relay for all participants (LAN and cloud)
   povOrchestrator.onSwitch((_prev, next) => {
     logger.info(`[pov-relay] switch → ${next}`)
-    overlayRelay.switchTo(hubConnection.getAudioTrack(next), hubConnection.getVideoTrack(next))
+    roomRelay.switchTo(roomHub.getAudioTrack(next), roomHub.getVideoTrack(next))
       .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
   })
 
   // Auto-select first participant; relay fresh tracks on re-offer for active camera
-  hubConnection.onTrack((userId) => {
+  roomHub.onTrack((userId) => {
     if (!povOrchestrator.activeCameraId) {
       povOrchestrator.switcher.manualSelect(userId)
     } else if (userId === povOrchestrator.activeCameraId) {
-      overlayRelay.switchTo(hubConnection.getAudioTrack(userId), hubConnection.getVideoTrack(userId))
+      roomRelay.switchTo(roomHub.getAudioTrack(userId), roomHub.getVideoTrack(userId))
         .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on re-offer failed'))
     }
   })
 
-  const cloudSignaling = new CloudSignaling(hubConnection, povOrchestrator)
+  const roomSignaling = new RoomSignaling(roomHub, povOrchestrator)
 
   io.on('connection', (socket) => {
-    socket.on('pov:subscribe', () => {
+    socket.on('pov-online:relay:subscribe', () => {
       logger.info('[pov-relay] overlay subscribed')
-      overlayRelay.createOffer((event, payload) => socket.emit(event, payload))
+      roomRelay.createOffer((event, payload) => socket.emit(event, payload))
         .catch(e => logger.error('[pov-relay] createOffer failed:', e.message))
     })
-    socket.on('pov:answer', async (payload: { sdp: string }) => {
+    socket.on('pov-online:relay:answer', async (payload: { sdp: string }) => {
       try {
-        await overlayRelay.handleAnswer(payload.sdp)
+        await roomRelay.handleAnswer(payload.sdp)
       } catch (err) {
         logger.error({ err }, '[pov-relay] handleAnswer error:')
       }
     })
-    socket.on('pov:ice-candidate', async (candidate: any) => {
+    socket.on('pov-online:relay:ice', async (candidate: any) => {
       try {
-        await overlayRelay.handleIceCandidate(candidate)
+        await roomRelay.handleIceCandidate(candidate)
       } catch (err) {
         logger.error({ err }, '[pov-relay] ice-candidate error:')
       }
     })
   })
 
-  cloudSignaling.onStatus((status) => io.emit('room:status' as any, status))
-  await app.register(roomRoute, { cloudSignaling, pov: povOrchestrator, hub: hubConnection })
+  roomSignaling.onStatus((status) => io.emit('room:status' as any, status))
+  await app.register(roomHttpRoute, { cloudSignaling: roomSignaling, pov: povOrchestrator, hub: roomHub })
 
-  const onlineManager = new OnlineRoomManager(cloudSignaling, povOrchestrator, { cloudUrl, getToken })
-  const adminRelay = new AdminRelay()
-  adminRelay.bindHub(hubConnection)
-  registerOnlineNamespace(io, onlineManager, adminRelay)
-  await app.register(onlineRoute, { onlineManager })
+  const roomManager = new RoomManager(roomSignaling, povOrchestrator, { cloudUrl, getToken })
+  const roomPreviewRelay = new RoomPreviewRelay()
+  roomPreviewRelay.bindHub(roomHub)
+  registerRoomNamespace(io, roomManager, roomPreviewRelay)
+  await app.register(onlineRoomRoute, { roomManager })
 
   // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
   setTimeout(() => {
-    onlineManager.syncFromCloud().catch((e) => {
-      logger.info({ err: (e as Error).message }, '[online] auto-sync on startup failed')
+    roomManager.syncFromCloud().catch((e) => {
+      logger.info({ err: (e as Error).message }, '[room] auto-sync on startup failed')
     })
   }, 2000) // Small delay to let auth token settle
 
-  registerJoinNamespace(io, hubConnection, povOrchestrator, onlineManager)
+  registerStudioNamespace(io, roomHub, povOrchestrator, roomManager)
 
-  const joinPagePath = join(import.meta.dirname, 'join.html')
-  if (existsSync(joinPagePath)) {
-    const joinHtml = readFileSync(joinPagePath, 'utf8')
-    app.get('/join', async (_req, reply) => {
+  const studioPagePath = join(import.meta.dirname, 'studio.html')
+  if (existsSync(studioPagePath)) {
+    const studioHtml = readFileSync(studioPagePath, 'utf8')
+    app.get('/studio', async (_req, reply) => {
       reply.header('content-type', 'text/html; charset=utf-8')
-      return reply.send(joinHtml)
+      return reply.send(studioHtml)
     })
   }
 
@@ -461,9 +461,9 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   }
 
   async function stop(): Promise<void> {
-    cloudSignaling.disconnect()
-    overlayRelay.cleanup()
-    await hubConnection.closeAll()
+    roomSignaling.disconnect()
+    roomRelay.cleanup()
+    await roomHub.closeAll()
     io.close()
     await app.close()
     await kernel.shutdown()
