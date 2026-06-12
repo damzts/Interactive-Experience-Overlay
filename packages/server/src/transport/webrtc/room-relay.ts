@@ -121,6 +121,10 @@ export class RoomRelay {
         const sender = this.pc.getSenders().find(s => s.track?.kind === 'video')
         if (sender) await sender.replaceTrack(videoTrack)
       }
+      if (audioTrack) {
+        const audioSender = this.pc.getSenders().find(s => s.track?.kind === 'audio')
+        if (audioSender) await audioSender.replaceTrack(audioTrack)
+      }
       return
     }
 
