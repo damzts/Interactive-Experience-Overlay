@@ -21,63 +21,45 @@ The **Online Rooms** admin panel provides centralized control over WebRTC-based 
 
 ### 🌐 Quick Toggle
 
-At the top of the Online Rooms panel, the **Switching Mode** toggle shows the current mode and lets you switch between:
+At the top of the Online Rooms panel, prominently displayed buttons let you switch between:
 
-- **⚡ Auto** — Activity-driven camera switching
-- **✋ Manual** — Host-controlled camera selection
+- **⚡ Auto** — Activity-driven camera switching (glows blue when active)
+- **✋ Manual** — Host-controlled camera selection (glows blue when active)
 
-When you toggle, all active rooms immediately switch to the new mode.
+Buttons show clear visual feedback (highlight + shadow) when selected. When you toggle, all active rooms immediately switch to the new mode.
 
 ---
 
 ## Auto Mode Configuration
 
-### Audio Detection
-
-**Report Interval** (50-500ms, default 100ms)
-- How often participants report their audio level to the server
-- Lower values = more responsive but higher network traffic
-- Use 50-100ms for live/performance settings, 200-300ms for interviews
-
 **Activity Threshold** (0.01-1.0, default 0.15)
 - Score difference required to trigger an automatic switch
-- **Higher = more stable** (less flickering, slower to react to new speaker)
-- **Lower = more responsive** (quicker to switch, may flicker with multiple speakers)
-- Recommended: 0.15 for talk shows, 0.10 for high-energy events, 0.20 for stability
+- **Higher (0.20+)** = more stable, less flickering
+- **Lower (0.10-)** = quicker to switch, more responsive
+- Recommended: 0.15 for balanced, 0.10 for high-energy, 0.20 for very stable
 
 **Silence Threshold** (0.0-1.0, default 0.05)
 - Activity score below which a participant is considered "silent"
 - Participants below this threshold won't trigger a switch
-- Use this to filter out background noise and hesitation pauses
-- Recommended: 0.05 for typical setups
-
-### Motion Detection
+- Filters out background noise and hesitation pauses
 
 **Motion Weight** (0.0-1.0, default 0.3)
-- How much video motion influences the switching score
+- Blends audio (speaking) with video motion (gestures)
 - **0.0** = Audio-only (pure speaker detection)
-- **0.5** = Equal weight to audio and motion
-- **1.0** = Motion-only (gesture-driven)
+- **0.3** = Balanced (default, reacts to speech + movement)
+- **0.5+** = Motion-dominant (gesture-driven switching)
 - Recommended: 0.3 for balanced, 0.1 for talk shows, 0.5 for dynamic performances
 
-**Rolling Window** (500-10000ms, default 2000ms)
+**Response Window** (500-10000ms, default 2000ms)
 - Time period over which activity scores are calculated
-- **Longer = smoother, more stable** (reacts slower to new speakers)
-- **Shorter = more responsive** (may be jittery with overlapping speech)
+- **Longer** = smoother, more stable (reacts slower)
+- **Shorter** = more responsive, more reactive
 - Recommended: 2000ms for typical use, 1000ms for fast-paced, 3000ms for very stable
-
-**Score Emit Interval** (100-1000ms, default 500ms)
-- How often the admin panel updates with new activity scores
-- Lower = more frequent UI updates but slightly higher CPU usage
-- Recommended: 500ms for monitoring, 200ms if tuning settings live
-
-### Switch Behavior
 
 **Switch Cooldown** (1-30 seconds, default 3s)
 - Minimum time between automatic switches to prevent flickering
-- Prevents the camera from jumping rapidly between speakers
-- **Short cooldowns (1-2s):** Good for fast-paced discussions
-- **Long cooldowns (5-10s):** Stability for slower-paced content
+- **Short (1-2s):** Good for fast-paced discussions
+- **Long (5-10s):** Stability for slower-paced content
 - Recommended: 3s as baseline, adjust based on your content
 
 ### Tuning Guide
@@ -94,28 +76,15 @@ When you toggle, all active rooms immediately switch to the new mode.
 
 ## Manual Mode Configuration
 
-### Default Camera on Room Create
+**Default Camera**
+- **Auto-select First** — Display the first participant who joins (good for immediate streaming)
+- **Start Blank** — Begin with blank screen; host selects first camera
 
-**Auto-select First**
-- Automatically display the first participant who joins
-- Useful for immediate live streaming
-
-**Show Blank**
-- Start with a blank screen
-- Host must manually select a participant to start
-
-### Transition Animation
-
-**Cut (Instant)**
-- Switch cameras immediately with no animation
-- Best for breaking news, urgent content
-
-**Fade**
-- Smooth fade transition between cameras
-- Duration: 100-5000ms (default 500ms)
-- Best for professional/polished streaming
-
-Configure fade duration to match your branding and content pacing.
+**Transition Type**
+- **Cut (instant)** — Switch immediately, no animation (best for breaking news, urgent content)
+- **Fade** — Smooth fade animation between cameras (best for polished, professional streaming)
+  - Duration: 100-5000ms (default 500ms)
+  - Adjust to match your branding and content pacing
 
 ---
 
@@ -153,7 +122,7 @@ Each participant shows:
 
 ---
 
-## Room Capacity & Timeouts
+## Room Limits
 
 **Max Players Per Room** (2-20, default 10)
 - Maximum participants allowed in a single room
@@ -162,10 +131,7 @@ Each participant shows:
 **Max Simultaneous Rooms** (1-10, default 5)
 - Maximum rooms active at the same time
 - Set lower to conserve server resources
-
-**Idle Timeout** (10-300 seconds, default 60s)
-- Time before an empty room (no participants) is marked idle
-- Idle rooms appear grayed out and can be closed to free resources
+- Rooms persist indefinitely; close them manually when done
 
 ---
 

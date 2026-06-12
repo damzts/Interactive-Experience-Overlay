@@ -154,15 +154,21 @@ function ParticipantRow({
         {scorePercent}%
       </span>
 
-      <Button
-        variant={isActive ? 'primary' : 'secondary'}
-        size="sm"
+      <button
         onClick={() => onSelect(participant.id)}
         disabled={isActive || selecting || participant.connectionStatus !== 'connected'}
-        className="text-[10px] px-2 py-0.5"
+        className={`text-[10px] px-3 py-1.5 rounded-md font-medium transition-all ${
+          isActive
+            ? 'bg-[var(--color-primary-500)] text-white shadow-lg shadow-[var(--color-primary-500)]/40 cursor-default'
+            : participant.connectionStatus !== 'connected'
+              ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] cursor-not-allowed opacity-50'
+              : selecting
+                ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] cursor-wait'
+                : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20 hover:text-[var(--color-primary-400)] cursor-pointer active:bg-[var(--color-primary-500)]/30'
+        }`}
       >
-        {isActive ? '● Live' : 'Select'}
-      </Button>
+        {isActive ? '● LIVE' : 'Select'}
+      </button>
 
       <Button
         variant="danger"
@@ -792,7 +798,7 @@ export function RoomsPanel() {
         </FeatureGate>
 
         <ConfigPanel title="Switching Mode" collapsible={false}>
-          <div className="flex items-center gap-4 p-4 rounded-lg bg-[var(--color-bg-elevated)]/40 border border-[var(--color-border-default)]">
+          <div className="flex items-center gap-4 p-4 rounded-lg bg-[var(--color-primary-500)]/8 border border-[var(--color-primary-400)]/30">
             <div className="flex-1">
               <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">Camera Switching</div>
               <div className="text-xs text-[var(--color-text-secondary)]">
@@ -803,217 +809,181 @@ export function RoomsPanel() {
             </div>
             <div className="flex gap-2">
               {[
-                { mode: 'automatic', label: '⚡ Auto', icon: 'auto' },
-                { mode: 'manual', label: '✋ Manual', icon: 'manual' }
-              ].map(({ mode, label }) => (
-                <ConfigChoiceButton
-                  key={mode}
-                  selected={rooms.length > 0 && rooms.some(r => r.mode === mode)}
-                  onClick={() => {
-                    for (const room of rooms) {
-                      handleModeSet(room.roomCode, mode as any)
-                    }
-                  }}
-                >
-                  {label}
-                </ConfigChoiceButton>
-              ))}
+                { mode: 'automatic', label: '⚡ Auto' },
+                { mode: 'manual', label: '✋ Manual' }
+              ].map(({ mode, label }) => {
+                const isSelected = rooms.length > 0 && rooms.some(r => r.mode === mode)
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      for (const room of rooms) {
+                        handleModeSet(room.roomCode, mode as any)
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                      isSelected
+                        ? 'bg-[var(--color-primary-500)] text-white shadow-lg shadow-[var(--color-primary-500)]/40'
+                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/80'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </ConfigPanel>
 
         {/* ── AUTO MODE CONFIGURATION ── */}
-        <ConfigPanel title="Auto Mode: Audio & Motion Detection" collapsible>
+        <ConfigPanel title="Auto Mode: Activity Detection" collapsible>
           <Notice tone="info" className="mb-4">
-            🎙️ Automatic mode monitors participant audio levels and video motion to switch cameras.
+            System monitors audio activity and video motion to automatically switch cameras.
           </Notice>
 
-          <div className="space-y-6">
-            {/* Audio Detection */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-semibold text-[var(--color-text-primary)]">Audio Detection</span>
-              </div>
-              <div className="space-y-3 pl-2 border-l border-[var(--color-border-default)]">
-                <Slider
-                  label="Report Interval"
-                  value={configDraft.audioReportIntervalMs}
-                  min={ROOM_CONFIG_BOUNDS.audioReportIntervalMs.min}
-                  max={ROOM_CONFIG_BOUNDS.audioReportIntervalMs.max}
-                  step={10}
-                  unit="ms"
-                  onChange={(v) => updateConfigDraft('audioReportIntervalMs', Math.round(v))}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  How often participants report audio level. Lower = responsive but more traffic.
-                </div>
-
-                <Slider
-                  label="Activity Threshold"
-                  value={configDraft.activityThreshold}
-                  min={ROOM_CONFIG_BOUNDS.activityThreshold.min}
-                  max={ROOM_CONFIG_BOUNDS.activityThreshold.max}
-                  step={0.01}
-                  onChange={(v) => updateConfigDraft('activityThreshold', v)}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  Score difference to trigger a switch. Higher = more stable, less flickering.
-                </div>
-
-                <Slider
-                  label="Silence Threshold"
-                  value={configDraft.silenceThreshold}
-                  min={ROOM_CONFIG_BOUNDS.silenceThreshold.min}
-                  max={ROOM_CONFIG_BOUNDS.silenceThreshold.max}
-                  step={0.01}
-                  onChange={(v) => updateConfigDraft('silenceThreshold', v)}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  Score below which participant is "silent" and won't trigger a switch.
-                </div>
-              </div>
+          <div className="space-y-4">
+            <Slider
+              label="Activity Threshold"
+              value={configDraft.activityThreshold}
+              min={ROOM_CONFIG_BOUNDS.activityThreshold.min}
+              max={ROOM_CONFIG_BOUNDS.activityThreshold.max}
+              step={0.01}
+              onChange={(v) => updateConfigDraft('activityThreshold', v)}
+            />
+            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
+              Score difference to trigger a switch. Higher (0.20+) = stable, Lower (0.10-) = responsive.
             </div>
 
-            {/* Motion Detection */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-semibold text-[var(--color-text-primary)]">Motion Detection</span>
-              </div>
-              <div className="space-y-3 pl-2 border-l border-[var(--color-border-default)]">
-                <Slider
-                  label="Motion Weight"
-                  value={configDraft.motionWeight}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  onChange={(v) => updateConfigDraft('motionWeight', v)}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  How much video motion influences switches (0 = audio only, 1 = motion dominates).
-                </div>
-
-                <Slider
-                  label="Rolling Window"
-                  value={configDraft.rollingWindowMs}
-                  min={ROOM_CONFIG_BOUNDS.rollingWindowMs.min}
-                  max={ROOM_CONFIG_BOUNDS.rollingWindowMs.max}
-                  step={100}
-                  unit="ms"
-                  onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  Time window for score calculation. Longer = smoother but slower response.
-                </div>
-
-                <Slider
-                  label="Score Emit Interval"
-                  value={configDraft.scoreEmitIntervalMs}
-                  min={100}
-                  max={1000}
-                  step={50}
-                  unit="ms"
-                  onChange={(v) => updateConfigDraft('scoreEmitIntervalMs', Math.round(v))}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  How often to update admin panel with new scores.
-                </div>
-              </div>
+            <Slider
+              label="Silence Threshold"
+              value={configDraft.silenceThreshold}
+              min={ROOM_CONFIG_BOUNDS.silenceThreshold.min}
+              max={ROOM_CONFIG_BOUNDS.silenceThreshold.max}
+              step={0.01}
+              onChange={(v) => updateConfigDraft('silenceThreshold', v)}
+            />
+            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
+              Score below which participant is silent and won't trigger a switch.
             </div>
 
-            {/* Switch Behavior */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-semibold text-[var(--color-text-primary)]">Switch Behavior</span>
-              </div>
-              <div className="space-y-3 pl-2 border-l border-[var(--color-border-default)]">
-                <Slider
-                  label="Switch Cooldown"
-                  value={configDraft.cooldownMs / 1000}
-                  min={ROOM_CONFIG_BOUNDS.cooldownMs.min / 1000}
-                  max={ROOM_CONFIG_BOUNDS.cooldownMs.max / 1000}
-                  step={0.5}
-                  unit="s"
-                  onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  Minimum time between switches to prevent flickering.
-                </div>
-              </div>
+            <Slider
+              label="Motion Weight (0 = audio only, 1 = motion dominates)"
+              value={configDraft.motionWeight}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(v) => updateConfigDraft('motionWeight', v)}
+            />
+            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
+              Blend of audio (speaking) + motion (gestures). Default 0.3 is balanced.
+            </div>
+
+            <Slider
+              label="Response Window"
+              value={configDraft.rollingWindowMs}
+              min={ROOM_CONFIG_BOUNDS.rollingWindowMs.min}
+              max={ROOM_CONFIG_BOUNDS.rollingWindowMs.max}
+              step={100}
+              unit="ms"
+              onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
+            />
+            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
+              Time window for calculating scores. Longer = smoother, Shorter = more reactive.
+            </div>
+
+            <Slider
+              label="Switch Cooldown"
+              value={configDraft.cooldownMs / 1000}
+              min={ROOM_CONFIG_BOUNDS.cooldownMs.min / 1000}
+              max={ROOM_CONFIG_BOUNDS.cooldownMs.max / 1000}
+              step={0.5}
+              unit="s"
+              onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
+            />
+            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3">
+              Minimum time between switches. Prevents camera flickering.
             </div>
           </div>
         </ConfigPanel>
 
         {/* ── MANUAL MODE CONFIGURATION ── */}
-        <ConfigPanel title="Manual Mode: Host Control" collapsible>
+        <ConfigPanel title="Manual Mode & Transitions" collapsible>
           <Notice tone="info" className="mb-4">
-            ✋ Manual mode lets you manually select which participant's camera is displayed.
+            Manually select which participant's camera is displayed. Configure transitions.
           </Notice>
 
           <div className="space-y-4">
-            <Field label="Default Camera on Room Create">
+            <Field label="Default Camera">
               <div className="flex gap-2">
-                <ConfigChoiceButton
-                  selected={configDraft.defaultFirstCamera === 'auto'}
-                  onClick={() => updateConfigDraft('defaultFirstCamera', 'auto')}
-                >
-                  Auto-select First
-                </ConfigChoiceButton>
-                <ConfigChoiceButton
-                  selected={configDraft.defaultFirstCamera === 'blank'}
-                  onClick={() => updateConfigDraft('defaultFirstCamera', 'blank')}
-                >
-                  Show Blank
-                </ConfigChoiceButton>
+                {[
+                  { val: 'auto', label: 'Auto-select First' },
+                  { val: 'blank', label: 'Start Blank' }
+                ].map(({ val, label }) => {
+                  const isSelected = configDraft.defaultFirstCamera === val
+                  return (
+                    <button
+                      key={val}
+                      onClick={() => updateConfigDraft('defaultFirstCamera', val as any)}
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+                        isSelected
+                          ? 'bg-[var(--color-primary-500)] text-white'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/80'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             </Field>
 
-            <div>
-              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Transition Animation</div>
-              <Field label="Type">
-                <div className="flex gap-2">
-                  <ConfigChoiceButton
-                    selected={configDraft.transition.type === 'cut'}
-                    onClick={() => updateConfigDraft('transition', { type: 'cut', durationMs: 0 })}
-                  >
-                    Cut (instant)
-                  </ConfigChoiceButton>
-                  <ConfigChoiceButton
-                    selected={configDraft.transition.type === 'fade'}
-                    onClick={() =>
-                      updateConfigDraft('transition', {
-                        type: 'fade',
-                        durationMs: configDraft.transition.durationMs || 500,
-                      })
-                    }
-                  >
-                    Fade
-                  </ConfigChoiceButton>
+            <Field label="Transition Type">
+              <div className="flex gap-2">
+                {[
+                  { val: 'cut', label: 'Cut (instant)' },
+                  { val: 'fade', label: 'Fade' }
+                ].map(({ val, label }) => {
+                  const isSelected = configDraft.transition.type === val
+                  return (
+                    <button
+                      key={val}
+                      onClick={() => updateConfigDraft('transition', val === 'cut' ? { type: 'cut', durationMs: 0 } : { type: 'fade', durationMs: 500 })}
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+                        isSelected
+                          ? 'bg-[var(--color-primary-500)] text-white'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/80'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {configDraft.transition.type === 'fade' && (
+              <>
+                <Slider
+                  label="Fade Duration"
+                  value={configDraft.transition.durationMs}
+                  min={100}
+                  max={5000}
+                  step={50}
+                  unit="ms"
+                  onChange={(v) =>
+                    updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
+                  }
+                />
+                <div className="text-[10px] text-[var(--color-text-muted)] -mt-3">
+                  Animation duration between camera switches.
                 </div>
-              </Field>
-              {configDraft.transition.type === 'fade' && (
-                <div className="mt-3">
-                  <Slider
-                    label="Fade Duration"
-                    value={configDraft.transition.durationMs}
-                    min={100}
-                    max={5000}
-                    step={50}
-                    unit="ms"
-                    onChange={(v) =>
-                      updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
-                    }
-                  />
-                  <div className="text-[10px] text-[var(--color-text-muted)] mt-1">
-                    Duration of fade transition between camera switches.
-                  </div>
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </ConfigPanel>
 
-        {/* ── ROOM CONFIGURATION ── */}
-        <ConfigPanel title="Room Capacity & Timeouts" collapsible>
+        {/* ── ROOM LIMITS ── */}
+        <ConfigPanel title="Room Limits" collapsible>
           <div className="space-y-4">
             <Slider
               label="Max Players Per Room"
@@ -1032,19 +1002,6 @@ export function RoomsPanel() {
               step={1}
               onChange={(v) => updateConfigDraft('maxActiveRooms', Math.round(v))}
             />
-
-            <Slider
-              label="Idle Timeout"
-              value={configDraft.idleTimeoutMs / 1000}
-              min={10}
-              max={300}
-              step={10}
-              unit="s"
-              onChange={(v) => updateConfigDraft('idleTimeoutMs', Math.round(v * 1000))}
-            />
-            <div className="text-[10px] text-[var(--color-text-muted)]">
-              Time before an empty room is marked idle and eligible for closure.
-            </div>
           </div>
         </ConfigPanel>
 
