@@ -764,18 +764,25 @@ export function RoomsPanel() {
                 ))}
               </div>
             )}
+          </ConfigPanel>
 
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                onClick={() => setShowPreview(v => !v)}
-                className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${showPreview ? 'bg-[var(--color-primary-500)]' : 'bg-[var(--color-bg-elevated)]'}`}
-                role="switch" aria-checked={showPreview}
-              >
-                <span className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${showPreview ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-              <span className="text-[10px] text-[var(--color-text-muted)]">Admin preview (disables overlay widget stream)</span>
+          <ConfigPanel title="Admin Stream Preview" collapsible>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-accent-500)]/10 border border-[var(--color-accent-400)]/20">
+                <button
+                  onClick={() => setShowPreview(v => !v)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${showPreview ? 'bg-[var(--color-accent-500)]' : 'bg-[var(--color-bg-elevated)]'}`}
+                  role="switch" aria-checked={showPreview}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${showPreview ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+                <div>
+                  <div className="text-sm font-medium text-[var(--color-text-primary)]">View Participant Streams</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)]">Shows all participant streams. Disables overlay widget stream relay while active.</div>
+                </div>
+              </div>
+              {showPreview && <AdminStreamGrid socket={socketRef.current as any} />}
             </div>
-            {showPreview && <AdminStreamGrid socket={socketRef.current as any} />}
           </ConfigPanel>
 
           <ConfigPanel title="Activity Log" collapsible>
