@@ -1215,7 +1215,7 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
   return {
     ...base,
     ...updates,
-    scenes: updates.scenes ? { ...base.scenes, ...updates.scenes } : base.scenes,
+    scenes: updates.scenes ?? base.scenes,
     applications: updates.applications ?? base.applications,
     keybinds: updates.keybinds
       ? {

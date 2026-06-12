@@ -319,8 +319,11 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           {selected.kind === 'scene' && selected.sceneState !== STATE.LOBBY && selected.sceneState !== STATE.DESKTOP && (
             <button
               onClick={async () => {
-                const { [selected.sceneState]: _, ...remainingScenes } = scenes
-                await useAdminStore.getState().saveConfig({ scenes: remainingScenes })
+                const sceneIdToDelete = selected.sceneState
+                const updatedScenes = Object.fromEntries(
+                  Object.entries(scenes).filter(([id]) => id !== sceneIdToDelete)
+                )
+                await useAdminStore.getState().saveConfig({ scenes: updatedScenes })
                 onClose()
               }}
               className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
