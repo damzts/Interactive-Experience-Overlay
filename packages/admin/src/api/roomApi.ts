@@ -1,4 +1,4 @@
-import type { RoomConfig, RoomStatus } from '@ieomlabs/shared'
+import type { RoomConfig, RoomStatus, PerRoomConfig } from '@ieomlabs/shared'
 import { apiFetch } from './client.js'
 import { getStoredAuthToken } from '../auth/sessionToken.js'
 
@@ -40,6 +40,29 @@ export async function setActiveRoomCode(roomCode: string | null): Promise<{ ok: 
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ roomCode }),
+  })
+}
+
+export async function updateCloudRoomConfig(
+  roomCode: string,
+  config: Partial<PerRoomConfig>,
+): Promise<{ ok: boolean; config: PerRoomConfig }> {
+  return apiFetch<{ ok: boolean; config: PerRoomConfig }>(`/api/online/rooms/${roomCode}/config`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  })
+}
+
+export async function setParticipantTransition(
+  roomCode: string,
+  participantId: string,
+  transition: PerRoomConfig['transition'],
+): Promise<{ ok: boolean; error?: string }> {
+  return apiFetch<{ ok: boolean; error?: string }>(`/api/online/rooms/${roomCode}/participants/${participantId}/transition`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transition }),
   })
 }
 

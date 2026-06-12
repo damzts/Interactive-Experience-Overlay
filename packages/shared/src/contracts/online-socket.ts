@@ -1,4 +1,4 @@
-import type { SwitchMode } from '../domain/pov.js'
+import type { SwitchMode, TransitionConfig } from '../domain/pov.js'
 import type {
   RoomStatus,
   ParticipantInfo,
@@ -55,6 +55,14 @@ export interface RoomSwitchPayload {
   newId: string
   timestamp: number
   reason: SwitchReason
+}
+
+export interface RoomParticipantSelectedPayload {
+  roomCode: string
+  participantId: string
+  displayName: string
+  transition: TransitionConfig
+  timestamp: number
 }
 
 // ── Server → Client (Player) Event Payloads ──────────────────────
@@ -161,6 +169,7 @@ export interface RoomServerToAdminEvents {
   'pov-online:room:idle': (payload: RoomIdlePayload) => void
   'pov-online:participant:joined': (payload: RoomParticipantJoinedPayload) => void
   'pov-online:participant:left': (payload: RoomParticipantLeftPayload) => void
+  'pov-online:participant:selected': (payload: RoomParticipantSelectedPayload) => void
   'pov-online:scores': (payload: RoomScoresPayload) => void
   'pov-online:switch': (payload: RoomSwitchPayload) => void
   'pov-online:status': (payload: RoomStatus) => void
@@ -182,6 +191,7 @@ export interface RoomServerToPlayerEvents {
 /** Events the server sends to overlay clients on the /room namespace */
 export interface RoomServerToOverlayEvents {
   'pov-online:switch': (payload: RoomOverlaySwitchPayload) => void
+  'pov-online:participant:selected': (payload: RoomParticipantSelectedPayload) => void
   'pov-online:peer:joined': (payload: RoomPeerJoinedPayload) => void
   'pov-online:peer:left': (payload: RoomPeerLeftPayload) => void
 }
@@ -197,6 +207,7 @@ export interface RoomServerToClientEvents {
   'pov-online:room:idle': (payload: RoomIdlePayload) => void
   'pov-online:participant:joined': (payload: RoomParticipantJoinedPayload) => void
   'pov-online:participant:left': (payload: RoomParticipantLeftPayload) => void
+  'pov-online:participant:selected': (payload: RoomParticipantSelectedPayload) => void
   'pov-online:scores': (payload: RoomScoresPayload) => void
   'pov-online:switch': (payload: RoomSwitchPayload | RoomOverlaySwitchPayload) => void
   'pov-online:status': (payload: RoomStatus) => void

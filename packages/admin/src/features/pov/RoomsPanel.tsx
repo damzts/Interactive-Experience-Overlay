@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
-import type { RoomStatus, ParticipantInfo, RoomConfig, SwitchMode } from '@ieomlabs/shared'
-import { ROOM_CONFIG_BOUNDS, DEFAULT_ROOM_CONFIG } from '@ieomlabs/shared'
+import type { RoomStatus, ParticipantInfo, RoomConfig, SwitchMode, PerRoomConfig, TransitionConfig } from '@ieomlabs/shared'
+import { ROOM_CONFIG_BOUNDS, DEFAULT_ROOM_CONFIG, DEFAULT_PER_ROOM_CONFIG } from '@ieomlabs/shared'
 import type {
   RoomCreatedPayload,
   RoomClosedPayload,
@@ -12,7 +12,7 @@ import type {
   RoomServerToAdminEvents,
   RoomClientToServerEvents,
 } from '@ieomlabs/shared'
-import { getRoomConfig, updateRoomConfig, getRooms, provideAuthToken, getActiveRoomCode, setActiveRoomCode } from '../../api/roomApi'
+import { getRoomConfig, updateRoomConfig, getRooms, provideAuthToken, getActiveRoomCode, setActiveRoomCode, updateCloudRoomConfig, setParticipantTransition } from '../../api/roomApi'
 import { getStoredAuthToken } from '../../auth/sessionToken'
 import { apiFetch } from '../../api/client'
 import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'
@@ -101,14 +101,19 @@ function ParticipantRow({
   onSelect,
   onKick,
   selecting,
+  roomCode,
+  onTransitionChange,
 }: {
   participant: ParticipantInfo
   isActive: boolean
   onSelect: (id: string) => void
   onKick: (id: string) => void
   selecting: boolean
+  roomCode: string
+  onTransitionChange: (roomCode: string, participantId: string, transition: TransitionConfig) => void
 }) {
   const scorePercent = Math.round(participant.activityScore * 100)
+  const [showTransitionMenu, setShowTransitionMenu] = useState(false)
 
   return (
     <div
@@ -154,6 +159,38 @@ function ParticipantRow({
         {scorePercent}%
       </span>
 
+      <div className="relative">
+        <button
+          onClick={() => setShowTransitionMenu(!showTransitionMenu)}
+          className="text-[10px] px-2 py-1.5 rounded-md font-medium transition-all bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-500)]/20 hover:text-[var(--color-accent-400)] cursor-pointer active:bg-[var(--color-accent-500)]/30"
+          title="Set transition effect"
+        >
+          ⚡
+        </button>
+        {showTransitionMenu && (
+          <div className="absolute top-full right-0 mt-1 bg-[var(--color-bg-elevated)] border border-[var(--color-border-default)] rounded-md shadow-lg z-10 min-w-max">
+            {[
+              { type: 'cut', label: 'Cut' },
+              { type: 'fade', label: 'Fade' },
+            ].map(({ type, label }) => (
+              <button
+                key={type}
+                onClick={() => {
+                  onTransitionChange(roomCode, participant.id, {
+                    type: type as 'cut' | 'fade',
+                    durationMs: type === 'cut' ? 0 : 500,
+                  })
+                  setShowTransitionMenu(false)
+                }}
+                className="w-full text-left px-3 py-1.5 text-[10px] hover:bg-[var(--color-primary-500)]/20 hover:text-[var(--color-primary-400)] transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <button
         onClick={() => onSelect(participant.id)}
         disabled={isActive || selecting || participant.connectionStatus !== 'connected'}
@@ -195,6 +232,7 @@ function RoomCard({
   isActive,
   onSetActive,
   socket: roomSocket,
+  onConfigSave,
 }: {
   room: RoomStatus
   onClose: (roomCode: string) => void
@@ -205,11 +243,16 @@ function RoomCard({
   isActive: boolean
   onSetActive: (roomCode: string) => void
   socket: RoomSocket | null
+  onConfigSave: (roomCode: string, config: Partial<PerRoomConfig>) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [selecting, setSelecting] = useState(false)
   const [rejoining, setRejoining] = useState(false)
+  const [configExpanded, setConfigExpanded] = useState(false)
+  const [transitionsExpanded, setTransitionsExpanded] = useState(false)
+  const [configDraft, setConfigDraft] = useState<PerRoomConfig>(room.config)
+  const [savingConfig, setSavingConfig] = useState(false)
 
   const joinUrl = buildJoinUrl(room.roomCode)
   const lanJoinUrl = buildLanJoinUrl()
@@ -244,6 +287,33 @@ function RoomCard({
     onClose(room.roomCode)
     setConfirmClose(false)
   }, [confirmClose, room.roomCode, onClose])
+
+  const handleSaveConfig = useCallback(async () => {
+    setSavingConfig(true)
+    try {
+      onConfigSave(room.roomCode, configDraft)
+    } finally {
+      setSavingConfig(false)
+    }
+  }, [room.roomCode, configDraft, onConfigSave])
+
+  const handleResetConfig = useCallback(() => {
+    setConfigDraft(room.config)
+  }, [room.config])
+
+  const updateConfigDraft = useCallback(<K extends keyof PerRoomConfig>(
+    key: K,
+    value: PerRoomConfig[K],
+  ) => {
+    setConfigDraft((prev) => ({ ...prev, [key]: value }))
+  }, [])
+
+  const handleParticipantTransitionChange = useCallback(
+    (roomCode: string, participantId: string, transition: TransitionConfig) => {
+      onConfigSave(roomCode, { transition })
+    },
+    [onConfigSave],
+  )
 
   return (
     <Card variant="default" padding="md" className={room.status === 'idle' ? 'opacity-70' : ''}>
@@ -356,7 +426,8 @@ function RoomCard({
       </div>
 
       {expanded && (
-        <div className="mt-3 border-t border-[var(--color-border-default)] pt-3">
+        <div className="mt-3 border-t border-[var(--color-border-default)] pt-3 space-y-3">
+          {/* Participants section */}
           {room.participants.length === 0 ? (
             <Notice tone="info">
               No participants connected yet. Share the join URL to invite players.
@@ -374,10 +445,157 @@ function RoomCard({
                   onSelect={handleSelect}
                   onKick={handleKick}
                   selecting={selecting}
+                  roomCode={room.roomCode}
+                  onTransitionChange={handleParticipantTransitionChange}
                 />
               ))}
             </div>
           )}
+
+          {/* Auto Mode Config section */}
+          <div className="border-t border-[var(--color-border-default)] pt-3">
+            <button
+              onClick={() => setConfigExpanded(!configExpanded)}
+              className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)] mb-2"
+            >
+              <span className="text-[10px]">{configExpanded ? '▾' : '▸'}</span>
+              <span>Auto Mode Config</span>
+            </button>
+            {configExpanded && (
+              <div className="space-y-3 ml-4">
+                <Slider
+                  label="Activity Threshold"
+                  value={configDraft.activityThreshold}
+                  min={ROOM_CONFIG_BOUNDS.activityThreshold.min}
+                  max={ROOM_CONFIG_BOUNDS.activityThreshold.max}
+                  step={0.01}
+                  onChange={(v) => updateConfigDraft('activityThreshold', v)}
+                />
+                <Slider
+                  label="Silence Threshold"
+                  value={configDraft.silenceThreshold}
+                  min={ROOM_CONFIG_BOUNDS.silenceThreshold.min}
+                  max={ROOM_CONFIG_BOUNDS.silenceThreshold.max}
+                  step={0.01}
+                  onChange={(v) => updateConfigDraft('silenceThreshold', v)}
+                />
+                <Slider
+                  label="Motion Weight"
+                  value={configDraft.motionWeight}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(v) => updateConfigDraft('motionWeight', v)}
+                />
+                <Slider
+                  label="Response Window"
+                  value={configDraft.rollingWindowMs}
+                  min={ROOM_CONFIG_BOUNDS.rollingWindowMs.min}
+                  max={ROOM_CONFIG_BOUNDS.rollingWindowMs.max}
+                  step={100}
+                  unit="ms"
+                  onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
+                />
+                <Slider
+                  label="Switch Cooldown"
+                  value={configDraft.cooldownMs / 1000}
+                  min={ROOM_CONFIG_BOUNDS.cooldownMs.min / 1000}
+                  max={ROOM_CONFIG_BOUNDS.cooldownMs.max / 1000}
+                  step={0.5}
+                  unit="s"
+                  onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Transitions section */}
+          <div className="border-t border-[var(--color-border-default)] pt-3">
+            <button
+              onClick={() => setTransitionsExpanded(!transitionsExpanded)}
+              className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)] mb-2"
+            >
+              <span className="text-[10px]">{transitionsExpanded ? '▾' : '▸'}</span>
+              <span>Transitions</span>
+            </button>
+            {transitionsExpanded && (
+              <div className="space-y-3 ml-4">
+                <div>
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Default Camera</div>
+                  <div className="flex gap-2">
+                    {[
+                      { val: 'auto', label: 'Auto-select First' },
+                      { val: 'blank', label: 'Start Blank' }
+                    ].map(({ val, label }) => {
+                      const isSelected = configDraft.defaultFirstCamera === val
+                      return (
+                        <button
+                          key={val}
+                          onClick={() => updateConfigDraft('defaultFirstCamera', val as any)}
+                          className={`flex-1 px-3 py-1.5 rounded-md font-medium transition-all text-xs ${
+                            isSelected
+                              ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                              : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Transition Animation</div>
+                  <div className="flex gap-2 mb-2">
+                    {[
+                      { val: 'cut', label: 'Cut (instant)' },
+                      { val: 'fade', label: 'Fade' }
+                    ].map(({ val, label }) => {
+                      const isSelected = configDraft.transition.type === val
+                      return (
+                        <button
+                          key={val}
+                          onClick={() => updateConfigDraft('transition', val === 'cut' ? { type: 'cut', durationMs: 0 } : { type: 'fade', durationMs: 500 })}
+                          className={`flex-1 px-3 py-1.5 rounded-md font-medium transition-all text-xs ${
+                            isSelected
+                              ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                              : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {configDraft.transition.type === 'fade' && (
+                    <Slider
+                      label="Fade Duration"
+                      value={configDraft.transition.durationMs}
+                      min={100}
+                      max={5000}
+                      step={50}
+                      unit="ms"
+                      onChange={(v) =>
+                        updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Config save buttons */}
+          <div className="flex gap-2 justify-end border-t border-[var(--color-border-default)] pt-3">
+            <Button variant="secondary" size="sm" onClick={handleResetConfig} disabled={savingConfig} className="text-[10px]">
+              Reset
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleSaveConfig} disabled={savingConfig} className="text-[10px]">
+              {savingConfig ? 'Saving…' : 'Apply'}
+            </Button>
+          </div>
         </div>
       )}
     </Card>
@@ -409,6 +627,8 @@ export function RoomsPanel() {
   const [lanCode, setLanCode] = useState<string | null>(null)
   const [lanParticipants, setLanParticipants] = useState<Array<{ id: string; iceState: string; videoMuted: boolean }>>([])
   const [regeneratingCode, setRegeneratingCode] = useState(false)
+  const [lanConfigExpanded, setLanConfigExpanded] = useState(true)
+  const [lanTransitionsExpanded, setLanTransitionsExpanded] = useState(true)
 
   const refreshLan = useCallback(async () => {
     try {
@@ -689,6 +909,23 @@ export function RoomsPanel() {
     setConfigDraft((prev) => ({ ...prev, [key]: value }))
   }, [])
 
+  const handleSaveRoomConfig = useCallback(async (roomCode: string, partial: Partial<PerRoomConfig>) => {
+    try {
+      const result = await updateCloudRoomConfig(roomCode, partial)
+      if (result.ok) {
+        setRooms((prev) =>
+          prev.map((r) => (r.roomCode === roomCode ? { ...r, config: result.config } : r))
+        )
+        setToast(`✓ ${roomCode} config updated`)
+        setTimeout(() => setToast(null), 3000)
+      } else {
+        setError(`Failed to update ${roomCode} config`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to update ${roomCode} config`)
+    }
+  }, [])
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
@@ -783,6 +1020,151 @@ export function RoomsPanel() {
                 </div>
               )}
             </div>
+
+            {/* Auto Mode Config section for LAN */}
+            <div className="border-t border-[var(--color-border-default)] pt-3">
+              <button
+                onClick={() => setLanConfigExpanded(!lanConfigExpanded)}
+                className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)] mb-2"
+              >
+                <span className="text-[10px]">{lanConfigExpanded ? '▾' : '▸'}</span>
+                <span>Auto Mode Config</span>
+              </button>
+              {lanConfigExpanded && (
+                <div className="space-y-3 ml-4">
+                  <Slider
+                    label="Activity Threshold"
+                    value={configDraft.activityThreshold}
+                    min={ROOM_CONFIG_BOUNDS.activityThreshold.min}
+                    max={ROOM_CONFIG_BOUNDS.activityThreshold.max}
+                    step={0.01}
+                    onChange={(v) => updateConfigDraft('activityThreshold', v)}
+                  />
+                  <Slider
+                    label="Silence Threshold"
+                    value={configDraft.silenceThreshold}
+                    min={ROOM_CONFIG_BOUNDS.silenceThreshold.min}
+                    max={ROOM_CONFIG_BOUNDS.silenceThreshold.max}
+                    step={0.01}
+                    onChange={(v) => updateConfigDraft('silenceThreshold', v)}
+                  />
+                  <Slider
+                    label="Motion Weight"
+                    value={configDraft.motionWeight}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={(v) => updateConfigDraft('motionWeight', v)}
+                  />
+                  <Slider
+                    label="Response Window"
+                    value={configDraft.rollingWindowMs}
+                    min={ROOM_CONFIG_BOUNDS.rollingWindowMs.min}
+                    max={ROOM_CONFIG_BOUNDS.rollingWindowMs.max}
+                    step={100}
+                    unit="ms"
+                    onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
+                  />
+                  <Slider
+                    label="Switch Cooldown"
+                    value={configDraft.cooldownMs / 1000}
+                    min={ROOM_CONFIG_BOUNDS.cooldownMs.min / 1000}
+                    max={ROOM_CONFIG_BOUNDS.cooldownMs.max / 1000}
+                    step={0.5}
+                    unit="s"
+                    onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Transitions section for LAN */}
+            <div className="border-t border-[var(--color-border-default)] pt-3">
+              <button
+                onClick={() => setLanTransitionsExpanded(!lanTransitionsExpanded)}
+                className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)] mb-2"
+              >
+                <span className="text-[10px]">{lanTransitionsExpanded ? '▾' : '▸'}</span>
+                <span>Transitions</span>
+              </button>
+              {lanTransitionsExpanded && (
+                <div className="space-y-3 ml-4">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Default Camera</div>
+                    <div className="flex gap-2">
+                      {[
+                        { val: 'auto', label: 'Auto-select First' },
+                        { val: 'blank', label: 'Start Blank' }
+                      ].map(({ val, label }) => {
+                        const isSelected = configDraft.defaultFirstCamera === val
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => updateConfigDraft('defaultFirstCamera', val as any)}
+                            className={`flex-1 px-3 py-1.5 rounded-md font-medium transition-all text-xs ${
+                              isSelected
+                                ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                                : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Transition Animation</div>
+                    <div className="flex gap-2 mb-2">
+                      {[
+                        { val: 'cut', label: 'Cut (instant)' },
+                        { val: 'fade', label: 'Fade' }
+                      ].map(({ val, label }) => {
+                        const isSelected = configDraft.transition.type === val
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => updateConfigDraft('transition', val === 'cut' ? { type: 'cut', durationMs: 0 } : { type: 'fade', durationMs: 500 })}
+                            className={`flex-1 px-3 py-1.5 rounded-md font-medium transition-all text-xs ${
+                              isSelected
+                                ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                                : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {configDraft.transition.type === 'fade' && (
+                      <Slider
+                        label="Fade Duration"
+                        value={configDraft.transition.durationMs}
+                        min={100}
+                        max={5000}
+                        step={50}
+                        unit="ms"
+                        onChange={(v) =>
+                          updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Config save buttons for LAN */}
+            <div className="flex gap-2 justify-end border-t border-[var(--color-border-default)] pt-3">
+              <Button variant="secondary" size="sm" onClick={handleResetConfig} disabled={savingConfig} className="text-[10px]">
+                Reset
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSaveConfig} disabled={savingConfig} className="text-[10px]">
+                {savingConfig ? 'Saving…' : 'Apply'}
+              </Button>
+            </div>
           </div>
         </ConfigPanel>
 
@@ -815,6 +1197,7 @@ export function RoomsPanel() {
                     isActive={activeRoomCode === room.roomCode}
                     onSetActive={handleSetActiveRoom}
                     socket={socketRef.current}
+                    onConfigSave={handleSaveRoomConfig}
                   />
                 ))}
               </div>
@@ -858,151 +1241,6 @@ export function RoomsPanel() {
             )}
           </ConfigPanel>
         </FeatureGate>
-
-        {/* ── AUTO MODE CONFIGURATION ── */}
-        <ConfigPanel title="Auto Mode: Activity Detection" collapsible>
-          <Notice tone="info" className="mb-4">
-            System monitors audio activity and video motion to automatically switch cameras.
-          </Notice>
-
-          <div className="space-y-4">
-            <Slider
-              label="Activity Threshold"
-              value={configDraft.activityThreshold}
-              min={ROOM_CONFIG_BOUNDS.activityThreshold.min}
-              max={ROOM_CONFIG_BOUNDS.activityThreshold.max}
-              step={0.01}
-              onChange={(v) => updateConfigDraft('activityThreshold', v)}
-            />
-            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
-              Score difference to trigger a switch. Higher (0.20+) = stable, Lower (0.10-) = responsive.
-            </div>
-
-            <Slider
-              label="Silence Threshold"
-              value={configDraft.silenceThreshold}
-              min={ROOM_CONFIG_BOUNDS.silenceThreshold.min}
-              max={ROOM_CONFIG_BOUNDS.silenceThreshold.max}
-              step={0.01}
-              onChange={(v) => updateConfigDraft('silenceThreshold', v)}
-            />
-            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
-              Score below which participant is silent and won't trigger a switch.
-            </div>
-
-            <Slider
-              label="Motion Weight (0 = audio only, 1 = motion dominates)"
-              value={configDraft.motionWeight}
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={(v) => updateConfigDraft('motionWeight', v)}
-            />
-            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
-              Blend of audio (speaking) + motion (gestures). Default 0.3 is balanced.
-            </div>
-
-            <Slider
-              label="Response Window"
-              value={configDraft.rollingWindowMs}
-              min={ROOM_CONFIG_BOUNDS.rollingWindowMs.min}
-              max={ROOM_CONFIG_BOUNDS.rollingWindowMs.max}
-              step={100}
-              unit="ms"
-              onChange={(v) => updateConfigDraft('rollingWindowMs', Math.round(v))}
-            />
-            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3 mb-3">
-              Time window for calculating scores. Longer = smoother, Shorter = more reactive.
-            </div>
-
-            <Slider
-              label="Switch Cooldown"
-              value={configDraft.cooldownMs / 1000}
-              min={ROOM_CONFIG_BOUNDS.cooldownMs.min / 1000}
-              max={ROOM_CONFIG_BOUNDS.cooldownMs.max / 1000}
-              step={0.5}
-              unit="s"
-              onChange={(v) => updateConfigDraft('cooldownMs', Math.round(v * 1000))}
-            />
-            <div className="text-[10px] text-[var(--color-text-muted)] -mt-3">
-              Minimum time between switches. Prevents camera flickering.
-            </div>
-          </div>
-        </ConfigPanel>
-
-        {/* ── MANUAL MODE CONFIGURATION ── */}
-        <ConfigPanel title="Manual Mode & Transitions" collapsible>
-          <div className="space-y-6">
-            <div>
-              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Default Camera on Room Create</div>
-              <div className="flex gap-2">
-                {[
-                  { val: 'auto', label: 'Auto-select First' },
-                  { val: 'blank', label: 'Start Blank' }
-                ].map(({ val, label }) => {
-                  const isSelected = configDraft.defaultFirstCamera === val
-                  return (
-                    <button
-                      key={val}
-                      onClick={() => updateConfigDraft('defaultFirstCamera', val as any)}
-                      className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-all text-sm ${
-                        isSelected
-                          ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
-                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Transition Animation</div>
-              <div className="flex gap-2 mb-4">
-                {[
-                  { val: 'cut', label: 'Cut (instant)' },
-                  { val: 'fade', label: 'Fade' }
-                ].map(({ val, label }) => {
-                  const isSelected = configDraft.transition.type === val
-                  return (
-                    <button
-                      key={val}
-                      onClick={() => updateConfigDraft('transition', val === 'cut' ? { type: 'cut', durationMs: 0 } : { type: 'fade', durationMs: 500 })}
-                      className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-all text-sm ${
-                        isSelected
-                          ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
-                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {configDraft.transition.type === 'fade' && (
-                <>
-                  <Slider
-                    label="Fade Duration"
-                    value={configDraft.transition.durationMs}
-                    min={100}
-                    max={5000}
-                    step={50}
-                    unit="ms"
-                    onChange={(v) =>
-                      updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
-                    }
-                  />
-                  <div className="text-[10px] text-[var(--color-text-muted)] -mt-3">
-                    Animation duration between camera switches.
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </ConfigPanel>
 
         {/* ── ROOM LIMITS ── */}
         <ConfigPanel title="Room Limits" collapsible>

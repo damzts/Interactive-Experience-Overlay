@@ -6,7 +6,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
-import type { RoomConfig } from '@ieomlabs/shared'
+import type { RoomConfig, PerRoomConfig } from '@ieomlabs/shared'
 import type { RoomManager } from './manager.js'
 
 interface RoomRouteOptions extends FastifyPluginOptions {
@@ -44,6 +44,22 @@ export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
   app.patch<{ Body: { roomCode: string | null } }>('/api/online/active-room', async (req) => {
     const { roomCode } = req.body ?? {}
     return roomManager.setActiveRoomCode(roomCode ?? null)
+  })
+
+  app.patch<{ Params: { roomCode: string }; Body: Partial<PerRoomConfig> }>('/api/online/rooms/:roomCode/config', async (req, reply) => {
+    const { roomCode } = req.params
+    const result = roomManager.updateRoomConfig(roomCode, req.body)
+    if (!result) return reply.code(404).send({ ok: false, error: 'Room not found' })
+    return { ok: true, config: result.config }
+  })
+
+  app.patch<{ Params: { roomCode: string; participantId: string }; Body: { transition: any } }>('/api/online/rooms/:roomCode/participants/:participantId/transition', async (req, reply) => {
+    const { roomCode, participantId } = req.params
+    const { transition } = req.body
+    if (!transition) return reply.code(400).send({ ok: false, error: 'missing_transition' })
+    const ok = roomManager.setParticipantTransition(roomCode, participantId, transition)
+    if (!ok) return reply.code(404).send({ ok: false, error: 'Room not found' })
+    return { ok: true }
   })
 }
 

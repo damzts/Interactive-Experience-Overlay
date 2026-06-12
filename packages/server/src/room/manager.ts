@@ -3,8 +3,8 @@
  * Coordinates room lifecycle, participant tracking, and POV switching.
  */
 
-import type { RoomConfig, RoomStatus, ParticipantInfo, SwitchMode } from '@ieomlabs/shared'
-import { DEFAULT_ROOM_CONFIG } from '@ieomlabs/shared'
+import type { RoomConfig, RoomStatus, ParticipantInfo, SwitchMode, PerRoomConfig } from '@ieomlabs/shared'
+import { DEFAULT_ROOM_CONFIG, DEFAULT_PER_ROOM_CONFIG } from '@ieomlabs/shared'
 import type { RoomSignaling } from '../transport/webrtc/room-signaling.js'
 import type { POVOrchestrator } from '../kernel/managers/pov.js'
 import { CircuitBreaker } from '../lib/cloud-circuit-breaker.js'
@@ -29,6 +29,8 @@ export type RoomEventCallback = (event: string, payload: unknown) => void
 export class RoomManager {
   private rooms = new Map<string, Room>()
   private config: RoomConfig = { ...DEFAULT_ROOM_CONFIG }
+  private roomConfigs = new Map<string, PerRoomConfig>()
+  private participantTransitions = new Map<string, Map<string, PerRoomConfig['transition']>>()  // roomCode → participantId → transition
   private eventCallbacks: RoomEventCallback[] = []
   private cloudUrl: string
   private getToken: () => string | null
@@ -53,6 +55,18 @@ export class RoomManager {
       for (const room of this.rooms.values()) {
         if (room.participants.has(next)) {
           room.activePlayerId = next
+          const participant = room.participants.get(next)
+          if (participant) {
+            const participantTransitionMap = this.participantTransitions.get(room.roomCode)
+            const transition = participantTransitionMap?.get(next) ?? room.config.transition
+            this.emit('pov-online:participant:selected', {
+              roomCode: room.roomCode,
+              participantId: next,
+              displayName: participant.displayName,
+              transition,
+              timestamp,
+            })
+          }
           this.emit('pov-online:switch', {
             roomCode: room.roomCode,
             previousId: prev,
@@ -209,6 +223,8 @@ export class RoomManager {
       idleTimer: null,
     }
     this.rooms.set(roomCode, room)
+    this.roomConfigs.set(roomCode, { ...DEFAULT_PER_ROOM_CONFIG })
+    this.participantTransitions.set(roomCode, new Map())
     this.emit('pov-online:room:created', {
       roomCode,
       joinUrl: `${this.cloudUrl}/room/${roomCode}`,
@@ -225,6 +241,8 @@ export class RoomManager {
       this.pov.removeParticipant(id)
     }
     this.rooms.delete(roomCode)
+    this.roomConfigs.delete(roomCode)
+    this.participantTransitions.delete(roomCode)
     this.hubRoomId = null
     this.roomSignaling.disconnect()
     this.emit('pov-online:room:closed', { roomCode })
@@ -246,6 +264,31 @@ export class RoomManager {
     if (!room) return
     room.mode = mode
     this.pov.switcher.setMode(mode)
+  }
+
+  updateRoomConfig(roomCode: string, partial: Partial<PerRoomConfig>): RoomStatus | null {
+    const room = this.rooms.get(roomCode)
+    if (!room) return null
+    const current = this.roomConfigs.get(roomCode) ?? { ...DEFAULT_PER_ROOM_CONFIG }
+    const updated = { ...current, ...partial, transition: partial.transition ?? current.transition }
+    this.roomConfigs.set(roomCode, updated)
+    // If this is the active room, apply auto-mode fields to the orchestrator
+    if (this.activeRoomCode === roomCode) {
+      this.pov.switcher.updateConfig({
+        cooldownMs: updated.cooldownMs,
+        activityThreshold: updated.activityThreshold,
+        silenceThreshold: updated.silenceThreshold,
+      })
+      this.pov.updateMotionWeight(updated.motionWeight)
+      // Restart scoreProcessor if rollingWindowMs changed
+      this.pov.scoreProcessor.stop()
+      this.pov.scoreProcessor.start({
+        rollingWindowMs: updated.rollingWindowMs,
+        reportIntervalMs: this.config.audioReportIntervalMs,
+        emitIntervalMs: this.config.scoreEmitIntervalMs,
+      })
+    }
+    return this.toStatus(room)
   }
 
   async rejoinRoom(roomCode: string): Promise<{ ok: boolean; error?: string }> {
@@ -293,7 +336,32 @@ export class RoomManager {
     const room = this.rooms.get(roomCode)
     if (!room) return { ok: false, error: 'room_not_found' }
     if (!room.participants.has(participantId)) return { ok: false, error: 'participant_not_found' }
+    const participant = room.participants.get(participantId)
+    if (participant) {
+      const participantTransitionMap = this.participantTransitions.get(roomCode)
+      const transition = participantTransitionMap?.get(participantId) ?? room.config.transition
+      this.emit('pov-online:participant:selected', {
+        roomCode,
+        participantId,
+        displayName: participant.displayName,
+        transition,
+        timestamp: Date.now(),
+      })
+    }
     return this.pov.switcher.manualSelect(participantId)
+  }
+
+  setParticipantTransition(roomCode: string, participantId: string, transition: PerRoomConfig['transition']): boolean {
+    if (!this.participantTransitions.has(roomCode)) return false
+    const map = this.participantTransitions.get(roomCode)!
+    map.set(participantId, transition)
+    return true
+  }
+
+  getParticipantTransition(roomCode: string, participantId: string): PerRoomConfig['transition'] | null {
+    const map = this.participantTransitions.get(roomCode)
+    if (!map) return null
+    return map.get(participantId) ?? null
   }
 
   getRooms(): RoomStatus[] {
@@ -313,6 +381,22 @@ export class RoomManager {
     if (prev !== roomCode) {
       this.emit('pov-online:active-room', { roomCode })
       logger.info(`[room] active room changed: ${prev ?? 'none'} → ${roomCode ?? 'none'}`)
+      // Apply the new room's config to the POV orchestrator
+      if (roomCode) {
+        const roomConfig = this.roomConfigs.get(roomCode) ?? { ...DEFAULT_PER_ROOM_CONFIG }
+        this.pov.switcher.updateConfig({
+          cooldownMs: roomConfig.cooldownMs,
+          activityThreshold: roomConfig.activityThreshold,
+          silenceThreshold: roomConfig.silenceThreshold,
+        })
+        this.pov.updateMotionWeight(roomConfig.motionWeight)
+        this.pov.scoreProcessor.stop()
+        this.pov.scoreProcessor.start({
+          rollingWindowMs: roomConfig.rollingWindowMs,
+          reportIntervalMs: this.config.audioReportIntervalMs,
+          emitIntervalMs: this.config.scoreEmitIntervalMs,
+        })
+      }
     }
     return { ok: true }
   }
@@ -402,6 +486,8 @@ export class RoomManager {
     room.participants.delete(participantId)
     this.pov.removeParticipant(participantId)
     if (room.activePlayerId === participantId) room.activePlayerId = null
+    const transitionMap = this.participantTransitions.get(roomCode)
+    if (transitionMap) transitionMap.delete(participantId)
     this.emit('pov-online:participant:left', { roomCode, participantId })
     if (room.participants.size === 0) {
       room.idleTimer = setTimeout(() => {
@@ -440,6 +526,7 @@ export class RoomManager {
       activePlayerId: room.activePlayerId,
       mode: room.mode,
       hubConnected: this.hubRoomId === room.roomCode && this.roomSignaling.isConnected(),
+      config: this.roomConfigs.get(room.roomCode) ?? { ...DEFAULT_PER_ROOM_CONFIG },
     }
   }
 }

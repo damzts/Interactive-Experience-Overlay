@@ -40,6 +40,24 @@ export interface ParticipantInfo {
   joinedAt: number
 }
 
+/** Per-room auto mode and transition configuration */
+export interface PerRoomConfig {
+  /** Minimum score difference to trigger a switch. Default 0.15, range 0.01-1.0 */
+  activityThreshold: number
+  /** Score below which a player is considered silent. Default 0.05, range 0.0-1.0 */
+  silenceThreshold: number
+  /** Weight of motion vs audio score (0-1). Default 0.3, higher = motion-driven */
+  motionWeight: number
+  /** Rolling window for activity score computation (ms). Default 2000, range 500-10000 */
+  rollingWindowMs: number
+  /** Cooldown between automatic switches (ms). Default 3000, range 1000-30000 */
+  cooldownMs: number
+  /** Default camera behavior on room create. 'auto' = first participant, 'blank' = no stream */
+  defaultFirstCamera: 'auto' | 'blank'
+  /** Transition configuration for overlay switches */
+  transition: TransitionConfig
+}
+
 /** Full status of a room */
 export interface RoomStatus {
   roomCode: string
@@ -51,9 +69,20 @@ export interface RoomStatus {
   activePlayerId: string | null
   mode: SwitchMode
   hubConnected: boolean
+  config: PerRoomConfig
 }
 
 // ── Defaults ─────────────────────────────────────────────────────
+
+export const DEFAULT_PER_ROOM_CONFIG: PerRoomConfig = {
+  activityThreshold: 0.15,
+  silenceThreshold: 0.05,
+  motionWeight: 0.3,
+  rollingWindowMs: 2000,
+  cooldownMs: 3000,
+  defaultFirstCamera: 'auto',
+  transition: { type: 'cut', durationMs: 0 },
+}
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   audioReportIntervalMs: 100,
