@@ -9,7 +9,7 @@
 
 ## Architecture overview
 
-The server acts as a Selective Forwarding Unit (SFU) hub. Participants send their video and audio to the hub. The hub selects one active participant at any time (based on audio scoring) and relays only that participant's tracks to the overlay. The overlay renders a single video stream that changes seamlessly when the active participant switches.
+The server acts as a Selective Forwarding Unit (SFU) hub. Participants send their video and audio to the hub. The hub selects one active participant at any time (based on audio and motion scoring) and relays only that participant's tracks to the overlay. The overlay renders a single video stream that changes seamlessly when the active participant switches.
 
 This means the overlay never does peer-to-peer WebRTC with participants. It only has one WebRTC connection — with the local server. The server handles all the complexity of managing N participant connections.
 
@@ -51,19 +51,43 @@ Once a participant's tracks arrive at the hub, three things happen:
 
 **Audio scoring** — incoming RTP audio packets are analyzed continuously. Each participant gets a rolling audio score representing how recently and how actively they've been speaking.
 
-**POV switching** — the switcher evaluates scores periodically and selects the participant who should be the active camera. The decision logic can be extended but defaults to most-recently-active speaker.
+**Motion scoring** — RTP video packet sizes are sampled as a motion proxy. High motion produces larger packets, which increases the participant's motion score. The final activity score blends audio and motion (configurable `motionWeight`, default 0.3).
+
+**POV switching** — the switcher evaluates composite scores periodically and selects the participant who should be the active camera.
 
 **Overlay relay** — when the active participant changes, the server does a `replaceTrack()` on the overlay's WebRTC sender. The overlay's video element continues playing without interruption — it doesn't know a track swap happened.
 
-## Overlay widgets
+## Overlay video consumption — RtcStreamContext
 
-Two overlay widgets consume video from the server:
+The overlay consumes the relay stream via a singleton React context provider (`RtcStreamContext`) mounted at the app root in `App.tsx`. It manages one `RTCPeerConnection` for the lifetime of the overlay session.
 
-**POV Stream (Auto)** (`pov-stream`) — subscribes via `pov-online:relay:subscribe` on the main Socket.IO connection. The server's `RoomRelay` creates a sendonly WebRTC PC and relays whichever participant the POV switcher has selected. Track swaps are seamless via `replaceTrack`. Use this when you want the server to automatically manage who is on screen.
+```
+App
+└── RtcStreamProvider          ← single PC, single MediaStream, mounts once
+    ├── SceneCompositor
+    │   └── PovStreamRenderer  ← reads stream via useRtcStream(), pure display
+    └── Desktop
+        └── WindowWidget       ← can bind to a pov-stream scene window, zero extra cost
+```
 
-**Participant Stream** (`participant-stream`) — connects to the `/room` namespace as an admin client and receives `pov-online:preview:offer` events from `RoomPreviewRelay`. Shows the raw stream of whatever participant is currently being relayed, bypassing the switcher. Use this for a direct feed.
+**Why a singleton?** The server's `RoomRelay` manages exactly one downstream connection. Multiple overlay components each subscribing independently would race — each `relay:subscribe` call triggers `RoomRelay.createOffer()` which closes and recreates the server-side PC. The singleton ensures the connection is established once, survives scene transitions without renegotiation, and can be read by any number of consumers without side effects.
 
-**Important:** `RoomPreviewRelay` uses one WebRTC PC per participant. Only one consumer can answer a given offer — the first to send `pov-online:preview:answer` gets the stream. The admin panel's preview grid (inside Online Rooms → Active Rooms) is a consumer of the same relay. It is **off by default** so the overlay widget gets priority. Enable it in the panel only for debugging.
+### Using WebRTC video in a scene
+
+Add a scene window with `rendererType: 'pov-stream'`. Configure it via the admin panel (Scene editor → add window → POV Stream). The `PovStreamRenderer` reads from `RtcStreamContext` — no socket or peer connection owned by the renderer itself.
+
+`WindowWidget` (desktop app widget bound to a scene window) can also render a `pov-stream` window as a preview. It reads from the same context — no second WebRTC connection is created.
+
+### Connection lifecycle
+
+1. Overlay connects to server socket with `clientType: 'overlay'`
+2. `RtcStreamProvider` emits `pov-online:relay:subscribe`
+3. Server `RoomRelay.createOffer()` creates a sendonly PC and sends the offer
+4. Provider answers; ICE resolves via loopback host candidates; connection established
+5. `MediaStream` is stored in context; all `PovStreamRenderer` instances receive it via `useRtcStream()`
+6. On POV switch: `RoomRelay.switchTo()` calls `replaceTrack()` — the `MediaStream` reference is unchanged, new participant's frames flow immediately
+
+On PC failure, the provider re-subscribes to trigger a fresh offer from the server. The server-side `RoomRelay` also detects its own PC failure and pushes a new offer independently. Both paths converge to a reconnect.
 
 ## Overlay relay wiring
 
@@ -72,11 +96,13 @@ Two overlay widgets consume video from the server:
 - `povOrchestrator.onSwitch(next => roomRelay.switchTo(...))` — fires on every POV switch, updates the relay's active track
 - `roomHub.onTrack(userId => ...)` — auto-selects the first participant and calls `switchTo` on re-offer (new track objects after reconnect)
 
+The relay socket handlers (`pov-online:relay:subscribe/answer/ice`) are registered only for sockets with `clientType: 'overlay'`. Admin sockets and studio participants cannot trigger relay operations.
+
 `RoomSignaling` does not touch `RoomRelay`. This ensures LAN-only mode works without any cloud room active.
 
 ## ICE servers
 
-The `RoomRelay` and `POVStreamWidget` use **no ICE servers** (empty `iceServers: []`). The server and overlay are both on localhost — ICE resolves immediately via host candidates. STUN is unnecessary and was causing ~12s delays before being removed.
+`RoomRelay` and `RtcStreamProvider` use **no ICE servers** (empty `iceServers: []`). The server and overlay are both on localhost — ICE resolves immediately via host candidates. STUN is unnecessary and was causing ~12s delays before being removed.
 
 `RoomHub` and `RoomPreviewRelay` still use `stun:stun.l.google.com:19302` because participants may connect from different network segments (LAN or cloud).
 
@@ -90,8 +116,13 @@ The fix: buffer all hub-generated ICE candidates during offer processing, send t
 
 If a participant's browser reconnects and sends a new offer (e.g. after a camera switch), the hub silently closes the previous peer connection and accepts the new one. The new tracks automatically trigger a relay update on the overlay connection. No special handling is needed on the overlay side.
 
+## Freeze detection
+
+`RoomHub` runs a freeze monitor (polling every 500ms). If a participant's video track goes silent for 2000ms while ICE is healthy, the track is marked muted and `RoomSignaling` schedules an `ice-restart-request` after a 2000ms recovery delay. Total worst-case latency from freeze to recovery initiation: ~4.5s.
+
 ## werift-specific gotchas
 
 - `addTrack()` with a received track works by forwarding RTP packets through the sender. The track must come from a live peer connection — you cannot construct a synthetic track and add it.
 - The `MediaStream` parameter in `addTrack(track, stream?)` is not implemented. Always build `MediaStream` manually from the track event.
 - werift does not emit `a=msid` in its SDP. Do not rely on `event.streams` in `ontrack` — use `event.track` directly.
+- `RoomRelay` adds both audio and video tracks before creating the offer. Audio must be added first so the SDP m-line order is predictable.

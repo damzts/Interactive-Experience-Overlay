@@ -23,17 +23,17 @@ Widget = window position + window size + component type + optional settings
 ```
 
 The `widgetComponent` field determines which React component renders the window.
-Built-in components: `music`, `chat`, `camera`, `gallery`, `source`, `sticky-notes`, etc.
+Built-in components: `music`, `chat`, `camera`, `gallery`, `window`, `sticky-notes`, etc.
 User-created widgets have `widgetSource: 'user'`.
 
 ### Scenes
 
 A **scene** is a named visual state for the overlay compositor. It defines what
-the overlay renders — background, particle effects, plugin sources, post-processing,
+the overlay renders — background, particle effects, renderer windows, post-processing,
 and whether the desktop layer is visible (`showDesktop`).
 
 ```
-Scene = background + particles + sources[] + effects + showDesktop + transitions
+Scene = background + particles + windows[] + effects + showDesktop + transitions
 ```
 
 Scenes are standalone records. They have no linked application or widget.
@@ -50,7 +50,7 @@ A **runtime** is a pre-configured scene that manages a lifecycle environment:
 | **Desktop** | `DESKTOP` | OS kernel — the win98 desktop with taskbar, icons, and widgets |
 
 Runtimes are system scenes. They cannot be deleted from the admin. Their
-Sources and visual config can still be edited like any other scene.
+windows and visual config can still be edited like any other scene.
 
 **The mental model:**
 - Switch to `LOBBY` → viewers see the 3D lobby room
@@ -62,7 +62,7 @@ distinction clear.
 
 ---
 
-The kernel is the platform. The Desktop OS, the widgets, the source/scene plugins, and the ambiance behaviors are all first-party contributions built on top of it — the same way any collaborator can build and contribute new managers, source plugins, or widget packs.
+The kernel is the platform. The Desktop OS, the widgets, the scene renderers, and the ambiance behaviors are all first-party contributions built on top of it — the same way any collaborator can build and contribute new managers, source plugins, or widget packs.
 
 The engine is presentation-agnostic. It manages state, schedules events, runs ambiance, fires effects, handles transitions, and bridges real-time state. It knows nothing about windows, taskbars, icons, or visual metaphors. Those are concerns of the overlay — which is one possible interpretation of engine primitives, not the only one.
 
@@ -195,23 +195,23 @@ type, no icon-only type. Every entry in the `widgets` table is a window that
 can be opened, closed, moved, and resized. The Desktop OS renders desktop icons
 for all widgets regardless of state — the icon is just the widget's closed face.
 
-## Sources, Plugins, and Widgets
+## Windows, Renderers, and Widgets
 
 Three distinct things that are easy to confuse:
 
-| | Source | Plugin | Widget |
+| | Window | Renderer | Widget |
 |---|---|---|---|
-| **What it is** | A slot in a scene's `sources[]` array | The renderer that draws a source | A desktop window (application) |
-| **Where it lives** | `SourceInstance` in `AppConfig.scenes[n].sources` | `pluginManifest` in overlay `registry.ts` | `widgets` DB table |
-| **What identifies it** | `pluginType` string (e.g. `'image-static'`) | Entry key in `pluginManifest` | `widgetComponent` string |
-| **Catalog** | `PLUGIN_CATALOG` in `@ieomlabs/shared` | `PluginDefinition.catalog` (attached on resolve) | `WIDGET_DEFINITIONS` in `@ieomlabs/shared` |
-| **Admin UI** | SourcesEditor in SceneConfig, SourcesTab presets | Fields driven by `PluginCatalogEntry.fields` | Widget panel, layout editor |
+| **What it is** | A slot in a scene's `windows[]` array | The React component that draws a window | A desktop window (application) |
+| **Where it lives** | `WindowInstance` in `AppConfig.scenes[n].windows` | `RendererDefinition` in overlay `renderers/registry.ts` | `widgets` DB table |
+| **What identifies it** | `rendererType` string (e.g. `'image-static'`) | Entry key in `renderers/registry.ts` | `widgetComponent` string |
+| **Catalog** | `RENDERER_CATALOG` in `@ieomlabs/shared` | `RendererDefinition.catalog` (attached on resolve) | `WIDGET_DEFINITIONS` in `@ieomlabs/shared` |
+| **Admin UI** | WindowsEditor in SceneConfig, SourcesTab presets | Fields driven by `RendererCatalogEntry.fields` | Widget panel, layout editor |
 
-**`PLUGIN_CATALOG`** is the single source of truth for both admin UI generation (field editors, catalog grid, preset creation) and overlay rendering (default tier, default config). It lives in `@ieomlabs/shared/domain/plugin.ts` so the server, admin, and overlay all import from the same definition.
+**`RENDERER_CATALOG`** is the single source of truth for both admin UI generation (field editors, catalog grid, preset creation) and overlay rendering (default tier, default config). It lives in `@ieomlabs/shared/domain/plugin.ts` so the server, admin, and overlay all import from the same definition.
 
-**`SourceInstance.tier`** — optional field that overrides the compositor's default `'content'` bucket. Set automatically from `PluginCatalogEntry.defaultTier` when adding from the catalog. Builtin sources (`builtin:background`, `builtin:particles`, `builtin:effects`) always resolve to their tier.
+**`WindowInstance.tier`** — optional field that overrides the compositor's default `'content'` bucket. Set automatically from `RendererCatalogEntry.defaultTier` when adding from the catalog. Builtin windows (`builtin:background`, `builtin:particles`, `builtin:effects`) always resolve to their tier.
 
-**`PluginDefinition.catalog`** — populated by `resolvePlugin()` at load time. Overlay plugins can read their own metadata (label, icon, fields) without a separate import.
+**`RendererDefinition.catalog`** — populated by `resolveRenderer()` at load time. Overlay renderers can read their own metadata (label, icon, fields) without a separate import.
 
 ## Adding a second presentation
 
