@@ -179,10 +179,10 @@ export function buildUserWidgetId(
 
 export function findFirstSceneSource(scenes: Record<string, Scene>) {
   for (const scene of Object.values(scenes)) {
-    const sources = scene.sources ?? []
-    const firstSource = sources[0]
-    if (firstSource) {
-      return { sceneId: scene.id, sourceId: firstSource.id }
+    const windows = scene.windows ?? []
+    const firstWindow = windows[0]
+    if (firstWindow) {
+      return { sceneId: scene.id, sourceId: firstWindow.id }
     }
   }
   return undefined

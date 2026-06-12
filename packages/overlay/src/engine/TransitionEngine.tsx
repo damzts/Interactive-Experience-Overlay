@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { TransitionStep } from '@ieomlabs/shared'
 import type gsap from 'gsap'
-import { resolvePlugin } from '../plugins/registry'
+import { resolveRenderer } from '../renderers/registry'
 import { lobbyToDesktop }   from '../transitions/LobbyToDesktop'
 import { desktopToLobby }   from '../transitions/DesktopToLobby'
 import { lobbyToGameplay }  from '../transitions/LobbyToGameplay'
@@ -48,9 +48,9 @@ function runMediaStep(step: TransitionStep): number {
   return duration
 }
 
-interface ActivePlugin {
+interface ActiveRenderer {
   id: string
-  plugin: string
+  renderer: string
   config: Record<string, unknown>
 }
 
@@ -59,7 +59,7 @@ export function TransitionEngine() {
   const pendingTransition = useAppStore((s) => s.pendingTransition)
   const activeTimeline    = useRef<gsap.core.Timeline | null>(null)
   const timerRef          = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [activePlugins, setActivePlugins] = useState<ActivePlugin[]>([])
+  const [activeRenderers, setActiveRenderers] = useState<ActiveRenderer[]>([])
 
   useEffect(() => {
     if (!pendingTransition) return
@@ -82,12 +82,12 @@ export function TransitionEngine() {
       const step = steps[idx]
       const next = () => runPipeline(steps, onComplete, idx + 1)
 
-      if (step.plugin) {
+      if (step.renderer) {
         const id = `__tp_${Date.now()}`
         const duration = step.duration ?? 2
-        setActivePlugins((prev) => [...prev, { id, plugin: step.plugin!, config: step.pluginConfig ?? {} }])
+        setActiveRenderers((prev) => [...prev, { id, renderer: step.renderer!, config: step.rendererConfig ?? {} }])
         timerRef.current = setTimeout(() => {
-          setActivePlugins((prev) => prev.filter((p) => p.id !== id))
+          setActiveRenderers((prev) => prev.filter((r) => r.id !== id))
           next()
         }, duration * 1000)
         return
@@ -113,24 +113,24 @@ export function TransitionEngine() {
     }
   }, [pendingTransition])
 
-  // Render active plugin-based transition components at z:50 (above desktop, below GSAP layer)
+  // Render active renderer-based transition components at z:50 (above desktop, below GSAP layer)
   return (
     <>
-      {activePlugins.map((p) => (
-        <PluginTransitionMount key={p.id} plugin={p.plugin} config={p.config} />
+      {activeRenderers.map((r) => (
+        <RendererTransitionMount key={r.id} renderer={r.renderer} config={r.config} />
       ))}
     </>
   )
 }
 
-function PluginTransitionMount({ plugin, config }: { plugin: string; config: Record<string, unknown> }) {
-  const [Renderer, setRenderer] = useState<React.ComponentType<import('../plugins/registry').PluginProps> | null>(null)
+function RendererTransitionMount({ renderer, config }: { renderer: string; config: Record<string, unknown> }) {
+  const [Component, setComponent] = useState<React.ComponentType<import('../renderers/registry').RendererProps> | null>(null)
 
   useEffect(() => {
-    resolvePlugin(plugin).then((def) => { if (def) setRenderer(() => def.Renderer) })
-  }, [plugin])
+    resolveRenderer(renderer).then((def) => { if (def) setComponent(() => def.component) })
+  }, [renderer])
 
-  if (!Renderer) return null
+  if (!Component) return null
 
   const NOOP = () => {}
   const NOOP_SIGNAL = () => () => {}
@@ -138,7 +138,7 @@ function PluginTransitionMount({ plugin, config }: { plugin: string; config: Rec
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, pointerEvents: 'none' }}>
-      <Renderer config={config} bounds={bounds} emit={NOOP} onSignal={NOOP_SIGNAL} />
+      <Component config={config} bounds={bounds} emit={NOOP} onSignal={NOOP_SIGNAL} />
     </div>
   )
 }

@@ -1,18 +1,18 @@
 import type { Rect } from './geometry.js'
 import type { OverlayStyle } from './overlay.js'
 
-// ── Source preset and instance ───────────────────────────────────
+// ── Window preset and instance ───────────────────────────────────
 
-export interface SourcePreset {
+export interface WindowPreset {
   id: string
   label: string
-  pluginType: string
+  rendererType: string
   config: Record<string, unknown>
   defaultPosition?: Rect
 }
 
-/** Conditions that gate source visibility locally, without kernel round-trips */
-export interface SourceConditions {
+/** Conditions that gate window visibility locally, without kernel round-trips */
+export interface WindowConditions {
   /** Only visible when these widgets are open */
   whenWidgetsOpen?: string[]
   /** Only visible when a specific runtime override key is active */
@@ -21,35 +21,35 @@ export interface SourceConditions {
   afterSeconds?: number
 }
 
-/** A single source instance within a scene */
-export interface SourceInstance {
+/** A single window instance within a scene */
+export interface WindowInstance {
   id: string
-  sourcePresetId?: string
-  pluginType?: string
+  windowPresetId?: string
+  rendererType?: string
   config?: Record<string, unknown>
   position: Rect
   zIndex: number
   visible: boolean
   /** CSS mix-blend-mode for compositing against layers below */
   blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add'
-  /** ID of another source in the same tier that acts as alpha mask */
-  maskSourceId?: string
+  /** ID of another window in the same tier that acts as alpha mask */
+  maskWindowId?: string
   /** 0–1 independent of visibility */
   opacity?: number
-  /** CSS transition applied when the source appears/disappears */
+  /** CSS transition applied when the window appears/disappears */
   transition?: { in: string; out: string; duration: number }
   /** Local visibility conditions evaluated from store state */
-  conditions?: SourceConditions
+  conditions?: WindowConditions
   /** Explicit render tier — overrides the compositor's default 'content' bucket */
   tier?: TierName
 }
 
-/** A z-ordered tier of sources within a scene */
+/** A z-ordered tier of windows within a scene */
 export type TierName = 'background' | 'particles' | 'content' | 'post' | 'transition'
 
-export interface SceneTierConfig {
+export interface TierConfig {
   tier: TierName
-  sources: SourceInstance[]
+  windows: WindowInstance[]
 }
 
 // ── Lobby 3D environment ─────────────────────────────────────────
@@ -98,14 +98,14 @@ export interface LobbyConfig {
  * `id` is either a GSAP key ('fade', 'zoom-in', …) or a media specifier
  * ('media:video:/assets/video/file.mp4||Name||dur=3').
  * `duration` overrides the animation's built-in speed (seconds).
- * `plugin` spawns an ephemeral plugin renderer in the transition tier instead.
+ * `renderer` spawns an ephemeral renderer in the transition tier instead.
  */
 export interface TransitionStep {
   id: string
   duration?: number
-  /** Plugin key to spawn as an ephemeral transition source (auto-unmounts after duration) */
-  plugin?: string
-  pluginConfig?: Record<string, unknown>
+  /** Renderer key to spawn as an ephemeral transition window (auto-unmounts after duration) */
+  renderer?: string
+  rendererConfig?: Record<string, unknown>
 }
 
 // ── Scene snapshot ───────────────────────────────────────────────
@@ -113,7 +113,7 @@ export interface TransitionStep {
 export interface SceneDefaultSnapshot {
   label: string
   backgroundOpaque: boolean
-  sources: SourceInstance[]
+  windows: WindowInstance[]
   style?: OverlayStyle
   lobbyConfig?: LobbyConfig
   onEntry?: string[]
@@ -136,13 +136,13 @@ export interface MediaEntry {
 
 // ── Scene entity ─────────────────────────────────────────────────
 
-/** A scene is an ordered list of source instances */
+/** A scene is an ordered list of window instances */
 export interface Scene {
   id: string
   label: string
   backgroundOpaque: boolean
-  sources: SourceInstance[]
-  /** Visual style: background, particles, typography. Effects are now explicit sources. */
+  windows: WindowInstance[]
+  /** Visual style: background, particles, typography. Effects are now explicit windows. */
   style?: OverlayStyle
   /** 3D room configuration. Used by LOBBY scene. */
   lobbyConfig?: LobbyConfig

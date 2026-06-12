@@ -4,7 +4,7 @@ import {
   DEFAULT_WIDGET_THEME_PRESETS,
   getWidgetSource,
   isSystemWidget,
-  resolveSourceInstance,
+  resolveWindowInstance,
   withDesktopConfigDefaults,
 } from '@ieomlabs/shared'
 import type {
@@ -25,7 +25,7 @@ import {
   LAUNCH_PIPELINE_EFFECT_TYPES,
   createEffectDraft,
 } from '../asset-library/eventPresets'
-import { getSafeSceneSources } from '../../shared/sourceCatalog'
+import { getSafeSceneWindows } from '../../shared/windowCatalog'
 import {
   ConfigApplyBar,
   ConfigChoiceButton,
@@ -123,19 +123,19 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const isStickyNotesWidget    = form.id === 'sticky-notes'
   const stickyNotesConfig = form.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS
   const sourcePresets     = config.sourcePresets ?? []
-  const selectedSourceSceneId = form.sourceWidgetSettings?.sceneId ?? ''
+  const selectedSourceSceneId = form.windowWidgetSettings?.sceneId ?? ''
   const selectedSourceScene   = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
-  const selectedSourceSceneSources = getSafeSceneSources(selectedSourceScene)
+  const selectedSourceSceneWindows = getSafeSceneWindows(selectedSourceScene)
   const availableSourceScenes = useMemo(
     () => Object.values(config.scenes).filter((scene) => {
-      const sources = getSafeSceneSources(scene)
-      return sources.length > 0 || scene.id === selectedSourceSceneId
+      const windows = getSafeSceneWindows(scene)
+      return windows.length > 0 || scene.id === selectedSourceSceneId
     }),
     [config.scenes, selectedSourceSceneId],
   )
-  const availableSources = selectedSourceSceneSources
-  const selectedSource   = availableSources.find((source) => source.id === form.sourceWidgetSettings?.sourceId)
-  const selectedSourceResolved = selectedSource ? resolveSourceInstance(selectedSource, sourcePresets) : null
+  const availableWindows = selectedSourceSceneWindows
+  const selectedWindow   = availableWindows.find((w) => w.id === form.windowWidgetSettings?.windowId)
+  const selectedWindowResolved = selectedWindow ? resolveWindowInstance(selectedWindow, sourcePresets) : null
 
   useEffect(() => {
     if (widgetComponent !== 'camera') return
@@ -553,11 +553,11 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
           </ConfigPanel>
         )}
 
-        {widgetComponent === 'source' && (
-          <ConfigPanel title="Source Binding" className="mb-4">
+        {widgetComponent === 'window' && (
+          <ConfigPanel title="Window Binding" className="mb-4">
             <div className="space-y-3">
               <div className="text-[10px] text-[var(--color-text-secondary)]">
-                Source widgets render one scene source inside a desktop window. Bind this widget to any configured source and change it later without recreating the widget.
+                Window widgets render one scene window inside a desktop window. Bind this widget to any configured window and change it later without recreating the widget.
               </div>
               <div>
                 <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Scene</div>
@@ -565,10 +565,10 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                   onChange={(e) => update((d) => {
                     const nextSceneId = e.target.value
                     const nextScene = config.scenes[nextSceneId]
-                    const nextSceneSources = getSafeSceneSources(nextScene)
-                    const currentSourceId = d.sourceWidgetSettings?.sourceId
-                    const nextSourceId = nextSceneSources.some((source) => source.id === currentSourceId) ? currentSourceId : (nextSceneSources[0]?.id ?? '')
-                    d.sourceWidgetSettings = nextSceneId ? { sceneId: nextSceneId, sourceId: nextSourceId } : undefined
+                    const nextSceneWindows = getSafeSceneWindows(nextScene)
+                    const currentWindowId = d.windowWidgetSettings?.windowId
+                    const nextWindowId = nextSceneWindows.some((w) => w.id === currentWindowId) ? currentWindowId : (nextSceneWindows[0]?.id ?? '')
+                    d.windowWidgetSettings = nextSceneId ? { sceneId: nextSceneId, windowId: nextWindowId } : undefined
                   })}
                   className="w-full text-xs">
                   <option value="">— Select scene —</option>
@@ -576,28 +576,28 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                 </select>
               </div>
               <div>
-                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Source</div>
-                <select value={form.sourceWidgetSettings?.sourceId ?? ''}
-                  onChange={(e) => update((d) => { d.sourceWidgetSettings = { sceneId: d.sourceWidgetSettings?.sceneId ?? '', sourceId: e.target.value } })}
-                  disabled={!selectedSourceSceneId || availableSources.length === 0}
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Window</div>
+                <select value={form.windowWidgetSettings?.windowId ?? ''}
+                  onChange={(e) => update((d) => { d.windowWidgetSettings = { sceneId: d.windowWidgetSettings?.sceneId ?? '', windowId: e.target.value } })}
+                  disabled={!selectedSourceSceneId || availableWindows.length === 0}
                   className="w-full text-xs">
-                  <option value="">{selectedSourceSceneId ? '— Select source —' : '— Choose a scene first —'}</option>
-                  {availableSources.map((source) => (
-                    <option key={source.id} value={source.id}>{source.id} · {resolveSourceInstance(source, sourcePresets)?.pluginType ?? 'unbound'}</option>
+                  <option value="">{selectedSourceSceneId ? '— Select window —' : '— Choose a scene first —'}</option>
+                  {availableWindows.map((w) => (
+                    <option key={w.id} value={w.id}>{w.id} · {resolveWindowInstance(w, sourcePresets)?.rendererType ?? 'unbound'}</option>
                   ))}
                 </select>
               </div>
               {availableSourceScenes.length === 0 && (
-                <div className="text-[10px] text-[var(--color-accent-300)] leading-relaxed">No scene sources are configured yet. Add a source to any scene, then bind this widget to it.</div>
+                <div className="text-[10px] text-[var(--color-accent-300)] leading-relaxed">No scene windows are configured yet. Add a window to any scene, then bind this widget to it.</div>
               )}
-              {selectedSourceSceneId && availableSources.length === 0 && (
-                <div className="text-[10px] text-[var(--color-text-muted)]">This scene currently has no sources to bind.</div>
+              {selectedSourceSceneId && availableWindows.length === 0 && (
+                <div className="text-[10px] text-[var(--color-text-muted)]">This scene currently has no windows to bind.</div>
               )}
-              {selectedSource && selectedSourceScene && (
+              {selectedWindow && selectedSourceScene && (
                 <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 space-y-1">
                   <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">Current Binding</div>
                   <div className="text-[11px] text-[var(--color-text-primary)]">{selectedSourceScene.label}</div>
-                  <div className="text-[10px] text-[var(--color-text-secondary)] font-mono">{selectedSource.id} · {selectedSourceResolved?.pluginType ?? 'unbound'}</div>
+                  <div className="text-[10px] text-[var(--color-text-secondary)] font-mono">{selectedWindow.id} · {selectedWindowResolved?.rendererType ?? 'unbound'}</div>
                 </div>
               )}
             </div>

@@ -36,7 +36,7 @@ const widgetManifest: Record<RegisteredWidgetComponentType, () => Promise<Deskto
   'newswire-desk':       () => import('./NewswireDeskWidget').then((m) => m.NewswireDeskWidget),
   'playlist-deck':       () => import('./PlaylistDeckWidget').then((m) => m.PlaylistDeckWidget),
   'signal-lab':          () => import('./SignalLabWidget').then((m) => m.SignalLabWidget),
-  'source':              () => import('./SourceWidget').then((m) => m.SourceWidget),
+  'window':              () => import('./WindowWidget').then((m) => m.WindowWidget),
   'spectrum-analyzer':   () => import('./SpectrumAnalyzerWidget').then((m) => m.SpectrumAnalyzerWidget),
   'sticky-notes':        () => import('./StickyNotesWidget').then((m) => m.StickyNotesWidget),
   'wave-scope':          () => import('./WaveScopeWidget').then((m) => m.WaveScopeWidget),

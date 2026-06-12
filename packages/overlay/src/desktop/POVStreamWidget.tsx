@@ -52,6 +52,13 @@ export function POVStreamWidget({ appId, onClose, onMinimize, onFocus, windowSta
           }
         }
 
+        pc.onconnectionstatechange = () => {
+          if (pcRef.current?.connectionState === 'failed' && !cancelled) {
+            console.warn('[pov-stream] PC failed — re-subscribing')
+            subscribe()
+          }
+        }
+
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp })
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)

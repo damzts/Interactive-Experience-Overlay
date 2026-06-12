@@ -300,7 +300,10 @@ export class RoomSignaling {
               this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
             }
             this.frozenParticipants.delete(userId)
-          }).catch(e => logger.error({ err: e }, '[room-signaling] offer handling failed'))
+          }).catch(e => {
+            logger.error({ err: e }, '[room-signaling] offer handling failed')
+            this.pendingCandidates.delete(userId)
+          })
         }
         break
       }

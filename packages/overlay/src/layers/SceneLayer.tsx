@@ -1,13 +1,13 @@
 /**
- * SceneLayer — renders one z-tier of SourceInstances via SourceRenderer.
+ * SceneLayer — renders one z-tier of WindowInstances via WindowHost.
  * Tiers are rendered in order: background → particles → content → post → transition.
  */
-import type { SourceInstance, TierName } from '@ieomlabs/shared'
-import { SourceRenderer } from './SourceRenderer'
+import type { WindowInstance, TierName } from '@ieomlabs/shared'
+import { WindowHost } from './WindowHost'
 
 interface Props {
   tier: TierName
-  sources: SourceInstance[]
+  windows: WindowInstance[]
   sceneAge?: number
   openWidgets?: string[]
   activeOverride?: string
@@ -21,7 +21,7 @@ const TIER_Z: Record<TierName, number> = {
   transition: 50,
 }
 
-export function SceneLayer({ tier, sources, sceneAge, openWidgets, activeOverride }: Props) {
+export function SceneLayer({ tier, windows, sceneAge, openWidgets, activeOverride }: Props) {
   return (
     <div
       style={{
@@ -31,11 +31,11 @@ export function SceneLayer({ tier, sources, sceneAge, openWidgets, activeOverrid
         pointerEvents: 'none',
       }}
     >
-      {sources.map((source) => (
-        <SourceRenderer
-          key={source.id}
-          source={source}
-          tierSources={sources}
+      {windows.map((instance) => (
+        <WindowHost
+          key={instance.id}
+          instance={instance}
+          tierWindows={windows}
           sceneAge={sceneAge}
           openWidgets={openWidgets}
           activeOverride={activeOverride}

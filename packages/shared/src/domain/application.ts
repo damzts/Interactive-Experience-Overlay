@@ -5,7 +5,7 @@ import type { Rect } from './geometry.js'
 export type WidgetLayoutSource = 'system' | 'user'
 
 export type WidgetComponentType =
-  | 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'source'
+  | 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'window'
   | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
   | 'playlist-deck' | 'net-meter' | 'media-deck' | 'cd-ripper' | 'signal-lab'
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
@@ -82,9 +82,9 @@ export interface PovStreamSettings {
 /** @deprecated Use PovStreamSettings */
 export type OnlineStreamSettings = PovStreamSettings
 
-export interface SourceWidgetSettings {
+export interface WindowWidgetSettings {
   sceneId?: string
-  sourceId?: string
+  windowId?: string
 }
 
 export interface StickyNotesSettings {
@@ -132,8 +132,8 @@ export interface Application {
     preferredDeviceLabel?: string
     mirror?: boolean
   }
-  /** Optional source binding for source-backed widget windows. */
-  sourceWidgetSettings?: SourceWidgetSettings
+  /** Optional window binding for window-backed widget windows. */
+  windowWidgetSettings?: WindowWidgetSettings
   /** Optional settings for the pov stream widget. */
   povStreamSettings?: PovStreamSettings
   /** Optional persisted content for the Sticky Notes system widget. */

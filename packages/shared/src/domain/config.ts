@@ -2,7 +2,7 @@ import type { Application, TransitionDefinition, WidgetLayoutDefinition } from '
 import type { DesktopAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventAction, EventConfig } from './event.js'
-import type { MediaEntry, Scene, SourcePreset } from './scene.js'
+import type { MediaEntry, Scene, WindowPreset } from './scene.js'
 import type { WidgetWire } from '../contracts/widget.js'
 
 // ── Show Sequencer types ─────────────────────────────────────────
@@ -50,7 +50,7 @@ export interface AppConfig {
   /** Centralised media asset library (Asset Library Catalog tab → source_media table) */
   sourceMedia?: MediaEntry[]
   /** Reusable source presets (Asset Library Sources tab → source_presets table) */
-  sourcePresets?: SourcePreset[]
+  sourcePresets?: WindowPreset[]
   /** Named transition definitions (Asset Library Transitions tab → source_transitions table) */
   sourceTransitions?: TransitionDefinition[]
   /** Operator-configured widget wires (Wires panel → widget_wires table) */

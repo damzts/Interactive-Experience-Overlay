@@ -15,5 +15,5 @@ export const WIDGET_INTENT_MANIFESTS: WidgetIntentManifest[] = [
     accepts: d.accepts,
   })),
   // Component types that exist without a WidgetDefinition entry
-  { componentType: 'source' as const,  emits: [], accepts: [] },
+  { componentType: 'window' as const,  emits: [], accepts: [] },
 ]

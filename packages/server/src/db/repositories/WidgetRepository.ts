@@ -44,7 +44,7 @@ export class WidgetRepository {
       const settings: Record<string, unknown> = {}
       if (app.gallerySettings) settings.gallerySettings = app.gallerySettings
       if (app.cameraSettings) settings.cameraSettings = app.cameraSettings
-      if (app.sourceWidgetSettings) settings.sourceWidgetSettings = app.sourceWidgetSettings
+      if (app.windowWidgetSettings) settings.windowWidgetSettings = app.windowWidgetSettings
       if (app.stickyNotesSettings) settings.stickyNotesSettings = app.stickyNotesSettings
       if (app.themeOverride) settings.themeOverride = app.themeOverride
       if (app.onlineStreamSettings) settings.onlineStreamSettings = app.onlineStreamSettings

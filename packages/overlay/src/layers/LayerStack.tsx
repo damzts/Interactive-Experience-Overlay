@@ -1,19 +1,19 @@
 /**
- * @deprecated Use SceneLayer + SourceRenderer instead.
+ * @deprecated Use SceneLayer + WindowHost instead.
  * Kept for reference; no longer imported by App.tsx.
  */
-import type { SourceInstance } from '@ieomlabs/shared'
-import { SourceRenderer } from './SourceRenderer'
+import type { WindowInstance } from '@ieomlabs/shared'
+import { WindowHost } from './WindowHost'
 
 interface LayerStackProps {
-  sources: SourceInstance[]
+  windows: WindowInstance[]
 }
 
-export function LayerStack({ sources }: LayerStackProps) {
+export function LayerStack({ windows }: LayerStackProps) {
   return (
     <>
-      {sources.map((source) => (
-        <SourceRenderer key={source.id} source={source} />
+      {windows.map((instance) => (
+        <WindowHost key={instance.id} instance={instance} />
       ))}
     </>
   )

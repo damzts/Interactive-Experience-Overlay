@@ -2,9 +2,9 @@ import type { TierName } from './scene.js'
 
 export type AssetKind = 'image' | 'video' | 'audio'
 
-export type PluginCategory = 'background' | 'media' | 'overlay' | 'text' | 'post' | 'builtin'
+export type RendererCategory = 'background' | 'media' | 'overlay' | 'text' | 'post' | 'builtin'
 
-export type PluginFieldDef = {
+export type RendererFieldDef = {
   key: string
   label: string
   type: 'text' | 'number' | 'color' | 'boolean' | 'select'
@@ -16,20 +16,20 @@ export type PluginFieldDef = {
   placeholder?: string
 }
 
-export type PluginCatalogEntry = {
+export type RendererCatalogEntry = {
   id: string
   label: string
   icon: string
   desc: string
-  category: PluginCategory
+  category: RendererCategory
   defaultConfig: Record<string, unknown>
-  fields: PluginFieldDef[]
+  fields: RendererFieldDef[]
   defaultPosition?: { x: number; y: number; width: number; height: number }
   defaultTier?: TierName
 }
 
-export const PLUGIN_CATALOG: PluginCatalogEntry[] = [
-  // ── Builtin tier sources ─────────────────────────────────────────
+export const RENDERER_CATALOG: RendererCatalogEntry[] = [
+  // ── Builtin tier renderers ───────────────────────────────────────
   {
     id: 'builtin:background', label: 'Background', icon: '🖼', category: 'builtin', defaultTier: 'background',
     desc: 'Solid color, gradient, image, video, or pattern background',
@@ -70,7 +70,7 @@ export const PLUGIN_CATALOG: PluginCatalogEntry[] = [
       { key: 'chromatic', label: 'Chromatic Aberration', type: 'boolean' },
     ],
   },
-  // ── Plugin sources ───────────────────────────────────────────────
+  // ── Renderer entries ─────────────────────────────────────────────
   {
     id: 'image-slideshow', label: 'Game Slideshow', icon: '🎞', category: 'media', defaultTier: 'content',
     desc: 'Auto-cycling scraped game screenshots',
@@ -179,6 +179,6 @@ export const PLUGIN_CATALOG: PluginCatalogEntry[] = [
   },
 ]
 
-export function findPluginCatalogEntry(pluginType: string | undefined): PluginCatalogEntry | undefined {
-  return PLUGIN_CATALOG.find((entry) => entry.id === pluginType)
+export function findRendererCatalogEntry(rendererType: string | undefined): RendererCatalogEntry | undefined {
+  return RENDERER_CATALOG.find((entry) => entry.id === rendererType)
 }

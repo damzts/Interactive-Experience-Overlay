@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE, withOverlayStyleDefaults } from '@ieomlabs/shared'
-import type { OverlayStyle, Scene, SourceInstance, TransitionStep } from '@ieomlabs/shared'
+import type { OverlayStyle, Scene, WindowInstance, TransitionStep } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
@@ -12,7 +12,7 @@ type ScenePanelDraft = {
   onEntry:     TransitionStep[]
   onExit:      TransitionStep[]
   style:       OverlayStyle
-  sources:     SourceInstance[]
+  windows:     WindowInstance[]
   musicTrack:  string
   showDesktop: boolean
 }
@@ -26,7 +26,7 @@ function buildDraft(
     onEntry:     structuredClone(scene?.onEntry?.map((id) => ({ id })) ?? []),
     onExit:      structuredClone(scene?.onExit?.map((id) => ({ id })) ?? []),
     style:       structuredClone(withOverlayStyleDefaults(scene?.style)),
-    sources:     structuredClone(scene?.sources ?? []),
+    windows:     structuredClone(scene?.windows ?? []),
     musicTrack:  scene?.musicTrack ?? '',
     showDesktop: scene?.showDesktop ?? false,
   }
@@ -43,8 +43,8 @@ export function ScenePanel({ sceneId }: { sceneId: string }) {
   const [draft,  setDraft]  = useState<ScenePanelDraft>(baseDraft)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
-  const [tab,    setTab]    = useState<'sources' | 'settings'>('sources')
-  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
+  const [tab,    setTab]    = useState<'windows' | 'settings'>('windows')
+  const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dirty = !isSameDraft(draft, baseDraft)
@@ -52,7 +52,7 @@ export function ScenePanel({ sceneId }: { sceneId: string }) {
   useEffect(() => {
     setDraft(buildDraft(sceneId, config))
     setSaved(false)
-    setSelectedSourceId(null)
+    setSelectedWindowId(null)
   }, [sceneId])
 
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
@@ -67,7 +67,7 @@ export function ScenePanel({ sceneId }: { sceneId: string }) {
     const scene = (config.scenes[sceneId] ?? {}) as Scene
     const nextScene: Scene = {
       ...scene,
-      sources:     draft.sources,
+      windows:     draft.windows,
       showDesktop: draft.showDesktop,
       onEntry:     draft.onEntry.filter((s) => s.id).map((s) => s.id),
       onExit:      draft.onExit.filter((s) => s.id).map((s) => s.id),
@@ -92,31 +92,31 @@ export function ScenePanel({ sceneId }: { sceneId: string }) {
     <div className="space-y-3">
       {/* Tab bar */}
       <div className="flex gap-1 rounded-xl bg-white/[0.04] p-1">
-        {(['sources', 'settings'] as const).map((t) => (
+        {(['windows', 'settings'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-colors ' +
               (tab === t ? 'bg-white/10 text-white shadow' : 'text-zinc-500 hover:text-zinc-300')}>
-            {t === 'sources' ? 'Sources' : 'Settings'}
+            {t === 'windows' ? 'Windows' : 'Settings'}
           </button>
         ))}
       </div>
 
-      {/* ── Sources tab ──────────────────────────────────── */}
-      {tab === 'sources' && (
+      {/* ── Windows tab ──────────────────────────────────── */}
+      {tab === 'windows' && (
         <div className="space-y-3">
           <ScenePreview
-            sources={draft.sources}
-            selectedId={selectedSourceId}
-            onSelect={setSelectedSourceId}
+            windows={draft.windows}
+            selectedId={selectedWindowId}
+            onSelect={setSelectedWindowId}
             onChangePosition={(id, pos) => update((d) => {
-              const s = d.sources.find((x) => x.id === id)
-              if (s) s.position = pos
+              const w = d.windows.find((x) => x.id === id)
+              if (w) w.position = pos
             })}
           />
           <SourcesEditor
-            sources={draft.sources}
+            sources={draft.windows}
             sourcePresets={sourcePresets}
-            onChange={(next) => update((d) => { d.sources = next })}
+            onChange={(next) => update((d) => { d.windows = next })}
           />
         </div>
       )}

@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
-import type { SourcePreset } from '@ieomlabs/shared'
+import type { WindowPreset } from '@ieomlabs/shared'
 import { AssetSelectionInput } from './AssetLibrary'
-import { findPluginCatalogEntry as findSourceCatalogEntry, PLUGIN_CATALOG as SOURCE_CATALOG, type PluginCatalogEntry as CatalogEntry, type PluginFieldDef as FieldDef } from '@ieomlabs/shared'
+import { findRendererCatalogEntry, RENDERER_CATALOG, type RendererCatalogEntry as CatalogEntry, type RendererFieldDef as FieldDef } from '@ieomlabs/shared'
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
@@ -93,7 +93,7 @@ export function SourcePresetPreview({
   meta,
   onPositionChange,
 }: {
-  preset: SourcePreset
+  preset: WindowPreset
   meta?: CatalogEntry
   onPositionChange?: (position: { x: number; y: number; width: number; height: number }) => void
 }) {
@@ -108,7 +108,7 @@ export function SourcePresetPreview({
 
   let previewNode: ReactNode
 
-  switch (preset.pluginType) {
+  switch (preset.rendererType) {
     case 'image-static': {
       const url = String(config.url ?? '').trim()
       const objectFit = ['cover', 'contain', 'fill'].includes(String(config.objectFit ?? 'cover')) ? String(config.objectFit) as 'cover' | 'contain' | 'fill' : 'cover'
@@ -223,7 +223,7 @@ export function SourcePresetPreview({
     default:
       previewNode = (
         <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/60 text-sm text-zinc-500">
-          Preview unavailable for this source type.
+          Preview unavailable for this renderer type.
         </div>
       )
   }
@@ -264,7 +264,7 @@ export function SourcesTabSidebar({
 }: {
   sourceSearch: string
   onSourceSearchChange: (value: string) => void
-  filteredSourcePresets: SourcePreset[]
+  filteredSourcePresets: WindowPreset[]
   selectedSourcePresetId: string | null
   selectedUsageCountByPreset: Record<string, number>
   onSelectSourcePreset: (presetId: string) => void
@@ -272,20 +272,20 @@ export function SourcesTabSidebar({
   return (
     <>
       <div>
-        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Source Presets</div>
-        <div className="mt-1 text-xs text-zinc-500">Create reusable source configurations here, then attach them from each scene.</div>
+        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Window Presets</div>
+        <div className="mt-1 text-xs text-zinc-500">Create reusable window configurations here, then attach them from each scene.</div>
       </div>
       <input
         type="text"
         value={sourceSearch}
         onChange={(event) => onSourceSearchChange(event.target.value)}
-        placeholder="Search source presets"
+        placeholder="Search window presets"
         className="w-full text-sm"
       />
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {filteredSourcePresets.length ? filteredSourcePresets.map((preset) => {
           const active = preset.id === selectedSourcePresetId
-          const meta = findSourceCatalogEntry(preset.pluginType)
+          const meta = findRendererCatalogEntry(preset.rendererType)
           const usageCount = selectedUsageCountByPreset[preset.id] ?? 0
           return (
             <button
@@ -302,12 +302,12 @@ export function SourcesTabSidebar({
                 <span>{meta?.icon ?? '▣'}</span>
                 <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{preset.label}</span>
               </div>
-              <div className="mt-1 truncate text-[10px] text-zinc-500">{meta?.label ?? preset.pluginType}</div>
+              <div className="mt-1 truncate text-[10px] text-zinc-500">{meta?.label ?? preset.rendererType}</div>
               <div className="mt-1 truncate text-[10px] text-zinc-600">{usageCount} scene attachment{usageCount === 1 ? '' : 's'}</div>
             </button>
           )
         }) : (
-          <ConfigNotice tone="info">No source presets match this filter.</ConfigNotice>
+          <ConfigNotice tone="info">No window presets match this filter.</ConfigNotice>
         )}
       </div>
     </>
@@ -325,19 +325,19 @@ export function SourcesTabContent({
   saveSourcePresetDraft,
   deleteSourcePresetDraft,
 }: {
-  editingSourcePreset: SourcePreset | null
+  editingSourcePreset: WindowPreset | null
   selectedSourceMeta?: CatalogEntry
   sourcePresetOriginalId: string | null
   sourceDraftCreatesNewPreset: boolean
   selectedSourceUsageCount: number
   createSourcePresetDraft: (entry: CatalogEntry) => void
-  patchSourcePresetDraft: (updates: Partial<SourcePreset>) => void
+  patchSourcePresetDraft: (updates: Partial<WindowPreset>) => void
   saveSourcePresetDraft: () => void
   deleteSourcePresetDraft: () => void
 }) {
   const catalogButtons = (
     <div className="grid gap-2 lg:grid-cols-2">
-      {SOURCE_CATALOG.map((entry) => (
+      {RENDERER_CATALOG.map((entry) => (
         <button
           key={entry.id}
           type="button"
@@ -361,8 +361,8 @@ export function SourcesTabContent({
           <ConfigCard className="space-y-4 p-5 sm:p-6">
             <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
               <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Source Type</div>
-                <div className="text-xs text-zinc-500">Pick a source type to open a new preset draft below.</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Renderer Type</div>
+                <div className="text-xs text-zinc-500">Pick a renderer type to open a new preset draft below.</div>
               </div>
               {catalogButtons}
             </div>
@@ -371,7 +371,7 @@ export function SourcesTabContent({
           <ConfigCard className="space-y-4 p-5 sm:p-6">
             <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-5 py-4">
               <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Editor</div>
-              <div className="text-xs text-zinc-500">Primary source preset authoring card.</div>
+              <div className="text-xs text-zinc-500">Primary window preset authoring card.</div>
             </div>
 
             <div className="grid items-start gap-4 xl:grid-cols-2">
@@ -415,7 +415,7 @@ export function SourcesTabContent({
               <div className="min-w-0">
                 <ConfigSectionPanel label="Actions" first>
                   <div className="space-y-4">
-                    <div className="text-sm text-zinc-500">{sourceDraftCreatesNewPreset ? 'Editing new source preset draft' : `Editing ${editingSourcePreset.label}`}</div>
+                    <div className="text-sm text-zinc-500">{sourceDraftCreatesNewPreset ? 'Editing new window preset draft' : `Editing ${editingSourcePreset.label}`}</div>
                     <div className="flex flex-wrap gap-2">
                       <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-4 py-2 text-sm">
                         {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
@@ -442,7 +442,7 @@ export function SourcesTabContent({
                     </div>
                     <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                       {sourceDraftCreatesNewPreset
-                        ? 'Saving will create a new preset because this label differs from the saved source.'
+                        ? 'Saving will create a new preset because this label differs from the saved window.'
                         : 'Saving will update the currently selected preset.'}
                     </div>
                   </div>
@@ -473,7 +473,7 @@ export function SourcesTabContent({
               </div>
 
               <div className="min-w-0">
-                <ConfigSectionPanel label="Source Settings" first>
+                <ConfigSectionPanel label="Renderer Settings" first>
                   <div className="space-y-3">
                     {selectedSourceMeta.fields.map((field) => (
                       <SourceField
@@ -508,13 +508,13 @@ export function SourcesTabContent({
           <ConfigCard className="space-y-4 p-5 sm:p-6">
             <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
               <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Source Type</div>
-                <div className="text-xs text-zinc-500">Choose a source type to start a new preset draft.</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Renderer Type</div>
+                <div className="text-xs text-zinc-500">Choose a renderer type to start a new preset draft.</div>
               </div>
               {catalogButtons}
             </div>
           </ConfigCard>
-          <ConfigNotice tone="info" className="py-8 text-center">Select a source preset from the left column to configure it.</ConfigNotice>
+          <ConfigNotice tone="info" className="py-8 text-center">Select a window preset from the left column to configure it.</ConfigNotice>
         </div>
       )}
     </div>

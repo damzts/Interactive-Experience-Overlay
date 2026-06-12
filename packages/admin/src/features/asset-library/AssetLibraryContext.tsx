@@ -3,10 +3,10 @@ import { DEFAULT_EVENT_DEFS, EVENT_PRESET_OPTIONS, createEventPreset, type Event
 import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
-import { PLUGIN_CATALOG as SOURCE_CATALOG, findPluginCatalogEntry as findSourceCatalogEntry } from '@ieomlabs/shared'
-import { getSafeSceneSources } from '../../shared/sourceCatalog'
+import { RENDERER_CATALOG, findRendererCatalogEntry } from '@ieomlabs/shared'
+import { getSafeSceneWindows } from '../../shared/windowCatalog'
 import { TRANSITION_OPTIONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
-import type { MediaEntry, SourcePreset } from '@ieomlabs/shared'
+import type { MediaEntry, WindowPreset } from '@ieomlabs/shared'
 
 export type AssetLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
 
@@ -39,17 +39,17 @@ export interface AssetLibraryContextValue {
   handleTriggerEvent: (def: EventDef) => void
   sourceSearch: string
   setSourceSearch: (v: string) => void
-  filteredSourcePresets: SourcePreset[]
+  filteredSourcePresets: WindowPreset[]
   selectedSourcePresetId: string | null
   setSelectedSourcePresetId: (id: string | null) => void
-  editingSourcePreset: SourcePreset | null
-  selectedSourceMeta: ReturnType<typeof findSourceCatalogEntry>
+  editingSourcePreset: WindowPreset | null
+  selectedSourceMeta: ReturnType<typeof findRendererCatalogEntry>
   sourcePresetOriginalId: string | null
   sourceDraftCreatesNewPreset: boolean
   selectedSourceUsageCount: number
   usageCountByPreset: Record<string, number>
-  createSourcePresetDraft: (entry: typeof SOURCE_CATALOG[number]) => void
-  patchSourcePresetDraft: (updates: Partial<SourcePreset>) => void
+  createSourcePresetDraft: (entry: typeof RENDERER_CATALOG[number]) => void
+  patchSourcePresetDraft: (updates: Partial<WindowPreset>) => void
   saveSourcePresetDraft: () => void
   deleteSourcePresetDraft: () => void
   transitionSearch: string
@@ -102,7 +102,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const [eventDraft, setEventDraft] = useState<{ event: EventDef; originalId: string | null } | null>(null)
   const [sourceSearch, setSourceSearch] = useState('')
   const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>((useAdminStore.getState().config.sourcePresets ?? [])[0]?.id ?? null)
-  const [sourcePresetDraft, setSourcePresetDraft] = useState<{ preset: SourcePreset; originalId: string | null; originalLabel: string | null } | null>(null)
+  const [sourcePresetDraft, setSourcePresetDraft] = useState<{ preset: WindowPreset; originalId: string | null; originalLabel: string | null } | null>(null)
   const [transitionSearch, setTransitionSearch] = useState('')
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
@@ -176,14 +176,14 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const filteredSourcePresets = useMemo(() => {
     const q = sourceSearch.trim().toLowerCase()
     if (!q) return sourcePresets
-    return sourcePresets.filter((p) => [p.label, p.id, p.pluginType].some((v) => v.toLowerCase().includes(q)))
+    return sourcePresets.filter((p) => [p.label, p.id, p.rendererType].some((v) => v.toLowerCase().includes(q)))
   }, [sourcePresets, sourceSearch])
 
   const usageCountByPreset = useMemo(() => (
     Object.values(config.scenes).reduce<Record<string, number>>((counts, scene) => {
-      for (const source of getSafeSceneSources(scene)) {
-        if (!source.sourcePresetId) continue
-        counts[source.sourcePresetId] = (counts[source.sourcePresetId] ?? 0) + 1
+      for (const w of getSafeSceneWindows(scene)) {
+        if (!w.windowPresetId) continue
+        counts[w.windowPresetId] = (counts[w.windowPresetId] ?? 0) + 1
       }
       return counts
     }, {})
@@ -194,7 +194,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   ), [selectedSourcePresetId, sourcePresets])
 
   const editingSourcePreset = sourcePresetDraft?.preset ?? selectedSourcePreset
-  const selectedSourceMeta = editingSourcePreset ? findSourceCatalogEntry(editingSourcePreset.pluginType) : undefined
+  const selectedSourceMeta = editingSourcePreset ? findRendererCatalogEntry(editingSourcePreset.rendererType) : undefined
   const sourceDraftCreatesNewPreset = !!sourcePresetDraft && (!sourcePresetDraft.originalId || sourcePresetDraft.originalLabel?.trim() !== sourcePresetDraft.preset.label.trim())
   const selectedSourceUsageCount = selectedSourcePreset ? usageCountByPreset[selectedSourcePreset.id] ?? 0 : 0
 
@@ -243,18 +243,15 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     const type = pendingTransitionKind
     const hasDur = type === 'image' && !Number.isNaN(durVal) && durVal > 0
     const entry: MediaEntry = { id: 'media-' + Date.now(), name: name.trim() || url.split('/').pop() || 'Unnamed', type, url, ...(hasDur ? { duration: durVal } : {}) }
-    // Catalog tab saves only to source_media
     await saveConfig({ sourceMedia: [...sourceMedia, entry] })
     resetForm()
   }
 
   const handleDeleteMediaEntry = async (id: string) => {
-    // source_media only — no scene patch (Task 8: soft references)
     await saveConfig({ sourceMedia: sourceMedia.filter((e) => e.id !== id) })
   }
 
-  // Task 8: source_presets only — removed cross-table scenes write
-  const saveSourcePresets = (next: SourcePreset[]) => {
+  const saveSourcePresets = (next: WindowPreset[]) => {
     void saveConfig({ sourcePresets: next })
   }
 
@@ -263,22 +260,22 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     if (selectedSourcePresetId === presetId) setSelectedSourcePresetId((sourcePresets.filter((p) => p.id !== presetId))[0]?.id ?? null)
   }
 
-  const createSourcePresetDraft = (entry: typeof SOURCE_CATALOG[number]) => {
+  const createSourcePresetDraft = (entry: typeof RENDERER_CATALOG[number]) => {
     const defaultPosition = entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }
-    const newPreset: SourcePreset = { id: `${entry.id}-${Date.now()}`, label: entry.label, pluginType: entry.id, config: { ...entry.defaultConfig }, defaultPosition: { ...defaultPosition } }
+    const newPreset: WindowPreset = { id: `${entry.id}-${Date.now()}`, label: entry.label, rendererType: entry.id, config: { ...entry.defaultConfig }, defaultPosition: { ...defaultPosition } }
     setSourcePresetDraft({ preset: newPreset, originalId: null, originalLabel: null })
     setSelectedSourcePresetId(null)
     setTab('sources')
   }
 
-  const patchSourcePresetDraft = (updates: Partial<SourcePreset>) => {
+  const patchSourcePresetDraft = (updates: Partial<WindowPreset>) => {
     setSourcePresetDraft((cur) => cur ? { ...cur, preset: { ...cur.preset, ...updates } } : cur)
   }
 
   const saveSourcePresetDraft = () => {
     if (!sourcePresetDraft) return
-    const label = sourcePresetDraft.preset.label.trim() || findSourceCatalogEntry(sourcePresetDraft.preset.pluginType)?.label || 'Untitled preset'
-    const normalizedPreset: SourcePreset = { ...sourcePresetDraft.preset, label, config: { ...sourcePresetDraft.preset.config }, defaultPosition: { x: sourcePresetDraft.preset.defaultPosition?.x ?? 0, y: sourcePresetDraft.preset.defaultPosition?.y ?? 0, width: sourcePresetDraft.preset.defaultPosition?.width ?? 1920, height: sourcePresetDraft.preset.defaultPosition?.height ?? 1080 } }
+    const label = sourcePresetDraft.preset.label.trim() || findRendererCatalogEntry(sourcePresetDraft.preset.rendererType)?.label || 'Untitled preset'
+    const normalizedPreset: WindowPreset = { ...sourcePresetDraft.preset, label, config: { ...sourcePresetDraft.preset.config }, defaultPosition: { x: sourcePresetDraft.preset.defaultPosition?.x ?? 0, y: sourcePresetDraft.preset.defaultPosition?.y ?? 0, width: sourcePresetDraft.preset.defaultPosition?.width ?? 1920, height: sourcePresetDraft.preset.defaultPosition?.height ?? 1080 } }
     if (sourcePresetDraft.originalId && sourcePresetDraft.originalLabel?.trim() === label) {
       const next = sourcePresets.map((p) => p.id === sourcePresetDraft.originalId ? { ...normalizedPreset, id: sourcePresetDraft.originalId } : p)
       saveSourcePresets(next)
@@ -286,7 +283,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
       setSourcePresetDraft({ preset: { ...normalizedPreset, id: sourcePresetDraft.originalId }, originalId: sourcePresetDraft.originalId, originalLabel: label })
       return
     }
-    const savedPreset = { ...normalizedPreset, id: `${normalizedPreset.pluginType}-${Date.now()}` }
+    const savedPreset = { ...normalizedPreset, id: `${normalizedPreset.rendererType}-${Date.now()}` }
     saveSourcePresets([...sourcePresets, savedPreset])
     setSelectedSourcePresetId(savedPreset.id)
     setSourcePresetDraft({ preset: savedPreset, originalId: savedPreset.id, originalLabel: savedPreset.label })
@@ -327,7 +324,6 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     if (!eventDraft) return
     const normalizedEvent: EventDef = { ...eventDraft.event, label: eventDraft.event.label.trim() || 'New Event', icon: eventDraft.event.icon || '⚡', desc: eventDraft.event.desc ?? '', actions: structuredClone(eventDraft.event.actions ?? []), effects: structuredClone(eventDraft.event.effects ?? []), auto: { ...eventDraft.event.auto } }
     if (eventDraft.originalId) {
-      // sourceEvents only (Task 1 rename)
       void saveConfig({ sourceEvents: eventDefs.map((e) => e.id === eventDraft.originalId ? { ...normalizedEvent, id: eventDraft.originalId } : e) })
       setSelectedEventId(eventDraft.originalId)
       setEventDraft({ event: { ...normalizedEvent, id: eventDraft.originalId }, originalId: eventDraft.originalId })

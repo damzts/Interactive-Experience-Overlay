@@ -1,7 +1,7 @@
 import type {
   Application,
   EventWidgetThemePatch,
-  SourceWidgetSettings,
+  WindowWidgetSettings,
   StickyNotesSettings,
   WidgetThemeAnimation,
   WidgetThemeAtmosphere,
@@ -18,7 +18,7 @@ import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
-import type { LobbyConfig, SourceInstance, SourcePreset } from '../domain/scene.js'
+import type { LobbyConfig, WindowInstance, WindowPreset } from '../domain/scene.js'
 import type { OverlayStyle } from '../domain/overlay.js'
 import type { RuntimeConfigOverridePayload } from '../contracts/socket.js'
 import { STATE, OVERLAY_EVENT } from '../contracts/state.js'
@@ -114,7 +114,7 @@ function normalizeAllowedStates(states?: AutoTrigger['allowedStates']) {
   return normalized.length ? normalized : undefined
 }
 
-function normalizeSourcePosition(position?: SourceInstance['position'] | SourcePreset['defaultPosition']) {
+function normalizeSourcePosition(position?: WindowInstance['position'] | WindowPreset['defaultPosition']) {
   return {
     x: Math.round(position?.x ?? 0),
     y: Math.round(position?.y ?? 0),
@@ -123,49 +123,49 @@ function normalizeSourcePosition(position?: SourceInstance['position'] | SourceP
   }
 }
 
-export function withSourcePresetDefaults(sourcePreset: SourcePreset): SourcePreset {
-  const id = sourcePreset.id.trim()
-  const pluginType = sourcePreset.pluginType.trim()
+export function withWindowPresetDefaults(windowPreset: WindowPreset): WindowPreset {
+  const id = windowPreset.id.trim()
+  const rendererType = windowPreset.rendererType.trim()
   return {
     id,
-    label: sourcePreset.label.trim() || id || 'Untitled Source Preset',
-    pluginType,
-    config: structuredClone(sourcePreset.config ?? {}),
-    defaultPosition: sourcePreset.defaultPosition ? normalizeSourcePosition(sourcePreset.defaultPosition) : undefined,
+    label: windowPreset.label.trim() || id || 'Untitled Window Preset',
+    rendererType,
+    config: structuredClone(windowPreset.config ?? {}),
+    defaultPosition: windowPreset.defaultPosition ? normalizeSourcePosition(windowPreset.defaultPosition) : undefined,
   }
 }
 
-export function withSourcePresetListDefaults(sourcePresets?: SourcePreset[] | null): SourcePreset[] {
-  return (sourcePresets ?? [])
-    .map((sourcePreset) => withSourcePresetDefaults(sourcePreset))
-    .filter((sourcePreset) => Boolean(sourcePreset.id && sourcePreset.pluginType))
+export function withWindowPresetListDefaults(windowPresets?: WindowPreset[] | null): WindowPreset[] {
+  return (windowPresets ?? [])
+    .map((windowPreset) => withWindowPresetDefaults(windowPreset))
+    .filter((windowPreset) => Boolean(windowPreset.id && windowPreset.rendererType))
 }
 
-export function withSourceInstanceDefaults(source: SourceInstance): SourceInstance {
+export function withWindowInstanceDefaults(instance: WindowInstance): WindowInstance {
   return {
-    ...source,
-    id: source.id.trim(),
-    sourcePresetId: source.sourcePresetId?.trim() || undefined,
-    pluginType: source.pluginType?.trim() || undefined,
-    config: source.config ? structuredClone(source.config) : undefined,
-    position: normalizeSourcePosition(source.position),
-    zIndex: Math.round(source.zIndex ?? 0),
-    visible: source.visible ?? true,
+    ...instance,
+    id: instance.id.trim(),
+    windowPresetId: instance.windowPresetId?.trim() || undefined,
+    rendererType: instance.rendererType?.trim() || undefined,
+    config: instance.config ? structuredClone(instance.config) : undefined,
+    position: normalizeSourcePosition(instance.position),
+    zIndex: Math.round(instance.zIndex ?? 0),
+    visible: instance.visible ?? true,
   }
 }
 
-export function resolveSourceInstance(source: SourceInstance, sourcePresets?: SourcePreset[] | null) {
-  const normalizedSource = withSourceInstanceDefaults(source)
-  const preset = normalizedSource.sourcePresetId
-    ? withSourcePresetListDefaults(sourcePresets).find((entry) => entry.id === normalizedSource.sourcePresetId)
+export function resolveWindowInstance(instance: WindowInstance, windowPresets?: WindowPreset[] | null) {
+  const normalized = withWindowInstanceDefaults(instance)
+  const preset = normalized.windowPresetId
+    ? withWindowPresetListDefaults(windowPresets).find((entry) => entry.id === normalized.windowPresetId)
     : undefined
-  const pluginType = preset?.pluginType ?? normalizedSource.pluginType
-  if (!pluginType) return null
+  const rendererType = preset?.rendererType ?? normalized.rendererType
+  if (!rendererType) return null
 
   return {
-    ...normalizedSource,
-    pluginType,
-    config: structuredClone(preset?.config ?? normalizedSource.config ?? {}),
+    ...normalized,
+    rendererType,
+    config: structuredClone(preset?.config ?? normalized.config ?? {}),
   }
 }
 
@@ -559,14 +559,14 @@ const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType,
 
 const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
   ...WIDGET_DEFINITIONS.map((d) => d.componentType),
-  'source',
+  'window',
   'generic',
 ])
 
 const _componentSizeMap = new Map<WidgetComponentType, { width: number; height: number }>(
   WIDGET_DEFINITIONS.map((d) => [d.componentType, d.defaultSize])
 )
-_componentSizeMap.set('source',  { width: 420, height: 320 })
+_componentSizeMap.set('window',  { width: 420, height: 320 })
 _componentSizeMap.set('camera',  { width: 400, height: 300 })
 _componentSizeMap.set('generic', { width: 260, height: 240 })
 
@@ -576,7 +576,7 @@ const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width
 const _componentZIndexMap = new Map<WidgetComponentType, number>(
   WIDGET_DEFINITIONS.map((d) => [d.componentType, d.zIndex])
 )
-_componentZIndexMap.set('source',  25)
+_componentZIndexMap.set('window',  25)
 _componentZIndexMap.set('generic', 0)
 
 const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> =
@@ -586,21 +586,21 @@ function isWidgetComponentType(value: unknown): value is WidgetComponentType {
   return typeof value === 'string' && ALL_WIDGET_COMPONENT_TYPES.has(value as WidgetComponentType)
 }
 
-function normalizeSourceWidgetSettings(settings?: SourceWidgetSettings | null): SourceWidgetSettings | undefined {
+function normalizeWindowWidgetSettings(settings?: WindowWidgetSettings | null): WindowWidgetSettings | undefined {
   if (!settings) return undefined
 
   const sceneId = typeof settings.sceneId === 'string' && settings.sceneId.trim()
     ? settings.sceneId.trim()
     : undefined
-  const sourceId = typeof settings.sourceId === 'string' && settings.sourceId.trim()
-    ? settings.sourceId.trim()
+  const windowId = typeof settings.windowId === 'string' && settings.windowId.trim()
+    ? settings.windowId.trim()
     : undefined
 
-  if (!sceneId && !sourceId) return undefined
+  if (!sceneId && !windowId) return undefined
 
   return {
     ...(sceneId ? { sceneId } : {}),
-    ...(sourceId ? { sourceId } : {}),
+    ...(windowId ? { windowId } : {}),
   }
 }
 
@@ -623,7 +623,7 @@ export function getWidgetComponent(app: Pick<Application, 'id' | 'widgetComponen
   if (KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]) return KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]
   if (isWidgetComponentType(app.widgetComponent) && app.widgetComponent !== 'generic') return app.widgetComponent
   if (/^camera(?:[-:_].+)?$/i.test(app.id)) return 'camera'
-  if (/^source(?:[-:_].+)?$/i.test(app.id)) return 'source'
+  if (/^window(?:[-:_].+)?$/i.test(app.id)) return 'window'
   if (isWidgetComponentType(app.widgetComponent)) return app.widgetComponent
   return 'generic'
 }
@@ -648,7 +648,7 @@ export function withApplicationDefaults(app: Application): Application {
     ...app,
     widgetSource: getWidgetSource(app),
     widgetComponent: getWidgetComponent(app),
-    sourceWidgetSettings: normalizeSourceWidgetSettings(app.sourceWidgetSettings),
+    windowWidgetSettings: normalizeWindowWidgetSettings(app.windowWidgetSettings),
   }
 
   if (next.id === 'sticky-notes') {
@@ -1250,7 +1250,7 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
     widgetLayouts: updates.widgetLayouts ?? base.widgetLayouts,
     sourceEvents: updates.sourceEvents ? withEventListDefaults(updates.sourceEvents) : withEventListDefaults(base.sourceEvents),
     sourceMedia: updates.sourceMedia ?? base.sourceMedia,
-    sourcePresets: updates.sourcePresets ? withSourcePresetListDefaults(updates.sourcePresets) : withSourcePresetListDefaults(base.sourcePresets),
+    sourcePresets: updates.sourcePresets ? withWindowPresetListDefaults(updates.sourcePresets) : withWindowPresetListDefaults(base.sourcePresets),
     sourceTransitions: updates.sourceTransitions ?? base.sourceTransitions,
   }
 }
@@ -1284,9 +1284,9 @@ export const DEFAULT_CONFIG: AppConfig = {
       id: 'LOBBY',
       label: 'LOBBY',
       backgroundOpaque: true,
-      // Lobby = 3D room (R3F ThreeBackground plugin — NOT the Win98 desktop).
+      // Lobby = 3D room (R3F ThreeBackground renderer — NOT the Win98 desktop).
       // The desktop layer is hidden in LOBBY state; only the 3D room renders here.
-      sources: [],
+      windows: [],
       style: {
         background: {
           type: 'gradient',
@@ -1327,11 +1327,11 @@ export const DEFAULT_CONFIG: AppConfig = {
       backgroundOpaque: true,
       showDesktop: true,
       // Desktop = Win98 OS widget lifecycle manager.
-      // No background/particles — visual style lives in sources below.
-      sources: [
+      // No background/particles — visual style lives in windows below.
+      windows: [
         {
           id: '__desktop-effects',
-          pluginType: 'builtin:effects',
+          rendererType: 'builtin:effects',
           config: {
             crt: true,
             noise: false,

@@ -3,12 +3,12 @@
  *
  * The Lobby is a lifecycle manager: a permanent 3D environment shell.
  * It is not a user scene. Its configuration covers:
- *   - Sources: overlay sources rendered on top of the 3D room
+ *   - Windows: overlay windows rendered on top of the 3D room
  *   - 3D Room: lighting, fog, world, atmosphere, props (via LobbyThemeEditor)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE, withOverlayStyleDefaults } from '@ieomlabs/shared'
-import type { Scene, SourceInstance } from '@ieomlabs/shared'
+import type { Scene, WindowInstance } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { SourcesEditor } from './SceneConfig'
@@ -22,57 +22,56 @@ export function LobbyRuntimePanel() {
   const sourcePresets = config.sourcePresets ?? []
 
   const scene = config.scenes[STATE.LOBBY] as Scene | undefined
-  const baseSources = scene?.sources ?? []
+  const baseWindows = scene?.windows ?? []
 
-  const [sources, setSources] = useState<SourceInstance[]>(() => structuredClone(baseSources))
-  const [tab, setTab]         = useState<'sources' | 'room'>('room')
+  const [windows, setWindows] = useState<WindowInstance[]>(() => structuredClone(baseWindows))
+  const [tab, setTab]         = useState<'windows' | 'room'>('room')
   const [saving, setSaving]   = useState(false)
   const [saved,  setSaved]    = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const dirty = !isSameDraft(sources, baseSources)
+  const dirty = !isSameDraft(windows, baseWindows)
 
-  // Cleanup savedTimer on unmount
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
   const apply = useCallback(async () => {
     setSaving(true)
-    await saveConfig({ scenes: { [STATE.LOBBY]: { ...scene, sources } } })
+    await saveConfig({ scenes: { [STATE.LOBBY]: { ...scene, windows } } })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [scene, sources, saveConfig])
+  }, [scene, windows, saveConfig])
 
   const reset = useCallback(() => {
-    setSources(structuredClone(baseSources))
+    setWindows(structuredClone(baseWindows))
     setSaved(false)
-  }, [baseSources])
+  }, [baseWindows])
 
   return (
     <div className="space-y-3">
       <div className="flex gap-1 rounded-xl bg-white/[0.04] p-1">
-        {(['room', 'sources'] as const).map((t) => (
+        {(['room', 'windows'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-colors ' +
               (tab === t ? 'bg-white/10 text-white shadow' : 'text-zinc-500 hover:text-zinc-300')}>
-            {t === 'room' ? '3D Room' : 'Sources'}
+            {t === 'room' ? '3D Room' : 'Windows'}
           </button>
         ))}
       </div>
 
-      {tab === 'sources' && (
+      {tab === 'windows' && (
         <div className="space-y-3">
-          <ScenePreview sources={sources} selectedId={selectedId} onSelect={setSelectedId}
-            onChangePosition={(id, pos) => setSources((prev) => prev.map((s) => s.id === id ? { ...s, position: pos } : s))} />
-          <SourcesEditor sources={sources} sourcePresets={sourcePresets} onChange={setSources} />
+          <ScenePreview windows={windows} selectedId={selectedId} onSelect={setSelectedId}
+            onChangePosition={(id, pos) => setWindows((prev) => prev.map((w) => w.id === id ? { ...w, position: pos } : w))} />
+          <SourcesEditor sources={windows} sourcePresets={sourcePresets} onChange={setWindows} />
         </div>
       )}
 
       {tab === 'room' && <LobbyThemeEditor />}
 
-      {tab === 'sources' && (
+      {tab === 'windows' && (
         <ConfigApplyBar label="Lobby Runtime" dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
       )}
     </div>

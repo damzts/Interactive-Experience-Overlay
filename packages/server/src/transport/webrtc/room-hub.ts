@@ -41,7 +41,7 @@ export class RoomHub {
   private iceFailedCallbacks: IceFailedCallback[] = []
 
   private freezeMonitorTimer: ReturnType<typeof setInterval> | null = null
-  private readonly FREEZE_TIMEOUT_MS = 3_000
+  private readonly FREEZE_TIMEOUT_MS = 2_000
 
   async handleOffer(userId: string, sdp: string): Promise<string> {
     try {
@@ -212,7 +212,7 @@ export class RoomHub {
           for (const cb of this.trackMutedCallbacks) cb(_userId, 'video')
         }
       }
-    }, 2_000)
+    }, 500)
   }
 
   stopFreezeDetection(): void {
@@ -224,9 +224,7 @@ export class RoomHub {
 
   async closeAll(): Promise<void> {
     this.stopFreezeDetection()
-    for (const userId of [...this.participants.keys()]) {
-      await this.removeParticipant(userId)
-    }
+    await Promise.all([...this.participants.keys()].map((userId) => this.removeParticipant(userId)))
   }
 }
 

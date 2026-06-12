@@ -22,7 +22,7 @@ export class SceneRepository {
     for (const row of rows) {
       scenes[row.id] = {
         id: row.id, label: row.label, backgroundOpaque: row.background_opaque === 1,
-        sources: parseJson(row.sources_json, []),
+        windows: parseJson(row.sources_json, []),
         style: parseJson(row.style_json, undefined),
         lobbyConfig: parseJson(row.lobby_config_json, undefined),
         onEntry: parseJson<string[]>(row.on_entry_json, []),
@@ -43,7 +43,7 @@ export class SceneRepository {
     `)
     for (const scene of Object.values(scenes)) {
       insert.run(scene.id, scene.label, boolToInt(scene.backgroundOpaque),
-        JSON.stringify(scene.sources ?? []),
+        JSON.stringify(scene.windows ?? []),
         scene.style ? JSON.stringify(scene.style) : null,
         scene.lobbyConfig ? JSON.stringify(scene.lobbyConfig) : null,
         JSON.stringify(scene.onEntry ?? []),

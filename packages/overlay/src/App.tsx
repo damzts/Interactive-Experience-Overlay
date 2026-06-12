@@ -33,7 +33,7 @@ export default function App() {
     audioEngine.setMusicVolume(config.audio.musicVolume)
   }, [config.audio.masterVolume, config.audio.musicVolume])
 
-  const { scene, visibleSources, overlayStyle, showDesktop } = resolveScene(config, visualState)
+  const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
 
   useEffect(() => {
     audioEngine.playMusic(scene?.musicTrack ?? null)
@@ -51,7 +51,7 @@ export default function App() {
     >
       <LayerErrorBoundary name="scene">
         <SceneCompositor
-          sources={visibleSources}
+          windows={visibleWindows}
           overlayStyle={overlayStyle}
           sceneAge={sceneAge}
         />

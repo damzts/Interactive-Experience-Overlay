@@ -53,6 +53,13 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
           }
         }
 
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === 'failed' && !cancelled) {
+            console.warn('[pov-stream-plugin] PC failed — re-subscribing')
+            subscribe()
+          }
+        }
+
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp })
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)

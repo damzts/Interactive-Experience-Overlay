@@ -69,7 +69,7 @@ function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<S
   return {
     label: source.label,
     backgroundOpaque: source.backgroundOpaque,
-    sources: clone(source.sources ?? []),
+    windows: clone(source.windows ?? []),
     style: source.style ? clone(source.style) : undefined,
     lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
     onEntry: source.onEntry ? [...source.onEntry] : undefined,
@@ -304,7 +304,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       id: string; label: string; plugin_type: string; config_json: string; default_position_json: string | null;
     }>
     return rows.map((row) => ({
-      id: row.id, label: row.label, pluginType: row.plugin_type,
+      id: row.id, label: row.label, rendererType: row.plugin_type,
       config: this._parseJson(row.config_json, {}),
       defaultPosition: this._parseJson(row.default_position_json, undefined),
     }))
@@ -386,7 +386,7 @@ export class DesktopConfigService implements Manager, IConfigService {
     )
     for (const preset of presets) {
       insert.run(
-        preset.id, preset.label, preset.pluginType,
+        preset.id, preset.label, preset.rendererType,
         JSON.stringify(preset.config ?? {}),
         preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
       )
@@ -535,7 +535,7 @@ export class DesktopConfigService implements Manager, IConfigService {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         scene.id, scene.label, boolToInt(scene.backgroundOpaque),
-        JSON.stringify(scene.sources ?? []),
+        JSON.stringify(scene.windows ?? []),
         scene.style ? JSON.stringify(scene.style) : null,
         null, JSON.stringify([]), JSON.stringify([]), null, 0,
       )

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
-import type { SourceInstance, SourcePreset } from '@ieomlabs/shared'
-import { resolveSourceInstance } from '@ieomlabs/shared'
-import { PLUGIN_CATALOG as SOURCE_CATALOG } from '@ieomlabs/shared'
+import type { WindowInstance, WindowPreset } from '@ieomlabs/shared'
+import { resolveWindowInstance } from '@ieomlabs/shared'
+import { RENDERER_CATALOG } from '@ieomlabs/shared'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import type { TierName } from '@ieomlabs/shared'
@@ -16,7 +16,7 @@ function Notice({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ── SourcesEditor ──────────────────────────────────────────────────────
+// ── WindowsEditor ──────────────────────────────────────────────────────
 
 const TIERS: TierName[] = ['background', 'particles', 'content', 'post', 'transition']
 
@@ -25,24 +25,24 @@ export function SourcesEditor({
   sourcePresets,
   onChange,
 }: {
-  sources: SourceInstance[]
-  sourcePresets: SourcePreset[]
-  onChange: (next: SourceInstance[]) => void
+  sources: WindowInstance[]
+  sourcePresets: WindowPreset[]
+  onChange: (next: WindowInstance[]) => void
 }) {
   const [addMode, setAddMode] = useState<'catalog' | 'preset'>('catalog')
 
-  const normalizeOrder = useCallback((ordered: SourceInstance[]) =>
-    ordered.map((source, index) => ({ ...source, zIndex: index })), [])
+  const normalizeOrder = useCallback((ordered: WindowInstance[]) =>
+    ordered.map((w, index) => ({ ...w, zIndex: index })), [])
 
   const toggle = (id: string) =>
-    onChange(sources.map((s) => s.id === id ? { ...s, visible: !s.visible } : s))
+    onChange(sources.map((w) => w.id === id ? { ...w, visible: !w.visible } : w))
 
   const remove = (id: string) =>
-    onChange(sources.filter((s) => s.id !== id))
+    onChange(sources.filter((w) => w.id !== id))
 
   const moveUp = (id: string) => {
     const ordered = [...sources].sort((a, b) => a.zIndex - b.zIndex)
-    const index = ordered.findIndex((s) => s.id === id)
+    const index = ordered.findIndex((w) => w.id === id)
     if (index <= 0) return
     ;[ordered[index - 1], ordered[index]] = [ordered[index], ordered[index - 1]]
     onChange(normalizeOrder(ordered))
@@ -50,49 +50,49 @@ export function SourcesEditor({
 
   const moveDown = (id: string) => {
     const ordered = [...sources].sort((a, b) => a.zIndex - b.zIndex)
-    const index = ordered.findIndex((s) => s.id === id)
+    const index = ordered.findIndex((w) => w.id === id)
     if (index < 0 || index === ordered.length - 1) return
     ;[ordered[index], ordered[index + 1]] = [ordered[index + 1], ordered[index]]
     onChange(normalizeOrder(ordered))
   }
 
   const updateTier = (id: string, tier: TierName) =>
-    onChange(sources.map((s) => s.id === id ? { ...s, tier } : s))
+    onChange(sources.map((w) => w.id === id ? { ...w, tier } : w))
 
-  const updateSourcePreset = (id: string, presetId: string) =>
-    onChange(sources.map((s) => s.id === id ? { ...s, sourcePresetId: presetId || undefined, pluginType: undefined } : s))
+  const updateWindowPreset = (id: string, presetId: string) =>
+    onChange(sources.map((w) => w.id === id ? { ...w, windowPresetId: presetId || undefined, rendererType: undefined } : w))
 
-  const updatePluginType = (id: string, pluginType: string) => {
-    const entry = SOURCE_CATALOG.find((c) => c.id === pluginType)
-    onChange(sources.map((s) => s.id === id
-      ? { ...s, pluginType, sourcePresetId: undefined, config: entry?.defaultConfig ?? {} }
-      : s))
+  const updateRendererType = (id: string, rendererType: string) => {
+    const entry = RENDERER_CATALOG.find((c) => c.id === rendererType)
+    onChange(sources.map((w) => w.id === id
+      ? { ...w, rendererType, windowPresetId: undefined, config: entry?.defaultConfig ?? {} }
+      : w))
   }
 
   const addFromCatalog = (type: string) => {
-    const entry = SOURCE_CATALOG.find((c) => c.id === type)
+    const entry = RENDERER_CATALOG.find((c) => c.id === type)
     if (!entry) return
-    const isTierSource = type.startsWith('builtin:')
+    const isTierWindow = type.startsWith('builtin:')
     const tier: TierName = type === 'builtin:background' ? 'background'
       : type === 'builtin:particles' ? 'particles'
       : type === 'builtin:effects'   ? 'post'
       : 'content'
-    const newSrc: SourceInstance = {
-      id: `src-${Date.now()}`,
-      pluginType: type,
+    const newWindow: WindowInstance = {
+      id: `win-${Date.now()}`,
+      rendererType: type,
       config: structuredClone(entry.defaultConfig),
       position: entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
       zIndex: sources.length,
       visible: true,
-      ...(isTierSource ? { tier } : {}),
+      ...(isTierWindow ? { tier } : {}),
     }
-    onChange([...sources, newSrc])
+    onChange([...sources, newWindow])
   }
 
   const addFromPreset = () => {
     onChange([...sources, {
-      id: `src-${Date.now()}`,
-      sourcePresetId: undefined,
+      id: `win-${Date.now()}`,
+      windowPresetId: undefined,
       position: { x: 0, y: 0, width: 1920, height: 1080 },
       zIndex: sources.length,
       visible: true,
@@ -103,39 +103,39 @@ export function SourcesEditor({
 
   return (
     <div className="space-y-2">
-      {sorted.map((src) => {
-        const resolved = resolveSourceInstance(src, sourcePresets)
-        const pluginType = resolved?.pluginType ?? (src as any).pluginType ?? src.pluginType
-        const meta = SOURCE_CATALOG.find((c) => c.id === pluginType)
-        const srcTier = src.tier
+      {sorted.map((w) => {
+        const resolved = resolveWindowInstance(w, sourcePresets)
+        const rendererType = resolved?.rendererType ?? w.rendererType
+        const meta = RENDERER_CATALOG.find((c) => c.id === rendererType)
+        const wTier = w.tier
         return (
-          <Card key={src.id} variant="default" padding="sm" className="overflow-hidden !p-0">
+          <Card key={w.id} variant="default" padding="sm" className="overflow-hidden !p-0">
             <div className="flex items-center gap-2 px-3 py-2">
               {/* Visibility dot */}
-              <button type="button" title={src.visible ? 'Hide' : 'Show'} onClick={() => toggle(src.id)}
-                className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (src.visible ? 'bg-[var(--color-success-400)]' : 'bg-[var(--color-text-muted)]')} />
+              <button type="button" title={w.visible ? 'Hide' : 'Show'} onClick={() => toggle(w.id)}
+                className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (w.visible ? 'bg-[var(--color-success-400)]' : 'bg-[var(--color-text-muted)]')} />
 
               <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{meta?.icon ?? '▣'}</span>
 
               <div className="min-w-0 flex-1 space-y-1">
-                {/* Plugin type or preset selector */}
-                {src.sourcePresetId !== undefined || (!pluginType) ? (
+                {/* Renderer type or preset selector */}
+                {w.windowPresetId !== undefined || (!rendererType) ? (
                   <>
-                    {src.sourcePresetId && !sourcePresets.find((p) => p.id === src.sourcePresetId) && (
-                      <div className="text-[10px] text-[var(--color-danger-400)]">⚠ Preset not found: {src.sourcePresetId}</div>
+                    {w.windowPresetId && !sourcePresets.find((p) => p.id === w.windowPresetId) && (
+                      <div className="text-[10px] text-[var(--color-danger-400)]">⚠ Preset not found: {w.windowPresetId}</div>
                     )}
-                    <select value={src.sourcePresetId ?? ''} onChange={(e) => updateSourcePreset(src.id, e.target.value)} className="w-full text-xs">
+                    <select value={w.windowPresetId ?? ''} onChange={(e) => updateWindowPreset(w.id, e.target.value)} className="w-full text-xs">
                       <option value="">— preset —</option>
                       {sourcePresets.map((p) => {
-                        const m = SOURCE_CATALOG.find((c) => c.id === p.pluginType)
-                        return <option key={p.id} value={p.id}>{p.label} · {m?.label ?? p.pluginType}</option>
+                        const m = RENDERER_CATALOG.find((c) => c.id === p.rendererType)
+                        return <option key={p.id} value={p.id}>{p.label} · {m?.label ?? p.rendererType}</option>
                       })}
                     </select>
                   </>
                 ) : (
-                  <select value={pluginType ?? ''} onChange={(e) => updatePluginType(src.id, e.target.value)} className="w-full text-xs">
+                  <select value={rendererType ?? ''} onChange={(e) => updateRendererType(w.id, e.target.value)} className="w-full text-xs">
                     <option value="">— type —</option>
-                    {SOURCE_CATALOG.map((c) => (
+                    {RENDERER_CATALOG.map((c) => (
                       <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                     ))}
                   </select>
@@ -143,8 +143,8 @@ export function SourcesEditor({
 
                 {/* Tier selector */}
                 <select
-                  value={srcTier ?? 'content'}
-                  onChange={(e) => updateTier(src.id, e.target.value as TierName)}
+                  value={wTier ?? 'content'}
+                  onChange={(e) => updateTier(w.id, e.target.value as TierName)}
                   className="w-full text-[10px] text-[var(--color-text-muted)]"
                 >
                   {TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -152,10 +152,10 @@ export function SourcesEditor({
               </div>
 
               <div className="flex shrink-0 flex-col gap-1">
-                <Button variant="ghost" size="sm" onClick={() => moveUp(src.id)} disabled={sorted[0]?.id === src.id} className="px-2 py-1 text-[10px]">↑</Button>
-                <Button variant="ghost" size="sm" onClick={() => moveDown(src.id)} disabled={sorted[sorted.length - 1]?.id === src.id} className="px-2 py-1 text-[10px]">↓</Button>
+                <Button variant="ghost" size="sm" onClick={() => moveUp(w.id)} disabled={sorted[0]?.id === w.id} className="px-2 py-1 text-[10px]">↑</Button>
+                <Button variant="ghost" size="sm" onClick={() => moveDown(w.id)} disabled={sorted[sorted.length - 1]?.id === w.id} className="px-2 py-1 text-[10px]">↓</Button>
               </div>
-              <Button variant="danger" size="sm" onClick={() => remove(src.id)} className="px-2 py-0.5 text-[10px]">✕</Button>
+              <Button variant="danger" size="sm" onClick={() => remove(w.id)} className="px-2 py-0.5 text-[10px]">✕</Button>
             </div>
           </Card>
         )
@@ -183,7 +183,7 @@ export function SourcesEditor({
 
       {/* Quick-add catalog grid */}
       <div className="grid grid-cols-4 gap-1">
-        {SOURCE_CATALOG.map((entry) => (
+        {RENDERER_CATALOG.map((entry) => (
           <button
             key={entry.id}
             type="button"

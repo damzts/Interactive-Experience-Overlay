@@ -42,7 +42,12 @@ export class RoomRelay {
     })
 
     this.pc.connectionStateChange.subscribe(() => {
-      logger.info(`[room-relay] connection state: ${this.pc?.connectionState}`)
+      const state = this.pc?.connectionState
+      logger.info(`[room-relay] connection state: ${state}`)
+      if (state === 'failed' && this.pc !== null && this.sendSignal !== null) {
+        logger.warn('[room-relay] PC failed — re-offering to overlay')
+        void this.createOffer(this.sendSignal)
+      }
     })
 
     if (this.audioTrack || this.videoTrack) {
@@ -69,6 +74,7 @@ export class RoomRelay {
     this.offered = true
     this.offeredVideoTrack = this.videoTrack
 
+    if (this.audioTrack) this.pc.addTrack(this.audioTrack)
     this.pc.addTrack(this.videoTrack)
     logger.info('[room-relay] creating offer')
 

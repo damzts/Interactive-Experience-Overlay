@@ -158,7 +158,7 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
           <AddBtn label="New Scene" onClick={async () => {
             const sceneId = 'SCENE_' + Date.now()
             const newScene: Scene = {
-              id: sceneId, label: 'New Scene', backgroundOpaque: false, sources: [],
+              id: sceneId, label: 'New Scene', backgroundOpaque: false, windows: [],
             }
             await saveConfig({ scenes: { ...scenes, [sceneId]: newScene } })
             onSelect({ kind: 'scene', sceneState: sceneId })

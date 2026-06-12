@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { socket } from '../socket/client'
@@ -148,8 +148,10 @@ export function DesktopWindow({
   const posRef = useRef(pos)
   const dragBroadcastRef = useRef<BroadcastState<DesktopWidgetDragPayload>>({ lastSentAt: 0, rafId: null, pending: null })
   const resizeBroadcastRef = useRef<BroadcastState<DesktopWidgetResizePayload>>({ lastSentAt: 0, rafId: null, pending: null })
-  const emitWidgetDrag = makeThrottledEmitter<DesktopWidgetDragPayload>('desktop:widget:drag', dragBroadcastRef)
-  const emitWidgetResize = makeThrottledEmitter<DesktopWidgetResizePayload>('desktop:widget:resize', resizeBroadcastRef)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const emitWidgetDrag = useMemo(() => makeThrottledEmitter<DesktopWidgetDragPayload>('desktop:widget:drag', dragBroadcastRef), [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const emitWidgetResize = useMemo(() => makeThrottledEmitter<DesktopWidgetResizePayload>('desktop:widget:resize', resizeBroadcastRef), [])
 
   useEffect(() => {
     if (resizing.current) return
@@ -183,39 +185,38 @@ export function DesktopWindow({
   }, [liveSize.height, liveSize.width])
 
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return
-      const next = clampPosition({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
-      posRef.current = next
-      setPos(next)
-      emitWidgetDrag({ widgetId: id, x: next.x, y: next.y, phase: 'move' })
-    }
-    const onResizeMove = (e: MouseEvent) => {
-      if (!resizing.current) return
-      const dx = e.clientX - resizeStartPointer.current.x
-      const dy = e.clientY - resizeStartPointer.current.y
-      const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
-      const next = {
-        width: clampDimension(resizeStartSize.current.width + dx, 180, 1400),
-        height: clampDimension(resizeStartSize.current.height + dy, 140, maxResizableHeight),
-      }
-      sizeRef.current = next
-      setLiveSize(next)
+    const onMouseMove = (e: MouseEvent) => {
+      if (dragging.current) {
+        const next = clampPosition({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
+        posRef.current = next
+        setPos(next)
+        emitWidgetDrag({ widgetId: id, x: next.x, y: next.y, phase: 'move' })
+      } else if (resizing.current) {
+        const dx = e.clientX - resizeStartPointer.current.x
+        const dy = e.clientY - resizeStartPointer.current.y
+        const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
+        const next = {
+          width: clampDimension(resizeStartSize.current.width + dx, 180, 1400),
+          height: clampDimension(resizeStartSize.current.height + dy, 140, maxResizableHeight),
+        }
+        sizeRef.current = next
+        setLiveSize(next)
 
-      const clampedPos = clampPosition(posRef.current, next)
-      if (clampedPos.x !== posRef.current.x || clampedPos.y !== posRef.current.y) {
-        posRef.current = clampedPos
-        setPos(clampedPos)
-      }
+        const clampedPos = clampPosition(posRef.current, next)
+        if (clampedPos.x !== posRef.current.x || clampedPos.y !== posRef.current.y) {
+          posRef.current = clampedPos
+          setPos(clampedPos)
+        }
 
-      emitWidgetResize({
-        widgetId: id,
-        x: posRef.current.x,
-        y: posRef.current.y,
-        width: next.width,
-        height: next.height,
-        phase: 'move',
-      })
+        emitWidgetResize({
+          widgetId: id,
+          x: posRef.current.x,
+          y: posRef.current.y,
+          width: next.width,
+          height: next.height,
+          phase: 'move',
+        })
+      }
     }
     const onUp = () => {
       if (dragging.current) {
@@ -234,12 +235,10 @@ export function DesktopWindow({
         }, true)
       }
     }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mousemove', onResizeMove)
+    window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onUp)
     return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mousemove', onResizeMove)
+      window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onUp)
     }
   }, [id])

@@ -54,6 +54,13 @@ export function OnlineStreamWidget({ appId, onClose, onMinimize, onFocus, window
           }
         }
 
+        pc.onconnectionstatechange = () => {
+          if (pcRef.current?.connectionState === 'failed' && !cancelled) {
+            console.warn('[online-stream] PC failed — re-subscribing')
+            subscribe()
+          }
+        }
+
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp })
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
