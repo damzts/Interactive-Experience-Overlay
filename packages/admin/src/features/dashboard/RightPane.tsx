@@ -316,7 +316,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
             <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
             {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
           </span>
-          {selected.kind === 'scene' && (
+          {selected.kind === 'scene' && selected.sceneState !== STATE.LOBBY && selected.sceneState !== STATE.DESKTOP && (
             <button
               onClick={async () => {
                 const { [selected.sceneState]: _, ...remainingScenes } = scenes
