@@ -304,8 +304,9 @@ function RoomCard({
             onClick={handleRejoin}
             disabled={rejoining}
             className="text-[10px] px-2 py-0.5"
+            title="Reconnect hub to room (manual override of auto-reconnect backoff)"
           >
-            {rejoining ? '🔄 Rejoining…' : '🔌 Rejoin'}
+            {rejoining ? '🔄 Reconnecting…' : '🔌 Reconnect Hub'}
           </Button>
         )}
 

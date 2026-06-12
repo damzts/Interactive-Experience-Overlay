@@ -90,6 +90,23 @@ Buttons show clear visual feedback (highlight + shadow) when selected. When you 
 
 ## Room Management
 
+### Hub Connection & Rejoin
+
+When the hub loses connection to the cloud, a room goes **idle**. The system has two reconnection mechanisms:
+
+**Automatic Reconnect** (background)
+- Activates immediately on disconnect
+- Uses exponential backoff: 1s → 2s → 4s → 8s → 30s (max)
+- Runs silently in the background
+- Participants cannot join while reconnecting
+
+**Rejoin Button** (manual override for hub)
+- Appears only when room is **idle**
+- Forces an **immediate** reconnection attempt
+- Bypasses the auto-reconnect backoff timer
+- Use this to recover quickly without waiting for exponential backoff
+- Useful when you know the cloud service is back online
+
 ### Active Rooms Panel
 
 Shows all currently active rooms with:
