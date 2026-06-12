@@ -17,6 +17,7 @@ export interface Room {
   participants: Map<string, ParticipantInfo>
   activePlayerId: string | null
   idleTimer: ReturnType<typeof setTimeout> | null
+  closing?: boolean
 }
 
 export interface RoomManagerOptions {
@@ -101,6 +102,7 @@ export class RoomManager {
 
     this.roomSignaling.onStatus((status) => {
       if (!status.roomId) return
+      if (this.roomSignaling.intentionalClose) return
       logger.info(`[room] onStatus: roomId=${status.roomId}, participants=${status.participants.length}, rooms=${[...this.rooms.keys()].join(',')}`)
       let targetRoom: Room | undefined
       for (const room of this.rooms.values()) {
@@ -221,6 +223,7 @@ export class RoomManager {
       participants: new Map(),
       activePlayerId: null,
       idleTimer: null,
+      closing: false,
     }
     this.rooms.set(roomCode, room)
     this.roomConfigs.set(roomCode, { ...DEFAULT_PER_ROOM_CONFIG })
@@ -233,30 +236,37 @@ export class RoomManager {
     return { ok: true, roomCode }
   }
 
-  closeRoom(roomCode: string): void {
+  async closeRoom(roomCode: string): Promise<void> {
     const room = this.rooms.get(roomCode)
     if (!room) return
+
+    // Mark as closing to prevent sync/status handlers from interfering
+    room.closing = true
+
     if (room.idleTimer) clearTimeout(room.idleTimer)
     for (const id of room.participants.keys()) {
       this.pov.removeParticipant(id)
     }
-    this.rooms.delete(roomCode)
     this.roomConfigs.delete(roomCode)
     this.participantTransitions.delete(roomCode)
     this.hubRoomId = null
     this.roomSignaling.disconnect()
-    this.emit('pov-online:room:closed', { roomCode })
 
+    // Await DELETE from cloud (no longer fire-and-forget)
     const token = this.getToken()
     if (token) {
-      this.circuitBreaker.tryOrFallback(
-        () => this.circuitBreaker.call(`${this.cloudUrl}/api/rooms/${roomCode}`, {
+      try {
+        await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms/${roomCode}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` },
-        }).then(() => {}),
-        undefined,
-      )
+        })
+      } catch (e: any) {
+        logger.warn({ err: e?.message ?? e }, '[room] closeRoom: DELETE failed, continuing')
+      }
     }
+
+    this.rooms.delete(roomCode)
+    this.emit('pov-online:room:closed', { roomCode })
   }
 
   setMode(roomCode: string, mode: SwitchMode): void {
@@ -444,6 +454,11 @@ export class RoomManager {
 
       if (!this.hubRoomId && cloudRooms.length > 0) {
         const firstRoom = cloudRooms[0]
+        // NO reconectar si la room está en proceso de cierre
+        if (this.rooms.get(firstRoom.id)?.closing) {
+          logger.info({ roomId: firstRoom.id }, '[room] syncFromCloud: skipping reconnect for closing room')
+          return
+        }
         this.hubRoomId = firstRoom.id
         try {
           await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
@@ -482,7 +497,7 @@ export class RoomManager {
 
   removeParticipant(roomCode: string, participantId: string): void {
     const room = this.rooms.get(roomCode)
-    if (!room) return
+    if (!room || !room.participants.has(participantId)) return
     room.participants.delete(participantId)
     this.pov.removeParticipant(participantId)
     if (room.activePlayerId === participantId) room.activePlayerId = null

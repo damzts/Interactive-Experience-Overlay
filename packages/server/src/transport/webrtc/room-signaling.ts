@@ -39,7 +39,7 @@ export class RoomSignaling {
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private freezeRecoveryTimers = new Set<ReturnType<typeof setTimeout>>()
   private reconnectAttempt = 0
-  private intentionalClose = false
+  intentionalClose = false
   private connCounter = 0
   private pendingCandidates = new Map<string, Record<string, unknown>[]>()
   private knownParticipants = new Set<string>()
@@ -266,7 +266,7 @@ export class RoomSignaling {
           this.knownParticipants.delete(userId)
           this.frozenParticipants.delete(userId)
           this.hub.removeParticipant(userId)
-          this.emitStatus()
+          // NO emitStatus aquí — manager.syncParticipants lo manejará
         }
         break
       }
