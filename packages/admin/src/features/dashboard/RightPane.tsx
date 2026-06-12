@@ -320,7 +320,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
             <button
               onClick={async () => {
                 const { [selected.sceneState]: _, ...remainingScenes } = scenes
-                await saveConfig({ scenes: remainingScenes })
+                await useAdminStore.getState().saveConfig({ scenes: remainingScenes })
                 onClose()
               }}
               className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
