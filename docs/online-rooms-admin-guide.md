@@ -90,24 +90,33 @@ Buttons show clear visual feedback (highlight + shadow) when selected. When you 
 
 ## Room Management
 
-### Hub Connection & Rejoin
+### Hub Connection & Online Participants
 
-The hub manages cloud room connectivity. When the hub loses connection, it automatically tries to reconnect with exponential backoff.
+**If hub is disconnected from cloud:**
+- ❌ Online (cloud) participants **cannot join** — the cloud service cannot relay their WebRTC handshake to the hub
+- ❌ The POV stream **cannot relay** to the overlay
+- ✅ LAN participants **can still join** — they connect directly to local server, no cloud relay needed
+
+Think of it this way: The cloud service is a **signaling relay**. Without the hub connected to it, there's no path to complete the WebRTC handshake with online participants.
 
 **Automatic Reconnect** (background)
-- Activates immediately on cloud disconnect
+- Activates immediately when hub loses cloud connection
 - Uses exponential backoff: 1s → 2s → 4s → 8s → 30s (max)
 - Runs silently in the background
-- Cloud participants cannot join while hub is disconnected, but LAN participants can still join
+- Keeps trying until reconnected
 
 **Rejoin Button** (manual override)
-- Appears only when **Hub is disconnected** (red dot in room card)
+- Appears when **Hub is disconnected** (red dot in room card)
 - Forces an **immediate** reconnection attempt
-- Bypasses the auto-reconnect backoff timer
-- Use this to recover quickly without waiting for exponential backoff
-- Useful when you know the cloud service is back online
+- Bypasses the exponential backoff wait
+- Click this when you know the cloud service is back online, to reconnect faster than auto-reconnect would
 
-**Important:** LAN participants can join and stream directly without hub connection. The hub is only needed for cloud room participants and to relay the POV stream to the overlay.
+**Summary:**
+| Scenario | Cloud Participants | LAN Participants | POV Relay |
+|----------|-------------------|------------------|-----------|
+| **Hub connected** | ✅ Join | ✅ Join | ✅ Active |
+| **Hub disconnected** | ❌ Cannot handshake | ✅ Join | ❌ Disabled |
+| **No cloud account** | N/A | ✅ Join | ✅ Active (local only) |
 
 ### Active Rooms Panel
 

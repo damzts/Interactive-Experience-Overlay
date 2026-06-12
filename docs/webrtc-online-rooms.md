@@ -17,9 +17,27 @@ This means the overlay never does peer-to-peer WebRTC with participants. It only
 
 ## Cloud rooms
 
-Cloud rooms require a paid cloud account. The local server coordinates with the cloud API for signaling — the cloud acts as a relay for WebRTC offer/answer exchange between participants and the hub.
+Cloud rooms require a paid cloud account. The local server coordinates with the cloud API for **signaling relay** — the cloud acts as the broker for WebRTC offer/answer exchange between browser participants and the local hub.
 
-The flow at a high level: the admin panel asks the server to create a room, the server registers with the cloud, the cloud issues a room code, participants open the cloud-hosted join page and enter the room code, the cloud relays their WebRTC offers to the local server hub.
+**Why the cloud relay is necessary:**
+- Browser participants cannot directly reach the local server's IP (firewall, NAT, different networks)
+- The cloud service sits between them as a signaling intermediary
+- The cloud relays WebRTC offers from participants to the hub, and answers back
+- **Without this relay, the WebRTC handshake cannot complete**
+
+The flow at a high level:
+1. Admin creates room via admin panel
+2. Server registers room with cloud API
+3. Cloud issues room code to participants
+4. Participant opens cloud-hosted join page with room code
+5. Cloud relays participant's WebRTC offer to hub
+6. Hub answers, cloud relays answer back to participant
+7. WebRTC connection established; participant streams directly to hub (cloud is no longer in media path)
+
+**If hub loses cloud connection:**
+- Existing participants stay connected (their media streams are P2P with hub)
+- New participants cannot join (cloud cannot relay their offers to disconnected hub)
+- Auto-reconnect or manual Rejoin restores the signaling path
 
 Once WebRTC establishes, the cloud is no longer in the media path. All video and audio travel directly between participant browsers and the local server.
 
