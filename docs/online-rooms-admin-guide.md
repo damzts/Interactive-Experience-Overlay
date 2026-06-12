@@ -165,18 +165,33 @@ Each participant shows:
 
 ## LAN vs. Cloud Rooms
 
-### LAN Participants
-- Connect via `/studio` page with 6-digit room code
-- No cloud account required, fully local
-- Visible in "LAN Participants" section
+### LAN Room (Local)
+- Join URL: `https://{host-ip}:3000/studio`
+- Room code: 6-character code (CURRENT_ROOM_CODE), shown in admin panel
+- No cloud account required, fully local network
+- Visible in "LAN Participants" section of admin panel
 
-### Cloud Participants
-- Connect via cloud-hosted join page with room code
+### Cloud Rooms (Online)
+- Join URL: Cloud-hosted page (e.g., https://ieom.danhub.dev/room/{code})
+- Room codes: Issued by cloud service when room created
 - Requires paid cloud account
 - Visible in "Active Rooms" section (requires feature flag)
-- More latency than LAN but supports remote participants
+- Participants can be remote
 
-Both LAN and cloud participants use the same POV pipeline and scoring system. They can coexist in the same room.
+### How They're Connected
+
+**Important architectural detail:**
+- LAN participants are **automatically added to the first active cloud room**
+- If a cloud room is active, LAN and cloud participants stream to the same POV pipeline
+- If no cloud room exists, LAN participants stream only locally
+- All participants (LAN + cloud) use the same RoomHub and activity scoring
+
+This means:
+- LAN participant → Cloud Room 1 (if exists) → Admin can see them in cloud room
+- They contribute to the same activity scores
+- POV switching affects both LAN and cloud streams
+
+**Note:** This design causes LAN and cloud participants to mix in the same room. Consider creating isolated LAN-only rooms if you need separate audiences.
 
 ---
 
