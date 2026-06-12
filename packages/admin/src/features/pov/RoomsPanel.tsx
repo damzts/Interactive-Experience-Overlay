@@ -798,16 +798,18 @@ export function RoomsPanel() {
         </FeatureGate>
 
         <ConfigPanel title="Switching Mode" collapsible={false}>
-          <div className="flex items-center gap-4 p-4 rounded-lg bg-[var(--color-primary-500)]/8 border border-[var(--color-primary-400)]/30">
+          <div className="flex items-center justify-between gap-6">
             <div className="flex-1">
-              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">Camera Switching</div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Camera Switching Mode</div>
               <div className="text-xs text-[var(--color-text-secondary)]">
                 {rooms.some(r => r.mode === 'automatic')
-                  ? 'Automatic mode: System switches based on audio/motion activity'
-                  : 'Manual mode: Host manually selects camera'}
+                  ? 'Active: Automatic mode — system switches based on audio/motion activity'
+                  : rooms.some(r => r.mode === 'manual')
+                    ? 'Active: Manual mode — host manually selects camera'
+                    : 'No active rooms'}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {[
                 { mode: 'automatic', label: '⚡ Auto' },
                 { mode: 'manual', label: '✋ Manual' }
@@ -821,10 +823,13 @@ export function RoomsPanel() {
                         handleModeSet(room.roomCode, mode as any)
                       }
                     }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                    disabled={rooms.length === 0}
+                    className={`px-4 py-2.5 rounded-md font-semibold text-sm transition-all ${
                       isSelected
-                        ? 'bg-[var(--color-primary-500)] text-white shadow-lg shadow-[var(--color-primary-500)]/40'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/80'
+                        ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                        : rooms.length === 0
+                          ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] cursor-not-allowed opacity-50'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20 hover:text-[var(--color-primary-400)] cursor-pointer'
                     }`}
                   >
                     {label}
@@ -908,12 +913,9 @@ export function RoomsPanel() {
 
         {/* ── MANUAL MODE CONFIGURATION ── */}
         <ConfigPanel title="Manual Mode & Transitions" collapsible>
-          <Notice tone="info" className="mb-4">
-            Manually select which participant's camera is displayed. Configure transitions.
-          </Notice>
-
-          <div className="space-y-4">
-            <Field label="Default Camera">
+          <div className="space-y-6">
+            <div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Default Camera on Room Create</div>
               <div className="flex gap-2">
                 {[
                   { val: 'auto', label: 'Auto-select First' },
@@ -924,10 +926,10 @@ export function RoomsPanel() {
                     <button
                       key={val}
                       onClick={() => updateConfigDraft('defaultFirstCamera', val as any)}
-                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+                      className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-all text-sm ${
                         isSelected
-                          ? 'bg-[var(--color-primary-500)] text-white'
-                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/80'
+                          ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
                       }`}
                     >
                       {label}
@@ -935,10 +937,11 @@ export function RoomsPanel() {
                   )
                 })}
               </div>
-            </Field>
+            </div>
 
-            <Field label="Transition Type">
-              <div className="flex gap-2">
+            <div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Transition Animation</div>
+              <div className="flex gap-2 mb-4">
                 {[
                   { val: 'cut', label: 'Cut (instant)' },
                   { val: 'fade', label: 'Fade' }
@@ -948,10 +951,10 @@ export function RoomsPanel() {
                     <button
                       key={val}
                       onClick={() => updateConfigDraft('transition', val === 'cut' ? { type: 'cut', durationMs: 0 } : { type: 'fade', durationMs: 500 })}
-                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-all text-sm ${
+                      className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-all text-sm ${
                         isSelected
-                          ? 'bg-[var(--color-primary-500)] text-white'
-                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/80'
+                          ? 'bg-[var(--color-primary-500)] text-white shadow-md shadow-[var(--color-primary-500)]/50'
+                          : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-500)]/20'
                       }`}
                     >
                       {label}
@@ -959,26 +962,26 @@ export function RoomsPanel() {
                   )
                 })}
               </div>
-            </Field>
 
-            {configDraft.transition.type === 'fade' && (
-              <>
-                <Slider
-                  label="Fade Duration"
-                  value={configDraft.transition.durationMs}
-                  min={100}
-                  max={5000}
-                  step={50}
-                  unit="ms"
-                  onChange={(v) =>
-                    updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
-                  }
-                />
-                <div className="text-[10px] text-[var(--color-text-muted)] -mt-3">
-                  Animation duration between camera switches.
-                </div>
-              </>
-            )}
+              {configDraft.transition.type === 'fade' && (
+                <>
+                  <Slider
+                    label="Fade Duration"
+                    value={configDraft.transition.durationMs}
+                    min={100}
+                    max={5000}
+                    step={50}
+                    unit="ms"
+                    onChange={(v) =>
+                      updateConfigDraft('transition', { ...configDraft.transition, durationMs: Math.round(v) })
+                    }
+                  />
+                  <div className="text-[10px] text-[var(--color-text-muted)] -mt-3">
+                    Animation duration between camera switches.
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </ConfigPanel>
 
