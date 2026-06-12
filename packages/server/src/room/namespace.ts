@@ -90,7 +90,9 @@ export function registerRoomNamespace(
     })
 
     socket.on('pov-online:room:close', (payload: RoomClosePayload) => {
-      manager.closeRoom(payload.roomCode)
+      manager.closeRoom(payload.roomCode).catch((e) =>
+        logger.warn({ err: e?.message ?? e, roomCode: payload.roomCode }, '[namespace] closeRoom failed')
+      )
     })
 
     socket.on('pov-online:room:rejoin', (payload: { roomCode: string }, ack: (response: { ok: boolean; error?: string }) => void) => {

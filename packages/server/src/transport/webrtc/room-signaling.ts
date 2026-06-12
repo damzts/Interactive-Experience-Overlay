@@ -266,7 +266,7 @@ export class RoomSignaling {
           this.knownParticipants.delete(userId)
           this.frozenParticipants.delete(userId)
           this.hub.removeParticipant(userId)
-          // NO emitStatus aquí — manager.syncParticipants lo manejará
+          this.emitStatus()
         }
         break
       }
