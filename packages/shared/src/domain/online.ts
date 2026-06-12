@@ -25,6 +25,10 @@ export interface RoomConfig {
   scoreEmitIntervalMs: number
   /** Time before an empty room is marked idle (ms). Default 60000 */
   idleTimeoutMs: number
+  /** Weight of motion vs audio score (0-1). Default 0.3, higher = motion-driven */
+  motionWeight: number
+  /** Default camera behavior on room create. 'auto' = first participant, 'blank' = no stream */
+  defaultFirstCamera: 'auto' | 'blank'
   /** Transition configuration for overlay switches */
   transition: TransitionConfig
 }
@@ -63,6 +67,8 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   maxActiveRooms: 5,
   scoreEmitIntervalMs: 500,
   idleTimeoutMs: 60000,
+  motionWeight: 0.3,
+  defaultFirstCamera: 'auto',
   transition: { type: 'cut', durationMs: 0 },
 }
 

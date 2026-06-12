@@ -7,6 +7,8 @@
 
 # WebRTC & Online Rooms
 
+> **Admin users:** See [Online Rooms Admin Guide](./online-rooms-admin-guide.md) for configuration details, tuning tips, and troubleshooting.
+
 ## Architecture overview
 
 The server acts as a Selective Forwarding Unit (SFU) hub. Participants send their video and audio to the hub. The hub selects one active participant at any time (based on audio and motion scoring) and relays only that participant's tracks to the overlay. The overlay renders a single video stream that changes seamlessly when the active participant switches.
@@ -49,13 +51,17 @@ Every multi-participant scenario previously required the cloud service — even 
 
 Once a participant's tracks arrive at the hub, three things happen:
 
-**Audio scoring** — incoming RTP audio packets are analyzed continuously. Each participant gets a rolling audio score representing how recently and how actively they've been speaking.
+**Audio scoring** — incoming RTP audio packets are analyzed continuously. Each participant gets a rolling audio score representing how recently and how actively they've been speaking. Configurable via `audioReportIntervalMs`, `rollingWindowMs`, `silenceThreshold`, and `activityThreshold`.
 
-**Motion scoring** — RTP video packet sizes are sampled as a motion proxy. High motion produces larger packets, which increases the participant's motion score. The final activity score blends audio and motion (configurable `motionWeight`, default 0.3).
+**Motion scoring** — RTP video packet sizes are sampled as a motion proxy. High motion produces larger packets, which increases the participant's motion score. The final activity score blends audio and motion:
+```
+compositeScore = audioScore + (motionScore × motionWeight)
+```
+Where `motionWeight` is configurable (0.0-1.0, default 0.3). Set to 0 for audio-only, 1.0 for motion-dominant switching.
 
-**POV switching** — the switcher evaluates composite scores periodically and selects the participant who should be the active camera.
+**POV switching** — the switcher evaluates composite scores periodically and selects the participant who should be the active camera. Configured via `cooldownMs` (minimum time between switches) and automatic vs. manual mode in the admin panel.
 
-**Overlay relay** — when the active participant changes, the server does a `replaceTrack()` on the overlay's WebRTC sender. The overlay's video element continues playing without interruption — it doesn't know a track swap happened.
+**Overlay relay** — when the active participant changes, the server does a `replaceTrack()` on the overlay's WebRTC sender. The overlay's video element continues playing without interruption — it doesn't know a track swap happened. Transitions can be cut (instant) or faded (smooth).
 
 ## Overlay video consumption — RtcStreamContext
 

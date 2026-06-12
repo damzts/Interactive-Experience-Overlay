@@ -136,6 +136,9 @@ export class RoomManager {
       activityThreshold: this.config.activityThreshold,
       silenceThreshold: this.config.silenceThreshold,
     })
+    if (partial.motionWeight !== undefined) {
+      this.pov.updateMotionWeight(partial.motionWeight)
+    }
     return { ...this.config }
   }
 

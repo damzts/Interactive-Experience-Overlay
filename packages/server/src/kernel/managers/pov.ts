@@ -124,6 +124,10 @@ export class POVOrchestrator implements Manager {
     this.switcher.onSwitch(cb)
   }
 
+  updateMotionWeight(weight: number): void {
+    this.motionWeight = Math.max(0, Math.min(1, weight))
+  }
+
   private startMotionDetection(userId: string, track: any): void {
     this.stopMotionDetection(userId)
     try {
