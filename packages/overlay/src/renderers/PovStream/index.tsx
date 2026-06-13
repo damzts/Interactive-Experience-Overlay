@@ -15,7 +15,7 @@ import { useRtcStream } from '../../rtc/RtcStreamContext'
 export function PovStreamRenderer({ config }: import('../registry').RendererProps) {
   const objectFit = String(config.objectFit ?? 'cover') as 'cover' | 'contain'
   const opacity = Number(config.opacity ?? 1)
-  const muted = Boolean(config.muted ?? true)
+  const shouldMute = Boolean(config.muted ?? true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const stream = useRtcStream()
@@ -30,7 +30,7 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       el.muted = true
       el.play()
         .then(() => {
-          el.muted = muted
+          el.muted = shouldMute
         })
         .catch(e => console.warn('[PovStream] play() rejected:', e))
       const checkVideo = setInterval(() => {
@@ -41,7 +41,7 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       }, 500)
       return () => clearInterval(checkVideo)
     }
-  }, [stream, muted])
+  }, [stream, shouldMute])
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity }}>
@@ -56,9 +56,7 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       )}
       <video
         ref={videoRef}
-        autoPlay
         playsInline
-        muted={muted}
         style={{
           position: 'absolute', inset: 0,
           width: '100%', height: '100%',

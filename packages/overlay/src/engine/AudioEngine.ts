@@ -33,6 +33,11 @@ class AudioEngine {
   private _urlCache = new Map<string, AudioBuffer>()
 
   init() {
+    // AudioContext creation is deferred until first use to comply with browser autoplay policies
+  }
+
+  private initContext() {
+    if (this.ctx) return
     try {
       this.ctx = new AudioContext()
       this.masterGain = this.ctx.createGain()
@@ -52,6 +57,7 @@ class AudioEngine {
 
   /** Resume suspended AudioContext. Safe to call any time. */
   unlockContext() {
+    this.initContext()
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {})
     }
@@ -174,6 +180,7 @@ class AudioEngine {
   }
 
   play(id: SoundId) {
+    this.initContext()
     if (!this.ctx || !this.masterGain) return
 
     this.unlockContext()
@@ -192,6 +199,7 @@ class AudioEngine {
 
   /** Play a one-shot sound from any URL. Caches decoded buffers (LRU, max 20). */
   async playUrl(url: string): Promise<void> {
+    this.initContext()
     if (!this.ctx || !this.masterGain) return
     this.unlockContext()
     try {
@@ -231,6 +239,7 @@ class AudioEngine {
    *  Note: crossOrigin='anonymous' is set on the element; same-origin assets work as-is.
    *  Pass null to fade out and stop. */
   playMusic(url: string | null, crossfadeMs = 1500) {
+    this.initContext()
     if (!this.ctx || !this.masterGain) return
     this.unlockContext()
 
@@ -292,6 +301,7 @@ class AudioEngine {
    *  Persists across scene musicTrack changes — only changes when ambientTrack changes.
    *  Pass null to fade out and stop. */
   playAmbient(url: string | null, crossfadeMs = 2000) {
+    this.initContext()
     if (!this.ctx || !this.masterGain) return
     this.unlockContext()
 

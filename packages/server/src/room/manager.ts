@@ -59,7 +59,7 @@ export class RoomManager {
           const participant = room.participants.get(next)
           if (participant) {
             const participantTransitionMap = this.participantTransitions.get(room.roomCode)
-            const transition = participantTransitionMap?.get(next) ?? room.config.transition
+            const transition = participantTransitionMap?.get(next) ?? this.roomConfigs.get(room.roomCode)?.transition ?? DEFAULT_PER_ROOM_CONFIG.transition
             this.emit('pov-online:participant:selected', {
               roomCode: room.roomCode,
               participantId: next,
@@ -357,7 +357,7 @@ export class RoomManager {
     const participant = room.participants.get(participantId)
     if (participant) {
       const participantTransitionMap = this.participantTransitions.get(roomCode)
-      const transition = participantTransitionMap?.get(participantId) ?? room.config.transition
+      const transition = participantTransitionMap?.get(participantId) ?? this.roomConfigs.get(roomCode)?.transition ?? DEFAULT_PER_ROOM_CONFIG.transition
       this.emit('pov-online:participant:selected', {
         roomCode,
         participantId,
@@ -421,6 +421,7 @@ export class RoomManager {
 
   async syncFromCloud(): Promise<void> {
     let token = this.getToken()
+    const hasUserToken = !!token
     if (!token) {
       try {
         const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
@@ -428,20 +429,27 @@ export class RoomManager {
           const data = await res.json() as { token: string }
           token = data.token
           this.setToken(token)
+          logger.info('[room] syncFromCloud: obtained guest token')
         }
       } catch { /* ignore */ }
     }
-    if (!token) { logger.info('[room] syncFromCloud: no token'); return }
+    if (!token) {
+      logger.warn('[room] syncFromCloud: no token available (user not authenticated, guest token failed)')
+      return
+    }
     try {
       const res = await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
-      if (!res.ok) { logger.info({ value: res.status }, '[room] syncFromCloud: cloud returned'); return }
+      if (!res.ok) {
+        logger.warn({ status: res.status, hasUserToken }, '[room] syncFromCloud: cloud API error')
+        return
+      }
       const cloudRooms = await res.json() as Array<{ id: string; createdAt: string; participantCount: number; hubConnected: boolean }>
-      logger.info({ count: cloudRooms.length }, '[room] syncFromCloud: found rooms')
+      logger.info({ count: cloudRooms.length, hasUserToken }, '[room] syncFromCloud: found rooms')
 
       for (const [code] of this.rooms) {
-        if (!cloudRooms.some((cr) => cr.id === code)) {
+        if (!cloudRooms.some((cr) => cr.id === code) && code !== this.hubRoomId) {
           this.rooms.delete(code)
         }
       }

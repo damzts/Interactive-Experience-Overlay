@@ -12,7 +12,7 @@ import type {
   RoomServerToAdminEvents,
   RoomClientToServerEvents,
 } from '@ieomlabs/shared'
-import { getRoomConfig, updateRoomConfig, getRooms, provideAuthToken, getActiveRoomCode, setActiveRoomCode, updateCloudRoomConfig, setParticipantTransition } from '../../api/roomApi'
+import { getRoomConfig, updateRoomConfig, getRooms, provideAuthToken, getActiveRoomCode, setActiveRoomCode as setActiveRoomCodeApi, updateCloudRoomConfig, setParticipantTransition } from '../../api/roomApi'
 import { getStoredAuthToken } from '../../auth/sessionToken'
 import { apiFetch } from '../../api/client'
 import { Slider, ConfigPageIntro, ConfigChoiceButton, Field } from '../../shared/ui'
@@ -21,6 +21,7 @@ import { Card } from '../../components/molecules'
 import { ConfigPanel } from '../../components/organisms'
 import { AdminStreamGrid } from './AdminStreamGrid'
 import { FeatureGate } from '../../desktop/FeatureGate'
+import { useAuth } from '../../auth/AuthContext'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -605,6 +606,7 @@ function RoomCard({
 // ── RoomsPanel ─────────────────────────────────────────────────────
 
 export function RoomsPanel() {
+  const { isAuthenticated, login } = useAuth()
   const [rooms, setRooms] = useState<RoomStatus[]>([])
   const [config, setConfig] = useState<RoomConfig>(DEFAULT_ROOM_CONFIG)
   const [configDraft, setConfigDraft] = useState<RoomConfig>(DEFAULT_ROOM_CONFIG)
@@ -617,6 +619,7 @@ export function RoomsPanel() {
   const [toast, setToast] = useState<string | null>(null)
   const [activityLog, setActivityLog] = useState<Array<{ id: number; time: number; icon: string; text: string }>>([])
   const [activeRoomCode, setActiveRoomCode] = useState<string | null>(null)
+
 
   const socketRef = useRef<RoomSocket | null>(null)
   const mountedRef = useRef(true)
@@ -641,11 +644,14 @@ export function RoomsPanel() {
     } catch { /* non-fatal */ }
   }, [])
 
+
   useEffect(() => {
     refreshLan()
-    const t = setInterval(refreshLan, 3000)
-    return () => clearInterval(t)
+    const lanTimer = setInterval(refreshLan, 3000)
+    return () => clearInterval(lanTimer)
   }, [refreshLan])
+
+
 
   const pushLog = useCallback((icon: string, text: string) => {
     const id = ++logIdRef.current
@@ -682,6 +688,7 @@ export function RoomsPanel() {
         activePlayerId: null,
         mode: 'automatic',
         hubConnected: true,
+        config: { ...DEFAULT_PER_ROOM_CONFIG },
       }
       setRooms((prev) => [...prev, newRoom])
       pushLog('🏠', `Room ${payload.roomCode} created`)
@@ -888,19 +895,23 @@ export function RoomsPanel() {
   }, [config])
 
   const handleSetActiveRoom = useCallback(async (roomCode: string | null) => {
+    setError(null)
+    const prevRoomCode = activeRoomCode
+    setActiveRoomCode(roomCode)
     try {
-      const result = await setActiveRoomCode(roomCode)
+      const result = await setActiveRoomCodeApi(roomCode)
       if (result.ok) {
-        setActiveRoomCode(roomCode)
         setToast(`✓ POV relay switched to ${roomCode ? `room ${roomCode}` : 'LAN'}`)
         setTimeout(() => setToast(null), 3000)
       } else {
         setError(result.error || 'Failed to set active room')
+        setActiveRoomCode(prevRoomCode)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set active room')
+      setActiveRoomCode(prevRoomCode)
     }
-  }, [])
+  }, [activeRoomCode])
 
   const updateConfigDraft = useCallback(<K extends keyof RoomConfig>(
     key: K,
@@ -1170,37 +1181,50 @@ export function RoomsPanel() {
 
         <FeatureGate feature="stream-rooms">
           <ConfigPanel title="Cloud Rooms" collapsible>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
-              </span>
-              <Button variant="primary" size="sm" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
-                {creating ? 'Creating…' : '+ Create Room'}
-              </Button>
-            </div>
-
-            {rooms.length === 0 ? (
-              <Notice tone="info">
-                No online rooms active. Create a room to get started.
+            {!isAuthenticated ? (
+              <Notice tone="warning" className="mb-3">
+                <div className="flex items-center justify-between">
+                  <span>Sign in to access your cloud rooms and create new ones.</span>
+                  <Button variant="primary" size="sm" onClick={login} className="ml-3">
+                    Sign In
+                  </Button>
+                </div>
               </Notice>
             ) : (
-              <div className="space-y-2">
-                {rooms.map((room) => (
-                  <RoomCard
-                    key={room.roomCode}
-                    room={room}
-                    onClose={handleCloseRoom}
-                    onRejoin={handleRejoinRoom}
-                    onModeSet={handleModeSet}
-                    onSelect={handleSelect}
-                    onKick={handleKick}
-                    isActive={activeRoomCode === room.roomCode}
-                    onSetActive={handleSetActiveRoom}
-                    socket={socketRef.current}
-                    onConfigSave={handleSaveRoomConfig}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-[var(--color-text-secondary)]">
+                    {rooms.length} room{rooms.length !== 1 ? 's' : ''} active
+                  </span>
+                  <Button variant="primary" size="sm" onClick={handleCreateRoom} disabled={creating || !socketConnected}>
+                    {creating ? 'Creating…' : '+ Create Room'}
+                  </Button>
+                </div>
+
+                {rooms.length === 0 ? (
+                  <Notice tone="info">
+                    No online rooms active. Create a room to get started.
+                  </Notice>
+                ) : (
+                  <div className="space-y-2">
+                    {rooms.map((room) => (
+                      <RoomCard
+                        key={room.roomCode}
+                        room={room}
+                        onClose={handleCloseRoom}
+                        onRejoin={handleRejoinRoom}
+                        onModeSet={handleModeSet}
+                        onSelect={handleSelect}
+                        onKick={handleKick}
+                        isActive={activeRoomCode === room.roomCode}
+                        onSetActive={handleSetActiveRoom}
+                        socket={socketRef.current}
+                        onConfigSave={handleSaveRoomConfig}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </ConfigPanel>
 
@@ -1262,18 +1286,17 @@ export function RoomsPanel() {
               step={1}
               onChange={(v) => updateConfigDraft('maxActiveRooms', Math.round(v))}
             />
+
+            <div className="flex gap-2 justify-end border-t border-[var(--color-border-default)] pt-3">
+              <Button variant="secondary" size="sm" onClick={handleResetConfig} disabled={savingConfig} className="text-[10px]">
+                Reset
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSaveConfig} disabled={savingConfig} className="text-[10px]">
+                {savingConfig ? 'Saving…' : 'Apply'}
+              </Button>
+            </div>
           </div>
         </ConfigPanel>
-
-        {/* ── SAVE BUTTONS ── */}
-        <div className="mt-6 flex items-center gap-3 p-4 rounded-lg bg-[var(--color-bg-elevated)]/20 border border-[var(--color-border-default)]">
-          <Button variant="primary" size="md" onClick={handleSaveConfig} disabled={savingConfig}>
-            {savingConfig ? '💾 Saving…' : '✓ Apply All Configuration'}
-          </Button>
-          <Button variant="secondary" size="md" onClick={handleResetConfig} disabled={savingConfig}>
-            Reset to Saved
-          </Button>
-        </div>
       </div>
     </div>
   )
