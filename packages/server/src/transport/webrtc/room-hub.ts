@@ -61,12 +61,18 @@ export class RoomHub {
       this.participants.delete(userId)
     }
 
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:turn.ieom.app:3478', username: 'ieom', credential: 'ieom-turn-secret' },
-      ],
-    })
+    const turnUrl = process.env['TURN_URL'] || ''
+    const turnUser = process.env['TURN_USERNAME'] || 'ieom'
+    const turnCred = process.env['TURN_CREDENTIAL'] || ''
+
+    const iceServers: { urls: string; username?: string; credential?: string }[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+    ]
+    if (turnUrl) {
+      iceServers.push({ urls: turnUrl, username: turnUser, credential: turnCred })
+    }
+
+    const pc = new RTCPeerConnection({ iceServers })
 
     const media: ParticipantMedia = {
       userId,

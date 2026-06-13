@@ -15,13 +15,26 @@ import { useRtcStream } from '../../rtc/RtcStreamContext'
 export function PovStreamRenderer({ config }: import('../registry').RendererProps) {
   const objectFit = String(config.objectFit ?? 'cover') as 'cover' | 'contain'
   const opacity = Number(config.opacity ?? 1)
-  const muted = Boolean(config.muted ?? false)
+  const muted = Boolean(config.muted ?? true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const stream = useRtcStream()
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = stream
+    const el = videoRef.current
+    if (!el) return
+    el.srcObject = stream
+    if (stream) {
+      console.log('[PovStream] stream set, tracks:', stream.getTracks().map(t => `${t.kind}:${t.readyState}:${t.muted}`))
+      el.play().catch(e => console.warn('[PovStream] play() rejected:', e))
+      const checkVideo = setInterval(() => {
+        if (el.videoWidth > 0 && el.videoHeight > 0) {
+          console.log('[PovStream] video has frames:', el.videoWidth, 'x', el.videoHeight)
+          clearInterval(checkVideo)
+        }
+      }, 500)
+      return () => clearInterval(checkVideo)
+    }
   }, [stream])
 
   return (

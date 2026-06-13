@@ -2,8 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { apiFetch, logout as apiLogout } from '../api/client'
 import { reconnectSocket } from '../socket/client'
 import { isDesktopMode } from '../desktop/isDesktopMode'
-import { captureAuthTokenFromLocation, clearStoredAuthToken } from './sessionToken'
-import { resolveBackendUrl } from './sessionToken'
+import { captureAuthTokenFromLocation, clearStoredAuthToken, setStoredAuthToken, getStoredAuthToken } from './sessionToken'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,6 +12,27 @@ export interface AuthUser {
   id: string
   email: string
   name: string
+}
+
+// ---------------------------------------------------------------------------
+// JWT decode helper (no signature verification — used only as fallback to
+// extract user info when /api/auth/me is unreachable)
+// ---------------------------------------------------------------------------
+
+function decodeJwtPayload(token: string): AuthUser | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (!payload.sub || !payload.email) return null
+    return {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name ?? payload.email.split('@')[0],
+    }
+  } catch {
+    return null
+  }
 }
 
 export interface AuthContextValue {
@@ -50,13 +70,32 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
    * On failure (401 or network error), clears the user.
    */
   const checkAuth = useCallback(async () => {
+    console.log('[checkAuth] called')
+    captureAuthTokenFromLocation()
+    // Snapshot the token before the request — apiFetch may clear it on token_expired
+    const currentToken = getStoredAuthToken()
+    console.log('[checkAuth] currentToken in sessionStorage:', currentToken ? `${currentToken.substring(0, 20)}...` : 'null')
     try {
-      captureAuthTokenFromLocation()
-
+      console.log('[checkAuth] calling /api/auth/me...')
       const data = await apiFetch<AuthUser>('/api/auth/me')
+      console.log('[checkAuth] /api/auth/me SUCCESS:', data)
       setUser(data)
       void reconnectSocket()
-    } catch {
+    } catch (err) {
+      console.warn('[checkAuth] /api/auth/me FAILED:', err)
+      // If /api/auth/me fails but we have a valid JWT token, decode it locally
+      // as a fallback (avoids losing session when the cloud endpoint is
+      // unreachable or cookies don't pass through the proxy correctly).
+      if (currentToken) {
+        const decoded = decodeJwtPayload(currentToken)
+        console.log('[checkAuth] JWT fallback decode result:', decoded)
+        if (decoded) {
+          setUser(decoded)
+          void reconnectSocket()
+          return
+        }
+      }
+      console.log('[checkAuth] no fallback available, setting user to null')
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -70,14 +109,37 @@ function WebAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
-    if (searchParams.get('auth') === 'success') {
+    const token = searchParams.get('token') ?? searchParams.get('access_token')
+    if (searchParams.get('auth') === 'success' || token) {
+      console.log('[auth:mount] detected auth=success or token in URL')
+      if (token) {
+        console.log('[auth:mount] storing token from URL redirect')
+        setStoredAuthToken(token)
+        // Clean the URL
+        const url = new URL(window.location.href)
+        url.searchParams.delete('token')
+        url.searchParams.delete('access_token')
+        url.searchParams.delete('auth')
+        window.history.replaceState({}, document.title, url.pathname + url.search)
+      }
       void checkAuth()
     }
   }, [checkAuth])
 
   const login = useCallback(() => {
-    window.location.href = resolveBackendUrl('/api/auth/google') + `?redirect=${encodeURIComponent(window.location.origin + '/admin')}`
-  }, [])
+    console.log('[login] starting OAuth flow')
+    // Always clear old tokens and start fresh OAuth flow
+    localStorage.removeItem('ieom_oauth_token')
+
+    // Redirect the current window to the cloud OAuth endpoint.
+    // The cloud will redirect back to /auth/callback with the token,
+    // which main.tsx handles via OAuthCallback or the auth=success param.
+    const cloudOrigin = 'https://ieom.danhub.dev'
+    const callbackUrl = window.location.origin + '/?auth=success'
+    const authUrl = `${cloudOrigin}/api/auth/google?redirect=${encodeURIComponent(callbackUrl)}`
+    console.log('[login] redirecting to:', authUrl)
+    window.location.href = authUrl
+  }, [checkAuth])
 
   const logout = useCallback(async () => {
     clearStoredAuthToken()

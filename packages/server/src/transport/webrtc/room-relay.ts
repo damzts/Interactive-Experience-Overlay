@@ -116,6 +116,14 @@ export class RoomRelay {
 
     if (!this.pc || !this.sendSignal) return
 
+    // If the PC is closed/failed, re-create the offer from scratch
+    if (this.pc.connectionState === 'closed' || this.pc.connectionState === 'failed') {
+      logger.info('[room-relay] PC is dead, re-creating offer')
+      this.offered = false
+      void this.createOffer(this.sendSignal)
+      return
+    }
+
     if (this.connected) {
       if (videoTrack) {
         const sender = this.pc.getSenders().find(s => s.track?.kind === 'video')
@@ -128,7 +136,9 @@ export class RoomRelay {
       return
     }
 
-    if (!this.offered) {
+    // If we haven't offered yet, or offered without a video track, try again
+    if (!this.offered || !this.offeredVideoTrack) {
+      this.offered = false
       this.scheduleNegotiate()
     }
   }

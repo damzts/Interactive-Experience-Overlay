@@ -105,7 +105,10 @@ export async function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions):
           return reply.redirect(buildRedirectUrl(redirectTarget, { token: accessToken }))
         }
 
-        return reply.redirect(buildRedirectUrl(redirectTarget, { auth: 'success' }))
+        // For web redirects, include the token as a query param so that cross-origin
+        // dev setups (proxy through Vite) can capture the token from the URL.
+        // The cookies are also set above for same-origin production deployments.
+        return reply.redirect(buildRedirectUrl(redirectTarget, { auth: 'success', token: accessToken }))
       } catch (err) {
         request.log.error({ err }, 'OAuth callback failed')
         return reply.redirect(buildRedirectUrl(redirectTarget, { error: 'oauth_failed' }))

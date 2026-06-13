@@ -208,14 +208,9 @@ export class RoomManager {
     }
 
     this.hubRoomId = roomCode
-    try {
-      await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
-    } catch (e: any) {
-      this.hubRoomId = null
-      logger.error({ err: e?.message ?? e }, '[room] Hub connect failed after room creation')
-      return { ok: false, error: 'hub_connect_failed' }
-    }
 
+    // Register the room BEFORE connecting signaling so that the onStatus
+    // callback (fired immediately on WebSocket open) can find it.
     const room: Room = {
       roomCode,
       createdAt: Date.now(),
@@ -228,6 +223,19 @@ export class RoomManager {
     this.rooms.set(roomCode, room)
     this.roomConfigs.set(roomCode, { ...DEFAULT_PER_ROOM_CONFIG })
     this.participantTransitions.set(roomCode, new Map())
+
+    try {
+      await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+    } catch (e: any) {
+      // Rollback: remove room from local state if signaling fails
+      this.rooms.delete(roomCode)
+      this.roomConfigs.delete(roomCode)
+      this.participantTransitions.delete(roomCode)
+      this.hubRoomId = null
+      logger.error({ err: e?.message ?? e }, '[room] Hub connect failed after room creation')
+      return { ok: false, error: 'hub_connect_failed' }
+    }
+
     this.emit('pov-online:room:created', {
       roomCode,
       joinUrl: `${this.cloudUrl}/room/${roomCode}`,

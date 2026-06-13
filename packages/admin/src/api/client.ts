@@ -145,7 +145,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
       res = await fetch(requestUrl, { ...init, headers: retryHeaders, credentials: 'include' })
     } else {
-      clearStoredAuthToken()
+      // Don't clear the stored token here — the caller (e.g. checkAuth) may
+      // still use the token for JWT-based fallback authentication.
       throw new ApiError('token_expired', 401)
     }
   }
@@ -214,7 +215,7 @@ export async function apiSend(
         body: body !== undefined ? JSON.stringify(body) : undefined,
       })
     } else {
-      clearStoredAuthToken()
+      // Don't clear the stored token here — let the caller handle it.
       throw new ApiError('token_expired', 401)
     }
   }
