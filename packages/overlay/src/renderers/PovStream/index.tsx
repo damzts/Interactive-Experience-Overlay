@@ -26,7 +26,13 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
     el.srcObject = stream
     if (stream) {
       console.log('[PovStream] stream set, tracks:', stream.getTracks().map(t => `${t.kind}:${t.readyState}:${t.muted}`))
-      el.play().catch(e => console.warn('[PovStream] play() rejected:', e))
+      // Start muted to satisfy autoplay policy, then unmute once playing
+      el.muted = true
+      el.play()
+        .then(() => {
+          el.muted = muted
+        })
+        .catch(e => console.warn('[PovStream] play() rejected:', e))
       const checkVideo = setInterval(() => {
         if (el.videoWidth > 0 && el.videoHeight > 0) {
           console.log('[PovStream] video has frames:', el.videoWidth, 'x', el.videoHeight)
@@ -35,7 +41,7 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       }, 500)
       return () => clearInterval(checkVideo)
     }
-  }, [stream])
+  }, [stream, muted])
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity }}>
