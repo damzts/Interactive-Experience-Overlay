@@ -778,6 +778,11 @@ export function RoomsPanel() {
       })
     })
 
+    roomSocket.on('pov-online:active-room', (payload: { roomCode: string | null }) => {
+      if (!mountedRef.current) return
+      setActiveRoomCode(payload.roomCode)
+    })
+
     return () => {
       mountedRef.current = false
       roomSocket.disconnect()
@@ -966,11 +971,14 @@ export function RoomsPanel() {
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-primary-500)]/10 border border-[var(--color-primary-400)]/20">
               <button
-                onClick={() => handleSetActiveRoom(null)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                  activeRoomCode === null ? 'bg-[var(--color-primary-500)]' : 'bg-[var(--color-bg-elevated)]'
+                onClick={() => { if (activeRoomCode !== null) handleSetActiveRoom(null) }}
+                disabled={activeRoomCode === null}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                  activeRoomCode === null
+                    ? 'bg-[var(--color-primary-500)] cursor-default'
+                    : 'bg-[var(--color-bg-elevated)] cursor-pointer hover:bg-[var(--color-bg-elevated)]/80'
                 }`}
-                title="Use LAN room for POV relay"
+                title={activeRoomCode === null ? 'LAN room is the active POV source' : 'Switch to LAN room POV'}
               >
                 <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
                   activeRoomCode === null ? 'translate-x-4' : 'translate-x-0.5'
@@ -979,7 +987,7 @@ export function RoomsPanel() {
               <div>
                 <div className="text-sm font-medium text-[var(--color-text-primary)]">LAN Room POV</div>
                 <div className="text-[10px] text-[var(--color-text-muted)]">
-                  {activeRoomCode === null ? '✓ Active - displaying LAN participants' : 'Inactive - switch to show LAN POV'}
+                  {activeRoomCode === null ? '✓ Active — displaying LAN participants' : 'Inactive — click to switch to LAN POV'}
                 </div>
               </div>
             </div>

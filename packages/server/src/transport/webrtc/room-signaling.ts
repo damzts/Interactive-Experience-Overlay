@@ -38,6 +38,7 @@ export class RoomSignaling {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private freezeRecoveryTimers = new Set<ReturnType<typeof setTimeout>>()
+  private participantLeaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private reconnectAttempt = 0
   intentionalClose = false
   private connCounter = 0
@@ -233,6 +234,8 @@ export class RoomSignaling {
         const participants = msg.payload['participants'] as string[] | undefined
         if (participants) {
           for (const userId of participants) {
+            const leaveTimer = this.participantLeaveTimers.get(userId)
+            if (leaveTimer) { clearTimeout(leaveTimer); this.participantLeaveTimers.delete(userId) }
             const name = `Guest-${userId.slice(0, 6)}`
             this.participantNames.set(userId, name)
             this.pov.addParticipant(userId, name)
@@ -249,12 +252,16 @@ export class RoomSignaling {
           ?? (msg.payload['userName'] as string)
           ?? (msg.payload['name'] as string)
         const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
-        if (userId && !this.knownParticipants.has(userId)) {
-          logger.info(`[room-signaling] participant joined: ${userId} (${displayName})`)
-          this.participantNames.set(userId, displayName)
-          this.pov.addParticipant(userId, displayName)
-          this.knownParticipants.add(userId)
-          this.emitStatus()
+        if (userId) {
+          const leaveTimer = this.participantLeaveTimers.get(userId)
+          if (leaveTimer) { clearTimeout(leaveTimer); this.participantLeaveTimers.delete(userId) }
+          if (!this.knownParticipants.has(userId)) {
+            logger.info(`[room-signaling] participant joined: ${userId} (${displayName})`)
+            this.participantNames.set(userId, displayName)
+            this.pov.addParticipant(userId, displayName)
+            this.knownParticipants.add(userId)
+            this.emitStatus()
+          }
         }
         break
       }
@@ -265,7 +272,17 @@ export class RoomSignaling {
           this.participantNames.delete(userId)
           this.knownParticipants.delete(userId)
           this.frozenParticipants.delete(userId)
-          this.hub.removeParticipant(userId)
+          // Delay hub PC teardown — cloud signaling can bounce while the WebRTC
+          // connection stays alive; if the participant rejoins within 3 s we skip
+          const existing = this.participantLeaveTimers.get(userId)
+          if (existing) clearTimeout(existing)
+          const t = setTimeout(() => {
+            this.participantLeaveTimers.delete(userId)
+            if (!this.knownParticipants.has(userId)) {
+              void this.hub.removeParticipant(userId)
+            }
+          }, 3_000)
+          this.participantLeaveTimers.set(userId, t)
           this.emitStatus()
         }
         break
@@ -275,6 +292,8 @@ export class RoomSignaling {
         const sdp = msg.payload['sdp'] as string
         const userId = msg.senderId
         if (sdp && userId) {
+          const offerLeaveTimer = this.participantLeaveTimers.get(userId)
+          if (offerLeaveTimer) { clearTimeout(offerLeaveTimer); this.participantLeaveTimers.delete(userId) }
           if (!this.knownParticipants.has(userId)) {
             const rawName = (msg.payload['displayName'] as string) ?? (msg.payload['userName'] as string)
             const displayName = (rawName && !rawName.includes('@')) ? rawName : `Guest-${userId.slice(0, 6)}`
@@ -388,6 +407,8 @@ export class RoomSignaling {
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
     for (const t of this.freezeRecoveryTimers) clearTimeout(t)
     this.freezeRecoveryTimers.clear()
+    for (const t of this.participantLeaveTimers.values()) clearTimeout(t)
+    this.participantLeaveTimers.clear()
     if (this.ws) { this.ws.close(); this.ws = null }
     this.participantNames.clear()
     this.knownParticipants.clear()

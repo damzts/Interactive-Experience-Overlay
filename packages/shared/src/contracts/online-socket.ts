@@ -173,6 +173,7 @@ export interface RoomServerToAdminEvents {
   'pov-online:scores': (payload: RoomScoresPayload) => void
   'pov-online:switch': (payload: RoomSwitchPayload) => void
   'pov-online:status': (payload: RoomStatus) => void
+  'pov-online:active-room': (payload: { roomCode: string | null }) => void
   'pov-online:preview:offer': (payload: RoomPreviewOfferPayload) => void
   'pov-online:preview:ice': (payload: RoomPreviewIcePayload) => void
   'pov-online:preview:removed': (payload: RoomPreviewRemovedPayload) => void
@@ -211,6 +212,7 @@ export interface RoomServerToClientEvents {
   'pov-online:scores': (payload: RoomScoresPayload) => void
   'pov-online:switch': (payload: RoomSwitchPayload | RoomOverlaySwitchPayload) => void
   'pov-online:status': (payload: RoomStatus) => void
+  'pov-online:active-room': (payload: { roomCode: string | null }) => void
   'pov-online:joined': (payload: RoomJoinedPayload) => void
   'pov-online:join:error': (payload: RoomJoinErrorPayload) => void
   'pov-online:peer:joined': (payload: RoomPeerJoinedPayload) => void
