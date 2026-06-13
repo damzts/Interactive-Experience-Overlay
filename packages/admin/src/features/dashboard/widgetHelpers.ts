@@ -182,7 +182,7 @@ export function findFirstSceneSource(scenes: Record<string, Scene>) {
     const windows = scene.windows ?? []
     const firstWindow = windows[0]
     if (firstWindow) {
-      return { sceneId: scene.id, sourceId: firstWindow.id }
+      return { sceneId: scene.id, windowId: firstWindow.id }
     }
   }
   return undefined

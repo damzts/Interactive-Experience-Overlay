@@ -68,6 +68,7 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
       }))
     } catch (e) {
       get().setLastError(String(e))
+      throw e
     }
   },
 })

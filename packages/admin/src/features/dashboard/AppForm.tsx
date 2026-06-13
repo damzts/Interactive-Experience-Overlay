@@ -122,7 +122,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const isProtectedSystemWidget = isSystemWidget(form)
   const isStickyNotesWidget    = form.id === 'sticky-notes'
   const stickyNotesConfig = form.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS
-  const sourcePresets     = config.sourcePresets ?? []
+  const windowPresets     = config.windowPresets ?? []
   const selectedSourceSceneId = form.windowWidgetSettings?.sceneId ?? ''
   const selectedSourceScene   = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
   const selectedSourceSceneWindows = getSafeSceneWindows(selectedSourceScene)
@@ -135,7 +135,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   )
   const availableWindows = selectedSourceSceneWindows
   const selectedWindow   = availableWindows.find((w) => w.id === form.windowWidgetSettings?.windowId)
-  const selectedWindowResolved = selectedWindow ? resolveWindowInstance(selectedWindow, sourcePresets) : null
+  const selectedWindowResolved = selectedWindow ? resolveWindowInstance(selectedWindow, windowPresets) : null
 
   useEffect(() => {
     if (widgetComponent !== 'camera') return
@@ -255,12 +255,15 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
   const apply = async () => {
     setSaving(true)
-    const updates = buildDraftPersistence()
-    await saveConfig(updates)
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+    try {
+      const updates = buildDraftPersistence()
+      await saveConfig(updates)
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+      setSaved(true)
+      savedTimer.current = setTimeout(() => setSaved(false), 1500)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const reset = () => {
@@ -583,7 +586,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                   className="w-full text-xs">
                   <option value="">{selectedSourceSceneId ? '— Select window —' : '— Choose a scene first —'}</option>
                   {availableWindows.map((w) => (
-                    <option key={w.id} value={w.id}>{w.id} · {resolveWindowInstance(w, sourcePresets)?.rendererType ?? 'unbound'}</option>
+                    <option key={w.id} value={w.id}>{w.id} · {resolveWindowInstance(w, windowPresets)?.rendererType ?? 'unbound'}</option>
                   ))}
                 </select>
               </div>

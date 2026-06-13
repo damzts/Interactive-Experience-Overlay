@@ -22,11 +22,11 @@ const TIERS: TierName[] = ['background', 'particles', 'content', 'post', 'transi
 
 export function SourcesEditor({
   sources,
-  sourcePresets,
+  windowPresets,
   onChange,
 }: {
   sources: WindowInstance[]
-  sourcePresets: WindowPreset[]
+  windowPresets: WindowPreset[]
   onChange: (next: WindowInstance[]) => void
 }) {
   const [addMode, setAddMode] = useState<'catalog' | 'preset'>('catalog')
@@ -104,7 +104,7 @@ export function SourcesEditor({
   return (
     <div className="space-y-2">
       {sorted.map((w) => {
-        const resolved = resolveWindowInstance(w, sourcePresets)
+        const resolved = resolveWindowInstance(w, windowPresets)
         const rendererType = resolved?.rendererType ?? w.rendererType
         const meta = RENDERER_CATALOG.find((c) => c.id === rendererType)
         const wTier = w.tier
@@ -121,12 +121,12 @@ export function SourcesEditor({
                 {/* Renderer type or preset selector */}
                 {w.windowPresetId !== undefined || (!rendererType) ? (
                   <>
-                    {w.windowPresetId && !sourcePresets.find((p) => p.id === w.windowPresetId) && (
+                    {w.windowPresetId && !windowPresets.find((p) => p.id === w.windowPresetId) && (
                       <div className="text-[10px] text-[var(--color-danger-400)]">⚠ Preset not found: {w.windowPresetId}</div>
                     )}
                     <select value={w.windowPresetId ?? ''} onChange={(e) => updateWindowPreset(w.id, e.target.value)} className="w-full text-xs">
                       <option value="">— preset —</option>
-                      {sourcePresets.map((p) => {
+                      {windowPresets.map((p) => {
                         const m = RENDERER_CATALOG.find((c) => c.id === p.rendererType)
                         return <option key={p.id} value={p.id}>{p.label} · {m?.label ?? p.rendererType}</option>
                       })}
@@ -170,7 +170,7 @@ export function SourcesEditor({
         >
           + From catalog
         </Button>
-        {sourcePresets.length > 0 && (
+        {windowPresets.length > 0 && (
           <Button
             variant="ghost" size="sm"
             onClick={() => { setAddMode('preset'); addFromPreset() }}

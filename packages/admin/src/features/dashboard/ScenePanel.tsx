@@ -38,7 +38,7 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
   const isDesktop     = sceneId === STATE.DESKTOP
   const isUser        = sceneId !== STATE.LOBBY && sceneId !== STATE.DESKTOP
   const isSystemScene = !isUser
-  const sourcePresets = config.sourcePresets ?? []
+  const windowPresets = config.windowPresets ?? []
 
   const baseDraft = buildDraft(sceneId, config)
   const [draft,  setDraft]  = useState<ScenePanelDraft>(baseDraft)
@@ -116,7 +116,7 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
           />
           <SourcesEditor
             sources={draft.windows}
-            sourcePresets={sourcePresets}
+            windowPresets={windowPresets}
             onChange={(next) => update((d) => { d.windows = next })}
           />
         </div>

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type { Application } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
@@ -24,9 +23,9 @@ const USER_WIDGET_COMPONENT_OPTIONS: Array<{
 // ── NewWidgetForm ─────────────────────────────────────────────────────
 
 export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
-  const config     = useAdminStore((s) => s.config)
-  const saveConfig = useAdminStore((s) => s.saveConfig)
-  const applications = config.applications
+  const scenes          = useAdminStore((s) => s.config.scenes)
+  const applications    = useAdminStore((s) => s.persistedConfig.applications)
+  const saveConfig      = useAdminStore((s) => s.saveConfig)
 
   const [widgetComponent, setWidgetComponent] = useState<UserWidgetBaseComponent>('camera')
   const [label,    setLabel]    = useState('')
@@ -39,7 +38,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   const defaultLabel = widgetComponent === 'camera' ? 'Camera Widget' : 'Source Widget'
   const nextLabel = label.trim() || defaultLabel
   const previewId = buildUserWidgetId(widgetComponent, nextLabel, existingIds)
-  const firstSourceReference = useMemo(() => findFirstSceneSource(config.scenes), [config.scenes])
+  const firstSourceReference = useMemo(() => findFirstSceneSource(scenes), [scenes])
 
   const handleCreate = async () => {
     setCreating(true)
@@ -52,10 +51,10 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
         label: nextLabel,
         icon: icon.trim() || componentMeta.icon,
         widgetSource: 'user',
-        widgetComponent,
+        widgetComponent: widgetComponent === 'source' ? 'window' : widgetComponent,
         zIndexDefault: nextDefaultZIndex,
         ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
-        ...(widgetComponent === 'source' && firstSourceReference ? { sourceWidgetSettings: firstSourceReference } : {}),
+        ...(widgetComponent === 'source' && firstSourceReference ? { windowWidgetSettings: firstSourceReference } : {}),
       }
       await saveConfig({ applications: [...applications, nextWidget] })
       onCreated(previewId)

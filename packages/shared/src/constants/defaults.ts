@@ -1249,7 +1249,7 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
     widgetLayouts: updates.widgetLayouts ?? base.widgetLayouts,
     sourceEvents: updates.sourceEvents ? withEventListDefaults(updates.sourceEvents) : withEventListDefaults(base.sourceEvents),
     sourceMedia: updates.sourceMedia ?? base.sourceMedia,
-    sourcePresets: updates.sourcePresets ? withWindowPresetListDefaults(updates.sourcePresets) : withWindowPresetListDefaults(base.sourcePresets),
+    windowPresets: updates.windowPresets ? withWindowPresetListDefaults(updates.windowPresets) : withWindowPresetListDefaults(base.windowPresets),
     sourceTransitions: updates.sourceTransitions ?? base.sourceTransitions,
   }
 }
@@ -1277,7 +1277,7 @@ export function applyRuntimeConfigOverride(base: AppConfig, runtimeOverride: Run
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  sourcePresets: [],
+  windowPresets: [],
   scenes: {
     LOBBY: {
       id: 'LOBBY',

@@ -3,7 +3,7 @@ import type { AppConfig, RuntimeConfigOverridePayload } from '@ieomlabs/shared'
 
 /** Minimal stub used before server config is received. Replaced immediately on socket connect. */
 const EMPTY_CONFIG: AppConfig = {
-  sourcePresets: [], scenes: {}, applications: [], keybinds: { obs: {}, admin: {} },
+  windowPresets: [], scenes: {}, applications: [], keybinds: { obs: {}, admin: {} },
   obs: { url: '', password: '' }, audio: { masterVolume: 0.8, sfxVolume: 0.7, musicVolume: 0.4 },
   desktopConfig: {} as any, desktopAmbiance: {} as any,
   widgetLayouts: [], sourceEvents: [], sourceMedia: [], sourceTransitions: [],

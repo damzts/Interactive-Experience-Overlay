@@ -210,7 +210,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       this.writeSections(config, [
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
-        'sourceEvents', 'sourceMedia', 'sourcePresets', 'sourceTransitions', 'shows',
+        'sourceEvents', 'sourceMedia', 'windowPresets', 'sourceTransitions', 'shows',
       ])
     }
 
@@ -252,7 +252,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       widgetLayouts:    this.widgetRepo.loadLayouts(),
       sourceEvents:     this.eventRepo.load(),
       sourceMedia:      this.loadSourceMedia(),
-      sourcePresets:    this.loadSourcePresets(),
+      windowPresets:    this.loadWindowPresets(),
       sourceTransitions: this.loadSourceTransitions(),
       widgetWires:      this.widgetWires.list(),
       shows:            this.loadShows(),
@@ -299,12 +299,12 @@ export class DesktopConfigService implements Manager, IConfigService {
     return rows.map((row) => ({ id: row.id, name: row.name, type: row.type as 'image' | 'video', url: row.url, duration: row.duration ?? undefined }))
   }
 
-  private loadSourcePresets() {
-    const rows = this.db.prepare('SELECT * FROM source_presets').all() as Array<{
-      id: string; label: string; plugin_type: string; config_json: string; default_position_json: string | null;
+  private loadWindowPresets() {
+    const rows = this.db.prepare('SELECT * FROM window_presets').all() as Array<{
+      id: string; label: string; renderer_type: string; config_json: string; default_position_json: string | null;
     }>
     return rows.map((row) => ({
-      id: row.id, label: row.label, rendererType: row.plugin_type,
+      id: row.id, label: row.label, rendererType: row.renderer_type,
       config: this._parseJson(row.config_json, {}),
       defaultPosition: this._parseJson(row.default_position_json, undefined),
     }))
@@ -337,7 +337,7 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'widgetLayouts':    this.widgetRepo.saveLayouts(cfg.widgetLayouts ?? []); break
           case 'sourceEvents':     this.eventRepo.save(cfg.sourceEvents ?? []); break
           case 'sourceMedia':      this.saveSourceMedia(cfg.sourceMedia ?? []); break
-          case 'sourcePresets':    this.saveSourcePresets(cfg.sourcePresets ?? []); break
+          case 'windowPresets':    this.saveWindowPresets(cfg.windowPresets ?? []); break
           case 'sourceTransitions': this.saveSourceTransitions(cfg.sourceTransitions ?? []); break
           case 'shows':            this.saveShows(cfg.shows ?? []); break
           case 'twitch':           if (cfg.twitch) this.saveTwitchConfig(cfg.twitch); break
@@ -379,10 +379,10 @@ export class DesktopConfigService implements Manager, IConfigService {
     }
   }
 
-  private saveSourcePresets(presets: NonNullable<AppConfig['sourcePresets']>): void {
-    this.db.prepare('DELETE FROM source_presets').run()
+  private saveWindowPresets(presets: NonNullable<AppConfig['windowPresets']>): void {
+    this.db.prepare('DELETE FROM window_presets').run()
     const insert = this.db.prepare(
-      'INSERT INTO source_presets (id, label, plugin_type, config_json, default_position_json) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO window_presets (id, label, renderer_type, config_json, default_position_json) VALUES (?, ?, ?, ?, ?)'
     )
     for (const preset of presets) {
       insert.run(
@@ -519,7 +519,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       widgetLayouts: next.widgetLayouts ?? [],
       sourceEvents: withEventListDefaults(next.sourceEvents?.length ? next.sourceEvents : structuredClone(DEFAULT_CONFIG.sourceEvents)),
       sourceMedia: next.sourceMedia ?? [],
-      sourcePresets: next.sourcePresets ?? [],
+      windowPresets: next.windowPresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],
       widgetWires: next.widgetWires ?? [],
       shows: next.shows ?? [],
@@ -531,7 +531,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   createScene(_app: Application, scene: Scene): AppConfig {
     this.db.transaction(() => {
       this.db.prepare(`
-        INSERT INTO scenes (id, label, background_opaque, sources_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, show_desktop)
+        INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, show_desktop)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         scene.id, scene.label, boolToInt(scene.backgroundOpaque),

@@ -101,13 +101,13 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const [eventSearch, setEventSearch] = useState('')
   const [eventDraft, setEventDraft] = useState<{ event: EventDef; originalId: string | null } | null>(null)
   const [sourceSearch, setSourceSearch] = useState('')
-  const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>((useAdminStore.getState().config.sourcePresets ?? [])[0]?.id ?? null)
+  const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>((useAdminStore.getState().config.windowPresets ?? [])[0]?.id ?? null)
   const [sourcePresetDraft, setSourcePresetDraft] = useState<{ preset: WindowPreset; originalId: string | null; originalLabel: string | null } | null>(null)
   const [transitionSearch, setTransitionSearch] = useState('')
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
-  const sourcePresets = config.sourcePresets ?? []
+  const sourcePresets = config.windowPresets ?? []
   const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
 
   const filteredEventDefs = useMemo(() => {
@@ -252,7 +252,7 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   }
 
   const saveSourcePresets = (next: WindowPreset[]) => {
-    void saveConfig({ sourcePresets: next })
+    void saveConfig({ windowPresets: next })
   }
 
   const removeSourcePreset = (presetId: string) => {

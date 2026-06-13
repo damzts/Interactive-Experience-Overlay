@@ -16,7 +16,7 @@ export function resolveScene(config: AppConfig, visualState: string): ResolvedSc
   const visibleWindows: WindowInstance[] = (scene?.windows ?? [])
     .filter((w) => w.visible)
     .flatMap((w) => {
-      const resolved = resolveWindowInstance(w, config.sourcePresets)
+      const resolved = resolveWindowInstance(w, config.windowPresets)
       return resolved ? [resolved as WindowInstance] : []
     })
 

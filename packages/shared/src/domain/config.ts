@@ -49,8 +49,8 @@ export interface AppConfig {
   sourceEvents?: EventConfig[]
   /** Centralised media asset library (Asset Library Catalog tab → source_media table) */
   sourceMedia?: MediaEntry[]
-  /** Reusable source presets (Asset Library Sources tab → source_presets table) */
-  sourcePresets?: WindowPreset[]
+  /** Reusable window presets (Asset Library Sources tab → window_presets table) */
+  windowPresets?: WindowPreset[]
   /** Named transition definitions (Asset Library Transitions tab → source_transitions table) */
   sourceTransitions?: TransitionDefinition[]
   /** Operator-configured widget wires (Wires panel → widget_wires table) */

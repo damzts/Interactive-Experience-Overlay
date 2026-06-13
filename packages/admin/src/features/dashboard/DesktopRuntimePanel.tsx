@@ -19,7 +19,7 @@ import { DesktopThemeEditor } from './DesktopThemePanel'
 export function DesktopRuntimePanel() {
   const config        = useAdminStore((s) => s.config)
   const saveConfig    = useAdminStore((s) => s.saveConfig)
-  const sourcePresets = config.sourcePresets ?? []
+  const windowPresets = config.windowPresets ?? []
 
   const scene = config.scenes[STATE.DESKTOP] as Scene | undefined
   const baseWindows = scene?.windows ?? []
@@ -65,7 +65,7 @@ export function DesktopRuntimePanel() {
         <div className="space-y-3">
           <ScenePreview windows={windows} selectedId={selectedId} onSelect={setSelectedId}
             onChangePosition={(id, pos) => setWindows((prev) => prev.map((w) => w.id === id ? { ...w, position: pos } : w))} />
-          <SourcesEditor sources={windows} sourcePresets={sourcePresets} onChange={setWindows} />
+          <SourcesEditor sources={windows} windowPresets={windowPresets} onChange={setWindows} />
         </div>
       )}
 

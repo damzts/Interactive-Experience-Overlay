@@ -15,7 +15,7 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
     background_opaque INTEGER NOT NULL DEFAULT 0,
-    sources_json TEXT NOT NULL DEFAULT '[]',
+    windows_json TEXT NOT NULL DEFAULT '[]',
     style_json TEXT,
     lobby_config_json TEXT,
     on_entry_json TEXT NOT NULL DEFAULT '[]',
@@ -111,10 +111,10 @@ const SCHEMA = `
     simulation_json TEXT
   );
 
-  CREATE TABLE IF NOT EXISTS source_presets (
+  CREATE TABLE IF NOT EXISTS window_presets (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
-    plugin_type TEXT NOT NULL,
+    renderer_type TEXT NOT NULL,
     config_json TEXT NOT NULL DEFAULT '{}',
     default_position_json TEXT
   );
@@ -229,6 +229,23 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   }
   addColumn('scenes', 'ambient_track', 'TEXT')
   addColumn('widget_wires', 'condition_json', 'TEXT')
+
+  // sources → renderer rename: migrate scenes.sources_json → windows_json
+  const sceneColumns = (db.prepare("PRAGMA table_info(scenes)").all() as Array<{ name: string }>).map((c) => c.name)
+  if (sceneColumns.includes('sources_json') && !sceneColumns.includes('windows_json')) {
+    db.exec('ALTER TABLE scenes RENAME COLUMN sources_json TO windows_json')
+  }
+
+  // sources → renderer rename: migrate source_presets table → window_presets
+  const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map((t) => t.name)
+  if (tables.includes('source_presets') && !tables.includes('window_presets')) {
+    db.exec('ALTER TABLE source_presets RENAME TO window_presets')
+    const presetColumns = (db.prepare("PRAGMA table_info(window_presets)").all() as Array<{ name: string }>).map((c) => c.name)
+    if (presetColumns.includes('plugin_type') && !presetColumns.includes('renderer_type')) {
+      db.exec('ALTER TABLE window_presets RENAME COLUMN plugin_type TO renderer_type')
+    }
+  }
+
   // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
   try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }
   return db

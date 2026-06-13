@@ -39,7 +39,7 @@ function WindowWidgetPlaceholder({
 export function WindowWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
   const applications = useAppStore((s) => s.config.applications)
   const scenes = useAppStore((s) => s.config.scenes)
-  const sourcePresets = useAppStore((s) => s.config.sourcePresets)
+  const windowPresets = useAppStore((s) => s.config.windowPresets)
 
   const app = useMemo(
     () => applications.find((entry) => entry.id === appId),
@@ -50,8 +50,8 @@ export function WindowWidget({ appId, onClose, onMinimize, onFocus, windowState 
   const scene = sceneId ? scenes[sceneId] : undefined
   const instance = useMemo(() => {
     const entry = scene?.windows.find((candidate) => candidate.id === windowId)
-    return entry ? resolveWindowInstance(entry, sourcePresets) : null
-  }, [scene, windowId, sourcePresets])
+    return entry ? resolveWindowInstance(entry, windowPresets) : null
+  }, [scene, windowId, windowPresets])
 
   const [rendererDef, setRendererDef] = useState<RendererDefinition | null>(null)
   useEffect(() => {
