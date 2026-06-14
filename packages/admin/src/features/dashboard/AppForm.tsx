@@ -75,7 +75,7 @@ export const AppForm = forwardRef<AppFormHandle, { app: Application; onDelete: (
 function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const config               = useAdminStore((s) => s.config)
   const persistedConfig      = useAdminStore((s) => s.persistedConfig)
-  const runtimeConfigOverride = useAdminStore((s) => s.runtimeConfigOverride)
+  const runtimeConfig = useAdminStore((s) => s.runtimeConfig)
   const saveConfig           = useAdminStore((s) => s.saveConfig)
   const desktopConfig        = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
   const persistedDesktopConfig = useMemo(() => withDesktopConfigDefaults(persistedConfig.desktopConfig), [persistedConfig.desktopConfig])
@@ -83,7 +83,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     () => persistedConfig.applications.find((entry) => entry.id === app.id) ?? app,
     [app, persistedConfig.applications],
   )
-  const runtimeWidgetThemeOverride  = runtimeConfigOverride.desktopConfig?.widgetThemeOverrides?.[app.id]
+  const runtimeWidgetThemeOverride  = runtimeConfig.desktopConfig?.widgetThemeOverrides?.[app.id]
   const sourceWidgetThemeOverride   = resolveWidgetThemeOverrideFromConfig(persistedApp)
   const effectiveWidgetThemeOverride = runtimeWidgetThemeOverride ?? sourceWidgetThemeOverride
 
@@ -95,8 +95,8 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const [widgetThemeOverride,       setWidgetThemeOverride]       = useState<WidgetThemeConfig>(() => structuredClone(effectiveWidgetThemeOverride ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
-  const [clearingOverride, setClearingOverride] = useState(false)
-  const [clearOverrideError, setClearOverrideError] = useState<string | null>(null)
+  const [clearingRuntime, setClearingRuntime] = useState(false)
+  const [clearRuntimeError, setClearRuntimeError] = useState<string | null>(null)
   const [detectedCameras, setDetectedCameras] = useState<{ deviceId: string; label: string }[]>([])
   const [detectingCameras, setDetectingCameras] = useState(false)
   const [cameraLabelsGranted, setCameraLabelsGranted] = useState(false)
@@ -152,11 +152,11 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const hasRuntimeWidgetThemeOverride = !!runtimeWidgetThemeOverride
 
   // True RAM deltas — only set when the runtime is actively overriding the persisted value
-  const runtimePosOverride    = runtimeConfigOverride.widgetPositions?.[app.id]
-  const runtimeSizeOverride   = runtimeConfigOverride.widgetSizes?.[app.id]
-  const runtimeZIndexOverride = runtimeConfigOverride.widgetZIndices?.[app.id]
-  const hasRuntimeLayoutOverride = !!(runtimePosOverride || runtimeSizeOverride || runtimeZIndexOverride !== undefined)
-  const hasRuntimeOverride       = hasRuntimeLayoutOverride || hasRuntimeWidgetThemeOverride
+  const runtimePos    = runtimeConfig.widgetPositions?.[app.id]
+  const runtimeSize   = runtimeConfig.widgetSizes?.[app.id]
+  const runtimeZIndex = runtimeConfig.widgetZIndices?.[app.id]
+  const hasRuntimeLayout = !!(runtimePos || runtimeSize || runtimeZIndex !== undefined)
+  const hasRuntimeOverride       = hasRuntimeLayout || hasRuntimeWidgetThemeOverride
   const appDirty = !isSameDraft(form, persistedApp)
   const widgetPositionDirty      = widgetPosition.x !== sourceWidgetPosition.x || widgetPosition.y !== sourceWidgetPosition.y
   const widgetSizeDirty          = widgetSize.width !== sourceWidgetSize.width || widgetSize.height !== sourceWidgetSize.height
@@ -264,14 +264,14 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     setSaved(false)
   }
 
-  const clearWidgetLayoutRuntimeOverride = () => {
-    if (!hasRuntimeLayoutOverride || clearingOverride) return
-    setClearingOverride(true)
-    setClearOverrideError(null)
-    socket.emit('runtime:config:override:widget:clear', form.id, (err: string | null) => {
-      setClearingOverride(false)
-      if (err) { setClearOverrideError(err); return }
-      setClearOverrideError(null)
+  const resetWidgetRuntimeLayout = () => {
+    if (!hasRuntimeLayout || clearingRuntime) return
+    setClearingRuntime(true)
+    setClearRuntimeError(null)
+    socket.emit('runtime:config:widget:reset', form.id, (err: string | null) => {
+      setClearingRuntime(false)
+      if (err) { setClearRuntimeError(err); return }
+      setClearRuntimeError(null)
     })
   }
 
@@ -307,7 +307,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                       {sourceWidgetPosition.x}, {sourceWidgetPosition.y}
                     </span>
                   </div>
-                  {runtimePosOverride && (
+                  {runtimePos && (
                     <div className="flex justify-between text-[10px]">
                       <span className="text-[var(--color-accent-400)]">Live</span>
                       <span className="font-mono text-[var(--color-accent-300)]">
@@ -326,7 +326,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                       {sourceWidgetSize.width} × {sourceWidgetSize.height}
                     </span>
                   </div>
-                  {runtimeSizeOverride && (
+                  {runtimeSize && (
                     <div className="flex justify-between text-[10px]">
                       <span className="text-[var(--color-accent-400)]">Live</span>
                       <span className="font-mono text-[var(--color-accent-300)]">
@@ -343,7 +343,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                     <span className="text-[var(--color-text-muted)]">Default</span>
                     <span className="font-mono text-[var(--color-text-secondary)]">{sourceWidgetDefaultZIndex}</span>
                   </div>
-                  {runtimeZIndexOverride !== undefined && (
+                  {runtimeZIndex !== undefined && (
                     <div className="flex justify-between text-[10px]">
                       <span className="text-[var(--color-accent-400)]">Live</span>
                       <span className="font-mono text-[var(--color-accent-300)]">{liveWidgetRuntimeZIndex}</span>
@@ -374,12 +374,12 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
               </div>
 
-              {clearOverrideError && <Notice tone="danger">{clearOverrideError}</Notice>}
+              {clearRuntimeError && <Notice tone="danger">{clearRuntimeError}</Notice>}
 
-              {hasRuntimeLayoutOverride && (
+              {hasRuntimeLayout && (
                 <div className="flex justify-end">
-                  <Button variant="secondary" size="sm" onClick={clearWidgetLayoutRuntimeOverride} disabled={clearingOverride}>
-                    {clearingOverride ? 'Clearing...' : 'Clear Layout Override'}
+                  <Button variant="secondary" size="sm" onClick={resetWidgetRuntimeLayout} disabled={clearingRuntime}>
+                    {clearingRuntime ? 'Clearing...' : 'Clear Layout Override'}
                   </Button>
                 </div>
               )}

@@ -42,8 +42,8 @@ export const adminSignalHandlers: AdminSignalHandlerMap = {
     store.patchConfig(updates)
   },
 
-  'runtime:config:override': (updates, store) => {
-    store.setRuntimeConfigOverride(updates)
+  'runtime:config': (updates, store) => {
+    store.setRuntimeConfig(updates)
   },
 
   'overlay:owner': ({ socketId }: { socketId: string | null }, store) => {

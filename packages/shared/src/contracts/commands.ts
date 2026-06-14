@@ -88,7 +88,7 @@ export interface OverlaySyncSnapshot {
  * Categories:
  *   Syscalls      — scene:change, widget:toggle, overlay:trigger, panic, keybind:execute,
  *                   widget:layout:apply*, event:preview, transition:preview,
- *                   desktop:notify, desktop:screen-saver:test, runtime:config:override:*
+ *                   desktop:notify, desktop:screen-saver:test, runtime:config:reset, runtime:config:widget:reset, runtime:config:widget-layout:reset
  *   State reports — desktop:recycle-bin, desktop:start-menu:state, overlay:runtime:status,
  *                   desktop:icon:drag, desktop:widget:drag, desktop:widget:resize
  *   Ambiance      — ambiance:simulate:accepted/started/done, widget:simulate:intent,
@@ -104,12 +104,12 @@ export interface ClientToServerEvents {
   'overlay:trigger': (payload: OverlayTriggerPayload) => void
   /** Preview a scheduled event (admin use) */
   'event:preview': (event: EventConfig, callback?: (err: string | null) => void) => void
-  /** Clear all runtime config overrides */
-  'runtime:config:override:clear': (callback?: (err: string | null) => void) => void
-  /** Clear runtime overrides for a specific widget */
-  'runtime:config:override:widget:clear': (widgetId: string, callback?: (err: string | null) => void) => void
-  /** Clear runtime overrides for a set of widgets (layout reset) */
-  'runtime:config:override:widget-layout:clear': (widgetIds: string[], callback?: (err: string | null) => void) => void
+  /** Reset all runtime config to persisted state */
+  'runtime:config:reset': (callback?: (err: string | null) => void) => void
+  /** Reset runtime config for a specific widget */
+  'runtime:config:widget:reset': (widgetId: string, callback?: (err: string | null) => void) => void
+  /** Reset runtime config for a set of widgets (layout reset) */
+  'runtime:config:widget-layout:reset': (widgetIds: string[], callback?: (err: string | null) => void) => void
   /** Execute a keybind action */
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
   /** Toggle a widget open/closed */

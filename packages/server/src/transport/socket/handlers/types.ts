@@ -4,7 +4,7 @@ import type {
   ClientToServerEvents,
   InterServerEvents,
   SocketData,
-  RuntimeConfigOverridePayload,
+  RuntimeConfig,
   ObsStatusPayload,
 } from '@ieomlabs/shared'
 import type { AppConfig } from '@ieomlabs/shared'
@@ -32,7 +32,7 @@ export interface HandlerContext {
   bus: KernelBus
   obsBridge?: ObsBridge
 
-  runtimeConfigOverride: RuntimeConfigOverridePayload
+  runtimeConfig: RuntimeConfig
   cachedUserConfig: AppConfig
 
   socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>

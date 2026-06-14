@@ -1,31 +1,31 @@
 import type { StateCreator } from 'zustand'
-import { DEFAULT_CONFIG, applyRuntimeConfigOverride, mergeAppConfig } from '@ieomlabs/shared'
-import type { AppConfig, RuntimeConfigOverridePayload } from '@ieomlabs/shared'
+import { DEFAULT_CONFIG, applyRuntimeConfig, mergeAppConfig } from '@ieomlabs/shared'
+import type { AppConfig, RuntimeConfig } from '@ieomlabs/shared'
 import { fetchConfig, patchConfig } from '../../api/configApi'
 
 export interface ConfigSlice {
   persistedConfig: AppConfig
-  runtimeConfigOverride: RuntimeConfigOverridePayload
+  runtimeConfig: RuntimeConfig
   config: AppConfig
   configLoaded: boolean
 
   setConfig: (c: AppConfig) => void
   patchConfig: (updates: Partial<AppConfig>) => void
-  setRuntimeConfigOverride: (updates: RuntimeConfigOverridePayload) => void
+  setRuntimeConfig: (updates: RuntimeConfig) => void
   fetchConfig: () => Promise<void>
   saveConfig: (updates: Partial<AppConfig>) => Promise<void>
 }
 
 export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], ConfigSlice> = (set, get) => ({
   persistedConfig: DEFAULT_CONFIG,
-  runtimeConfigOverride: {},
+  runtimeConfig: {},
   config: DEFAULT_CONFIG,
   configLoaded: false,
 
   setConfig: (c) =>
     set((state) => ({
       persistedConfig: c,
-      config: applyRuntimeConfigOverride(c, state.runtimeConfigOverride),
+      config: applyRuntimeConfig(c, state.runtimeConfig),
       configLoaded: true,
     })),
 
@@ -34,15 +34,15 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
       const persistedConfig = mergeAppConfig(state.persistedConfig, updates)
       return {
         persistedConfig,
-        config: applyRuntimeConfigOverride(persistedConfig, state.runtimeConfigOverride),
+        config: applyRuntimeConfig(persistedConfig, state.runtimeConfig),
         configLoaded: true,
       }
     }),
 
-  setRuntimeConfigOverride: (updates) =>
+  setRuntimeConfig: (updates) =>
     set((state) => ({
-      runtimeConfigOverride: updates,
-      config: applyRuntimeConfigOverride(state.persistedConfig, updates),
+      runtimeConfig: updates,
+      config: applyRuntimeConfig(state.persistedConfig, updates),
       configLoaded: true,
     })),
 
@@ -51,7 +51,7 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
       const data = await fetchConfig()
       set((state) => ({
         persistedConfig: data,
-        config: applyRuntimeConfigOverride(data, state.runtimeConfigOverride),
+        config: applyRuntimeConfig(data, state.runtimeConfig),
         configLoaded: true,
       }))
     } catch (e) {
@@ -64,7 +64,7 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
       const merged = await patchConfig(get().persistedConfig, updates)
       set((state) => ({
         persistedConfig: merged,
-        config: applyRuntimeConfigOverride(merged, state.runtimeConfigOverride),
+        config: applyRuntimeConfig(merged, state.runtimeConfig),
       }))
     } catch (e) {
       get().setLastError(String(e))

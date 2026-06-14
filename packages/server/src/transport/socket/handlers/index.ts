@@ -55,7 +55,7 @@ export function setupSocketHandlers(
     bus: options?.bus ?? (() => { throw new Error('[kernel] bus required') })(),
     obsBridge: options?.obsBridge,
 
-    runtimeConfigOverride: {},
+    runtimeConfig: {},
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,
 
     socketClientTypes: new Map(),
@@ -115,7 +115,7 @@ export function setupSocketHandlers(
 
     socket.emit('ambiance:metrics', { accepted: ctx.runtimeState.acceptedSimulatedToggles, rejected: ctx.runtimeState.rejectedSimulatedToggles })
     socket.emit('overlay:owner', { socketId: ctx.runtimeState.overlaySocketId })
-    socket.emit('runtime:config:override', ctx.runtimeConfigOverride)
+    socket.emit('runtime:config', ctx.runtimeConfig)
     socket.emit('runtime:diagnostics', {
       scheduler: scheduler.getDiagnostics(),
       ambiance: ambianceManager.getDiagnostics(),

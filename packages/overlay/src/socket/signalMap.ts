@@ -17,7 +17,7 @@ import type {
   DesktopStartMenuStatePayload,
   ObsStatusPayload,
   OpenWidgetMenuTimelinePayload,
-  RuntimeConfigOverridePayload,
+  RuntimeConfig,
   TransitionPlayPayload,
   WidgetSimulationIntentPayload,
   ServerToClientEvents,
@@ -125,8 +125,8 @@ export const signalHandlers: SignalHandlerMap = {
     store.patchConfig(updates)
   },
 
-  'runtime:config:override': (updates: RuntimeConfigOverridePayload, store) => {
-    store.setRuntimeConfigOverride(updates)
+  'runtime:config': (updates: RuntimeConfig, store) => {
+    store.setRuntimeConfig(updates)
   },
 
   // ── Widget / desktop signals ───────────────────────────────────

@@ -20,7 +20,7 @@ import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/d
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
 import type { LobbyConfig, WindowInstance, WindowPreset } from '../domain/scene.js'
 import type { OverlayStyle } from '../domain/overlay.js'
-import type { RuntimeConfigOverridePayload } from '../contracts/socket.js'
+import type { RuntimeConfig } from '../contracts/socket.js'
 import { STATE, OVERLAY_EVENT } from '../contracts/state.js'
 
 export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
@@ -1254,15 +1254,15 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
   }
 }
 
-export function applyRuntimeConfigOverride(base: AppConfig, runtimeOverride: RuntimeConfigOverridePayload): AppConfig {
-  if (!runtimeOverride || Object.keys(runtimeOverride).length === 0) return base
+export function applyRuntimeConfig(base: AppConfig, runtimeConfig: RuntimeConfig): AppConfig {
+  if (!runtimeConfig || Object.keys(runtimeConfig).length === 0) return base
 
   let applications = base.applications
-  if (runtimeOverride.widgetPositions || runtimeOverride.widgetSizes || runtimeOverride.widgetZIndices) {
+  if (runtimeConfig.widgetPositions || runtimeConfig.widgetSizes || runtimeConfig.widgetZIndices) {
     applications = base.applications.map((app) => {
-      const pos  = runtimeOverride.widgetPositions?.[app.id]
-      const size = runtimeOverride.widgetSizes?.[app.id]
-      const z    = runtimeOverride.widgetZIndices?.[app.id]
+      const pos  = runtimeConfig.widgetPositions?.[app.id]
+      const size = runtimeConfig.widgetSizes?.[app.id]
+      const z    = runtimeConfig.widgetZIndices?.[app.id]
       if (!pos && !size && z === undefined) return app
       return {
         ...app,
@@ -1273,7 +1273,7 @@ export function applyRuntimeConfigOverride(base: AppConfig, runtimeOverride: Run
     })
   }
 
-  return mergeAppConfig({ ...base, applications }, runtimeOverride as unknown as Partial<AppConfig>)
+  return mergeAppConfig({ ...base, applications }, runtimeConfig as unknown as Partial<AppConfig>)
 }
 
 export const DEFAULT_CONFIG: AppConfig = {

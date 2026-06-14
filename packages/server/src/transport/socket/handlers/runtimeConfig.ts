@@ -1,16 +1,16 @@
 /**
- * Runtime config override helpers — shared by config, widget, and desktop handlers.
- * All mutations go through these helpers to keep override state consistent.
+ * Runtime config helpers — shared by config, widget, and desktop handlers.
+ * All mutations go through these helpers to keep runtime config state consistent.
  */
 import type {
-  RuntimeConfigOverridePayload,
+  RuntimeConfig,
   DesktopAmbianceConfig,
 } from '@ieomlabs/shared'
 import type { HandlerContext } from './types.js'
 
 // ── Scope types ──────────────────────────────────────────────────
 
-export const RUNTIME_OVERRIDE_RESET_SCOPES = [
+export const RUNTIME_CONFIG_RESET_SCOPES = [
   'desktop.globalThemeDefault',
   'desktop.iconAnimation',
   'desktop.iconMotion',
@@ -19,26 +19,26 @@ export const RUNTIME_OVERRIDE_RESET_SCOPES = [
   'ambiance.widgetSimulation',
 ] as const
 
-export type RuntimeOverrideResetScope = typeof RUNTIME_OVERRIDE_RESET_SCOPES[number]
+export type RuntimeConfigResetScope = typeof RUNTIME_CONFIG_RESET_SCOPES[number]
 
 // ── Timer state (module-level, lives for the lifetime of the server instance) ──
 
 const resetTimers = Object.fromEntries(
-  RUNTIME_OVERRIDE_RESET_SCOPES.map((s) => [s, null]),
-) as Record<RuntimeOverrideResetScope, ReturnType<typeof setTimeout> | null>
+  RUNTIME_CONFIG_RESET_SCOPES.map((s) => [s, null]),
+) as Record<RuntimeConfigResetScope, ReturnType<typeof setTimeout> | null>
 
 const resetVersions = Object.fromEntries(
-  RUNTIME_OVERRIDE_RESET_SCOPES.map((s) => [s, 0]),
-) as Record<RuntimeOverrideResetScope, number>
+  RUNTIME_CONFIG_RESET_SCOPES.map((s) => [s, 0]),
+) as Record<RuntimeConfigResetScope, number>
 
 const widgetLayoutResetTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 // ── Deep merge ───────────────────────────────────────────────────
 
-export function mergeRuntimeConfigOverride(
-  base: RuntimeConfigOverridePayload,
-  updates: RuntimeConfigOverridePayload,
-): RuntimeConfigOverridePayload {
+export function mergeRuntimeConfig(
+  base: RuntimeConfig,
+  updates: RuntimeConfig,
+): RuntimeConfig {
   return {
     desktopConfig: updates.desktopConfig
       ? {
@@ -60,9 +60,9 @@ export function mergeRuntimeConfigOverride(
             ? { ...(base.desktopConfig?.widgetThemeOverrides ?? {}), ...updates.desktopConfig.widgetThemeOverrides }
             : base.desktopConfig?.widgetThemeOverrides,
           screenSaver: updates.desktopConfig.screenSaver
-            ? { ...(base.desktopConfig?.screenSaver ?? {}), ...updates.desktopConfig.screenSaver } as NonNullable<RuntimeConfigOverridePayload['desktopConfig']>['screenSaver']
+            ? { ...(base.desktopConfig?.screenSaver ?? {}), ...updates.desktopConfig.screenSaver } as NonNullable<RuntimeConfig['desktopConfig']>['screenSaver']
             : base.desktopConfig?.screenSaver,
-        } as RuntimeConfigOverridePayload['desktopConfig']
+        } as RuntimeConfig['desktopConfig']
       : base.desktopConfig,
     desktopAmbiance: updates.desktopAmbiance
       ? {
@@ -80,7 +80,7 @@ export function mergeRuntimeConfigOverride(
                   : base.desktopAmbiance?.widgetSimulation?.behaviors,
               } as Partial<DesktopAmbianceConfig>['widgetSimulation']
             : base.desktopAmbiance?.widgetSimulation,
-        } as RuntimeConfigOverridePayload['desktopAmbiance']
+        } as RuntimeConfig['desktopAmbiance']
       : base.desktopAmbiance,
     widgetPositions: updates.widgetPositions
       ? { ...(base.widgetPositions ?? {}), ...updates.widgetPositions }
@@ -96,32 +96,32 @@ export function mergeRuntimeConfigOverride(
 
 // ── Apply / emit ─────────────────────────────────────────────────
 
-export function applyRuntimeConfigOverride(ctx: HandlerContext, updates: RuntimeConfigOverridePayload) {
-  ctx.runtimeConfigOverride = mergeRuntimeConfigOverride(ctx.runtimeConfigOverride, updates)
-  ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+export function applyRuntimeConfig(ctx: HandlerContext, updates: RuntimeConfig) {
+  ctx.runtimeConfig = mergeRuntimeConfig(ctx.runtimeConfig, updates)
+  ctx.io.emit('runtime:config', ctx.runtimeConfig)
 }
 
-export function emitRuntimeConfigOverride(ctx: HandlerContext) {
-  ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+export function emitRuntimeConfig(ctx: HandlerContext) {
+  ctx.io.emit('runtime:config', ctx.runtimeConfig)
 }
 
 // ── Scoped clear ─────────────────────────────────────────────────
 
-export function clearRuntimeOverrideResetTimer(scope: RuntimeOverrideResetScope) {
+export function clearRuntimeResetTimer(scope: RuntimeConfigResetScope) {
   if (resetTimers[scope]) {
     clearTimeout(resetTimers[scope]!)
     resetTimers[scope] = null
   }
 }
 
-export function clearWidgetLayoutOverrideResetTimer(widgetId: string) {
+export function clearWidgetRuntimeResetTimer(widgetId: string) {
   const t = widgetLayoutResetTimers.get(widgetId)
   if (t) { clearTimeout(t); widgetLayoutResetTimers.delete(widgetId) }
 }
 
-export function clearRuntimeConfigOverrideScopes(ctx: HandlerContext, scopes: RuntimeOverrideResetScope[]) {
-  const nextDesktop = { ...(ctx.runtimeConfigOverride.desktopConfig ?? {}) }
-  const nextAmbiance = { ...(ctx.runtimeConfigOverride.desktopAmbiance ?? {}) }
+export function clearRuntimeConfigScopes(ctx: HandlerContext, scopes: RuntimeConfigResetScope[]) {
+  const nextDesktop = { ...(ctx.runtimeConfig.desktopConfig ?? {}) }
+  const nextAmbiance = { ...(ctx.runtimeConfig.desktopAmbiance ?? {}) }
 
   for (const scope of scopes) {
     if (scope === 'desktop.globalThemeDefault') delete nextDesktop.globalThemeDefault
@@ -132,45 +132,45 @@ export function clearRuntimeConfigOverrideScopes(ctx: HandlerContext, scopes: Ru
     if (scope === 'ambiance.widgetSimulation') delete nextAmbiance.widgetSimulation
   }
 
-  ctx.runtimeConfigOverride = {
+  ctx.runtimeConfig = {
     desktopConfig: Object.keys(nextDesktop).length ? nextDesktop : undefined,
     desktopAmbiance: Object.keys(nextAmbiance).length ? nextAmbiance : undefined,
   }
-  ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+  ctx.io.emit('runtime:config', ctx.runtimeConfig)
 }
 
-export function scheduleRuntimeConfigOverrideReset(ctx: HandlerContext, scopes: RuntimeOverrideResetScope[], timeoutSeconds: number) {
+export function scheduleRuntimeConfigReset(ctx: HandlerContext, scopes: RuntimeConfigResetScope[], timeoutSeconds: number) {
   for (const scope of scopes) {
-    clearRuntimeOverrideResetTimer(scope)
+    clearRuntimeResetTimer(scope)
     const version = resetVersions[scope] + 1
     resetVersions[scope] = version
     resetTimers[scope] = setTimeout(() => {
       if (resetVersions[scope] !== version) return
       resetTimers[scope] = null
-      clearRuntimeConfigOverrideScopes(ctx, [scope])
+      clearRuntimeConfigScopes(ctx, [scope])
     }, timeoutSeconds * 1000)
   }
 }
 
-export function clearAllRuntimeConfigOverrides(ctx: HandlerContext) {
-  for (const scope of RUNTIME_OVERRIDE_RESET_SCOPES) {
-    clearRuntimeOverrideResetTimer(scope)
+export function resetRuntimeConfig(ctx: HandlerContext) {
+  for (const scope of RUNTIME_CONFIG_RESET_SCOPES) {
+    clearRuntimeResetTimer(scope)
     resetVersions[scope] += 1
   }
   for (const widgetId of widgetLayoutResetTimers.keys()) {
-    clearWidgetLayoutOverrideResetTimer(widgetId)
+    clearWidgetRuntimeResetTimer(widgetId)
   }
   widgetLayoutResetTimers.clear()
-  ctx.runtimeConfigOverride = {}
-  ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+  ctx.runtimeConfig = {}
+  ctx.io.emit('runtime:config', ctx.runtimeConfig)
 }
 
-// ── Widget layout override ────────────────────────────────────────
+// ── Widget runtime config ─────────────────────────────────────────
 
-export function clearWidgetRuntimeLayoutOverride(ctx: HandlerContext, widgetId: string): boolean {
-  const nextPositions = { ...(ctx.runtimeConfigOverride.widgetPositions ?? {}) }
-  const nextSizes     = { ...(ctx.runtimeConfigOverride.widgetSizes ?? {}) }
-  const nextZIndices  = { ...(ctx.runtimeConfigOverride.widgetZIndices ?? {}) }
+export function resetWidgetRuntimeConfig(ctx: HandlerContext, widgetId: string): boolean {
+  const nextPositions = { ...(ctx.runtimeConfig.widgetPositions ?? {}) }
+  const nextSizes     = { ...(ctx.runtimeConfig.widgetSizes ?? {}) }
+  const nextZIndices  = { ...(ctx.runtimeConfig.widgetZIndices ?? {}) }
   let changed = false
 
   if (widgetId in nextPositions) { delete nextPositions[widgetId]; changed = true }
@@ -178,33 +178,32 @@ export function clearWidgetRuntimeLayoutOverride(ctx: HandlerContext, widgetId: 
   if (widgetId in nextZIndices)  { delete nextZIndices[widgetId];  changed = true }
   if (!changed) return false
 
-  ctx.runtimeConfigOverride = {
-    ...ctx.runtimeConfigOverride,
+  ctx.runtimeConfig = {
+    ...ctx.runtimeConfig,
     widgetPositions: Object.keys(nextPositions).length ? nextPositions : undefined,
     widgetSizes:     Object.keys(nextSizes).length     ? nextSizes     : undefined,
     widgetZIndices:  Object.keys(nextZIndices).length  ? nextZIndices  : undefined,
   }
-  ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+  ctx.io.emit('runtime:config', ctx.runtimeConfig)
   return true
 }
 
-export function clearWidgetRuntimeLayoutOverrides(ctx: HandlerContext, widgetIds: string[]): boolean {
+export function resetWidgetRuntimeConfigs(ctx: HandlerContext, widgetIds: string[]): boolean {
   let changed = false
   for (const id of widgetIds) {
-    clearWidgetLayoutOverrideResetTimer(id)
-    if (clearWidgetRuntimeLayoutOverride(ctx, id)) changed = true
+    clearWidgetRuntimeResetTimer(id)
+    if (resetWidgetRuntimeConfig(ctx, id)) changed = true
   }
   return changed
 }
 
-export function scheduleWidgetLayoutRuntimeOverrideReset(ctx: HandlerContext, widgetIds: string[], timeoutSeconds: number) {
+export function scheduleWidgetRuntimeConfigReset(ctx: HandlerContext, widgetIds: string[], timeoutSeconds: number) {
   for (const widgetId of widgetIds) {
-    clearWidgetLayoutOverrideResetTimer(widgetId)
+    clearWidgetRuntimeResetTimer(widgetId)
     const timer = setTimeout(() => {
       widgetLayoutResetTimers.delete(widgetId)
-      clearWidgetRuntimeLayoutOverride(ctx, widgetId)
+      resetWidgetRuntimeConfig(ctx, widgetId)
     }, timeoutSeconds * 1000)
     widgetLayoutResetTimers.set(widgetId, timer)
   }
 }
-

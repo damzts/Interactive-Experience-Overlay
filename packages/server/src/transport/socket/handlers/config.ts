@@ -1,40 +1,40 @@
 import type { HandlerContext, AppSocket } from './types.js'
 import {
-  clearAllRuntimeConfigOverrides,
-  clearWidgetRuntimeLayoutOverride,
-  clearWidgetRuntimeLayoutOverrides,
-} from './runtimeOverride.js'
+  resetRuntimeConfig,
+  resetWidgetRuntimeConfig,
+  resetWidgetRuntimeConfigs,
+} from './runtimeConfig.js'
 import { runConfiguredAction } from './scene.js'
 
 export function registerConfigHandlers(ctx: HandlerContext, socket: AppSocket): void {
-  socket.on('runtime:config:override:clear', (callback) => {
+  socket.on('runtime:config:reset', (callback) => {
     if (ctx.socketClientTypes.get(socket.id) !== 'admin') {
-      if (callback) callback('Only admin clients can clear runtime overrides')
+      if (callback) callback('Only admin clients can reset runtime config')
       return
     }
-    clearAllRuntimeConfigOverrides(ctx)
+    resetRuntimeConfig(ctx)
     if (callback) callback(null)
   })
 
-  socket.on('runtime:config:override:widget:clear', (widgetId, callback) => {
+  socket.on('runtime:config:widget:reset', (widgetId, callback) => {
     if (ctx.socketClientTypes.get(socket.id) !== 'admin') {
-      if (callback) callback('Only admin clients can clear widget runtime overrides')
+      if (callback) callback('Only admin clients can reset widget runtime config')
       return
     }
     const id = widgetId.trim()
     if (!id) { if (callback) callback('Missing widget id'); return }
-    clearWidgetRuntimeLayoutOverride(ctx, id)
+    resetWidgetRuntimeConfig(ctx, id)
     if (callback) callback(null)
   })
 
-  socket.on('runtime:config:override:widget-layout:clear', (widgetIds, callback) => {
+  socket.on('runtime:config:widget-layout:reset', (widgetIds, callback) => {
     if (ctx.socketClientTypes.get(socket.id) !== 'admin') {
-      if (callback) callback('Only admin clients can clear widget layout runtime overrides')
+      if (callback) callback('Only admin clients can reset widget layout runtime config')
       return
     }
     const ids = [...new Set((widgetIds ?? []).map((id) => id.trim()).filter(Boolean))]
     if (!ids.length) { if (callback) callback('Missing widget ids'); return }
-    clearWidgetRuntimeLayoutOverrides(ctx, ids)
+    resetWidgetRuntimeConfigs(ctx, ids)
     if (callback) callback(null)
   })
 

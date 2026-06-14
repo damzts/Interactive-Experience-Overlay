@@ -18,11 +18,11 @@ import {
 import type { TransitionStartPayload } from '../../../kernel/managers/scene.js'
 import type { HandlerContext, AppSocket } from './types.js'
 import {
-  applyRuntimeConfigOverride,
-  scheduleRuntimeConfigOverrideReset,
-  scheduleWidgetLayoutRuntimeOverrideReset,
-  type RuntimeOverrideResetScope,
-} from './runtimeOverride.js'
+  applyRuntimeConfig,
+  scheduleRuntimeConfigReset,
+  scheduleWidgetRuntimeConfigReset,
+  type RuntimeConfigResetScope,
+} from './runtimeConfig.js'
 import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout } from './widget.js'
 
 const RANDOMIZABLE_DESKTOP_THEMES: DesktopTheme[] = [
@@ -96,7 +96,7 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
   for (const action of eventDef.actions ?? []) {
     if (action.kind === 'desktop-config') {
       const currentEffective = withDesktopConfigDefaults(
-        mergeAppConfig(ctx.cachedUserConfig, ctx.runtimeConfigOverride as unknown as Partial<AppConfig>).desktopConfig,
+        mergeAppConfig(ctx.cachedUserConfig, ctx.runtimeConfig as unknown as Partial<AppConfig>).desktopConfig,
       )
       const resolvedTheme = resolveRuntimeDesktopTheme(action.patch.theme, currentEffective.globalThemeDefault.theme)
       const resolvedWidgetPatch = resolveRuntimeWidgetThemePatch(action.patch.widgetTheme)
@@ -112,13 +112,13 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
         ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
         ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
       }
-      applyRuntimeConfigOverride(ctx, { desktopConfig: desktopPatch as typeof ctx.runtimeConfigOverride['desktopConfig'] })
-      const resetScopes: RuntimeOverrideResetScope[] = []
+      applyRuntimeConfig(ctx, { desktopConfig: desktopPatch as typeof ctx.runtimeConfig['desktopConfig'] })
+      const resetScopes: RuntimeConfigResetScope[] = []
       if (globalPatch) resetScopes.push('desktop.globalThemeDefault')
       if (desktopPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
       if (desktopPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
       if (desktopPatch.screenSaver) resetScopes.push('desktop.screenSaver')
-      if (resetScopes.length) scheduleRuntimeConfigOverrideReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
+      if (resetScopes.length) scheduleRuntimeConfigReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
       continue
     }
 
@@ -134,8 +134,8 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
           : currentDesktop.widgetThemeOverrides?.[widgetId] ?? persistedOverride ?? globalTheme
         nextOverrides[widgetId] = { ...base, ...(resolvedPatch ?? {}) }
       }
-      applyRuntimeConfigOverride(ctx, { desktopConfig: { widgetThemeOverrides: nextOverrides } })
-      scheduleRuntimeConfigOverrideReset(ctx, ['desktop.widgetThemeOverrides'], action.timeoutSeconds ?? 30)
+      applyRuntimeConfig(ctx, { desktopConfig: { widgetThemeOverrides: nextOverrides } })
+      scheduleRuntimeConfigReset(ctx, ['desktop.widgetThemeOverrides'], action.timeoutSeconds ?? 30)
       continue
     }
 
@@ -144,7 +144,7 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       const result = applySavedWidgetLayout(ctx, action.layoutId, { persist: false })
       if (!result.ok) return result
       const layoutWidgetIds = Array.from(new Set((layout?.items ?? []).map((i) => i.widgetId).filter(Boolean)))
-      if (layoutWidgetIds.length) scheduleWidgetLayoutRuntimeOverrideReset(ctx, layoutWidgetIds, action.timeoutSeconds ?? 30)
+      if (layoutWidgetIds.length) scheduleWidgetRuntimeConfigReset(ctx, layoutWidgetIds, action.timeoutSeconds ?? 30)
       continue
     }
 
@@ -165,10 +165,10 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
-    applyRuntimeConfigOverride(ctx, {
+    applyRuntimeConfig(ctx, {
       desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
     })
-    scheduleRuntimeConfigOverrideReset(ctx, ['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
+    scheduleRuntimeConfigReset(ctx, ['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
   }
 
   return { ok: true }

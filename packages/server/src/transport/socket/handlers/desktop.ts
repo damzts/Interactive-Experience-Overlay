@@ -6,7 +6,7 @@ import type {
   DesktopRuntimeStatePayload,
 } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
-import { applyRuntimeConfigOverride } from './runtimeOverride.js'
+import { applyRuntimeConfig } from './runtimeConfig.js'
 
 export function getDesktopRuntimeState(ctx: HandlerContext): DesktopRuntimeStatePayload {
   return {
@@ -28,7 +28,7 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
   socket.on('desktop:widget:drag', (payload) => {
     if (payload.phase !== 'move') ctx.scheduler?.noteActivity()
     if (payload.phase === 'end') {
-      applyRuntimeConfigOverride(ctx, {
+      applyRuntimeConfig(ctx, {
         widgetPositions: {
           [payload.widgetId]: { x: Math.max(0, Math.round(payload.x)), y: Math.max(0, Math.round(payload.y)) },
         },
@@ -39,7 +39,7 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
   socket.on('desktop:widget:resize', (payload) => {
     if (payload.phase !== 'move') ctx.scheduler?.noteActivity()
     if (payload.phase === 'end') {
-      applyRuntimeConfigOverride(ctx, {
+      applyRuntimeConfig(ctx, {
         widgetPositions: {
           [payload.widgetId]: { x: Math.max(0, Math.round(payload.x)), y: Math.max(0, Math.round(payload.y)) },
         },

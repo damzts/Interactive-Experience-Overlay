@@ -186,15 +186,15 @@ export interface AmbianceSimulationPayload {
   sharedIntent: WidgetSimulationIntentPayload | null
 }
 
-// ── Runtime config override ───────────────────────────────────────
+// ── Runtime config ────────────────────────────────────────────────
 
-export interface RuntimeConfigOverridePayload {
+export interface RuntimeConfig {
   desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'screenSaver'>
-  /** Transient per-widget position overrides (not persisted — runtime events only) */
+  /** Transient per-widget positions (not persisted — runtime state only) */
   widgetPositions?: Record<string, { x: number; y: number }>
-  /** Transient per-widget size overrides (not persisted — runtime events only) */
+  /** Transient per-widget sizes (not persisted — runtime state only) */
   widgetSizes?: Record<string, { width?: number; height?: number }>
-  /** Transient per-widget z-index overrides (not persisted — runtime events only) */
+  /** Transient per-widget z-indices (not persisted — runtime state only) */
   widgetZIndices?: Record<string, number>
   desktopAmbiance?: Partial<DesktopAmbianceConfig>
 }
@@ -224,8 +224,8 @@ export interface ServerToClientEvents {
   'runtime:diagnostics': (payload: RuntimeDiagnosticsPayload) => void
   /** Overlay slot ownership changed */
   'overlay:owner': (payload: { socketId: string | null }) => void
-  /** Scoped runtime config override applied */
-  'runtime:config:override': (payload: RuntimeConfigOverridePayload) => void
+  /** Scoped runtime config applied */
+  'runtime:config': (payload: RuntimeConfig) => void
   /** Ambiance manager wants the overlay to simulate a widget action */
   'ambiance:simulate': (payload: AmbianceSimulationPayload) => void
   /** Full state resync requested (e.g. after reconnect) */

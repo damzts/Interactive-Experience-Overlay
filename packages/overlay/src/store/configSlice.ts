@@ -1,5 +1,5 @@
-import { applyRuntimeConfigOverride, mergeAppConfig } from '@ieomlabs/shared'
-import type { AppConfig, RuntimeConfigOverridePayload } from '@ieomlabs/shared'
+import { applyRuntimeConfig, mergeAppConfig } from '@ieomlabs/shared'
+import type { AppConfig, RuntimeConfig } from '@ieomlabs/shared'
 
 /** Minimal stub used before server config is received. Replaced immediately on socket connect. */
 const EMPTY_CONFIG: AppConfig = {
@@ -11,7 +11,7 @@ const EMPTY_CONFIG: AppConfig = {
 
 export interface ConfigSlice {
   persistedConfig: AppConfig
-  runtimeConfigOverride: RuntimeConfigOverridePayload
+  runtimeConfig: RuntimeConfig
   config: AppConfig
   previewBaseConfig: AppConfig | null
   previewConfigPatch: Partial<AppConfig> | null
@@ -19,47 +19,47 @@ export interface ConfigSlice {
 
   setConfig: (c: AppConfig) => void
   patchConfig: (updates: Partial<AppConfig>) => void
-  setRuntimeConfigOverride: (updates: RuntimeConfigOverridePayload) => void
+  setRuntimeConfig: (updates: RuntimeConfig) => void
   applyPreviewConfig: (updates: Partial<AppConfig>) => void
   clearPreviewConfig: () => void
 }
 
 export const createConfigSlice = (set: (fn: (state: any) => Partial<any>) => void, get: () => any): ConfigSlice => ({
   persistedConfig: EMPTY_CONFIG,
-  runtimeConfigOverride: {},
+  runtimeConfig: {},
   config: EMPTY_CONFIG,
   previewBaseConfig: null,
   previewConfigPatch: null,
   configLoaded: false,
 
   setConfig: (c) => set((state) => {
-    const runtimeBase = applyRuntimeConfigOverride(c, state.runtimeConfigOverride)
+    const runtimeBase = applyRuntimeConfig(c, state.runtimeConfig)
     if (!state.previewConfigPatch) return { persistedConfig: c, config: runtimeBase, configLoaded: true }
     return { persistedConfig: c, config: mergeAppConfig(runtimeBase, state.previewConfigPatch), previewBaseConfig: runtimeBase, configLoaded: true }
   }),
 
   patchConfig: (updates) => set((state) => {
     const persisted = mergeAppConfig(state.persistedConfig, updates)
-    const runtimeBase = applyRuntimeConfigOverride(persisted, state.runtimeConfigOverride)
+    const runtimeBase = applyRuntimeConfig(persisted, state.runtimeConfig)
     if (!state.previewConfigPatch) return { persistedConfig: persisted, config: runtimeBase, configLoaded: true }
     return { persistedConfig: persisted, config: mergeAppConfig(runtimeBase, state.previewConfigPatch), previewBaseConfig: runtimeBase, configLoaded: true }
   }),
 
-  setRuntimeConfigOverride: (updates) => set((state) => {
-    const runtimeBase = applyRuntimeConfigOverride(state.persistedConfig, updates)
-    if (!state.previewConfigPatch) return { runtimeConfigOverride: updates, config: runtimeBase, configLoaded: true }
-    return { runtimeConfigOverride: updates, config: mergeAppConfig(runtimeBase, state.previewConfigPatch), previewBaseConfig: runtimeBase, configLoaded: true }
+  setRuntimeConfig: (updates) => set((state) => {
+    const runtimeBase = applyRuntimeConfig(state.persistedConfig, updates)
+    if (!state.previewConfigPatch) return { runtimeConfig: updates, config: runtimeBase, configLoaded: true }
+    return { runtimeConfig: updates, config: mergeAppConfig(runtimeBase, state.previewConfigPatch), previewBaseConfig: runtimeBase, configLoaded: true }
   }),
 
   applyPreviewConfig: (updates) => set((state) => {
-    const previewBase = applyRuntimeConfigOverride(state.persistedConfig, state.runtimeConfigOverride)
+    const previewBase = applyRuntimeConfig(state.persistedConfig, state.runtimeConfig)
     return { previewBaseConfig: previewBase, previewConfigPatch: updates, config: mergeAppConfig(previewBase, updates), configLoaded: true }
   }),
 
   clearPreviewConfig: () => set((state) => {
     if (!state.previewBaseConfig) return { previewConfigPatch: null }
     return {
-      config: applyRuntimeConfigOverride(state.persistedConfig, state.runtimeConfigOverride),
+      config: applyRuntimeConfig(state.persistedConfig, state.runtimeConfig),
       previewBaseConfig: null,
       previewConfigPatch: null,
       configLoaded: true,

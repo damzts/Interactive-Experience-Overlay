@@ -1,7 +1,7 @@
 import { mergeAppConfig } from '@ieomlabs/shared'
 import type { WidgetSimulationCommandPayload } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
-import { applyRuntimeConfigOverride } from './runtimeOverride.js'
+import { applyRuntimeConfig } from './runtimeConfig.js'
 import logger from '../../../lib/logger.js';
 
 
@@ -44,9 +44,9 @@ export function applySavedWidgetLayout(
   })
 
   if (options?.persist === false) {
-    const nextPositions = { ...(ctx.runtimeConfigOverride.widgetPositions ?? {}) }
-    const nextSizes = { ...(ctx.runtimeConfigOverride.widgetSizes ?? {}) }
-    const nextZIndices = { ...(ctx.runtimeConfigOverride.widgetZIndices ?? {}) }
+    const nextPositions = { ...(ctx.runtimeConfig.widgetPositions ?? {}) }
+    const nextSizes = { ...(ctx.runtimeConfig.widgetSizes ?? {}) }
+    const nextZIndices = { ...(ctx.runtimeConfig.widgetZIndices ?? {}) }
 
     for (const item of layoutItems) {
       delete nextPositions[item.widgetId]
@@ -61,13 +61,13 @@ export function applySavedWidgetLayout(
       nextZIndices[item.widgetId] = item.focusPriority
     }
 
-    ctx.runtimeConfigOverride = {
-      ...ctx.runtimeConfigOverride,
+    ctx.runtimeConfig = {
+      ...ctx.runtimeConfig,
       ...(Object.keys(nextPositions).length ? { widgetPositions: nextPositions } : { widgetPositions: undefined }),
       ...(Object.keys(nextSizes).length ? { widgetSizes: nextSizes } : { widgetSizes: undefined }),
       ...(Object.keys(nextZIndices).length ? { widgetZIndices: nextZIndices } : { widgetZIndices: undefined }),
     }
-    ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+    ctx.io.emit('runtime:config', ctx.runtimeConfig)
   } else {
     // Persist path: update application geometry directly
     const nextApplications = currentConfig.applications.map((app) => {
@@ -143,9 +143,9 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     const validItems = items.filter((i) => validWidgetIds.has(i.widgetId))
     if (!validItems.length) return
 
-    const nextPositions = { ...(ctx.runtimeConfigOverride.widgetPositions ?? {}) }
-    const nextSizes     = { ...(ctx.runtimeConfigOverride.widgetSizes ?? {}) }
-    const nextZIndices  = { ...(ctx.runtimeConfigOverride.widgetZIndices ?? {}) }
+    const nextPositions = { ...(ctx.runtimeConfig.widgetPositions ?? {}) }
+    const nextSizes     = { ...(ctx.runtimeConfig.widgetSizes ?? {}) }
+    const nextZIndices  = { ...(ctx.runtimeConfig.widgetZIndices ?? {}) }
     const defaultZIndices = Object.fromEntries(currentConfig.applications.map((a) => [a.id, a.zIndexDefault ?? 0]))
 
     for (const item of validItems) {
@@ -162,13 +162,13 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
       nextZIndices[item.widgetId]  = item.focusPriority
     }
 
-    ctx.runtimeConfigOverride = {
-      ...ctx.runtimeConfigOverride,
+    ctx.runtimeConfig = {
+      ...ctx.runtimeConfig,
       widgetPositions: Object.keys(nextPositions).length ? nextPositions : undefined,
       widgetSizes:     Object.keys(nextSizes).length     ? nextSizes     : undefined,
       widgetZIndices:  Object.keys(nextZIndices).length  ? nextZIndices  : undefined,
     }
-    ctx.io.emit('runtime:config:override', ctx.runtimeConfigOverride)
+    ctx.io.emit('runtime:config', ctx.runtimeConfig)
 
     for (const item of validItems) {
       const isOpen = ctx.runtimeState.openWidgetIds.has(item.widgetId)
