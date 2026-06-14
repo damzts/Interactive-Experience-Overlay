@@ -441,9 +441,17 @@ export class RoomManager {
         const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
         if (res.ok) {
           const data = await res.json() as { token: string }
-          token = data.token
-          this.setToken(token)
-          logger.info('[room] syncFromCloud: obtained guest token')
+          // Re-check after the async fetch: POST /api/online/auth may have set a real
+          // user token while we were waiting. If so, use it and don't overwrite it.
+          const currentToken = this.getToken()
+          if (currentToken) {
+            token = currentToken
+            logger.info('[room] syncFromCloud: real token arrived during guest fetch, using it')
+          } else {
+            token = data.token
+            this.setToken(token)
+            logger.info('[room] syncFromCloud: obtained guest token')
+          }
         }
       } catch { /* ignore */ }
     }
