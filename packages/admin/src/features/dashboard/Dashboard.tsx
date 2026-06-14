@@ -4,6 +4,7 @@ import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { useAuth } from '../../auth/AuthContext'
+import { provideAuthToken } from '../../api/roomApi'
 import { LoginModal } from '../../auth/LoginModal'
 import { Sidebar as LeftSidebar, TopBar as NewTopBar } from '../../components/organisms'
 import type { SidebarSection } from '../../components/organisms'
@@ -47,6 +48,13 @@ export function Dashboard() {
     overlayOwnerSocketId != null ? 'connected' : 'disconnected'
   const obsStatus: 'connected' | 'disconnected' =
     obsConnected ? 'connected' : 'disconnected'
+
+  // ─── Provide auth token to server on app load ───
+  // Sends the stored user JWT to POST /api/online/auth so the server can
+  // reconnect to cloud rooms as hub without waiting for RoomsPanel to open.
+  useEffect(() => {
+    provideAuthToken().catch(() => {})
+  }, [])
 
   // ─── Auto-collapse sidebar on mobile ───
   useEffect(() => {

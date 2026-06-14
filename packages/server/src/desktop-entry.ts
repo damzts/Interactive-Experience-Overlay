@@ -390,6 +390,14 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   registerRoomNamespace(io, roomManager, roomPreviewRelay)
   await app.register(onlineRoomRoute, { roomManager })
 
+  // In Electron mode getToken is provided at startup (loadToken from keychain).
+  // Sync immediately so the hub reconnects to cloud rooms without admin panel interaction.
+  if (getToken?.()) {
+    roomManager.syncFromCloud().catch((e) => {
+      logger.info({ err: (e as Error).message }, '[room] startup sync failed')
+    })
+  }
+
   registerStudioNamespace(io, roomHub, povOrchestrator, roomManager)
 
   const studioPagePath = join(import.meta.dirname, 'studio.html')
