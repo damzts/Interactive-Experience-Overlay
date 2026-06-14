@@ -34,6 +34,10 @@ export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
     const { token } = req.body ?? {}
     if (!token) return { ok: false, error: 'missing_token' }
     roomManager.setToken(token)
+    // Sync rooms now that we have a real user token — this reconnects the hub
+    // to any existing cloud rooms from a previous session without waiting for
+    // the admin to manually open the rooms panel.
+    roomManager.syncFromCloud().catch(() => {})
     return { ok: true }
   })
 
