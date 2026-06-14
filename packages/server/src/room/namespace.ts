@@ -75,6 +75,14 @@ export function registerRoomNamespace(
     socket.data.role = role as 'admin' | 'player' | 'overlay'
     logger.info(`[room] ${role} connected: ${socket.id}`)
 
+    // Push current room state to admin on connect so the UI is never stale
+    if (role === 'admin') {
+      const rooms = manager.getRooms()
+      for (const room of rooms) {
+        socket.emit('pov-online:status', room)
+      }
+    }
+
     // ── Admin events ─────────────────────────────────────────────
 
     socket.on('pov-online:room:create', (ack) => {

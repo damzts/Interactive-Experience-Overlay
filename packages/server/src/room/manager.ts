@@ -36,6 +36,7 @@ export class RoomManager {
   private cloudUrl: string
   private getToken: () => string | null
   private hubRoomId: string | null = null
+  private hubReconnectTimer: ReturnType<typeof setTimeout> | null = null
   private activeRoomCode: string | null = null  // Room whose POV is relayed to overlay
 
   private circuitBreaker = new CircuitBreaker({
@@ -131,6 +132,7 @@ export class RoomManager {
       }
       if (targetRoom) {
         this.syncParticipants(targetRoom, status.participants, status.participantNames)
+        this.emit('pov-online:status', this.toStatus(targetRoom))
       } else {
         logger.info(`[room] onStatus: no matching room found for ${status.roomId}`)
       }
@@ -498,6 +500,7 @@ export class RoomManager {
           return
         }
         this.hubRoomId = firstRoom.id
+        if (this.hubReconnectTimer) { clearTimeout(this.hubReconnectTimer); this.hubReconnectTimer = null }
         try {
           await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
           this.setActiveRoomCode(firstRoom.id)
@@ -505,7 +508,14 @@ export class RoomManager {
           if (room) this.emit('pov-online:status', this.toStatus(room))
         } catch (e: any) {
           this.hubRoomId = null
-          logger.info({ err: e?.message ?? e }, '[room] syncFromCloud: hub reconnect failed')
+          logger.info({ err: e?.message ?? e }, '[room] syncFromCloud: hub reconnect failed, retrying in 5s')
+          // Cloud may need a moment to clean up after an abrupt hub disconnect.
+          // Schedule one automatic retry so the hub rejoins without admin intervention.
+          if (this.hubReconnectTimer) clearTimeout(this.hubReconnectTimer)
+          this.hubReconnectTimer = setTimeout(() => {
+            this.hubReconnectTimer = null
+            this.syncFromCloud().catch(() => {})
+          }, 5_000)
         }
       }
     } catch (e: any) { logger.info({ err: e.message }, '[room] syncFromCloud error') }
