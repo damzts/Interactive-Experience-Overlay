@@ -258,12 +258,6 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
 
-  const useCurrentWidgetValues = () => {
-    setWidgetPosition(liveWidgetPosition)
-    setWidgetSize(liveWidgetSize)
-    setSaved(false)
-  }
-
   const resetWidgetRuntimeLayout = () => {
     if (!hasRuntimeLayout || clearingRuntime) return
     setClearingRuntime(true)
@@ -422,10 +416,6 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
         </ConfigPanel>
 
         <ConfigPanel title="Widget Window Defaults" className="mb-4">
-            <div className="flex justify-end mb-3">
-              <Button variant="secondary" size="sm" onClick={useCurrentWidgetValues}>Use Current</Button>
-            </div>
-
             {/* Visual drag+resize preview — same canvas as Scene windows */}
             <OverlayCanvas
               items={[{
@@ -501,13 +491,10 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                 Baseline stack order for this widget. Layout configurations can override this per-layout, and manual focus or taskbar clicks will still bring a window to the front at runtime.
               </div>
             </div>
-          </ConfigPanel>
 
-        <ConfigPanel title="Widget Theme" className="mb-4">
-            <div className="space-y-4">
-              <div className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
-                Keep widgets self-sufficient by giving each one its own skin, theming, motion, and atmosphere profile. Leave this off to inherit the shared desktop widget theme.
-              </div>
+            {/* Default Widget Theme */}
+            <div className="mt-3 pt-3 border-t border-[var(--color-border-default)] space-y-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-muted)]">Default Widget Theme</div>
               {hasRuntimeWidgetTheme && (
                 <Notice className="px-3 py-2 text-[10px]" tone="info">
                   Runtime theme active. The values below reflect the live theme currently applied to this widget.
@@ -581,11 +568,6 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                         <Slider label="Radius" value={widgetTheme.borderRadius} min={0} max={32} step={1} unit="px"
                           onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, borderRadius: value })); setSaved(false) }} />
                       </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="secondary" size="sm" onClick={() => { setWidgetTheme(structuredClone(desktopConfig.globalThemeDefault.widgetTheme)); setSaved(false) }}>
-                        Copy Desktop Theme
-                      </Button>
                     </div>
                   </div>
                 </>
