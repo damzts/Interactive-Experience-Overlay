@@ -16,11 +16,7 @@ import type {
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
-import {
-  WIDGET_SKINS,
-  WIDGET_THEME_ANIMATIONS,
-  WIDGET_THEME_ATMOSPHERES,
-} from '../../shared/adminDesktopOptions'
+import { WIDGET_SKINS } from '../../shared/adminDesktopOptions'
 import {
   LAUNCH_PIPELINE_EFFECT_TYPES,
   createEffectDraft,
@@ -32,12 +28,10 @@ import {
   IconGlyph,
   isSameDraft,
   OverlayCanvas,
-  Slider,
 } from '../../shared/ui'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
 import { WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN, WIDGET_Z_INDEX_MAX, WIDGET_Z_INDEX_MIN } from './constants'
-import { ThemeAppearanceFields } from './formAtoms'
 const postPreviewConfigPatch = (_patch: unknown) => {} // no-op: embedded preview removed
 import { StickyNotesConfigSection } from './DefaultStylingEditor'
 import {
@@ -85,14 +79,12 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   )
   const runtimeWidgetTheme  = runtimeConfig.desktopConfig?.widgetThemes?.[app.id]
   const sourceWidgetTheme   = resolveWidgetThemeFromConfig(persistedApp)
-  const effectiveWidgetTheme = runtimeWidgetTheme ?? sourceWidgetTheme
 
   const [form,                      setForm]                      = useState<Application>(app)
   const [widgetSize,                setWidgetSize]                = useState(() => resolveWidgetSizeFromConfig(persistedApp))
   const [widgetPosition,            setWidgetPosition]            = useState(() => resolveWidgetPositionFromConfig(persistedApp))
   const [widgetDefaultZIndex,       setWidgetDefaultZIndex]       = useState<number>(() => resolveWidgetDefaultZIndexFromConfig(persistedApp))
-  const [widgetThemeEnabled, setWidgetThemeEnabled] = useState(() => !!effectiveWidgetTheme)
-  const [widgetTheme,       setWidgetTheme]       = useState<WidgetThemeConfig>(() => structuredClone(effectiveWidgetTheme ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
+  const [widgetTheme, setWidgetTheme] = useState<WidgetThemeConfig | undefined>(() => sourceWidgetTheme ? structuredClone(sourceWidgetTheme) : undefined)
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
   const [clearingRuntime, setClearingRuntime] = useState(false)
@@ -161,18 +153,16 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const widgetPositionDirty      = widgetPosition.x !== sourceWidgetPosition.x || widgetPosition.y !== sourceWidgetPosition.y
   const widgetSizeDirty          = widgetSize.width !== sourceWidgetSize.width || widgetSize.height !== sourceWidgetSize.height
   const widgetDefaultZIndexDirty = widgetDefaultZIndex !== sourceWidgetDefaultZIndex
-  const widgetThemeDirty = (
-    widgetThemeEnabled !== !!sourceWidgetTheme
-    || (widgetThemeEnabled && !isSameDraft(widgetTheme, sourceWidgetTheme ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
-  )
+  const widgetThemeDirty = !!widgetTheme !== !!sourceWidgetTheme
+    || (widgetTheme != null && !isSameDraft(widgetTheme, sourceWidgetTheme!))
   const dirty = appDirty || widgetPositionDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeDirty
 
   const widgetThemePreviewPatch = useMemo(() => {
-    const nextApp = { ...persistedApp, theme: widgetThemeEnabled ? structuredClone(widgetTheme) : undefined }
+    const nextApp = { ...persistedApp, theme: widgetTheme ? structuredClone(widgetTheme) : undefined }
     return {
       applications: persistedConfig.applications.map((a) => a.id === form.id ? nextApp : a),
     } as Partial<AppConfig>
-  }, [form.id, persistedApp, persistedConfig.applications, widgetTheme, widgetThemeEnabled])
+  }, [form.id, persistedApp, persistedConfig.applications, widgetTheme])
 
   useEffect(() => {
     setForm(persistedApp)
@@ -183,9 +173,8 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   }, [persistedApp, persistedDesktopConfig])
 
   useEffect(() => {
-    setWidgetThemeEnabled(!!sourceWidgetTheme)
-    setWidgetTheme(structuredClone(sourceWidgetTheme ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
-  }, [sourceWidgetTheme, persistedDesktopConfig.globalThemeDefault.widgetTheme])
+    setWidgetTheme(sourceWidgetTheme ? structuredClone(sourceWidgetTheme) : undefined)
+  }, [sourceWidgetTheme])
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -221,7 +210,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
       ? undefined
       : { width: normalizedWidth, height: normalizedHeight }
     draftApp.zIndexDefault = Math.max(0, Math.round(widgetDefaultZIndex))
-    draftApp.theme = widgetThemeEnabled ? structuredClone(widgetTheme) : undefined
+    draftApp.theme = widgetTheme ? structuredClone(widgetTheme) : undefined
 
     const apps = [...persistedConfig.applications]
     const idx = apps.findIndex((entry) => entry.id === draftApp.id)
@@ -229,7 +218,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     updates.applications = apps
 
     return updates
-  }, [config, form, persistedConfig.applications, persistedDesktopConfig, sourceWidgetSize, widgetDefaultZIndex, widgetPosition, widgetSize, widgetTheme, widgetThemeEnabled])
+  }, [config, form, persistedConfig.applications, persistedDesktopConfig, sourceWidgetSize, widgetDefaultZIndex, widgetPosition, widgetSize, widgetTheme])
 
   const apply = async () => {
     setSaving(true)
@@ -249,8 +238,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp))
     setWidgetSize(resolveWidgetSizeFromConfig(persistedApp))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp))
-    setWidgetThemeEnabled(!!sourceWidgetTheme)
-    setWidgetTheme(structuredClone(sourceWidgetTheme ?? persistedDesktopConfig.globalThemeDefault.widgetTheme))
+    setWidgetTheme(sourceWidgetTheme ? structuredClone(sourceWidgetTheme) : undefined)
     setSaved(false)
   }
 
@@ -493,89 +481,27 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
             </div>
 
             {/* Default Widget Theme */}
-            <div className="mt-3 pt-3 border-t border-[var(--color-border-default)] space-y-4">
+            <div className="mt-3 pt-3 border-t border-[var(--color-border-default)] space-y-2">
               <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-muted)]">Default Widget Theme</div>
               {hasRuntimeWidgetTheme && (
                 <Notice className="px-3 py-2 text-[10px]" tone="info">
-                  Runtime theme active. The values below reflect the live theme currently applied to this widget.
+                  Runtime theme active — persisted value shown below.
                 </Notice>
               )}
-              <Toggle checked={widgetThemeEnabled}
-                onChange={(value) => {
-                  setWidgetThemeEnabled(value)
-                  if (value && !sourceWidgetTheme) setWidgetTheme(structuredClone(desktopConfig.globalThemeDefault.widgetTheme))
+              <select
+                value={widgetTheme?.skin ?? ''}
+                onChange={(e) => {
+                  const skinId = e.target.value
+                  setWidgetTheme(skinId ? structuredClone(DEFAULT_WIDGET_THEME_PRESETS[skinId]) : undefined)
                   setSaved(false)
                 }}
-                size="sm"
-                label="Use widget-specific appearance" />
-              {widgetThemeEnabled ? (
-                <>
-                  <div className="grid grid-cols-2 gap-1.5 border-t border-[var(--color-border-default)] pt-3">
-                    {WIDGET_SKINS.map((skin) => (
-                      <ConfigChoiceButton key={skin.id} type="button" selected={widgetTheme.skin === skin.id}
-                        onClick={() => { setWidgetTheme(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[skin.id])); setSaved(false) }}
-                        className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case" title={skin.description}>
-                        <span className="text-[11px] font-semibold leading-none">{skin.label}</span>
-                        <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{skin.description}</span>
-                      </ConfigChoiceButton>
-                    ))}
-                  </div>
-                  <div className="border-t border-[var(--color-border-default)] pt-3">
-                    <ThemeAppearanceFields appearance={widgetTheme as any}
-                      onChange={(updater) => { setWidgetTheme((prev) => { const next = structuredClone(prev); updater(next as any); return next }); setSaved(false) }}
-                      helperText="Use a different font, accent, and text color when this widget should feel like its own application instead of just another window using the global chrome." />
-                  </div>
-                  <div className="border-t border-[var(--color-border-default)] pt-3 space-y-3">
-                    <div>
-                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Motion</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {WIDGET_THEME_ANIMATIONS.map((animation) => (
-                          <ConfigChoiceButton key={animation.id} type="button" selected={widgetTheme.animation === animation.id}
-                            onClick={() => { setWidgetTheme((prev) => ({ ...prev, animation: animation.id })); setSaved(false) }}
-                            className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
-                            <span className="text-[11px] font-semibold leading-none">{animation.label}</span>
-                            <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{animation.description}</span>
-                          </ConfigChoiceButton>
-                        ))}
-                      </div>
-                      <div className="mt-2 space-y-1.5">
-                        <Slider label="Intensity" value={Math.round(widgetTheme.motionIntensity * 100)} min={0} max={300} step={5} unit="%"
-                          onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, motionIntensity: value / 100 })); setSaved(false) }} />
-                        <Slider label="Glow" value={Math.round(widgetTheme.glowIntensity * 100)} min={0} max={300} step={5} unit="%"
-                          onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, glowIntensity: value / 100 })); setSaved(false) }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Atmosphere</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
-                          <ConfigChoiceButton key={atmosphere.id} type="button" selected={widgetTheme.atmosphere === atmosphere.id}
-                            onClick={() => { setWidgetTheme((prev) => ({ ...prev, atmosphere: atmosphere.id })); setSaved(false) }}
-                            className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
-                            <span className="text-[11px] font-semibold leading-none">{atmosphere.label}</span>
-                            <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{atmosphere.description}</span>
-                          </ConfigChoiceButton>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Chrome</div>
-                      <div className="space-y-1.5">
-                        <Slider label="Opacity" value={Math.round(widgetTheme.shellOpacity * 100)} min={10} max={100} step={5} unit="%"
-                          onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, shellOpacity: value / 100 })); setSaved(false) }} />
-                        <Slider label="Shadow" value={Math.round(widgetTheme.shadowIntensity * 100)} min={0} max={300} step={5} unit="%"
-                          onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, shadowIntensity: value / 100 })); setSaved(false) }} />
-                        <Slider label="Radius" value={widgetTheme.borderRadius} min={0} max={32} step={1} unit="px"
-                          onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, borderRadius: value })); setSaved(false) }} />
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-muted)]">
-                  This widget currently inherits the shared desktop widget theme from the Desktop environment editor.
-                </div>
-              )}
+                className="w-full text-xs"
+              >
+                <option value="">Inherit desktop theme</option>
+                {WIDGET_SKINS.map((skin) => (
+                  <option key={skin.id} value={skin.id}>{skin.label}</option>
+                ))}
+              </select>
             </div>
           </ConfigPanel>
 
