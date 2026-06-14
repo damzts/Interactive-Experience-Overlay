@@ -100,6 +100,20 @@ export class RoomManager {
       }
     })
 
+    this.roomSignaling.onParticipantConnectionChange((userId, connected) => {
+      for (const room of this.rooms.values()) {
+        const participant = room.participants.get(userId)
+        if (participant) {
+          const newStatus = connected ? 'connected' : 'disconnected'
+          if (participant.connectionStatus !== newStatus) {
+            participant.connectionStatus = newStatus
+            this.emit('pov-online:status', this.toStatus(room))
+          }
+          break
+        }
+      }
+    })
+
     this.roomSignaling.onStatus((status) => {
       if (!status.roomId) return
       if (this.roomSignaling.intentionalClose) return
@@ -478,6 +492,7 @@ export class RoomManager {
         this.hubRoomId = firstRoom.id
         try {
           await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
+          this.setActiveRoomCode(firstRoom.id)
           const room = this.rooms.get(firstRoom.id)
           if (room) this.emit('pov-online:status', this.toStatus(room))
         } catch (e: any) {

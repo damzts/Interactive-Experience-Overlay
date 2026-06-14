@@ -24,6 +24,7 @@ interface WsMessage {
 }
 
 export type RoomStatusCallback = (status: { connected: boolean; participants: string[]; participantNames: Map<string, string>; roomId: string | null }) => void
+export type ParticipantConnectionCallback = (userId: string, connected: boolean) => void
 
 const RECONNECT_BASE_MS = 1000
 const RECONNECT_MAX_MS = 30000
@@ -34,6 +35,7 @@ export class RoomSignaling {
   private ws: WebSocket | null = null
   private config: RoomSignalingConfig | null = null
   private statusCallbacks: RoomStatusCallback[] = []
+  private connectionChangeCallbacks: ParticipantConnectionCallback[] = []
   private participantNames = new Map<string, string>()
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
@@ -63,6 +65,8 @@ export class RoomSignaling {
         this.pov.switcher.manualSelect(userId)
         logger.info(`[room-signaling] ${userId} reconnected, switched relay back`)
       }
+      // Track arrived → connection is live; mark connected so admin dot turns green
+      this.emitConnectionChange(userId, true)
     })
 
     this.hub.onIceCandidate((userId, candidate) => {
@@ -83,6 +87,7 @@ export class RoomSignaling {
       if (this.frozenParticipants.has(userId)) return  // Already handling this failure
       logger.info(`[room-signaling] ICE failed for ${userId} — sending restart request`)
       this.frozenParticipants.add(userId)
+      this.emitConnectionChange(userId, false)
 
       // Immediate viewer fallback: switch relay to another participant while reconnecting
       if (userId === this.pov.activeCameraId && this.recoveringActiveParticipant !== userId) {
@@ -105,6 +110,7 @@ export class RoomSignaling {
       if (!this.frozenParticipants.has(userId)) return
       logger.info(`[room-signaling] ${userId} ICE self-recovered`)
       this.frozenParticipants.delete(userId)
+      this.emitConnectionChange(userId, true)
       if (this.recoveringActiveParticipant === userId) {
         this.recoveringActiveParticipant = null
         this.pov.markConnected(userId)
@@ -370,8 +376,10 @@ export class RoomSignaling {
             this.pendingCandidates.set(userId, [])
             this.hub.handleOffer(userId, sdp).then(answerSdp => {
               if (!answerSdp) {
-                logger.error(`[room-signaling] handleOffer returned empty SDP for ${userId}, skipping answer`)
+                logger.error(`[room-signaling] handleOffer returned empty SDP for ${userId}, requesting re-offer`)
                 this.pendingCandidates.delete(userId)
+                // Buffered candidates are lost; tell participant to restart so they re-offer
+                this.send({ type: 'ice-restart-request', payload: { userId }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
                 return
               }
               this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
@@ -384,6 +392,8 @@ export class RoomSignaling {
             }).catch(e => {
               logger.error({ err: e }, '[room-signaling] offer handling failed')
               this.pendingCandidates.delete(userId)
+              // Buffered candidates are lost; tell participant to restart so they re-offer
+              this.send({ type: 'ice-restart-request', payload: { userId }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
             })
           }, 80)
           this.pendingOfferTimers.set(userId, t)
@@ -501,6 +511,10 @@ export class RoomSignaling {
     this.statusCallbacks.push(cb)
   }
 
+  onParticipantConnectionChange(cb: ParticipantConnectionCallback): void {
+    this.connectionChangeCallbacks.push(cb)
+  }
+
   kickParticipant(userId: string): void {
     this.send({
       type: 'kick-participant',
@@ -515,6 +529,10 @@ export class RoomSignaling {
   private emitStatus(): void {
     const status = this.getStatus()
     for (const cb of this.statusCallbacks) cb(status)
+  }
+
+  private emitConnectionChange(userId: string, connected: boolean): void {
+    for (const cb of this.connectionChangeCallbacks) cb(userId, connected)
   }
 }
 
