@@ -35,7 +35,7 @@ export const EVENT_PRESET_OPTIONS: Array<{
 
 export const COMMON_EVENT_ACTION_KINDS: EventAction['kind'][] = [
   'desktop-config',
-  'widget-theme-overrides',
+  'widget-themes',
   'widget-layout',
   'widget-command',
   'ambiance-patch',
@@ -50,7 +50,7 @@ export const COMMON_EVENT_EFFECT_TYPES: EffectType[] = [
 
 export function getEventActionLabel(kind: EventAction['kind']) {
   if (kind === 'desktop-config') return 'Desktop look'
-  if (kind === 'widget-theme-overrides') return 'Widget mood'
+  if (kind === 'widget-themes') return 'Widget mood'
   if (kind === 'widget-layout') return 'Widget layout'
   if (kind === 'widget-command') return 'Widget state'
   return 'Ambiance'
@@ -285,7 +285,7 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
     }
   }
 
-  if (kind === 'widget-theme-overrides') {
+  if (kind === 'widget-themes') {
     return {
       kind,
       timeoutSeconds: 30,
@@ -376,7 +376,7 @@ export function createEventPreset(
       icon: '🪟',
       desc: 'Restyle specific widgets for a temporary personality shift.',
       actions: [{
-        kind: 'widget-theme-overrides',
+        kind: 'widget-themes',
         widgetIds: options?.widgetIds?.slice(0, 2) ?? [firstWidgetId],
         clearExisting: false,
         theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS['digital futurism']),

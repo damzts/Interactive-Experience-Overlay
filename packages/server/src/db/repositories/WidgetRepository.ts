@@ -46,7 +46,7 @@ export class WidgetRepository {
       if (app.cameraSettings) settings.cameraSettings = app.cameraSettings
       if (app.windowWidgetSettings) settings.windowWidgetSettings = app.windowWidgetSettings
       if (app.stickyNotesSettings) settings.stickyNotesSettings = app.stickyNotesSettings
-      if (app.themeOverride) settings.themeOverride = app.themeOverride
+      if (app.theme) settings.theme = app.theme
       if (app.iconSize) settings.iconSize = app.iconSize
       if (app.iconPosition) settings.iconPosition = app.iconPosition
       if (app.recycleBinSettings) settings.recycleBinSettings = app.recycleBinSettings

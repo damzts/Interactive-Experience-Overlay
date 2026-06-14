@@ -41,8 +41,8 @@ export interface GlobalThemeDefaultConfig {
 export interface DesktopConfig {
   /** User-defined default snapshot for the Global Theme utility. Active theme and widget theme are read from here. */
   globalThemeDefault: GlobalThemeDefaultConfig
-  /** Runtime-only per-widget chrome overrides, keyed by widget id. Written by events; never persisted to DB. */
-  widgetThemeOverrides?: Record<string, WidgetThemeConfig>
+  /** Runtime-only per-widget chrome themes, keyed by widget id. Written by events; never persisted to DB. */
+  widgetThemes?: Record<string, WidgetThemeConfig>
   /** Icon size applied to all icons when no per-app iconSize is set */
   defaultIconSize: 'small' | 'normal' | 'large'
   /** When true: icons snap to auto-column; when false: icons use absolute iconPosition */

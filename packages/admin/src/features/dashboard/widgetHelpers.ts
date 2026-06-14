@@ -61,8 +61,8 @@ export function resolveWidgetRuntimeZIndex(app: Pick<Application, 'id' | 'widget
     : resolveWidgetDefaultZIndexFromConfig(app)
 }
 
-export function resolveWidgetThemeOverrideFromConfig(app: Pick<Application, 'themeOverride'>) {
-  return app.themeOverride ?? null
+export function resolveWidgetThemeFromConfig(app: Pick<Application, 'theme'>) {
+  return app.theme ?? null
 }
 
 // ── Snapshot helpers ──────────────────────────────────────────────────

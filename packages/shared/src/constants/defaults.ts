@@ -204,10 +204,10 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     return { kind: 'desktop-config', patch, timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds) }
   }
 
-  if (action.kind === 'widget-theme-overrides') {
+  if (action.kind === 'widget-themes') {
     const widgetIds = Array.from(new Set((action.widgetIds ?? []).map((widgetId) => widgetId.trim()).filter(Boolean)))
     return {
-      kind: 'widget-theme-overrides',
+      kind: 'widget-themes',
       timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
       widgetIds,
       clearExisting: action.clearExisting ?? false,
@@ -351,7 +351,7 @@ function normalizeWidgetThemeConfig(config?: Partial<WidgetThemeConfig> | null):
   }
 }
 
-function normalizeWidgetThemeOverrides(value?: DesktopConfig['widgetThemeOverrides']) {
+function normalizeWidgetThemes(value?: DesktopConfig['widgetThemes']) {
   if (!value) return undefined
 
   const entries = Object.entries(value).reduce<Record<string, WidgetThemeConfig>>((acc, [widgetId, theme]) => {
@@ -1133,7 +1133,7 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
     ...DEFAULT_DESKTOP_CONFIG,
     ...rest,
     globalThemeDefault,
-    widgetThemeOverrides: normalizeWidgetThemeOverrides(source.widgetThemeOverrides),
+    widgetThemes: normalizeWidgetThemes(source.widgetThemes),
     recycleBin: {
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
       ...recycleBin,
@@ -1195,11 +1195,11 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
                 : currentDesktopConfig.globalThemeDefault.appearance,
             }
           : currentDesktopConfig.globalThemeDefault,
-        widgetThemeOverrides: 'widgetThemeOverrides' in updates.desktopConfig
-          ? (Object.keys(updates.desktopConfig.widgetThemeOverrides ?? {}).length
-              ? updates.desktopConfig.widgetThemeOverrides
+        widgetThemes: 'widgetThemes' in updates.desktopConfig
+          ? (Object.keys(updates.desktopConfig.widgetThemes ?? {}).length
+              ? updates.desktopConfig.widgetThemes
               : undefined)
-          : currentDesktopConfig.widgetThemeOverrides,
+          : currentDesktopConfig.widgetThemes,
         recycleBin: updates.desktopConfig.recycleBin
           ? { ...currentDesktopConfig.recycleBin, ...updates.desktopConfig.recycleBin }
           : currentDesktopConfig.recycleBin,

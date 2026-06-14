@@ -120,9 +120,9 @@ export function DesktopWindow({
   const rawDesktopConfig = useAppStore((store) => store.config.desktopConfig)
   const configPos = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowPosition)
   const sizeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowSize)
-  const persistedAppThemeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.themeOverride)
-  // Runtime event override wins over persisted app override
-  const widgetThemeOverride = withDesktopConfigDefaults(rawDesktopConfig).widgetThemeOverrides?.[id] ?? persistedAppThemeOverride
+  const persistedAppTheme = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.theme)
+  // Runtime event theme wins over persisted app theme
+  const widgetTheme = withDesktopConfigDefaults(rawDesktopConfig).widgetThemes?.[id] ?? persistedAppTheme
   const windowSeed = hashString(id)
   const motionPhase = (windowSeed % 17) / 2
   const hueShift = (windowSeed % 9) - 4
@@ -343,8 +343,8 @@ export function DesktopWindow({
 
   return (
     <div
-      className={widgetThemeOverride ? buildWidgetThemeScopeClassNames(widgetThemeOverride) : undefined}
-      style={widgetThemeOverride ? buildWidgetThemeVars(widgetThemeOverride) : undefined}
+      className={widgetTheme ? buildWidgetThemeScopeClassNames(widgetTheme) : undefined}
+      style={widgetTheme ? buildWidgetThemeVars(widgetTheme) : undefined}
     >
       {frame}
     </div>

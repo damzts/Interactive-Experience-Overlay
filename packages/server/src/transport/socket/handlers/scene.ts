@@ -122,20 +122,20 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
-    if (action.kind === 'widget-theme-overrides') {
+    if (action.kind === 'widget-themes') {
       const currentDesktop = withDesktopConfigDefaults(ctx.cachedUserConfig.desktopConfig)
       const resolvedPatch = resolveRuntimeWidgetThemePatch(action.theme)
-      const nextOverrides: NonNullable<DesktopConfig['widgetThemeOverrides']> = {}
+      const nextThemes: NonNullable<DesktopConfig['widgetThemes']> = {}
       for (const widgetId of action.widgetIds) {
         const globalTheme = currentDesktop.globalThemeDefault.widgetTheme
-        const persistedOverride = ctx.cachedUserConfig.applications.find((a) => a.id === widgetId)?.themeOverride
+        const persistedTheme = ctx.cachedUserConfig.applications.find((a) => a.id === widgetId)?.theme
         const base = action.clearExisting
           ? globalTheme
-          : currentDesktop.widgetThemeOverrides?.[widgetId] ?? persistedOverride ?? globalTheme
-        nextOverrides[widgetId] = { ...base, ...(resolvedPatch ?? {}) }
+          : currentDesktop.widgetThemes?.[widgetId] ?? persistedTheme ?? globalTheme
+        nextThemes[widgetId] = { ...base, ...(resolvedPatch ?? {}) }
       }
-      applyRuntimeConfig(ctx, { desktopConfig: { widgetThemeOverrides: nextOverrides } })
-      scheduleRuntimeConfigReset(ctx, ['desktop.widgetThemeOverrides'], action.timeoutSeconds ?? 30)
+      applyRuntimeConfig(ctx, { desktopConfig: { widgetThemes: nextThemes } })
+      scheduleRuntimeConfigReset(ctx, ['desktop.widgetThemes'], action.timeoutSeconds ?? 30)
       continue
     }
 

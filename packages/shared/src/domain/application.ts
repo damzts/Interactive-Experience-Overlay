@@ -129,8 +129,8 @@ export interface Application {
   windowWidgetSettings?: WindowWidgetSettings
   /** Optional persisted content for the Sticky Notes system widget. */
   stickyNotesSettings?: StickyNotesSettings
-  /** Persisted widget chrome override for this specific widget. */
-  themeOverride?: WidgetThemeConfig
+  /** Persisted widget chrome theme for this specific widget. */
+  theme?: WidgetThemeConfig
 
   // ── Desktop icon fields (used by overlay desktop UI) ──────────────────
 

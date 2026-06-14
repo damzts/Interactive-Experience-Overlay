@@ -302,7 +302,7 @@ export function EventForm({
                       </div>
                     </div>
                   )}
-                  {action.kind === 'widget-theme-overrides' && (
+                  {action.kind === 'widget-themes' && (
                     <div className="space-y-2">
                       <div>
                         <div className="text-[10px] text-zinc-500 mb-1">Target widgets</div>
@@ -312,7 +312,7 @@ export function EventForm({
                             return (
                               <ConfigChoiceButton key={app.id} type="button" selected={selected}
                                 onClick={() => updateAction(index, (draft) => {
-                                  if (draft.kind !== 'widget-theme-overrides') return
+                                  if (draft.kind !== 'widget-themes') return
                                   const next = new Set(draft.widgetIds)
                                   if (next.has(app.id)) next.delete(app.id); else next.add(app.id)
                                   draft.widgetIds = [...next]
@@ -321,11 +321,11 @@ export function EventForm({
                           })}
                         </div>
                       </div>
-                      <Toggle checked={action.clearExisting ?? false} onChange={(value) => updateAction(index, (draft) => { if (draft.kind !== 'widget-theme-overrides') return; draft.clearExisting = value })} label="Reset existing overrides first" />
+                      <Toggle checked={action.clearExisting ?? false} onChange={(value) => updateAction(index, (draft) => { if (draft.kind !== 'widget-themes') return; draft.clearExisting = value })} label="Reset existing themes first" />
                       <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
-                        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Override Theme</div>
+                        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Theme</div>
                         {renderThemeFields(action.theme as WidgetThemeConfig, (updater) => updateAction(index, (draft) => {
-                          if (draft.kind !== 'widget-theme-overrides') return
+                          if (draft.kind !== 'widget-themes') return
                           const nextTheme = structuredClone(draft.theme as WidgetThemeConfig)
                           updater(nextTheme)
                           draft.theme = nextTheme
@@ -396,7 +396,7 @@ export function EventForm({
               <select defaultValue="" onChange={(e) => { const kind = e.target.value as EventAction['kind']; if (!kind) return; e.target.value = ''; addAction(kind) }} className="w-full text-sm">
                 <option value="">More action types…</option>
                 <option value="desktop-config">Desktop config</option>
-                <option value="widget-theme-overrides">Widget theme overrides</option>
+                <option value="widget-themes">Widget themes</option>
                 <option value="widget-layout">Apply widget layout</option>
                 <option value="widget-command">Widget command</option>
                 <option value="ambiance-patch">Ambiance patch</option>

@@ -726,7 +726,7 @@ export function EventForm({
                 }} className="w-full text-sm">
                   <option value="">Select action type…</option>
                   <option value="desktop-config">Desktop config</option>
-                  <option value="widget-theme-overrides">Widget theme overrides</option>
+                  <option value="widget-themes">Widget themes</option>
                   <option value="widget-layout">Apply widget layout</option>
                   <option value="widget-command">Widget command</option>
                   <option value="ambiance-patch">Ambiance patch</option>
@@ -818,11 +818,11 @@ export function EventForm({
                     </div>
                   )}
 
-                  {!collapsedActionIndexes.includes(index) && action.kind === 'widget-theme-overrides' && (
+                  {!collapsedActionIndexes.includes(index) && action.kind === 'widget-themes' && (
                     <div className="space-y-2">
                       <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
                         <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s" onChange={(value) => updateAction(index, (draft) => {
-                          if (draft.kind !== 'widget-theme-overrides') return
+                          if (draft.kind !== 'widget-themes') return
                           draft.timeoutSeconds = value
                         })} />
                       </div>
@@ -833,7 +833,7 @@ export function EventForm({
                             const selected = action.widgetIds.includes(app.id)
                             return (
                               <ConfigChoiceButton key={app.id} type="button" selected={selected} onClick={() => updateAction(index, (draft) => {
-                                if (draft.kind !== 'widget-theme-overrides') return
+                                if (draft.kind !== 'widget-themes') return
                                 const next = new Set(draft.widgetIds)
                                 if (next.has(app.id)) next.delete(app.id)
                                 else next.add(app.id)
@@ -846,13 +846,13 @@ export function EventForm({
                         </div>
                       </div>
                       <Toggle checked={action.clearExisting ?? false} onChange={(value) => updateAction(index, (draft) => {
-                        if (draft.kind !== 'widget-theme-overrides') return
+                        if (draft.kind !== 'widget-themes') return
                         draft.clearExisting = value
-                      })} label="Reset existing overrides first" />
+                      })} label="Reset existing themes first" />
                       <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
-                        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Override Theme</div>
+                        <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Theme</div>
                         {renderThemeFields(action.theme, (updater) => updateAction(index, (draft) => {
-                          if (draft.kind !== 'widget-theme-overrides') return
+                          if (draft.kind !== 'widget-themes') return
                           const nextTheme: EventWidgetThemePatch = { ...(draft.theme ?? {}) }
                           updater(nextTheme)
                           draft.theme = nextTheme

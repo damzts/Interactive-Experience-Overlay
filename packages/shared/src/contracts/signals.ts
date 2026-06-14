@@ -189,7 +189,7 @@ export interface AmbianceSimulationPayload {
 // ── Runtime config ────────────────────────────────────────────────
 
 export interface RuntimeConfig {
-  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemeOverrides' | 'iconAnimation' | 'iconMotion' | 'screenSaver'>
+  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemes' | 'iconAnimation' | 'iconMotion' | 'screenSaver'>
   /** Transient per-widget positions (not persisted — runtime state only) */
   widgetPositions?: Record<string, { x: number; y: number }>
   /** Transient per-widget sizes (not persisted — runtime state only) */

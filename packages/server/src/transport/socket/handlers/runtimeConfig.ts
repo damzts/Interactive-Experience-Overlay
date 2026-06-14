@@ -15,7 +15,7 @@ export const RUNTIME_CONFIG_RESET_SCOPES = [
   'desktop.iconAnimation',
   'desktop.iconMotion',
   'desktop.screenSaver',
-  'desktop.widgetThemeOverrides',
+  'desktop.widgetThemes',
   'ambiance.widgetSimulation',
 ] as const
 
@@ -56,9 +56,9 @@ export function mergeRuntimeConfig(
                   : base.desktopConfig?.globalThemeDefault?.widgetTheme,
               }
             : base.desktopConfig?.globalThemeDefault,
-          widgetThemeOverrides: updates.desktopConfig.widgetThemeOverrides
-            ? { ...(base.desktopConfig?.widgetThemeOverrides ?? {}), ...updates.desktopConfig.widgetThemeOverrides }
-            : base.desktopConfig?.widgetThemeOverrides,
+          widgetThemes: updates.desktopConfig.widgetThemes
+            ? { ...(base.desktopConfig?.widgetThemes ?? {}), ...updates.desktopConfig.widgetThemes }
+            : base.desktopConfig?.widgetThemes,
           screenSaver: updates.desktopConfig.screenSaver
             ? { ...(base.desktopConfig?.screenSaver ?? {}), ...updates.desktopConfig.screenSaver } as NonNullable<RuntimeConfig['desktopConfig']>['screenSaver']
             : base.desktopConfig?.screenSaver,
@@ -128,7 +128,7 @@ export function clearRuntimeConfigScopes(ctx: HandlerContext, scopes: RuntimeCon
     if (scope === 'desktop.iconAnimation') delete nextDesktop.iconAnimation
     if (scope === 'desktop.iconMotion') delete nextDesktop.iconMotion
     if (scope === 'desktop.screenSaver') delete nextDesktop.screenSaver
-    if (scope === 'desktop.widgetThemeOverrides') delete nextDesktop.widgetThemeOverrides
+    if (scope === 'desktop.widgetThemes') delete nextDesktop.widgetThemes
     if (scope === 'ambiance.widgetSimulation') delete nextAmbiance.widgetSimulation
   }
 

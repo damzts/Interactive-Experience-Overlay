@@ -36,8 +36,8 @@ export interface EventDesktopConfigAction {
   }
 }
 
-export interface EventWidgetThemeOverridesAction {
-  kind: 'widget-theme-overrides'
+export interface EventWidgetThemesAction {
+  kind: 'widget-themes'
   timeoutSeconds?: number
   widgetIds: string[]
   clearExisting?: boolean
@@ -72,7 +72,7 @@ export interface EventObsStreamAction {
 
 export type EventAction =
   | EventDesktopConfigAction
-  | EventWidgetThemeOverridesAction
+  | EventWidgetThemesAction
   | EventWidgetLayoutAction
   | EventWidgetCommandAction
   | EventAmbiancePatchAction
