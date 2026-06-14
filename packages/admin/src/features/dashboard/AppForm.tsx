@@ -497,7 +497,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                 }}
                 className="w-full text-xs"
               >
-                <option value="">Inherit desktop theme</option>
+                <option value="">None</option>
                 {WIDGET_SKINS.map((skin) => (
                   <option key={skin.id} value={skin.id}>{skin.label}</option>
                 ))}
