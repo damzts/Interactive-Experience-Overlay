@@ -3,12 +3,43 @@ import { getWidgetComponent } from '@ieomlabs/shared'
 import { AppGlyph } from './AppGlyph'
 import { DesktopWindow } from './DesktopWindow'
 import type { DesktopWidgetProps } from './widgetRegistry'
-import { getDesktopWidgetRenderer, warnMissingDesktopWidgetRegistration } from './widgetRegistry'
+import { getDesktopWidgetRenderer, getWidgetDefaultPosition, getWidgetDefaultSize, isWidgetRegistered, warnMissingDesktopWidgetRegistration } from './widgetRegistry'
 import './styles/windows.css'
 
 function resolveWidgetComponent(app: Application) {
   const widgetComponent = getWidgetComponent(app)
   return getDesktopWidgetRenderer(widgetComponent)
+}
+
+/** Loading placeholder shown while the widget's lazy chunk is being fetched. */
+function WidgetLoadingPlaceholder({ app, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: { app: Application } & DesktopWidgetProps) {
+  const widgetComponent = getWidgetComponent(app)
+  const { width, height } = getWidgetDefaultSize(widgetComponent)
+  return (
+    <DesktopWindow
+      id={app.id}
+      title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><AppGlyph icon={app.icon} label={app.label} size={16} /> <span>{app.label}</span></span>}
+      width={width}
+      height={height}
+      defaultPosition={getWidgetDefaultPosition(widgetComponent)}
+      zIndex={zIndex}
+      state={windowState}
+      onFocus={onFocus}
+      onMinimize={onMinimize}
+      onClose={onClose}
+      bodyStyle={{ padding: '12px 16px', color: 'var(--desktop-title-start)', textAlign: 'center' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.55 }}>
+        <AppGlyph icon={app.icon} label={app.label} size={28} />
+      </div>
+      <div style={{ marginTop: 6, fontWeight: 'bold', opacity: 0.55 }}>{app.label}</div>
+      <div className="widget-loading-skeleton" style={{ marginTop: 10 }}>
+        <div className="widget-loading-bar" style={{ width: '72%' }} />
+        <div className="widget-loading-bar" style={{ width: '54%', marginTop: 6 }} />
+        <div className="widget-loading-bar" style={{ width: '63%', marginTop: 6 }} />
+      </div>
+    </DesktopWindow>
+  )
 }
 
 /** Fallback draggable window for any widget without a registered runtime component. */
@@ -71,6 +102,7 @@ export function WindowManager({
           zIndex: getWidgetZIndex(a.id),
         }
         if (WidgetComp) return <WidgetComp key={a.id} {...widgetProps} />
+        if (isWidgetRegistered(widgetComponent)) return <WidgetLoadingPlaceholder key={a.id} app={a} {...widgetProps} />
         return <GenericWidget key={a.id} app={a} {...widgetProps} />
       })}
     </>

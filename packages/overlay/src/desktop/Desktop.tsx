@@ -28,7 +28,7 @@ import { CursorOverlayProvider } from './CursorOverlay'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
 import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
-import { warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets, getDesktopWidgetRenderer } from './widgetRegistry'
+import { warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets, getDesktopWidgetRenderer, isWidgetRegistered } from './widgetRegistry'
 import React from 'react';
 import { resolveSceneStyle } from '../services/SceneResolver.js'
 
@@ -1190,7 +1190,8 @@ export function Desktop({ apps }: DesktopProps) {
     visibleWidgets.forEach((app) => {
       const widgetComponent = getWidgetComponent(app)
       const WidgetComp = resolveWidgetComponent(app)
-      if (WidgetComp || !warnMissingDesktopWidgetRegistration(app, widgetComponent)) return
+      // Suppress the notification for registered widgets — they're lazy-loading and will resolve shortly.
+      if (WidgetComp || isWidgetRegistered(widgetComponent) || !warnMissingDesktopWidgetRegistration(app, widgetComponent)) return
 
       enqueueDesktopNotification({
         title: 'Missing widget UI',

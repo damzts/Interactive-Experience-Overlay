@@ -31,6 +31,7 @@ import {
   ConfigChoiceButton,
   IconGlyph,
   isSameDraft,
+  OverlayCanvas,
   Slider,
 } from '../../shared/ui'
 import { Button, Toggle } from '../../components/atoms'
@@ -142,43 +143,20 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     void enumerateCameras(false)
   }, [widgetComponent, enumerateCameras])
 
-  const sourceWidgetPosition    = resolveWidgetPositionFromConfig(persistedApp)
-  const sourceWidgetSize        = resolveWidgetSizeFromConfig(persistedApp)
+  const sourceWidgetPosition      = resolveWidgetPositionFromConfig(persistedApp)
+  const sourceWidgetSize          = resolveWidgetSizeFromConfig(persistedApp)
   const sourceWidgetDefaultZIndex = resolveWidgetDefaultZIndexFromConfig(persistedApp)
-  const liveWidgetPosition      = resolveWidgetPositionFromConfig(app)
-  const liveWidgetSize          = resolveWidgetSizeFromConfig(app)
-  const liveWidgetRuntimeZIndex = resolveWidgetRuntimeZIndex(app)
-  const runtimeWidgetOverride = runtimeConfigOverride.desktopConfig
+  const liveWidgetPosition        = resolveWidgetPositionFromConfig(app)
+  const liveWidgetSize            = resolveWidgetSizeFromConfig(app)
+  const liveWidgetRuntimeZIndex   = resolveWidgetRuntimeZIndex(app)
   const hasRuntimeWidgetThemeOverride = !!runtimeWidgetThemeOverride
 
-  const runtimeOverrideEntries = [
-    {
-      key: 'Window Position',
-      value: `${sourceWidgetPosition.x}, ${sourceWidgetPosition.y}`,
-      active: false,
-    },
-    {
-      key: 'Window Size',
-      value: `${sourceWidgetSize.width}x${sourceWidgetSize.height}px`,
-      active: false,
-    },
-    {
-      key: 'Stack Order',
-      value: String(sourceWidgetDefaultZIndex),
-      active: false,
-    },
-    {
-      key: 'Theme Override',
-      value: runtimeWidgetThemeOverride
-        ? [runtimeWidgetThemeOverride.skin, runtimeWidgetThemeOverride.animation, runtimeWidgetThemeOverride.atmosphere].filter(Boolean).join(' / ')
-        : (sourceWidgetThemeOverride
-            ? [sourceWidgetThemeOverride.skin, sourceWidgetThemeOverride.animation, sourceWidgetThemeOverride.atmosphere].filter(Boolean).join(' / ')
-            : 'Inherited'),
-      active: !!runtimeWidgetThemeOverride,
-    },
-  ]
-
-  const hasRuntimeOverride = runtimeOverrideEntries.some((entry) => entry.active)
+  // True RAM deltas — only set when the runtime is actively overriding the persisted value
+  const runtimePosOverride    = runtimeConfigOverride.widgetPositions?.[app.id]
+  const runtimeSizeOverride   = runtimeConfigOverride.widgetSizes?.[app.id]
+  const runtimeZIndexOverride = runtimeConfigOverride.widgetZIndices?.[app.id]
+  const hasRuntimeLayoutOverride = !!(runtimePosOverride || runtimeSizeOverride || runtimeZIndexOverride !== undefined)
+  const hasRuntimeOverride       = hasRuntimeLayoutOverride || hasRuntimeWidgetThemeOverride
   const appDirty = !isSameDraft(form, persistedApp)
   const widgetPositionDirty      = widgetPosition.x !== sourceWidgetPosition.x || widgetPosition.y !== sourceWidgetPosition.y
   const widgetSizeDirty          = widgetSize.width !== sourceWidgetSize.width || widgetSize.height !== sourceWidgetSize.height
@@ -286,8 +264,8 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     setSaved(false)
   }
 
-  const clearWidgetRuntimeOverride = () => {
-    if (!hasRuntimeOverride || clearingOverride) return
+  const clearWidgetLayoutRuntimeOverride = () => {
+    if (!hasRuntimeLayoutOverride || clearingOverride) return
     setClearingOverride(true)
     setClearOverrideError(null)
     socket.emit('runtime:config:override:widget:clear', form.id, (err: string | null) => {
@@ -301,31 +279,111 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     <div className="space-y-3">
       <div className="space-y-0 pt-3">
 
-        <ConfigPanel title="Runtime Override" className="mb-4">
+        <ConfigPanel title="Runtime State" className="mb-4">
             <div className="space-y-3">
+
+              {/* Live indicator */}
               <div className="flex items-center gap-2">
-                <div className={hasRuntimeOverride ? 'text-[11px] font-medium text-[var(--color-danger-400)]' : 'text-[11px] font-medium text-[var(--color-text-muted)]'}>
-                  {hasRuntimeOverride ? 'Runtime override active' : 'No runtime override active'}
-                </div>
-                <span className="flex-1" />
-                <span className={['inline-block h-2.5 w-2.5 rounded-full transition-all', hasRuntimeOverride
-                  ? 'bg-[var(--color-danger-400)] shadow-[0_0_10px_rgba(248,113,113,0.95),0_0_20px_rgba(239,68,68,0.55)]'
-                  : 'bg-[var(--color-border-strong)] shadow-[0_0_0_rgba(0,0,0,0)]'].join(' ')} />
+                <span className={[
+                  'inline-block h-2 w-2 rounded-full transition-all',
+                  hasRuntimeOverride
+                    ? 'bg-[var(--color-accent-400)] shadow-[0_0_8px_rgba(251,191,36,0.8)]'
+                    : 'bg-[var(--color-border-strong)]',
+                ].join(' ')} />
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {hasRuntimeOverride ? 'RAM overrides active' : 'Live matches persisted'}
+                </span>
               </div>
-              <div className="space-y-1.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2">
-                {runtimeOverrideEntries.map((entry) => (
-                  <div key={entry.key} className="flex items-start justify-between gap-3 text-[10px]">
-                    <div className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">{entry.key}</div>
-                    <div className={entry.active ? 'text-right font-mono text-[var(--color-text-primary)]' : 'text-right font-mono text-[var(--color-text-muted)]'}>{entry.value}</div>
+
+              {/* State rows */}
+              <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 divide-y divide-[var(--color-border-default)]">
+
+                {/* Position */}
+                <div className="px-3 py-2 space-y-1">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Position</div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[var(--color-text-muted)]">Persisted</span>
+                    <span className="font-mono text-[var(--color-text-secondary)]">
+                      {sourceWidgetPosition.x}, {sourceWidgetPosition.y}
+                    </span>
                   </div>
-                ))}
+                  {runtimePosOverride && (
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[var(--color-accent-400)]">Live</span>
+                      <span className="font-mono text-[var(--color-accent-300)]">
+                        {liveWidgetPosition.x}, {liveWidgetPosition.y}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Size */}
+                <div className="px-3 py-2 space-y-1">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Size</div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[var(--color-text-muted)]">Persisted</span>
+                    <span className="font-mono text-[var(--color-text-secondary)]">
+                      {sourceWidgetSize.width} × {sourceWidgetSize.height}
+                    </span>
+                  </div>
+                  {runtimeSizeOverride && (
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[var(--color-accent-400)]">Live</span>
+                      <span className="font-mono text-[var(--color-accent-300)]">
+                        {liveWidgetSize.width} × {liveWidgetSize.height}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Z-index */}
+                <div className="px-3 py-2 space-y-1">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Stack order</div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[var(--color-text-muted)]">Default</span>
+                    <span className="font-mono text-[var(--color-text-secondary)]">{sourceWidgetDefaultZIndex}</span>
+                  </div>
+                  {runtimeZIndexOverride !== undefined && (
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[var(--color-accent-400)]">Live</span>
+                      <span className="font-mono text-[var(--color-accent-300)]">{liveWidgetRuntimeZIndex}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Theme */}
+                <div className="px-3 py-2 space-y-1">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Theme</div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[var(--color-text-muted)]">Persisted</span>
+                    <span className="font-mono text-[var(--color-text-secondary)]">
+                      {sourceWidgetThemeOverride
+                        ? [sourceWidgetThemeOverride.skin, sourceWidgetThemeOverride.animation, sourceWidgetThemeOverride.atmosphere].filter(Boolean).join(' / ')
+                        : 'inherited'}
+                    </span>
+                  </div>
+                  {hasRuntimeWidgetThemeOverride && runtimeWidgetThemeOverride && (
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[var(--color-accent-400)]">Live</span>
+                      <span className="font-mono text-[var(--color-accent-300)]">
+                        {[runtimeWidgetThemeOverride.skin, runtimeWidgetThemeOverride.animation, runtimeWidgetThemeOverride.atmosphere].filter(Boolean).join(' / ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
               </div>
+
               {clearOverrideError && <Notice tone="danger">{clearOverrideError}</Notice>}
-              <div className="flex justify-end">
-                <Button variant="secondary" size="sm" onClick={clearWidgetRuntimeOverride} disabled={!hasRuntimeOverride || clearingOverride}>
-                  {clearingOverride ? 'Clearing Override...' : 'Clear Override'}
-                </Button>
-              </div>
+
+              {hasRuntimeLayoutOverride && (
+                <div className="flex justify-end">
+                  <Button variant="secondary" size="sm" onClick={clearWidgetLayoutRuntimeOverride} disabled={clearingOverride}>
+                    {clearingOverride ? 'Clearing...' : 'Clear Layout Override'}
+                  </Button>
+                </div>
+              )}
+
             </div>
           </ConfigPanel>
 
@@ -367,7 +425,42 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
             <div className="flex justify-end mb-3">
               <Button variant="secondary" size="sm" onClick={useCurrentWidgetValues}>Use Current</Button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+
+            {/* Visual drag+resize preview — same canvas as Scene windows */}
+            <OverlayCanvas
+              items={[{
+                id: app.id,
+                x: widgetPosition.x,
+                y: widgetPosition.y,
+                width: widgetSize.width,
+                height: widgetSize.height,
+              }]}
+              selectedId={app.id}
+              onSelect={() => {}}
+              onChange={(_id, patch) => {
+                if (patch.x !== undefined || patch.y !== undefined) {
+                  setWidgetPosition((prev) => ({
+                    x: Math.max(0, patch.x ?? prev.x),
+                    y: Math.max(0, patch.y ?? prev.y),
+                  }))
+                }
+                if (patch.width !== undefined || patch.height !== undefined) {
+                  setWidgetSize((prev) => ({
+                    width:  Math.max(WIDGET_WIDTH_MIN,  Math.min(WIDGET_WIDTH_MAX,  patch.width  ?? prev.width)),
+                    height: Math.max(WIDGET_HEIGHT_MIN, Math.min(WIDGET_HEIGHT_MAX, patch.height ?? prev.height)),
+                  }))
+                }
+              }}
+              renderItem={() => (
+                <div className="absolute inset-0 flex items-center justify-center gap-1.5 overflow-hidden">
+                  <IconGlyph icon={form.icon} label={form.label} size={14} />
+                  <span className="text-[9px] text-white/70 truncate">{form.label}</span>
+                </div>
+              )}
+            />
+
+            {/* Numeric inputs for precision */}
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <div>
                 <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Width</div>
                 <input type="number" min={WIDGET_WIDTH_MIN} max={WIDGET_WIDTH_MAX} value={widgetSize.width}
@@ -380,25 +473,20 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                   onChange={(e) => setWidgetSize((prev) => ({ ...prev, height: Number(e.target.value) }))}
                   className="w-full font-mono text-xs" />
               </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-[var(--color-border-default)]">
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-2">Position</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">X</div>
-                  <input type="number" min={0} max={1850} value={widgetPosition.x}
-                    onChange={(e) => setWidgetPosition((prev) => ({ ...prev, x: Number(e.target.value) }))}
-                    className="w-full font-mono text-xs" />
-                </div>
-                <div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Y</div>
-                  <input type="number" min={0} max={990} value={widgetPosition.y}
-                    onChange={(e) => setWidgetPosition((prev) => ({ ...prev, y: Number(e.target.value) }))}
-                    className="w-full font-mono text-xs" />
-                </div>
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">X</div>
+                <input type="number" min={0} max={1850} value={widgetPosition.x}
+                  onChange={(e) => setWidgetPosition((prev) => ({ ...prev, x: Number(e.target.value) }))}
+                  className="w-full font-mono text-xs" />
               </div>
-              <div className="mt-2 text-[10px] text-[var(--color-text-muted)]">Saved desktop position for this widget window.</div>
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Y</div>
+                <input type="number" min={0} max={990} value={widgetPosition.y}
+                  onChange={(e) => setWidgetPosition((prev) => ({ ...prev, y: Number(e.target.value) }))}
+                  className="w-full font-mono text-xs" />
+              </div>
             </div>
+            <div className="mt-2 text-[10px] text-[var(--color-text-muted)]">Drag and resize in the preview, or type exact values above.</div>
             <div className="mt-3 pt-3 border-t border-[var(--color-border-default)]">
               <div className="text-[10px] text-[var(--color-text-muted)] mb-1">
                 Default Stack Order
