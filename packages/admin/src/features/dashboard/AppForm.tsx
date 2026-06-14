@@ -84,7 +84,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const [widgetSize,                setWidgetSize]                = useState(() => resolveWidgetSizeFromConfig(persistedApp))
   const [widgetPosition,            setWidgetPosition]            = useState(() => resolveWidgetPositionFromConfig(persistedApp))
   const [widgetDefaultZIndex,       setWidgetDefaultZIndex]       = useState<number>(() => resolveWidgetDefaultZIndexFromConfig(persistedApp))
-  const [widgetTheme, setWidgetTheme] = useState<WidgetThemeConfig | undefined>(() => sourceWidgetTheme ? structuredClone(sourceWidgetTheme) : undefined)
+  const [widgetTheme, setWidgetTheme] = useState<WidgetThemeConfig>(() => structuredClone(sourceWidgetTheme ?? DEFAULT_WIDGET_THEME_PRESETS[WIDGET_SKINS[0].id]))
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
   const [clearingRuntime, setClearingRuntime] = useState(false)
@@ -153,12 +153,11 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const widgetPositionDirty      = widgetPosition.x !== sourceWidgetPosition.x || widgetPosition.y !== sourceWidgetPosition.y
   const widgetSizeDirty          = widgetSize.width !== sourceWidgetSize.width || widgetSize.height !== sourceWidgetSize.height
   const widgetDefaultZIndexDirty = widgetDefaultZIndex !== sourceWidgetDefaultZIndex
-  const widgetThemeDirty = !!widgetTheme !== !!sourceWidgetTheme
-    || (widgetTheme != null && !isSameDraft(widgetTheme, sourceWidgetTheme!))
+  const widgetThemeDirty = !isSameDraft(widgetTheme, sourceWidgetTheme ?? DEFAULT_WIDGET_THEME_PRESETS[WIDGET_SKINS[0].id])
   const dirty = appDirty || widgetPositionDirty || widgetSizeDirty || widgetDefaultZIndexDirty || widgetThemeDirty
 
   const widgetThemePreviewPatch = useMemo(() => {
-    const nextApp = { ...persistedApp, theme: widgetTheme ? structuredClone(widgetTheme) : undefined }
+    const nextApp = { ...persistedApp, theme: structuredClone(widgetTheme) }
     return {
       applications: persistedConfig.applications.map((a) => a.id === form.id ? nextApp : a),
     } as Partial<AppConfig>
@@ -173,7 +172,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   }, [persistedApp, persistedDesktopConfig])
 
   useEffect(() => {
-    setWidgetTheme(sourceWidgetTheme ? structuredClone(sourceWidgetTheme) : undefined)
+    setWidgetTheme(structuredClone(sourceWidgetTheme ?? DEFAULT_WIDGET_THEME_PRESETS[WIDGET_SKINS[0].id]))
   }, [sourceWidgetTheme])
 
   useEffect(() => () => {
@@ -210,7 +209,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
       ? undefined
       : { width: normalizedWidth, height: normalizedHeight }
     draftApp.zIndexDefault = Math.max(0, Math.round(widgetDefaultZIndex))
-    draftApp.theme = widgetTheme ? structuredClone(widgetTheme) : undefined
+    draftApp.theme = structuredClone(widgetTheme)
 
     const apps = [...persistedConfig.applications]
     const idx = apps.findIndex((entry) => entry.id === draftApp.id)
@@ -238,7 +237,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
     setWidgetPosition(resolveWidgetPositionFromConfig(persistedApp))
     setWidgetSize(resolveWidgetSizeFromConfig(persistedApp))
     setWidgetDefaultZIndex(resolveWidgetDefaultZIndexFromConfig(persistedApp))
-    setWidgetTheme(sourceWidgetTheme ? structuredClone(sourceWidgetTheme) : undefined)
+    setWidgetTheme(structuredClone(sourceWidgetTheme ?? DEFAULT_WIDGET_THEME_PRESETS[WIDGET_SKINS[0].id]))
     setSaved(false)
   }
 
@@ -489,15 +488,13 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                 </Notice>
               )}
               <select
-                value={widgetTheme?.skin ?? ''}
+                value={widgetTheme.skin}
                 onChange={(e) => {
-                  const skinId = e.target.value
-                  setWidgetTheme(skinId ? structuredClone(DEFAULT_WIDGET_THEME_PRESETS[skinId]) : undefined)
+                  setWidgetTheme(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[e.target.value]))
                   setSaved(false)
                 }}
                 className="w-full text-xs"
               >
-                <option value="">None</option>
                 {WIDGET_SKINS.map((skin) => (
                   <option key={skin.id} value={skin.id}>{skin.label}</option>
                 ))}
