@@ -451,6 +451,10 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   async function start(): Promise<void> {
     await kernel.boot()
+    // Pre-warm the config cache before accepting socket connections.
+    // Without this, an overlay connecting before any admin HTTP request would
+    // receive DEFAULT_CONFIG (cachedConfig is null until first getForUser call).
+    await configService.getForUser(DESKTOP_USER_ID)
     await app.listen({ port: boundPort, host: '0.0.0.0' })
     const address = app.server.address()
     if (address && typeof address === 'object') boundPort = address.port

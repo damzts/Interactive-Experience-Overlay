@@ -27,3 +27,11 @@ export const socket = io('/', {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
 })
+
+// Prevent Vite HMR from hot-replacing this module. Replacing the socket
+// singleton mid-session leaves the new socket unconnected (main.tsx only
+// calls socket.connect() once at boot), silently breaking all server events.
+// Any change to this file triggers a full page reload instead.
+if (import.meta.hot) {
+  import.meta.hot.decline()
+}

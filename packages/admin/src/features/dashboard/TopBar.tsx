@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AuthBadge } from '../../auth/AuthBadge'
-import { getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
-import { getApiOrigin } from '../../shared/runtimeUrls'
+import { getOverlayRuntimeOrigin, getOverlayDevOrigin, getApiOrigin } from '../../shared/runtimeUrls'
 
 function Indicator({ connected, label }: { connected: boolean; label: string }) {
   return (
@@ -40,7 +39,7 @@ export function TopBar() {
       <div className="flex-1" />
       <button
         type="button"
-        onClick={() => window.open(getOverlayRuntimeOrigin(), 'ieom-overlay', 'width=1920,height=1080')}
+        onClick={() => window.open(import.meta.env.DEV ? getOverlayDevOrigin() : getOverlayRuntimeOrigin(), 'ieom-overlay', 'width=1920,height=1080')}
         className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition hover:border-cyan-500/50 hover:bg-zinc-800"
       >
         <span>🖥️</span>

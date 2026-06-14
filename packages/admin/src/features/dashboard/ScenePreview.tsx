@@ -9,7 +9,7 @@ import { useRef } from 'react'
 import type { WindowInstance } from '@ieomlabs/shared'
 import { OverlayCanvas, OverlayPreviewItem } from '../../shared/ui'
 import { RENDERER_CATALOG } from '@ieomlabs/shared'
-import { getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
+import { getOverlayRuntimeOrigin, getOverlayDevOrigin } from '../../shared/runtimeUrls'
 
 interface Props {
   windows: WindowInstance[]
@@ -20,7 +20,7 @@ interface Props {
 
 export function ScenePreview({ windows, selectedId, onSelect, onChangePosition }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const overlayUrl = getOverlayRuntimeOrigin()
+  const overlayUrl = import.meta.env.DEV ? getOverlayDevOrigin() : getOverlayRuntimeOrigin()
 
   const handleItems = windows
     .filter((w) => w.visible)
