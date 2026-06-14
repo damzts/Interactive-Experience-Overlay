@@ -390,13 +390,6 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   registerRoomNamespace(io, roomManager, roomPreviewRelay)
   await app.register(onlineRoomRoute, { roomManager })
 
-  // Auto-sync rooms from cloud on startup (reconnects hub if rooms exist)
-  setTimeout(() => {
-    roomManager.syncFromCloud().catch((e) => {
-      logger.info({ err: (e as Error).message }, '[room] auto-sync on startup failed')
-    })
-  }, 2000) // Small delay to let auth token settle
-
   registerStudioNamespace(io, roomHub, povOrchestrator, roomManager)
 
   const studioPagePath = join(import.meta.dirname, 'studio.html')
