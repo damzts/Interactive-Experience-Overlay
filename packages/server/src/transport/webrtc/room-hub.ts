@@ -31,6 +31,9 @@ export type TrackMutedCallback = (userId: string, kind: 'audio' | 'video') => vo
 export type ParticipantRemovedCallback = (userId: string) => void
 export type IceCandidateCallback = (userId: string, candidate: RTCIceCandidateInit) => void
 export type IceFailedCallback = (userId: string) => void
+export type IceRecoveredCallback = (userId: string) => void
+
+const ICE_DISCONNECT_TIMEOUT_MS = 5_000
 
 export class RoomHub {
   private participants = new Map<string, ParticipantMedia>()
@@ -39,6 +42,8 @@ export class RoomHub {
   private removedCallbacks: ParticipantRemovedCallback[] = []
   private iceCandidateCallbacks: IceCandidateCallback[] = []
   private iceFailedCallbacks: IceFailedCallback[] = []
+  private iceRecoveredCallbacks: IceRecoveredCallback[] = []
+  private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   private freezeMonitorTimer: ReturnType<typeof setInterval> | null = null
   private readonly FREEZE_TIMEOUT_MS = 2_000
@@ -57,6 +62,8 @@ export class RoomHub {
     const existing = this.participants.get(userId)
     if (existing) {
       markStale(existing)
+      const dt = this.disconnectTimers.get(userId)
+      if (dt) { clearTimeout(dt); this.disconnectTimers.delete(userId) }
       try { await existing.pc.close() } catch { /* ignore */ }
       this.participants.delete(userId)
     }
@@ -110,10 +117,29 @@ export class RoomHub {
 
     pc.iceConnectionStateChange.subscribe(() => {
       const state = pc.iceConnectionState
+      const prevState = media.iceState
       media.iceState = state
       logger.info(`[room-hub] ${userId} ICE state: ${state}`)
 
-      if (state === 'failed') {
+      if (state === 'disconnected') {
+        const t = setTimeout(() => {
+          this.disconnectTimers.delete(userId)
+          if (this.participants.get(userId) === media && !media._stale) {
+            logger.info(`[room-hub] ${userId} ICE disconnected for ${ICE_DISCONNECT_TIMEOUT_MS}ms — notifying upstream`)
+            for (const cb of this.iceFailedCallbacks) cb(userId)
+          }
+        }, ICE_DISCONNECT_TIMEOUT_MS)
+        this.disconnectTimers.set(userId, t)
+      } else if (state === 'connected' || state === 'completed') {
+        const t = this.disconnectTimers.get(userId)
+        if (t) { clearTimeout(t); this.disconnectTimers.delete(userId) }
+        if (prevState === 'disconnected') {
+          logger.info(`[room-hub] ${userId} ICE self-recovered from disconnected`)
+          for (const cb of this.iceRecoveredCallbacks) cb(userId)
+        }
+      } else if (state === 'failed') {
+        const t = this.disconnectTimers.get(userId)
+        if (t) { clearTimeout(t); this.disconnectTimers.delete(userId) }
         logger.info(`[room-hub] ${userId} ICE failed — notifying upstream`)
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
@@ -123,6 +149,8 @@ export class RoomHub {
       const state = pc.connectionState
       logger.info(`[room-hub] ${userId} connection state: ${state}`)
       if (state === 'failed') {
+        const t = this.disconnectTimers.get(userId)
+        if (t) { clearTimeout(t); this.disconnectTimers.delete(userId) }
         for (const cb of this.iceFailedCallbacks) cb(userId)
       }
     })
@@ -150,6 +178,8 @@ export class RoomHub {
 
   async removeParticipant(userId: string): Promise<void> {
     try {
+      const t = this.disconnectTimers.get(userId)
+      if (t) { clearTimeout(t); this.disconnectTimers.delete(userId) }
       const media = this.participants.get(userId)
       if (!media) return
       try { await media.pc.close() } catch { /* ignore */ }
@@ -202,6 +232,10 @@ export class RoomHub {
     this.iceFailedCallbacks.push(cb)
   }
 
+  onIceRecovered(cb: IceRecoveredCallback): void {
+    this.iceRecoveredCallbacks.push(cb)
+  }
+
   startFreezeDetection(): void {
     if (this.freezeMonitorTimer) return
     this.freezeMonitorTimer = setInterval(() => {
@@ -230,6 +264,8 @@ export class RoomHub {
 
   async closeAll(): Promise<void> {
     this.stopFreezeDetection()
+    for (const t of this.disconnectTimers.values()) clearTimeout(t)
+    this.disconnectTimers.clear()
     await Promise.all([...this.participants.keys()].map((userId) => this.removeParticipant(userId)))
   }
 }

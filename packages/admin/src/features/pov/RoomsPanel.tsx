@@ -242,7 +242,7 @@ function RoomCard({
   onSelect: (roomCode: string, participantId: string) => void
   onKick: (roomCode: string, participantId: string) => void
   isActive: boolean
-  onSetActive: (roomCode: string) => void
+  onSetActive: (roomCode: string | null) => void
   socket: RoomSocket | null
   onConfigSave: (roomCode: string, config: Partial<PerRoomConfig>) => void
 }) {
@@ -364,15 +364,15 @@ function RoomCard({
         <div className="flex-1" />
 
         <button
-          onClick={() => onSetActive(room.roomCode)}
+          onClick={() => onSetActive(isActive ? null : room.roomCode)}
           className={`text-[10px] px-3 py-1.5 rounded-md font-medium transition-all ${
             isActive
               ? 'bg-[var(--color-accent-500)] text-white shadow-md shadow-[var(--color-accent-500)]/50'
               : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-500)]/20'
           }`}
-          title="Make this room the active POV source"
+          title={isActive ? 'Deactivate — switch POV back to LAN' : 'Make this room the active POV source'}
         >
-          {isActive ? '📺 Active POV' : 'POV'}
+          {isActive ? '📺 Active POV' : 'Set Active'}
         </button>
 
         <Button
@@ -628,6 +628,10 @@ export function RoomsPanel() {
   // ── LAN state ────────────────────────────────────────────────────
 
   const [lanCode, setLanCode] = useState<string | null>(null)
+  const [lanCodeDraft, setLanCodeDraft] = useState<string>('')
+  const [lanCodeEditing, setLanCodeEditing] = useState(false)
+  const [lanCodeError, setLanCodeError] = useState<string | null>(null)
+  const [savingLanCode, setSavingLanCode] = useState(false)
   const [lanParticipants, setLanParticipants] = useState<Array<{ id: string; iceState: string; videoMuted: boolean }>>([])
   const [regeneratingCode, setRegeneratingCode] = useState(false)
   const [lanConfigExpanded, setLanConfigExpanded] = useState(true)
@@ -925,6 +929,29 @@ export function RoomsPanel() {
     setConfigDraft((prev) => ({ ...prev, [key]: value }))
   }, [])
 
+  const handleSetLanCode = useCallback(async (code: string) => {
+    setSavingLanCode(true)
+    setLanCodeError(null)
+    try {
+      const result = await apiFetch<{ ok: boolean; code?: string; error?: string }>('/api/room/code', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      if (result.ok && result.code) {
+        setLanCode(result.code)
+        setLanCodeDraft(result.code)
+        setLanCodeEditing(false)
+      } else {
+        setLanCodeError(result.error ?? 'Failed to set room code')
+      }
+    } catch (err) {
+      setLanCodeError(err instanceof Error ? err.message : 'Failed to set room code')
+    } finally {
+      setSavingLanCode(false)
+    }
+  }, [])
+
   const handleSaveRoomConfig = useCallback(async (roomCode: string, partial: Partial<PerRoomConfig>) => {
     try {
       const result = await updateCloudRoomConfig(roomCode, partial)
@@ -969,48 +996,82 @@ export function RoomsPanel() {
       <div className="space-y-6 pt-3">
         <ConfigPanel title="LAN Room" collapsible>
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-primary-500)]/10 border border-[var(--color-primary-400)]/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--color-text-secondary)]">Local network participants</span>
               <button
-                onClick={() => { if (activeRoomCode !== null) handleSetActiveRoom(null) }}
+                onClick={() => { if (activeRoomCode !== null) void handleSetActiveRoom(null) }}
                 disabled={activeRoomCode === null}
-                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                className={`text-[10px] px-3 py-1.5 rounded-md font-medium transition-all ${
                   activeRoomCode === null
-                    ? 'bg-[var(--color-primary-500)] cursor-default'
-                    : 'bg-[var(--color-bg-elevated)] cursor-pointer hover:bg-[var(--color-bg-elevated)]/80'
+                    ? 'bg-[var(--color-accent-500)] text-white shadow-md shadow-[var(--color-accent-500)]/50 cursor-default'
+                    : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-500)]/20'
                 }`}
-                title={activeRoomCode === null ? 'LAN room is the active POV source' : 'Switch to LAN room POV'}
+                title={activeRoomCode === null ? 'LAN is the active POV source' : 'Set LAN room as active POV source'}
               >
-                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  activeRoomCode === null ? 'translate-x-4' : 'translate-x-0.5'
-                }`} />
+                {activeRoomCode === null ? '📺 Active POV' : 'Set Active'}
               </button>
-              <div>
-                <div className="text-sm font-medium text-[var(--color-text-primary)]">LAN Room POV</div>
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  {activeRoomCode === null ? '✓ Active — displaying LAN participants' : 'Inactive — click to switch to LAN POV'}
-                </div>
-              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div>
-                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Room Code</div>
-                <span className="font-mono text-2xl tracking-[0.25em] font-bold text-[var(--color-primary-400)] select-all">
-                  {lanCode ?? '······'}
-                </span>
-              </div>
-              <Button
-                variant="secondary" size="sm"
-                loading={regeneratingCode}
-                onClick={async () => {
-                  setRegeneratingCode(true)
-                  try {
-                    const r = await apiFetch<{ code: string }>('/api/room/code/regenerate', { method: 'POST' })
-                    setLanCode(r.code)
-                  } finally { setRegeneratingCode(false) }
-                }}
-              >
-                Regenerate
-              </Button>
+            <div className="space-y-2">
+              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">Room Code</div>
+              {lanCodeEditing ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={lanCodeDraft}
+                      onChange={(e) => { setLanCodeDraft(e.target.value.toUpperCase()); setLanCodeError(null) }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleSetLanCode(lanCodeDraft)
+                        if (e.key === 'Escape') { setLanCodeEditing(false); setLanCodeDraft(lanCode ?? ''); setLanCodeError(null) }
+                      }}
+                      maxLength={12}
+                      autoFocus
+                      placeholder="e.g. ARENA1"
+                      className="font-mono text-xl tracking-[0.2em] font-bold text-[var(--color-primary-400)] bg-[var(--color-bg-elevated)] border border-[var(--color-primary-400)]/40 rounded-md px-3 py-1.5 w-40 uppercase focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-400)]"
+                    />
+                    <Button variant="primary" size="sm" loading={savingLanCode} onClick={() => void handleSetLanCode(lanCodeDraft)} className="text-[10px]">
+                      Set
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setLanCodeEditing(false); setLanCodeDraft(lanCode ?? ''); setLanCodeError(null) }} className="text-[10px]">
+                      Cancel
+                    </Button>
+                  </div>
+                  {lanCodeError && <div className="text-[10px] text-[var(--color-danger-400)]">{lanCodeError}</div>}
+                  <div className="text-[10px] text-[var(--color-text-muted)]">4–12 uppercase letters or digits. Enter to confirm, Esc to cancel.</div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setLanCodeDraft(lanCode ?? ''); setLanCodeEditing(true) }}
+                    className="font-mono text-2xl tracking-[0.25em] font-bold text-[var(--color-primary-400)] select-all hover:text-[var(--color-primary-300)] transition-colors"
+                    title="Click to edit room code"
+                  >
+                    {lanCode ?? '······'}
+                  </button>
+                  <Button
+                    variant="ghost" size="sm"
+                    onClick={() => { setLanCodeDraft(lanCode ?? ''); setLanCodeEditing(true) }}
+                    className="text-[10px]"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="secondary" size="sm"
+                    loading={regeneratingCode}
+                    onClick={async () => {
+                      setRegeneratingCode(true)
+                      try {
+                        const r = await apiFetch<{ code: string }>('/api/room/code/regenerate', { method: 'POST' })
+                        setLanCode(r.code)
+                        setLanCodeDraft(r.code)
+                      } finally { setRegeneratingCode(false) }
+                    }}
+                    className="text-[10px]"
+                  >
+                    Regenerate
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/55 px-2 py-1">
               <span className="text-[10px] text-[var(--color-text-muted)]">🏠 LAN Join:</span>

@@ -94,6 +94,16 @@ export class POVOrchestrator implements Manager {
     })
   }
 
+  markDisconnected(userId: string): void {
+    const p = this.participants.get(userId)
+    if (p) p.connectionStatus = 'disconnected'
+  }
+
+  markConnected(userId: string): void {
+    const p = this.participants.get(userId)
+    if (p) p.connectionStatus = 'connected'
+  }
+
   removeParticipant(userId: string): void {
     this.stopAudioLevelMonitoring(userId)
     this.stopMotionDetection(userId)

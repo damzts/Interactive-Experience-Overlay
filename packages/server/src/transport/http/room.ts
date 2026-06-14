@@ -8,7 +8,7 @@ import type { SwitchMode } from '@ieomlabs/shared'
 import type { CloudSignaling } from '../webrtc/cloud-signaling.js'
 import type { POVOrchestrator } from '../../kernel/managers/pov.js'
 import type { HubConnection } from '../webrtc/hub-connection.js'
-import { CURRENT_ROOM_CODE, regenerateRoomCode } from '../socket/joinNamespace.js'
+import { CURRENT_ROOM_CODE, regenerateRoomCode, setRoomCode } from '../socket/joinNamespace.js'
 
 interface RoomRouteOptions extends FastifyPluginOptions {
   cloudSignaling: CloudSignaling
@@ -22,6 +22,11 @@ export async function roomRoute(app: FastifyInstance, opts: RoomRouteOptions) {
   // ── LAN join room code ─────────────────────────────────────────
   app.get('/api/room/code', async () => ({ code: CURRENT_ROOM_CODE }))
   app.post('/api/room/code/regenerate', async () => ({ code: regenerateRoomCode() }))
+  app.patch<{ Body: { code: string } }>('/api/room/code', async (req, reply) => {
+    const { code } = req.body ?? {}
+    if (!code) return reply.code(400).send({ ok: false, error: 'missing_code' })
+    return setRoomCode(code)
+  })
 
   // ── LAN participants ───────────────────────────────────────────
   app.get('/api/room/lan-participants', async () => {

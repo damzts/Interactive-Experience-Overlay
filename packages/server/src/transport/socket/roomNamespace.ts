@@ -39,6 +39,18 @@ export function regenerateRoomCode(): string {
   return CURRENT_ROOM_CODE
 }
 
+const VALID_CODE_RE = /^[A-Z0-9]{4,12}$/
+
+export function setRoomCode(code: string): { ok: true; code: string } | { ok: false; error: string } {
+  const normalized = code.trim().toUpperCase()
+  if (!VALID_CODE_RE.test(normalized)) {
+    return { ok: false, error: 'Code must be 4–12 uppercase letters or digits.' }
+  }
+  CURRENT_ROOM_CODE = normalized
+  logger.info(`[studio] Room code set to: ${CURRENT_ROOM_CODE}`)
+  return { ok: true, code: CURRENT_ROOM_CODE }
+}
+
 // ── Rate limiter ──────────────────────────────────────────────────
 
 const RATE_WINDOW_MS = 60_000

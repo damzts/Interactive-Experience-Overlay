@@ -39,12 +39,15 @@ export class RoomSignaling {
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private freezeRecoveryTimers = new Set<ReturnType<typeof setTimeout>>()
   private participantLeaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private pendingOfferTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private reconnectAttempt = 0
   intentionalClose = false
   private connCounter = 0
   private pendingCandidates = new Map<string, Record<string, unknown>[]>()
   private knownParticipants = new Set<string>()
   private frozenParticipants = new Set<string>()
+  /** userId that was the active camera when ICE failed; cleared once they reconnect */
+  private recoveringActiveParticipant: string | null = null
 
   constructor(
     private hub: RoomHub,
@@ -53,6 +56,12 @@ export class RoomSignaling {
     this.hub.onTrack((userId) => {
       if (!this.pov.activeCameraId) {
         this.pov.switcher.manualSelect(userId)
+      } else if (this.recoveringActiveParticipant === userId) {
+        // Participant reconnected via ICE restart — switch relay back to them
+        this.recoveringActiveParticipant = null
+        this.pov.markConnected(userId)
+        this.pov.switcher.manualSelect(userId)
+        logger.info(`[room-signaling] ${userId} reconnected, switched relay back`)
       }
     })
 
@@ -71,12 +80,42 @@ export class RoomSignaling {
     })
 
     this.hub.onIceFailed((userId) => {
-      logger.info(`[room-signaling] ICE failed for ${userId}, will re-negotiate`)
+      if (this.frozenParticipants.has(userId)) return  // Already handling this failure
+      logger.info(`[room-signaling] ICE failed for ${userId} — sending restart request`)
       this.frozenParticipants.add(userId)
+
+      // Immediate viewer fallback: switch relay to another participant while reconnecting
+      if (userId === this.pov.activeCameraId && this.recoveringActiveParticipant !== userId) {
+        this.recoveringActiveParticipant = userId
+        this.pov.markDisconnected(userId)
+        this.pov.switcher.handleDisconnect(userId)
+        logger.info(`[room-signaling] ${userId} was active camera — triggered fallback switch`)
+      }
+
+      this.send({
+        type: 'ice-restart-request',
+        payload: { userId },
+        senderId: 'self',
+        timestamp: new Date().toISOString(),
+        targetUserId: userId,
+      })
+    })
+
+    this.hub.onIceRecovered((userId) => {
+      if (!this.frozenParticipants.has(userId)) return
+      logger.info(`[room-signaling] ${userId} ICE self-recovered`)
+      this.frozenParticipants.delete(userId)
+      if (this.recoveringActiveParticipant === userId) {
+        this.recoveringActiveParticipant = null
+        this.pov.markConnected(userId)
+        this.pov.switcher.manualSelect(userId)
+        logger.info(`[room-signaling] ${userId} self-recovered, switched relay back`)
+      }
     })
 
     this.hub.onTrackMuted((userId, kind) => {
       if (kind !== 'video') return
+      if (this.frozenParticipants.has(userId)) return  // ICE failure already handling this
       logger.info(`[room-signaling] ${userId} video frozen/muted, scheduling recovery`)
       this.frozenParticipants.add(userId)
 
@@ -240,6 +279,19 @@ export class RoomSignaling {
             this.participantNames.set(userId, name)
             this.pov.addParticipant(userId, name)
             this.knownParticipants.add(userId)
+
+            // If there's no active WebRTC PC for this participant (hub joined late, or
+            // the cloud doesn't replay buffered offers), prompt them to re-offer now.
+            if (!this.hub.hasParticipant(userId)) {
+              logger.info(`[room-signaling] ${userId} already in room but no PC — requesting offer`)
+              this.send({
+                type: 'ice-restart-request',
+                payload: { userId },
+                senderId: 'self',
+                timestamp: new Date().toISOString(),
+                targetUserId: userId,
+              })
+            }
           }
         }
         this.emitStatus()
@@ -272,6 +324,9 @@ export class RoomSignaling {
           this.participantNames.delete(userId)
           this.knownParticipants.delete(userId)
           this.frozenParticipants.delete(userId)
+          if (this.recoveringActiveParticipant === userId) this.recoveringActiveParticipant = null
+          const pendingOffer = this.pendingOfferTimers.get(userId)
+          if (pendingOffer) { clearTimeout(pendingOffer); this.pendingOfferTimers.delete(userId) }
           // Delay hub PC teardown — cloud signaling can bounce while the WebRTC
           // connection stays alive; if the participant rejoins within 3 s we skip
           const existing = this.participantLeaveTimers.get(userId)
@@ -304,25 +359,34 @@ export class RoomSignaling {
             this.emitStatus()
           }
 
-          logger.info(`[room-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
-          this.pendingCandidates.set(userId, [])
-          this.hub.handleOffer(userId, sdp).then(answerSdp => {
-            if (!answerSdp) {
-              logger.error(`[room-signaling] handleOffer returned empty SDP for ${userId}, skipping answer`)
+          // Debounce rapid re-offers (e.g. client sends duplicates 200ms apart).
+          // Only the last offer within the window is processed; intermediate ones are discarded.
+          const existingTimer = this.pendingOfferTimers.get(userId)
+          if (existingTimer) clearTimeout(existingTimer)
+
+          const t = setTimeout(() => {
+            this.pendingOfferTimers.delete(userId)
+            logger.info(`[room-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
+            this.pendingCandidates.set(userId, [])
+            this.hub.handleOffer(userId, sdp).then(answerSdp => {
+              if (!answerSdp) {
+                logger.error(`[room-signaling] handleOffer returned empty SDP for ${userId}, skipping answer`)
+                this.pendingCandidates.delete(userId)
+                return
+              }
+              this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+              const buffered = this.pendingCandidates.get(userId) ?? []
               this.pendingCandidates.delete(userId)
-              return
-            }
-            this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-            const buffered = this.pendingCandidates.get(userId) ?? []
-            this.pendingCandidates.delete(userId)
-            for (const candidate of buffered) {
-              this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-            }
-            this.frozenParticipants.delete(userId)
-          }).catch(e => {
-            logger.error({ err: e }, '[room-signaling] offer handling failed')
-            this.pendingCandidates.delete(userId)
-          })
+              for (const candidate of buffered) {
+                this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+              }
+              this.frozenParticipants.delete(userId)
+            }).catch(e => {
+              logger.error({ err: e }, '[room-signaling] offer handling failed')
+              this.pendingCandidates.delete(userId)
+            })
+          }, 80)
+          this.pendingOfferTimers.set(userId, t)
         }
         break
       }
@@ -409,10 +473,13 @@ export class RoomSignaling {
     this.freezeRecoveryTimers.clear()
     for (const t of this.participantLeaveTimers.values()) clearTimeout(t)
     this.participantLeaveTimers.clear()
+    for (const t of this.pendingOfferTimers.values()) clearTimeout(t)
+    this.pendingOfferTimers.clear()
     if (this.ws) { this.ws.close(); this.ws = null }
     this.participantNames.clear()
     this.knownParticipants.clear()
     this.frozenParticipants.clear()
+    this.recoveringActiveParticipant = null
     this.config = null
     this.emitStatus()
   }

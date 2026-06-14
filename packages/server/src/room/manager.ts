@@ -399,22 +399,22 @@ export class RoomManager {
     if (prev !== roomCode) {
       this.emit('pov-online:active-room', { roomCode })
       logger.info(`[room] active room changed: ${prev ?? 'none'} → ${roomCode ?? 'none'}`)
-      // Apply the new room's config to the POV orchestrator
-      if (roomCode) {
-        const roomConfig = this.roomConfigs.get(roomCode) ?? { ...DEFAULT_PER_ROOM_CONFIG }
-        this.pov.switcher.updateConfig({
-          cooldownMs: roomConfig.cooldownMs,
-          activityThreshold: roomConfig.activityThreshold,
-          silenceThreshold: roomConfig.silenceThreshold,
-        })
-        this.pov.updateMotionWeight(roomConfig.motionWeight)
-        this.pov.scoreProcessor.stop()
-        this.pov.scoreProcessor.start({
-          rollingWindowMs: roomConfig.rollingWindowMs,
-          reportIntervalMs: this.config.audioReportIntervalMs,
-          emitIntervalMs: this.config.scoreEmitIntervalMs,
-        })
-      }
+      // Apply the active room's config to the POV orchestrator (global config when LAN)
+      const cfg = roomCode
+        ? (this.roomConfigs.get(roomCode) ?? { ...DEFAULT_PER_ROOM_CONFIG })
+        : this.config
+      this.pov.switcher.updateConfig({
+        cooldownMs: cfg.cooldownMs,
+        activityThreshold: cfg.activityThreshold,
+        silenceThreshold: cfg.silenceThreshold,
+      })
+      this.pov.updateMotionWeight(cfg.motionWeight)
+      this.pov.scoreProcessor.stop()
+      this.pov.scoreProcessor.start({
+        rollingWindowMs: cfg.rollingWindowMs,
+        reportIntervalMs: this.config.audioReportIntervalMs,
+        emitIntervalMs: this.config.scoreEmitIntervalMs,
+      })
     }
     return { ok: true }
   }
