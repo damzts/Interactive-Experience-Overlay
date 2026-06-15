@@ -109,7 +109,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   }
 
   if (selected.kind === 'widget-layout') {
-    return <WidgetLayoutPanel layoutId={selected.layoutId} />
+    return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
   }
 
   if (selected.kind === 'audio')    return <AudioPanel />

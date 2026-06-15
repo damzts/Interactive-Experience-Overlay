@@ -86,10 +86,10 @@ export interface DesktopScreenSaverPreviewPayload {
 
 export interface DesktopStartMenuStatePayload {
   open: boolean
-  activeRoot: 'programs' | 'widget-layouts' | null
+  activeRoot: 'programs' | 'widget-layouts' | 'layouts' | 'scenes' | null
 }
 
-export type DesktopStartMenuRoot = 'programs' | 'widget-layouts' | null
+export type DesktopStartMenuRoot = 'programs' | 'widget-layouts' | 'layouts' | 'scenes' | null
 
 export type DesktopStartMenuSimulationPhase =
   | 'open'
@@ -180,8 +180,13 @@ export type WidgetSimulationIntentPayload =
 
 export interface AmbianceSimulationPayload {
   actionId: string
+  /** Target ID — widget ID for widget actions, layout ID or scene ID for select actions. */
   widgetId: string
-  action: 'open' | 'close' | 'interact'
+  action: 'open' | 'close' | 'interact' | 'select'
+  /** Discriminates the target type. Absent means 'widget' for backward compatibility. */
+  targetKind?: 'widget' | 'layout' | 'scene'
+  /** Explicit start-menu navigation path for layout/scene select actions, e.g. ['Layouts', 'My Layout']. */
+  menuPath?: string[]
   mirrorPolicy: AmbianceMirrorPolicy
   sharedIntent: WidgetSimulationIntentPayload | null
 }

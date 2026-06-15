@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WidgetLayoutDefinition, WidgetLayoutItem } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { Btn, ConfigApplyBar, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayCanvas } from '../../shared/ui'
+import { ConfigApplyBar, ConfigSectionPanel, IconGlyph, isSameDraft, OverlayCanvas } from '../../shared/ui'
 import { normalizeWidgetLayoutsForEditor } from './widgetHelpers'
 
 // ── WidgetCanvas ──────────────────────────────────────────────────────
@@ -9,12 +9,10 @@ import { normalizeWidgetLayoutsForEditor } from './widgetHelpers'
 function WidgetCanvas({
   items,
   widgetApps,
-  readonly = false,
   onChange,
 }: {
   items: WidgetLayoutItem[]
   widgetApps: { id: string; label: string; icon: string }[]
-  readonly?: boolean
   onChange: (widgetId: string, patch: Partial<Pick<WidgetLayoutItem, 'x' | 'y' | 'width' | 'height' | 'enabled'>>) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -32,15 +30,13 @@ function WidgetCanvas({
           return (
             <button key={item.widgetId} type="button"
               onClick={() => {
-                if (readonly) return
                 onChange(item.widgetId, { enabled: !item.enabled })
                 if (!item.enabled) setSelectedId(item.widgetId)
                 else if (isSelected) setSelectedId(null)
               }}
               className={['flex flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-center transition-colors',
-                readonly ? item.enabled ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-300 cursor-default' : 'border-zinc-700/60 bg-zinc-900/40 text-zinc-500 cursor-default'
-                  : item.enabled ? isSelected ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : 'border-cyan-400/35 bg-cyan-500/10 text-cyan-300'
-                    : 'border-zinc-700/60 bg-zinc-900/40 text-zinc-500 hover:border-zinc-600/60 hover:text-zinc-400',
+                item.enabled ? isSelected ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : 'border-cyan-400/35 bg-cyan-500/10 text-cyan-300'
+                  : 'border-zinc-700/60 bg-zinc-900/40 text-zinc-500 hover:border-zinc-600/60 hover:text-zinc-400',
               ].join(' ')}
             >
               <IconGlyph icon={app.icon} label={app.label} size={18} />
@@ -54,8 +50,7 @@ function WidgetCanvas({
         items={enabledItems.map((i) => ({ id: i.widgetId, x: i.x, y: i.y, width: i.width, height: i.height }))}
         selectedId={selectedId}
         onSelect={setSelectedId}
-        onChange={readonly ? undefined : (id, patch) => onChange(id, patch)}
-        readonly={readonly}
+        onChange={(id, patch) => onChange(id, patch)}
         emptyMessage="Enable widgets above to preview their positions"
         renderItem={(canvasItem, isSelected) => {
           const app = widgetApps.find((a) => a.id === canvasItem.id)
@@ -76,14 +71,14 @@ function WidgetCanvas({
           <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4">{Math.round(selectedItem.width)} × {Math.round(selectedItem.height)}</div>
         </div>
       )}
-      <div className="text-[10px] text-zinc-600">{readonly ? 'System layout — read-only preview' : 'Click to toggle · Drag to move · Corner handles to resize'}</div>
+      <div className="text-[10px] text-zinc-600">Click to toggle · Drag to move · Corner handles to resize</div>
     </div>
   )
 }
 
 // ── WidgetLayoutPanel ─────────────────────────────────────────────────
 
-export function WidgetLayoutPanel({ layoutId }: { layoutId: string }) {
+export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; onDeleted?: () => void }) {
   const config      = useAdminStore((s) => s.config)
   const saveConfig  = useAdminStore((s) => s.saveConfig)
   const widgetApps  = useMemo(() => config.applications, [config.applications])
@@ -135,9 +130,6 @@ export function WidgetLayoutPanel({ layoutId }: { layoutId: string }) {
                   <input type="text" value={layout.label}
                     onChange={(e) => updateLayout((draft) => { draft.label = e.target.value })}
                     className="flex-1 text-xs" placeholder="Layout label" />
-                  <span className={'text-[9px] font-bold uppercase tracking-[0.16em] px-2 py-0.5 rounded-full border shrink-0 ' + (
-                    layout.source === 'system' ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
-                  )}>{layout.source}</span>
                 </div>
                 <input type="text" value={layout.description ?? ''}
                   onChange={(e) => updateLayout((draft) => { draft.description = e.target.value })}
@@ -145,12 +137,9 @@ export function WidgetLayoutPanel({ layoutId }: { layoutId: string }) {
               </div>
             </div>
 
-            {layout.source === 'system' && <div className="text-[10px] text-zinc-500">Built-in layout — read-only.</div>}
-
             <WidgetCanvas
               items={layout.items}
               widgetApps={widgetApps}
-              readonly={layout.source === 'system'}
               onChange={(widgetId, patch) => updateLayout((draft) => {
                 const row = draft.items.find((item) => item.widgetId === widgetId)
                 if (row) Object.assign(row, patch)
@@ -159,6 +148,14 @@ export function WidgetLayoutPanel({ layoutId }: { layoutId: string }) {
           </div>
         </ConfigSectionPanel>
       </div>
+      <button
+        onClick={async () => {
+          await saveConfig({ widgetLayouts: sourceLayouts.filter((l) => l.id !== layoutId) })
+          onDeleted?.()
+        }}
+        className="text-xs px-2 py-1 rounded border transition-colors text-[var(--color-danger-400)] hover:text-[var(--color-danger-400)] border-[var(--color-danger-500)]/50 hover:border-[var(--color-danger-400)]">
+        Delete Layout
+      </button>
       <ConfigApplyBar label={layout.label} dirty={dirty} saving={saving} saved={saved}
         onApply={() => void persistLayout(layout)} onReset={() => setLayout(structuredClone(sourceLayout))} alwaysShow />
     </div>

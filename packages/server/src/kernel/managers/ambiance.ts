@@ -9,7 +9,9 @@ import type {
   AmbianceSimulationDonePayload,
   AmbianceSimulationPayload,
   AmbianceWidgetBehavior,
+  AmbianceNavBehavior,
 } from '@ieomlabs/shared'
+import { STATE } from '@ieomlabs/shared'
 
 const SIMULATION_PENDING_TIMEOUT_MS = 5000    // "if no ack in 5s, cancel"
 const SIMULATION_FALLBACK_TIMEOUT_MS = 30000
@@ -20,7 +22,10 @@ const DEFAULT_BEHAVIOR: AmbianceWidgetBehavior = {
   closeChance: 0.12,
   interactChance: 0.65,
 }
-type AmbianceCandidateAction = Pick<AmbianceSimulationPayload, 'widgetId' | 'action'>
+type AmbianceCandidateAction = Pick<AmbianceSimulationPayload, 'widgetId' | 'action'> & {
+  targetKind?: AmbianceSimulationPayload['targetKind']
+  menuPath?: string[]
+}
 
 function shouldTrigger(chance: number): boolean {
   if (chance <= 0) return false
@@ -65,7 +70,7 @@ function pickWeightedAction(
 export class AmbianceManager implements Manager {
   readonly name = 'AmbianceManager'
   private _status: ManagerStatus = 'idle'
-  private tickTimer: ReturnType<typeof setInterval> | null = null
+  private tickTimer: ReturnType<typeof setTimeout> | null = null
   private acceptTimeout: ReturnType<typeof setTimeout> | null = null
   private simulationTimeout: ReturnType<typeof setTimeout> | null = null
   private getOpenWidgetIds?: () => Set<string>
@@ -80,7 +85,7 @@ export class AmbianceManager implements Manager {
   private lastTickAt: number | null = null
   private lastActionAt: number | null = null
   private lastActionWidgetId: string | null = null
-  private lastAction: 'open' | 'close' | 'interact' | null = null
+  private lastAction: 'open' | 'close' | 'interact' | 'select' | null = null
   private lastSkipReason: string | null = null
   private overlayReady = false
   private history: AmbianceHistoryEntry[] = []
@@ -120,16 +125,28 @@ export class AmbianceManager implements Manager {
       return
     }
 
-    const intervalMs = Math.max(1, config.widgetSimulation.intervalSeconds) * 1000
     this.lastSkipReason = null
-    this.tickTimer = setInterval(() => this.tick(), intervalMs)
-    logger.info({ intervalSec: intervalMs / 1000 }, 'AI simulation manager started')
-        this.emitDiagnostics()
+
+    const scheduleNextTick = () => {
+      const simCfg = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance).widgetSimulation
+      const intervalMs = Math.max(1000, simCfg.intervalSeconds * 1000)
+      const jitter = Math.max(0, Math.min(0.8, simCfg.tickJitterFactor ?? 0.2))
+      const variance = (Math.random() * 2 - 1) * jitter * intervalMs
+      const delay = Math.max(500, intervalMs + variance)
+      this.tickTimer = setTimeout(() => {
+        this.tick()
+        if (this._status === 'running') scheduleNextTick()
+      }, delay)
+    }
+
+    scheduleNextTick()
+    logger.info({ intervalSec: config.widgetSimulation.intervalSeconds }, 'AI simulation manager started')
+    this.emitDiagnostics()
   }
 
   stop() {
     if (this.tickTimer) {
-      clearInterval(this.tickTimer)
+      clearTimeout(this.tickTimer)
       this.tickTimer = null
       logger.info('[ambiance] AI simulation manager stopped.')
     }
@@ -331,6 +348,33 @@ export class AmbianceManager implements Manager {
     })
   }
 
+  private getNavCandidatePool(): AmbianceCandidateAction[] {
+    const appConfig = this.getConfig()
+    const simConfig = withDesktopAmbianceDefaults(appConfig.desktopAmbiance).widgetSimulation
+    const layouts = appConfig.widgetLayouts ?? []
+    const scenes = appConfig.scenes ?? {}
+    const candidates: AmbianceCandidateAction[] = []
+
+    for (const [layoutId, behavior] of Object.entries(simConfig.layoutBehaviors ?? {})) {
+      if (!behavior?.enabled) continue
+      const layout = layouts.find((l) => l.id === layoutId)
+      if (!layout) continue
+      candidates.push({ widgetId: layoutId, action: 'select', targetKind: 'layout', menuPath: ['Layouts', layout.label] })
+    }
+
+    const sceneLabel = (id: string): string => {
+      if (id === STATE.LOBBY) return 'Lobby'
+      if (id === STATE.DESKTOP) return 'Desktop'
+      return scenes[id]?.label ?? id
+    }
+    for (const [sceneId, behavior] of Object.entries(simConfig.sceneBehaviors ?? {})) {
+      if (!behavior?.enabled) continue
+      candidates.push({ widgetId: sceneId, action: 'select', targetKind: 'scene', menuPath: ['Scenes', sceneLabel(sceneId)] })
+    }
+
+    return candidates
+  }
+
   private tick() {
     const config = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance)
     const simConfig = config.widgetSimulation
@@ -366,14 +410,9 @@ export class AmbianceManager implements Manager {
     const closeCandidates: AmbianceCandidateAction[] = []
     const interactCandidates: AmbianceCandidateAction[] = []
     const openCandidates: AmbianceCandidateAction[] = []
+    const selectCandidates: AmbianceCandidateAction[] = []
     const enabledBehaviors = this.getEffectiveBehaviors()
       .filter(([, behavior]) => !!behavior?.enabled)
-
-    if (enabledBehaviors.length === 0) {
-      this.lastSkipReason = 'no widget behaviors are enabled'
-      this.emitDiagnostics()
-      return
-    }
 
     for (const [widgetId, behavior] of enabledBehaviors) {
       const lastActionAt = this.lastActionAtByWidget.get(widgetId) ?? 0
@@ -393,9 +432,24 @@ export class AmbianceManager implements Manager {
       }
     }
 
+    // Layout/scene select candidates — evaluated independently of widget open/close state
+    const simConfig2 = withDesktopAmbianceDefaults(this.getConfig().desktopAmbiance).widgetSimulation
+    const navPool = this.getNavCandidatePool()
+    for (const candidate of navPool) {
+      const lastActionAt = this.lastActionAtByWidget.get(candidate.widgetId) ?? 0
+      if (Date.now() - lastActionAt < minActionGapMs) continue
+      const navBehaviors = candidate.targetKind === 'layout'
+        ? (simConfig2.layoutBehaviors ?? {})
+        : (simConfig2.sceneBehaviors ?? {})
+      const navBehavior = navBehaviors[candidate.widgetId]
+      if (navBehavior && shouldTrigger(navBehavior.selectChance)) {
+        selectCandidates.push(candidate)
+      }
+    }
+
     let candidates: AmbianceCandidateAction[] = []
     if (openCount === 0) {
-      candidates = openCandidates
+      candidates = openCandidates.length > 0 ? openCandidates : selectCandidates
     } else if (openCount >= maxOpenWidgets) {
       candidates = interactCandidates.length > 0 ? interactCandidates : closeCandidates
     } else {
@@ -407,8 +461,22 @@ export class AmbianceManager implements Manager {
           ? interactCandidates
           : closeCandidates.length > 0
             ? closeCandidates
-            : openCandidates
+            : openCandidates.length > 0
+              ? openCandidates
+              : selectCandidates
       }
+    }
+
+    // Merge in select candidates when there are no other candidates
+    if (candidates.length === 0 && selectCandidates.length > 0) {
+      candidates = selectCandidates
+    }
+
+    const enabledBehaviorCount = enabledBehaviors.length
+    if (enabledBehaviorCount === 0 && selectCandidates.length === 0) {
+      this.lastSkipReason = 'no widget or nav behaviors are enabled'
+      this.emitDiagnostics()
+      return
     }
 
     const picked = pickWeightedAction(candidates, minActionGapMs, this.lastActionAtByWidget, this.lastWidgetId)
@@ -431,7 +499,10 @@ export class AmbianceManager implements Manager {
         })()
       : null
     const payload: AmbianceSimulationPayload = {
-      ...picked,
+      widgetId: picked.widgetId,
+      action: picked.action,
+      ...(picked.targetKind ? { targetKind: picked.targetKind } : {}),
+      ...(picked.menuPath ? { menuPath: picked.menuPath } : {}),
       actionId,
       mirrorPolicy,
       sharedIntent,

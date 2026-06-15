@@ -12,7 +12,6 @@ import type { KernelBus } from '../bus.js'
 import logger from '../../lib/logger.js'
 import {
   DEFAULT_CONFIG,
-  DEFAULT_SYSTEM_WIDGET_LAYOUTS,
   STATE,
   withApplicationListDefaults,
   withDesktopAmbianceDefaults,
@@ -147,7 +146,6 @@ export class DesktopConfigService implements Manager, IConfigService {
         enabled INTEGER NOT NULL DEFAULT 1
       )
     `)
-    this.seedSystemLayouts()
   }
 
   init(): void { this._status = 'idle' }
@@ -155,23 +153,6 @@ export class DesktopConfigService implements Manager, IConfigService {
   stop(): void { this._status = 'stopped' }
   dispose(): void { this._status = 'stopped' }
   status(): ManagerStatus { return this._status }
-
-  private seedSystemLayouts(): void {
-    const upsertLayout = this.db.prepare(
-      'INSERT OR IGNORE INTO widget_layouts (id, label, icon, source, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    const upsertItem = this.db.prepare(
-      'INSERT OR IGNORE INTO widget_layout_items (layout_id, widget_id, enabled, x, y, width, height, focus_priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    )
-    this.db.transaction(() => {
-      DEFAULT_SYSTEM_WIDGET_LAYOUTS.forEach((layout, i) => {
-        upsertLayout.run(layout.id, layout.label, layout.icon, 'system', layout.description ?? null, i)
-        for (const item of layout.items) {
-          upsertItem.run(layout.id, item.widgetId, item.enabled ? 1 : 0, item.x, item.y, item.width, item.height, item.focusPriority)
-        }
-      })
-    })()
-  }
 
   onConfigUpdate(listener: (config: AppConfig) => void) {
     this.onConfigUpdateListeners.push(listener)

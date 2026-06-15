@@ -86,7 +86,7 @@ export interface OverlaySyncSnapshot {
  * Server socket handlers register `socket.on(...)` for these.
  *
  * Categories:
- *   Syscalls      — scene:change, widget:toggle, overlay:trigger, panic, keybind:execute,
+ *   Syscalls      — scene:change, widget:toggle, overlay:trigger, keybind:execute,
  *                   widget:layout:apply*, event:preview, transition:preview,
  *                   desktop:notify, desktop:screen-saver:test, runtime:config:reset, runtime:config:widget:reset, runtime:config:widget-layout:reset
  *   State reports — desktop:recycle-bin, desktop:start-menu:state, overlay:runtime:status,
@@ -124,9 +124,6 @@ export interface ClientToServerEvents {
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   /** Preview a transition pipeline (admin use) */
   'transition:preview': (steps: TransitionStep[]) => void
-  /** Immediate panic reset — clears all state to safe defaults */
-  'panic': () => void
-
   // ── State reports ─────────────────────────────────────────────────
   /** Report the overlay's runtime status to the kernel */
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void

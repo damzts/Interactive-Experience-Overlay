@@ -100,7 +100,7 @@ export interface AmbianceDiagnosticsPayload {
   lastTickAt: number | null
   lastActionAt: number | null
   lastActionWidgetId: string | null
-  lastAction: 'open' | 'close' | 'interact' | null
+  lastAction: 'open' | 'close' | 'interact' | 'select' | null
   inFlight: boolean
   pendingPhase: 'pending' | 'running' | null
   pendingActionId: string | null

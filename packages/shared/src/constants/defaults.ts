@@ -661,324 +661,6 @@ export function withApplicationListDefaults(applications?: Application[] | null)
   return (applications ?? []).map((app) => withApplicationDefaults(app))
 }
 
-export const DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS = {
-  cameraCorner: 'system-camera-corner',
-  cameraPresentation: 'system-camera-presentation',
-  cameraSourceACenter: 'system-camera-source-a-center',
-  cameraSourceBCenter: 'system-camera-source-b-center',
-  cameraDirectTalk: 'system-camera-direct-talk',
-  cameraStage: 'system-camera-stage',
-  cameraStage3up: 'system-camera-stage-3up',
-} as const
-
-const DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT = 1080 - 40
-const DEFAULT_WIDGET_LAYOUT_MARGIN = 16
-const DEFAULT_WIDGET_LAYOUT_PIP_WIDTH = 400
-const DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT = 300
-
-function buildWidgetLayoutItem(config: {
-  widgetId: string
-  enabled: boolean
-  x: number
-  y: number
-  width: number
-  height: number
-  focusPriority: number
-}): WidgetLayoutItem {
-  return {
-    widgetId: config.widgetId,
-    enabled: config.enabled,
-    x: config.x,
-    y: config.y,
-    width: config.width,
-    height: config.height,
-    focusPriority: config.focusPriority,
-  }
-}
-
-function buildWidgetLayoutDefinition(config: {
-  id: string
-  label: string
-  icon: string
-  description?: string
-  source: WidgetLayoutSource
-  items: WidgetLayoutItem[]
-}): WidgetLayoutDefinition {
-  const snapshot = {
-    label: config.label,
-    icon: config.icon,
-    description: config.description,
-    items: config.items.map((item) => ({ ...item })),
-  } satisfies WidgetLayoutSnapshot
-
-  return {
-    id: config.id,
-    label: config.label,
-    icon: config.icon,
-    description: config.description,
-    source: config.source,
-    items: config.items,
-    defaultConfig: snapshot,
-  }
-}
-
-function getDefaultCenteredStageRect() {
-  const width = 1497
-  const height = 811
-  return {
-    width,
-    height,
-    x: 211,
-    y: 114,
-  }
-}
-
-function getDefaultStageSize() {
-  return {
-    width: 1888,
-    height: 1008,
-  }
-}
-
-const DEFAULT_CENTERED_STAGE_RECT = getDefaultCenteredStageRect()
-const DEFAULT_STAGE_SIZE = getDefaultStageSize()
-
-export const DEFAULT_SYSTEM_WIDGET_LAYOUTS: WidgetLayoutDefinition[] = [
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraCorner,
-    label: 'Camera: Bottom Right',
-    icon: '📷',
-    description: 'Host camera in the lower-right corner.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: 1920 - DEFAULT_WIDGET_LAYOUT_PIP_WIDTH - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 100,
-      }),
-    ],
-  }),
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraPresentation,
-    label: 'Presentation: Center + Host PiP',
-    icon: '🖥',
-    description: 'Secondary source centered with host camera pinned as PiP.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera-2',
-        enabled: true,
-        x: DEFAULT_CENTERED_STAGE_RECT.x,
-        y: DEFAULT_CENTERED_STAGE_RECT.y,
-        width: DEFAULT_CENTERED_STAGE_RECT.width,
-        height: DEFAULT_CENTERED_STAGE_RECT.height,
-        focusPriority: 100,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: 1920 - DEFAULT_WIDGET_LAYOUT_PIP_WIDTH - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 200,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-3',
-        enabled: false,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 150,
-      }),
-    ],
-  }),
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter,
-    label: 'Source A: Center + Host PiP',
-    icon: '🅰',
-    description: 'Camera-2 centered with host camera as PiP.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera-2',
-        enabled: true,
-        x: DEFAULT_CENTERED_STAGE_RECT.x,
-        y: DEFAULT_CENTERED_STAGE_RECT.y,
-        width: DEFAULT_CENTERED_STAGE_RECT.width,
-        height: DEFAULT_CENTERED_STAGE_RECT.height,
-        focusPriority: 100,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: 1920 - DEFAULT_WIDGET_LAYOUT_PIP_WIDTH - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 200,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-3',
-        enabled: false,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 150,
-      }),
-    ],
-  }),
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceBCenter,
-    label: 'Source B: Center + Host PiP',
-    icon: '🅱',
-    description: 'Camera-3 centered with host camera as PiP.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera-3',
-        enabled: true,
-        x: DEFAULT_CENTERED_STAGE_RECT.x,
-        y: DEFAULT_CENTERED_STAGE_RECT.y,
-        width: DEFAULT_CENTERED_STAGE_RECT.width,
-        height: DEFAULT_CENTERED_STAGE_RECT.height,
-        focusPriority: 100,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: 1920 - DEFAULT_WIDGET_LAYOUT_PIP_WIDTH - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 200,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-2',
-        enabled: false,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 150,
-      }),
-    ],
-  }),
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraDirectTalk,
-    label: 'Direct Talk: Host Center',
-    icon: '🎤',
-    description: 'Host camera takes the full centered stage.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: DEFAULT_CENTERED_STAGE_RECT.x,
-        y: DEFAULT_CENTERED_STAGE_RECT.y,
-        width: DEFAULT_CENTERED_STAGE_RECT.width,
-        height: DEFAULT_CENTERED_STAGE_RECT.height,
-        focusPriority: 100,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-2',
-        enabled: false,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 150,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-3',
-        enabled: false,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 150,
-      }),
-    ],
-  }),
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraStage,
-    label: 'Camera Stage + PiP',
-    icon: '🎬',
-    description: 'Primary stage with one PiP source camera.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_STAGE_SIZE.width,
-        height: DEFAULT_STAGE_SIZE.height,
-        focusPriority: 100,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-2',
-        enabled: true,
-        x: 1920 - DEFAULT_WIDGET_LAYOUT_PIP_WIDTH - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 200,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-3',
-        enabled: false,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 150,
-      }),
-    ],
-  }),
-  buildWidgetLayoutDefinition({
-    id: DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraStage3up,
-    label: 'Camera Stage + 2x PiP',
-    icon: '🧩',
-    description: 'Primary stage with two PiP source cameras.',
-    source: 'system',
-    items: [
-      buildWidgetLayoutItem({
-        widgetId: 'camera',
-        enabled: true,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_STAGE_SIZE.width,
-        height: DEFAULT_STAGE_SIZE.height,
-        focusPriority: 100,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-2',
-        enabled: true,
-        x: 1920 - DEFAULT_WIDGET_LAYOUT_PIP_WIDTH - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 200,
-      }),
-      buildWidgetLayoutItem({
-        widgetId: 'camera-3',
-        enabled: true,
-        x: DEFAULT_WIDGET_LAYOUT_MARGIN,
-        y: DEFAULT_WIDGET_LAYOUT_WORKAREA_HEIGHT - DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT - DEFAULT_WIDGET_LAYOUT_MARGIN,
-        width: DEFAULT_WIDGET_LAYOUT_PIP_WIDTH,
-        height: DEFAULT_WIDGET_LAYOUT_PIP_HEIGHT,
-        focusPriority: 300,
-      }),
-    ],
-  }),
-]
 
 export const DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS = 6500
 export const DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE = 3
@@ -1038,76 +720,27 @@ function normalizeWidgetLayoutSnapshot(snapshot?: WidgetLayoutSnapshot) {
 }
 
 function normalizeWidgetLayouts(value?: WidgetLayoutDefinition[]) {
-  const normalizedSourceLayouts = (value ?? []).reduce<WidgetLayoutDefinition[]>((acc, layout) => {
+  return (value ?? []).reduce<WidgetLayoutDefinition[]>((acc, layout) => {
     const id = typeof layout.id === 'string' ? layout.id.trim() : ''
     const label = typeof layout.label === 'string' ? layout.label.trim() : ''
-    if (!id || !label) return acc
+    if (!id || !label || layout.source === 'system') return acc
 
     const items = normalizeWidgetLayoutItems(layout.items)
-    if (items.length === 0) return acc
+    const icon = typeof layout.icon === 'string' && layout.icon.trim() ? layout.icon.trim() : '📐'
+    const description = typeof layout.description === 'string' && layout.description.trim() ? layout.description.trim() : undefined
+    const currentSnapshot: WidgetLayoutSnapshot = { label, icon, description, items: items.map((i) => ({ ...i })) }
 
     acc.push({
       id,
       label,
-      icon: typeof layout.icon === 'string' && layout.icon.trim() ? layout.icon.trim() : '📐',
-      source: layout.source === 'system' ? 'system' : 'user',
-      description: typeof layout.description === 'string' && layout.description.trim() ? layout.description.trim() : undefined,
+      icon,
+      source: 'user',
+      description,
       items,
-      defaultConfig: normalizeWidgetLayoutSnapshot(layout.defaultConfig),
+      defaultConfig: normalizeWidgetLayoutSnapshot(layout.defaultConfig) ?? currentSnapshot,
     } satisfies WidgetLayoutDefinition)
     return acc
   }, [])
-
-  const defaultSystemLayouts: WidgetLayoutDefinition[] = DEFAULT_SYSTEM_WIDGET_LAYOUTS.map((layout) => {
-    const items = normalizeWidgetLayoutItems(layout.items)
-    const defaultSnapshot: WidgetLayoutSnapshot = normalizeWidgetLayoutSnapshot(layout.defaultConfig) ?? {
-      label: layout.label,
-      icon: layout.icon,
-      description: layout.description,
-      items,
-    }
-
-    return {
-      ...layout,
-      items,
-      defaultConfig: defaultSnapshot,
-    } satisfies WidgetLayoutDefinition
-  })
-  const systemLayoutIds = new Set(defaultSystemLayouts.map((layout) => layout.id))
-  const mergedById = new Map<string, WidgetLayoutDefinition>(defaultSystemLayouts.map((layout) => [layout.id, layout]))
-
-  for (const layout of normalizedSourceLayouts) {
-    const currentSnapshot: WidgetLayoutSnapshot = {
-      label: layout.label,
-      icon: layout.icon,
-      description: layout.description,
-      items: layout.items.map((item) => ({ ...item })),
-    }
-
-    if (systemLayoutIds.has(layout.id)) {
-      const factoryLayout = defaultSystemLayouts.find((entry) => entry.id === layout.id)
-      mergedById.set(layout.id, {
-        ...layout,
-        source: 'system',
-        defaultConfig: layout.defaultConfig ?? factoryLayout?.defaultConfig ?? currentSnapshot,
-      })
-    } else {
-      mergedById.set(layout.id, {
-        ...layout,
-        defaultConfig: layout.defaultConfig ?? currentSnapshot,
-      })
-    }
-  }
-
-  return [
-    ...defaultSystemLayouts
-      .map((layout) => mergedById.get(layout.id))
-      .filter((layout): layout is WidgetLayoutDefinition => !!layout),
-    ...normalizedSourceLayouts
-      .filter((layout) => !systemLayoutIds.has(layout.id))
-      .map((layout) => mergedById.get(layout.id))
-      .filter((layout): layout is WidgetLayoutDefinition => !!layout),
-  ]
 }
 
 export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null): DesktopConfig {
@@ -1155,6 +788,10 @@ export const DEFAULT_DESKTOP_AMBIANCE_CONFIG: DesktopAmbianceConfig = {
     intervalSeconds: 30,
     maxOpenWidgets: 2,
     openWhileOneOpenChance: 0.35,
+    cursorSpeedMultiplier: 1.0,
+    tickJitterFactor: 0.2,
+    moveJitter: 0.3,
+    pauseAfterActionMs: 0,
     behaviors: {},
   },
 }
@@ -1374,7 +1011,6 @@ export const DEFAULT_CONFIG: AppConfig = {
       F4: 'overlay:victory',
       F6: 'scene:desktop',
       F7: 'scene:lobby',
-      Escape: 'panic',
     },
     admin: {
       F2: 'overlay:death',
@@ -1382,7 +1018,6 @@ export const DEFAULT_CONFIG: AppConfig = {
       F4: 'overlay:victory',
       F6: 'scene:desktop',
       F7: 'scene:lobby',
-      Escape: 'panic',
     },
   },
 

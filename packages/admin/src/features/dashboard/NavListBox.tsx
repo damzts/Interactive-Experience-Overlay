@@ -112,14 +112,11 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
   const systemWidgetApps = applications.filter((app) => getWidgetSource(app) === 'system')
   const userWidgetApps   = applications.filter((app) => getWidgetSource(app) === 'user')
   const persistedWidgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
-  const systemWidgetLayouts    = persistedWidgetLayouts.filter((layout) => layout.source === 'system')
   const userWidgetLayouts      = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
-  const orderedWidgetLayouts   = [...systemWidgetLayouts, ...userWidgetLayouts]
 
-  const captureCurrentLayout = async () => {
+  const addNewLayout = async () => {
     if (applications.length === 0) return
-    const nextUserLayoutNumber = userWidgetLayouts.length + 1
-    const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${nextUserLayoutNumber}`, applications, desktopConfig, openWidgetIds)
+    const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${userWidgetLayouts.length + 1}`, applications, desktopConfig, [])
     await saveConfig({
       widgetLayouts: [...persistedWidgetLayouts, nextLayout],
     })
@@ -187,13 +184,13 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
           <AddBtn label="New Widget" onClick={() => onSelect({ kind: 'widget-create' })} />
 
           <SectionLabel>Widget Layouts</SectionLabel>
-          {orderedWidgetLayouts.map((layout) => (
+          {userWidgetLayouts.map((layout) => (
             <SidebarBtn key={layout.id} icon={layout.icon || '📐'} label={layout.label}
               active={isActive({ kind: 'widget-layout', layoutId: layout.id })}
               onClick={() => onSelect({ kind: 'widget-layout', layoutId: layout.id })}
               onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })} />
           ))}
-          <AddBtn label="Capture Current Layout" onClick={() => { void captureCurrentLayout() }} />
+          <AddBtn label="Add New Layout" onClick={() => { void addNewLayout() }} />
         </>}
 
 

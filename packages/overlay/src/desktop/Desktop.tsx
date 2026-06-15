@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS, STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import { STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { Taskbar } from './Taskbar'
@@ -269,7 +269,6 @@ export function Desktop({ apps }: DesktopProps) {
   const ambianceRunningRef = useRef(false)
   const suppressZIndexPersistRef = useRef(false)
   const pendingDefaultSeedWidgetIdsRef = useRef<Set<string>>(new Set())
-  const sourceCenterToggleRef = useRef<string>(DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter)
   const iconDragBroadcastRef = useRef<IconDragBroadcastState>({
     lastSentAt: 0,
     rafId: null,
@@ -421,12 +420,16 @@ export function Desktop({ apps }: DesktopProps) {
     const runAmbianceSimulation = async (payload: AmbianceSimulationPayload) => {
       const startedAt = Date.now();
       let ok = false;
+
+      const rawSimCfg = useAppStore.getState().config?.desktopAmbiance?.widgetSimulation
+      const speedMultiplier = Math.max(0.1, rawSimCfg?.cursorSpeedMultiplier ?? 1.0)
+      const moveJitter = Math.max(0, Math.min(1, rawSimCfg?.moveJitter ?? 0.3))
+      const pauseAfterActionMs = Math.max(0, rawSimCfg?.pauseAfterActionMs ?? 0)
+      const timelineOpts = { speedMultiplier, moveJitter }
+
       try {
         const cursor = (window as any).__cursorOverlayController;
         if (!cursor) return;
-
-        const app = supportedApps.find((candidate) => candidate.id === payload.widgetId);
-        if (!app) return;
 
         socket.emit('ambiance:simulate:started', {
           actionId: payload.actionId,
@@ -434,6 +437,46 @@ export function Desktop({ apps }: DesktopProps) {
           action: payload.action,
           startedAt,
         })
+
+        // ── Layout / Scene nav select ────────────────────────────────
+        if (payload.action === 'select' && payload.targetKind && payload.menuPath?.length) {
+          const menuPath = payload.menuPath;
+          const timeline = buildOpenWidgetMenuTimeline(menuPath[1] ?? '', menuPath, payload.widgetId, timelineOpts);
+          simEmittingRef.current = true;
+          try {
+            await runWidgetCursorSimulation(cursor, menuPath[1] ?? '', {
+              startMenu: false,
+              menuPath,
+              visualOnly: true,
+              driveCursorVisualOnly: true,
+              allowDomActionsInVisualOnly: false,
+              targetAppId: payload.widgetId,
+              activateLeafClick: false,
+              openFirstLevelOnHover: true,
+              onPhase: (phasePayload) => {
+                if (phasePayload.phase === 'open') {
+                  emitStartMenuState({ open: true, activeRoot: null })
+                }
+              },
+              debugTag: `ambiance:${payload.targetKind}:${payload.actionId}:${payload.widgetId}`,
+              closeStartMenuAfterPath: false,
+              timingPlan: { startMoveMs: timeline.startMoveMs, startPostMs: timeline.startPostMs, steps: timeline.steps },
+            });
+            if (payload.targetKind === 'layout') {
+              socket.emit('widget:layout:apply', payload.widgetId);
+            } else if (payload.targetKind === 'scene') {
+              socket.emit('scene:change', payload.widgetId as unknown as STATE);
+            }
+            ok = true;
+          } finally {
+            emitStartMenuState({ open: false, activeRoot: null });
+            simEmittingRef.current = false;
+          }
+          return;
+        }
+
+        const app = supportedApps.find((candidate) => candidate.id === payload.widgetId);
+        if (!app) return;
 
         if (payload.action === 'close') {
           simEmittingRef.current = true;
@@ -453,7 +496,7 @@ export function Desktop({ apps }: DesktopProps) {
         if (payload.action === 'open') {
           const recipe = getWidgetSimulationRecipe(app);
           const menuPath = recipe.menuPath(app);
-          const timeline = buildOpenWidgetMenuTimeline(app.label, menuPath, app.id);
+          const timeline = buildOpenWidgetMenuTimeline(app.label, menuPath, app.id, timelineOpts);
           simEmittingRef.current = true;
           try {
             const wasOpen = useAppStore.getState().openWidgets.has(app.id);
@@ -540,6 +583,9 @@ export function Desktop({ apps }: DesktopProps) {
       } catch {
         ok = false;
       } finally {
+        if (pauseAfterActionMs > 0) {
+          await new Promise<void>((r) => setTimeout(r, pauseAfterActionMs))
+        }
         socket.emit('ambiance:simulate:done', {
           actionId: payload.actionId,
           widgetId: payload.widgetId,
@@ -637,10 +683,6 @@ export function Desktop({ apps }: DesktopProps) {
   const launchableApps = useMemo(
     () => desktopApps,
     [desktopApps],
-  )
-  const widgetAppById = useMemo(
-    () => new Map(apps.map((app) => [app.id, app])),
-    [apps],
   )
 
   const visibleWidgets = useMemo(
@@ -1132,11 +1174,6 @@ export function Desktop({ apps }: DesktopProps) {
     })
   }, [config.applications, persistDesktopLayoutRecovery])
 
-  const applyWidgetLayoutById = useCallback((layoutId: string) => {
-    socket.emit('widget:layout:apply', layoutId)
-    closeMenus()
-  }, [closeMenus])
-
   useEffect(() => {
     const handleSavedWidgetLayoutApply = (layoutId: string) => {
       const layout = (config.widgetLayouts ?? []).find((entry) => entry.id === layoutId)
@@ -1164,11 +1201,6 @@ export function Desktop({ apps }: DesktopProps) {
         const others = prev.filter((widgetId) => openWidgetIds.has(widgetId) && !visibleOrder.includes(widgetId))
         return [...others, ...visibleOrder]
       })
-      if (layoutId === DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter) {
-        sourceCenterToggleRef.current = DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceBCenter
-      } else if (layoutId === DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceBCenter) {
-        sourceCenterToggleRef.current = DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter
-      }
       enqueueDesktopNotification({
         title: 'Widget Layouts',
         body: `Layout applied: ${layout.label}`,
@@ -1214,42 +1246,6 @@ export function Desktop({ apps }: DesktopProps) {
     return () => { cancelled = true }
   }, [visibleWidgets])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.altKey || !event.ctrlKey) return
-      if (event.repeat) return
-      if (isTypingTarget(event.target)) return
-
-      const key = event.key
-      if (key === '1') {
-        event.preventDefault()
-        applyWidgetLayoutById(DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceACenter)
-        return
-      }
-      if (key === '2') {
-        event.preventDefault()
-        applyWidgetLayoutById(DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraSourceBCenter)
-        return
-      }
-      if (key === '3') {
-        event.preventDefault()
-        applyWidgetLayoutById(sourceCenterToggleRef.current)
-        return
-      }
-      if (key === '0') {
-        event.preventDefault()
-        applyWidgetLayoutById(DEFAULT_SYSTEM_WIDGET_LAYOUT_IDS.cameraDirectTalk)
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [applyWidgetLayoutById])
-
-  const widgetLayouts = config.widgetLayouts ?? []
-  const systemWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'system')
-  const userWidgetLayouts = widgetLayouts.filter((layout) => layout.source === 'user')
-  const orderedWidgetLayouts = [...systemWidgetLayouts, ...userWidgetLayouts]
   const widgetThemeClassNames = buildWidgetThemeScopeClassNames(desktopConfig.globalThemeDefault.widgetTheme)
 
   return (
@@ -1287,12 +1283,8 @@ export function Desktop({ apps }: DesktopProps) {
           activeRoot={startMenuActiveRoot}
           simulationPhase={startMenuSimulationPhase}
           launchableApps={launchableApps}
-          widgetLayouts={orderedWidgetLayouts}
-          widgetAppById={widgetAppById}
-          sourceCenterToggleLayoutId={sourceCenterToggleRef.current}
           onEmitState={(open, root) => emitStartMenuState({ open, activeRoot: root })}
           onLaunch={handleLaunch}
-          onApplyLayout={applyWidgetLayoutById}
           onClose={closeMenus}
         />
 

@@ -92,18 +92,30 @@ async function ensureStartMenuOpen(
   return true;
 }
 
-export function buildOpenWidgetMenuTimeline(widgetLabel: string, menuPath: string[], targetAppId?: string): OpenWidgetMenuTimelinePayload {
-  const steps: MenuPathTimingStep[] = menuPath.map(() => ({
-    moveMs: Math.round(randomRange(650, 1050)),
-    hoverMs: Math.round(randomRange(180, 320)),
-    postMs: Math.round(500 + randomRange(30, 160)),
-  }));
+export function buildOpenWidgetMenuTimeline(
+  widgetLabel: string,
+  menuPath: string[],
+  targetAppId?: string,
+  opts?: { speedMultiplier?: number; moveJitter?: number },
+): OpenWidgetMenuTimelinePayload {
+  const speed = Math.max(0.1, opts?.speedMultiplier ?? 1.0)
+  const jitter = Math.max(0, Math.min(1, opts?.moveJitter ?? 0.3))
+
+  const steps: MenuPathTimingStep[] = menuPath.map(() => {
+    const stepJitter = 1 + (Math.random() * 2 - 1) * jitter
+    return {
+      moveMs: Math.round(randomRange(650, 1050) * stepJitter / speed),
+      hoverMs: Math.round(randomRange(180, 320) / speed),
+      postMs: Math.round((500 + randomRange(30, 160)) / speed),
+    }
+  })
+
   return {
     widgetLabel,
     menuPath,
     targetAppId,
-    startMoveMs: Math.round(randomRange(700, 1100)),
-    startPostMs: Math.round(500 + randomRange(40, 180)),
+    startMoveMs: Math.round(randomRange(700, 1100) / speed),
+    startPostMs: Math.round((500 + randomRange(40, 180)) / speed),
     steps,
   };
 }

@@ -184,8 +184,6 @@ function triggerConfiguredEvent(ctx: HandlerContext, eventId: string): { ok: boo
 export function runConfiguredAction(ctx: HandlerContext, action: string): { ok: boolean; error?: string } {
   if (!action) return { ok: false, error: 'No action provided' }
 
-  if (action === 'panic') { ctx.machine.forceState(STATE.DESKTOP); return { ok: true } }
-
   if (action.startsWith('scene:')) {
     const target = action.slice(6).trim()
     if (!isNavigableState(target)) return { ok: false, error: `Unknown scene target: ${target}` }
@@ -241,10 +239,6 @@ export function registerSceneHandlers(ctx: HandlerContext, socket: AppSocket): v
     ctx.io.emit('transition:play', payload)
   })
 
-  socket.on('panic', () => {
-    ctx.scheduler?.noteActivity()
-    ctx.machine.forceState(STATE.DESKTOP)
-  })
 }
 
 /** Wire machine → socket.io broadcast listeners. Call once at startup. */
