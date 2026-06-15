@@ -93,9 +93,26 @@ export interface LobbyConfig {
 
 // ── Transition pipeline ──────────────────────────────────────────
 
+/** All built-in named transition animations. Single source of truth for overlay, admin, and server. */
+export const BUILT_IN_TRANSITIONS = [
+  { id: 'fade',          label: 'Fade' },
+  { id: 'glitch-burst',  label: 'Glitch Burst' },
+  { id: 'static-burst',  label: 'Static Burst' },
+  { id: 'wipe-left',     label: 'Wipe Left' },
+  { id: 'wipe-right',    label: 'Wipe Right' },
+  { id: 'zoom-in',       label: 'Zoom In' },
+  { id: 'zoom-out',      label: 'Zoom Out' },
+  { id: 'boot-sequence', label: 'Boot Sequence' },
+  { id: 'win98-loading', label: 'Win98 Loading' },
+  { id: 'crt-wipe',      label: 'CRT Wipe' },
+  { id: 'channel-sweep', label: 'Channel Sweep' },
+] as const
+
+export type BuiltInTransitionId = typeof BUILT_IN_TRANSITIONS[number]['id']
+
 /**
  * One step in a transition pipeline.
- * `id` is either a GSAP key ('fade', 'zoom-in', …) or a media specifier
+ * `id` is either a BuiltInTransitionId ('fade', 'zoom-in', …) or a media specifier
  * ('media:video:/assets/video/file.mp4||Name||dur=3').
  * `duration` overrides the animation's built-in speed (seconds).
  * `renderer` spawns an ephemeral renderer in the transition tier instead.

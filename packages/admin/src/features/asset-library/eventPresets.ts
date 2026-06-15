@@ -311,8 +311,16 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
     }
   }
 
+  if (kind === 'scene-change') {
+    return { kind, target: '' }
+  }
+
+  if (kind === 'transition') {
+    return { kind, transitionId: 'fade' }
+  }
+
   return {
-    kind,
+    kind: 'ambiance-patch' as const,
     timeoutSeconds: 30,
     patch: {
       enabled: true,

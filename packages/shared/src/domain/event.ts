@@ -70,6 +70,18 @@ export interface EventObsStreamAction {
   streamKey?: string
 }
 
+export interface EventSceneChangeAction {
+  kind: 'scene-change'
+  /** ID of a user-created scene (never a system STATE like LOBBY or DESKTOP) */
+  target: string
+}
+
+export interface EventTransitionAction {
+  kind: 'transition'
+  /** Transition ID — a key from the overlay TRANSITION_MAP or a sourceTransition id */
+  transitionId: string
+}
+
 export type EventAction =
   | EventDesktopConfigAction
   | EventWidgetThemesAction
@@ -77,6 +89,8 @@ export type EventAction =
   | EventWidgetCommandAction
   | EventAmbiancePatchAction
   | EventObsStreamAction
+  | EventSceneChangeAction
+  | EventTransitionAction
 
 // ── Event entity ─────────────────────────────────────────────────
 

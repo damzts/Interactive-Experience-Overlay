@@ -88,8 +88,11 @@ export class ChatReactionManager implements Manager {
     this.cooldowns.set(rule.id, Date.now())
     logger.info(`[chat-reactions] rule "${rule.label || rule.id}" fired (user: ${msg.user}, text: "${msg.text}")`)
 
-    // Dispatch via scheduler:fired so the existing scene handler executes it via executeConfiguredEvent.
-    // This keeps ChatReactionManager decoupled from HandlerContext and ObsBridge.
+    // For command rules strip the "!command" prefix so {text} is just the message body.
+    const textBody = rule.match.type === 'command'
+      ? msg.text.slice(rule.match.value.length + 1).trim()
+      : msg.text
+
     this.bus.emit('scheduler:fired', {
       eventId: rule.id,
       event: {
@@ -98,8 +101,8 @@ export class ChatReactionManager implements Manager {
         icon: '',
         color: '',
         desc: '',
-        effects: rule.effects ?? [],
-        actions: rule.actions ?? [],
+        effects: interpolate(rule.effects ?? [], msg, textBody),
+        actions: interpolate(rule.actions ?? [], msg, textBody),
         auto: {
           enabled: false,
           mode: 'interval' as const,
@@ -111,4 +114,21 @@ export class ChatReactionManager implements Manager {
       },
     })
   }
+}
+
+// Deep-walks any value and replaces {{user}}, {{text}}, {{channel}} in all strings.
+function interpolate<T>(value: T, msg: ChatMessage, textBody: string = msg.text): T {
+  if (typeof value === 'string') {
+    return (value as string)
+      .replace(/\{\{?user\}?\}/gi, msg.user)
+      .replace(/\{\{?text\}?\}/gi, textBody)
+      .replace(/\{\{?channel\}?\}/gi, msg.channel) as unknown as T
+  }
+  if (Array.isArray(value)) return value.map((v) => interpolate(v, msg, textBody)) as unknown as T
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as object).map(([k, v]) => [k, interpolate(v, msg, textBody)])
+    ) as unknown as T
+  }
+  return value
 }

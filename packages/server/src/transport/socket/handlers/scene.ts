@@ -165,6 +165,29 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
+    if (action.kind === 'scene-change') {
+      const scene = (ctx.cachedUserConfig.scenes ?? {})[action.target]
+      if (scene && !isNavigableState(action.target)) {
+        const target = action.target as STATE
+        const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, ctx.machine.currentState, target)
+        ctx.machine.transition(target, { exit, intro })
+      }
+      continue
+    }
+
+    if (action.kind === 'transition') {
+      if (action.transitionId) {
+        const payload: TransitionPlayPayload = {
+          from: ctx.machine.currentState,
+          to: ctx.machine.currentState,
+          exit: [{ id: action.transitionId }],
+          intro: [],
+        }
+        ctx.io.emit('transition:play', payload)
+      }
+      continue
+    }
+
     applyRuntimeConfig(ctx, {
       desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
     })

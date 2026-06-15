@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import type { TransitionStep } from '@ieomlabs/shared'
+import type { TransitionStep, BuiltInTransitionId } from '@ieomlabs/shared'
 import type gsap from 'gsap'
 import { resolveRenderer } from '../renderers/registry'
 import { lobbyToDesktop }   from '../transitions/LobbyToDesktop'
@@ -19,7 +19,7 @@ import { runVideoOverlay }  from '../transitions/VideoOverlay'
 
 type TransitionFn = (onComplete: () => void) => gsap.core.Timeline
 
-const TRANSITION_MAP: Record<string, TransitionFn> = {
+const TRANSITION_MAP: Record<BuiltInTransitionId, TransitionFn> = {
   'zoom-in':       lobbyToDesktop,
   'zoom-out':      desktopToLobby,
   'win98-loading': lobbyToGameplay,
@@ -98,7 +98,7 @@ export function TransitionEngine() {
         return
       }
 
-      const fn = TRANSITION_MAP[step.id]
+      const fn = TRANSITION_MAP[step.id as BuiltInTransitionId]
       if (!fn) { next(); return }
       const tl = fn(next)
       if (step.duration && step.duration > 0) tl.duration(step.duration)
