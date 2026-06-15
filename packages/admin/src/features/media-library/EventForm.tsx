@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+﻿import { useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, DEFAULT_WIDGET_THEME_PRESETS, STATE, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type {
   CorruptionBurstConfig,
@@ -21,7 +21,7 @@ import type {
   WidgetThemeConfig,
 } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { AssetSelectionInput } from './AssetLibrary'
+import { MediaSelectionInput } from './MediaLibrary'
 import {
   DESKTOP_THEMES,
   GOOGLE_FONTS,
@@ -415,7 +415,7 @@ export function EventForm({
         <div className="space-y-4 pl-1">
           <div>
             <div className="mb-1 text-[10px] text-zinc-500">Image asset</div>
-            <AssetSelectionInput
+            <MediaSelectionInput
               value={cfg.src}
               onChange={(value) => updateEffect(index, (draft) => {
                 if (draft.type !== 'image-overlay') return
@@ -477,7 +477,7 @@ export function EventForm({
         <div className="space-y-4 pl-1">
           <div>
             <div className="mb-1 text-[10px] text-zinc-500">Video asset</div>
-            <AssetSelectionInput
+            <MediaSelectionInput
               value={cfg.src}
               onChange={(value) => updateEffect(index, (draft) => {
                 if (draft.type !== 'video-overlay') return

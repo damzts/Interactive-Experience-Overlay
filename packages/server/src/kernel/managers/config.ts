@@ -321,14 +321,14 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private loadSourceMedia() {
-    const rows = this.db.prepare('SELECT * FROM source_media').all() as Array<{
+    const rows = this.db.prepare('SELECT * FROM media_gallery').all() as Array<{
       id: string; name: string; type: string; url: string; duration: number | null;
     }>
     return rows.map((row) => ({ id: row.id, name: row.name, type: row.type as 'image' | 'video', url: row.url, duration: row.duration ?? undefined }))
   }
 
   private loadWindowPresets() {
-    const rows = this.db.prepare('SELECT * FROM window_presets').all() as Array<{
+    const rows = this.db.prepare('SELECT * FROM media_renders').all() as Array<{
       id: string; label: string; renderer_type: string; config_json: string; default_position_json: string | null;
     }>
     return rows.map((row) => ({
@@ -339,7 +339,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private loadSourceTransitions(): TransitionDefinition[] {
-    const rows = this.db.prepare('SELECT * FROM source_transitions').all() as Array<{
+    const rows = this.db.prepare('SELECT * FROM media_transitions').all() as Array<{
       id: string; label: string; type: string; params_json: string;
     }>
     return rows.map((row) => ({ id: row.id, label: row.label, type: row.type, params: this._parseJson(row.params_json, undefined) }))
@@ -401,17 +401,17 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private saveSourceMedia(entries: NonNullable<AppConfig['sourceMedia']>): void {
-    this.db.prepare('DELETE FROM source_media').run()
-    const insert = this.db.prepare('INSERT INTO source_media (id, name, type, url, duration) VALUES (?, ?, ?, ?, ?)')
+    this.db.prepare('DELETE FROM media_gallery').run()
+    const insert = this.db.prepare('INSERT INTO media_gallery (id, name, type, url, duration) VALUES (?, ?, ?, ?, ?)')
     for (const entry of entries) {
       insert.run(entry.id, entry.name, entry.type, entry.url, entry.duration ?? null)
     }
   }
 
   private saveWindowPresets(presets: NonNullable<AppConfig['windowPresets']>): void {
-    this.db.prepare('DELETE FROM window_presets').run()
+    this.db.prepare('DELETE FROM media_renders').run()
     const insert = this.db.prepare(
-      'INSERT INTO window_presets (id, label, renderer_type, config_json, default_position_json) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO media_renders (id, label, renderer_type, config_json, default_position_json) VALUES (?, ?, ?, ?, ?)'
     )
     for (const preset of presets) {
       insert.run(
@@ -423,8 +423,8 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private saveSourceTransitions(transitions: TransitionDefinition[]): void {
-    this.db.prepare('DELETE FROM source_transitions').run()
-    const insert = this.db.prepare('INSERT INTO source_transitions (id, label, type, params_json) VALUES (?, ?, ?, ?)')
+    this.db.prepare('DELETE FROM media_transitions').run()
+    const insert = this.db.prepare('INSERT INTO media_transitions (id, label, type, params_json) VALUES (?, ?, ?, ?)')
     for (const t of transitions) {
       insert.run(t.id, t.label, t.type, JSON.stringify(t.params ?? {}))
     }

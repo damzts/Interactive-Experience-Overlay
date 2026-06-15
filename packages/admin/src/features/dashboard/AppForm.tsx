@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
+﻿import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react'
 import {
   DEFAULT_STICKY_NOTES_SETTINGS,
   DEFAULT_WIDGET_THEME_PRESETS,
@@ -15,12 +15,12 @@ import type {
 } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
-import { AssetSelectionInput } from '../asset-library/AssetLibrary'
+import { MediaSelectionInput } from '../media-library/MediaLibrary'
 import { WIDGET_SKINS } from '../../shared/adminDesktopOptions'
 import {
   LAUNCH_PIPELINE_EFFECT_TYPES,
   createEffectDraft,
-} from '../asset-library/eventPresets'
+} from '../media-library/eventPresets'
 import { getSafeSceneWindows } from '../../shared/windowCatalog'
 import {
   ConfigApplyBar,
@@ -381,7 +381,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                   <IconGlyph icon={form.icon} label={form.label} size={32} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <AssetSelectionInput value={form.icon} onChange={(v) => update((d) => { d.icon = v })}
+                  <MediaSelectionInput value={form.icon} onChange={(v) => update((d) => { d.icon = v })}
                     kinds={['image']} modalTitle="Application Icon" placeholder="Emoji or /assets/icons/custom.png"
                     buttonLabel="Choose Image" hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
                     inputClassName="font-mono" previewKind="image" showPreview={false} />

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { EventsTabContent, EventsTabSidebar } from './EventsTab'
 import { SourcesTabContent, SourcesTabSidebar } from './SourcesTab'
@@ -6,12 +6,12 @@ import { TRANSITION_ICONS, getMediaTransitionLabel } from '../../shared/transiti
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import { ConfigPanel } from '../../components/organisms'
-import { AssetSelectionInput } from './AssetLibrary'
+import { MediaSelectionInput } from './MediaLibrary'
 import { socket } from '../../socket/client'
 import { encodeMediaTransitionValue, strToStep } from '../../shared/transitionLibrary'
-import { useMediaLibrary } from './AssetLibraryContext'
-import type { MediaLibraryTab } from './AssetLibraryContext'
-import { SidebarBtn, SectionLabel, AssetSection } from '../dashboard/NavListBox'
+import { useMediaLibrary } from './MediaLibraryContext'
+import type { MediaLibraryTab } from './MediaLibraryContext'
+import { SidebarBtn, SectionLabel, MediaSection } from '../dashboard/NavListBox'
 import { ConfigNotice } from '../../shared/ui'
 
 // ── Library tab metadata ───────────────────────────────────────────
@@ -80,7 +80,7 @@ function CatalogTabSidebar() {
           <div className="px-1 text-[10px] text-zinc-600">No assets match this filter.</div>
         )}
         {catalogFolderGroups.map((group) => (
-          <AssetSection
+          <MediaSection
             key={group.folder}
             title={group.folder}
             items={group.items}
@@ -329,7 +329,7 @@ export function MediaLibraryContent() {
               <ConfigNotice>Save an image or video as a reusable user transition.</ConfigNotice>
               <Card variant="default" padding="md" className="space-y-3">
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" className="w-full text-sm" />
-                <AssetSelectionInput
+                <MediaSelectionInput
                   value={url}
                   onChange={setUrl}
                   kinds={['image', 'video']}

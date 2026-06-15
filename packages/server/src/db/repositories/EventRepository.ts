@@ -11,7 +11,7 @@ export class EventRepository {
   constructor(private db: Database.Database) {}
 
   load(): EventConfig[] {
-    const rows = this.db.prepare('SELECT * FROM source_events').all() as Array<{
+    const rows = this.db.prepare('SELECT * FROM media_effects').all() as Array<{
       id: string; label: string; icon: string; color: string;
       desc: string; effects_json: string; actions_json: string | null; auto_json: string;
     }>
@@ -24,9 +24,9 @@ export class EventRepository {
   }
 
   save(events: EventConfig[]): void {
-    this.db.prepare('DELETE FROM source_events').run()
+    this.db.prepare('DELETE FROM media_effects').run()
     const insert = this.db.prepare(`
-      INSERT INTO source_events (id, label, icon, color, desc, effects_json, actions_json, auto_json)
+      INSERT INTO media_effects (id, label, icon, color, desc, effects_json, actions_json, auto_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const e of events) {

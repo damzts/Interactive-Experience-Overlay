@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MediaEntry } from '@ieomlabs/shared'
-import { getAssetCatalog, uploadAsset, deleteAsset } from '../api/mediaApi.js'
-export type { AssetKind, AssetSource, AssetRecord } from '../api/mediaApi.js'
+import { getMediaCatalog, uploadMedia, deleteMedia } from '../api/mediaApi.js'
+export type { MediaKind, MediaSource, MediaRecord } from '../api/mediaApi.js'
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif']
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'm4v']
@@ -12,7 +12,7 @@ function hasExtension(url: string, extensions: string[]) {
   return extensions.some((ext) => normalized.includes(`.${ext}`))
 }
 
-export function inferAssetKindFromUrl(url: string, fallback: import('../api/mediaApi.js').AssetKind = 'image'): import('../api/mediaApi.js').AssetKind {
+export function inferMediaKindFromUrl(url: string, fallback: import('../api/mediaApi.js').MediaKind = 'image'): import('../api/mediaApi.js').MediaKind {
   const normalized = url.trim().toLowerCase()
   if (!normalized) return fallback
   if (normalized.startsWith('data:image/')) return 'image'
@@ -24,7 +24,7 @@ export function inferAssetKindFromUrl(url: string, fallback: import('../api/medi
   return fallback
 }
 
-export function isLikelyAssetUrl(value: string) {
+export function isLikelyMediaUrl(value: string) {
   const normalized = value.trim().toLowerCase()
   if (!normalized) return false
   if (normalized.startsWith('data:image/')) return true
@@ -35,7 +35,7 @@ export function isLikelyAssetUrl(value: string) {
   return false
 }
 
-export function mediaEntryToAsset(entry: MediaEntry): import('../api/mediaApi.js').AssetRecord {
+export function mediaEntryToRecord(entry: MediaEntry): import('../api/mediaApi.js').MediaRecord {
   return {
     id: entry.id,
     name: entry.name,
@@ -49,10 +49,10 @@ export function mediaEntryToAsset(entry: MediaEntry): import('../api/mediaApi.js
   }
 }
 
-export { uploadAsset as uploadAssetFile, deleteAsset as deleteAssetFile }
+export { uploadMedia as uploadMediaFile, deleteMedia as deleteMediaFile }
 
-export function useAssetCatalog() {
-  const [assets, setAssets] = useState<import('../api/mediaApi.js').AssetRecord[]>([])
+export function useMediaCatalog() {
+  const [assets, setAssets] = useState<import('../api/mediaApi.js').MediaRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,7 +60,7 @@ export function useAssetCatalog() {
     setLoading(true)
     setError(null)
     try {
-      setAssets(await getAssetCatalog())
+      setAssets(await getMediaCatalog())
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {

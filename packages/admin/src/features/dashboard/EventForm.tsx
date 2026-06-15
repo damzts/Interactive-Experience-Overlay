@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import {
   DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   DEFAULT_WIDGET_THEME_PRESETS,
@@ -34,7 +34,7 @@ import {
   getEventActionLabel,
   normalizeDesktopNotificationEffectConfig,
   type EventDef,
-} from '../asset-library/eventPresets'
+} from '../media-library/eventPresets'
 import {
   Btn,
   ConfigCard,

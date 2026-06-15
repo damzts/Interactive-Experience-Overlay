@@ -1,8 +1,8 @@
-import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
+﻿import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
 import { EventForm } from './EventForm'
 import { describeEventSetup, type EventDef, type EventPresetId } from './eventPresets'
 import { LibraryItemBtn } from './mediaLibraryUi'
-import { MediaSearchInput } from './AssetLibraryPanel'
+import { MediaSearchInput } from './MediaLibraryPanel'
 
 export function EventsTabSidebar({
   eventSearch,

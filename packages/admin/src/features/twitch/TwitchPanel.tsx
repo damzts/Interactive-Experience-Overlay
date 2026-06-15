@@ -1,11 +1,11 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import type { ChatReactionRule, ChatReactionMatch, EventAction, EffectConfig } from '@ieomlabs/shared'
 import type { EffectType } from '@ieomlabs/shared'
 import { STATE, BUILT_IN_TRANSITIONS } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, Btn, Field } from '../../shared/ui'
-import { createEffectDraft, EVENT_EFFECT_TYPES } from '../asset-library/eventPresets'
+import { createEffectDraft, EVENT_EFFECT_TYPES } from '../media-library/eventPresets'
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

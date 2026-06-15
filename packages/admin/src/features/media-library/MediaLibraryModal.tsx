@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+﻿import { useEffect, type ReactNode } from 'react'
 import { ConfigCard } from '../../shared/ui'
 
 type ModalTab = {
@@ -8,7 +8,7 @@ type ModalTab = {
   meta: string
 }
 
-export function AssetLibraryModal({
+export function MediaLibraryModal({
   isOpen,
   onClose,
   tabs,

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_EVENT_DEFS, EVENT_PRESET_OPTIONS, createEventPreset, type EventDef, type EventPresetId } from './eventPresets'
-import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../../shared/catalog'
+import { deleteMediaFile, inferMediaKindFromUrl, mediaEntryToRecord, useMediaCatalog, type MediaKind, type MediaRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { RENDERER_CATALOG, findRendererCatalogEntry } from '@ieomlabs/shared'
@@ -15,15 +15,15 @@ export type MediaLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
 export interface CatalogTabState {
   catalogSearch: string
   setCatalogSearch: (v: string) => void
-  catalogKindFilter: 'all' | AssetKind
-  setCatalogKindFilter: (v: 'all' | AssetKind) => void
-  selectedCatalogAsset: AssetRecord | null
+  catalogKindFilter: 'all' | MediaKind
+  setCatalogKindFilter: (v: 'all' | MediaKind) => void
+  selectedCatalogAsset: MediaRecord | null
   setSelectedCatalogAssetId: (id: string | null) => void
-  catalogFolderGroups: Array<{ folder: string; items: AssetRecord[] }>
+  catalogFolderGroups: Array<{ folder: string; items: MediaRecord[] }>
   catalogLoading: boolean
   catalogError: string | null
   refreshCatalog: () => void
-  handleDeleteCatalogAsset: (asset: AssetRecord) => void
+  handleDeleteCatalogAsset: (asset: MediaRecord) => void
 }
 
 export interface EventsTabState {
@@ -111,14 +111,14 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const widgetIds     = useAdminStore((s) => s.config.applications.map((a) => a.id))
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const saveConfig    = useAdminStore((s) => s.saveConfig)
-  const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useAssetCatalog()
+  const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useMediaCatalog()
 
   const [tab, setTab]                       = useState<MediaLibraryTab>('catalog')
   const [name, setName]                     = useState('')
   const [url, setUrl]                       = useState('')
   const [durStr, setDurStr]                 = useState('')
   const [catalogSearch, setCatalogSearch]   = useState('')
-  const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | AssetKind>('all')
+  const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | MediaKind>('all')
   const [selectedCatalogAssetId, setSelectedCatalogAssetId] = useState<string | null>(null)
   const [eventSearch, setEventSearch]       = useState('')
   const [eventDraft, setEventDraft]         = useState<{ event: EventDef; originalId: string | null } | null>(null)
@@ -155,11 +155,11 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
 
   // ── Derived: Catalog ─────────────────────────────────────────────
 
-  const catalogSavedAssets = useMemo(() => sourceMedia.map(mediaEntryToAsset), [sourceMedia])
+  const catalogSavedAssets = useMemo(() => sourceMedia.map(mediaEntryToRecord), [sourceMedia])
 
   const filteredCatalogAssets = useMemo(() => {
     const q = catalogSearch.trim().toLowerCase()
-    const matches = (a: AssetRecord) => {
+    const matches = (a: MediaRecord) => {
       if (catalogKindFilter !== 'all' && a.kind !== catalogKindFilter) return false
       if (!q) return true
       return [a.name, a.url, a.folder, a.relativePath, a.game ?? ''].some((v) => v.toLowerCase().includes(q))
@@ -168,7 +168,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   }, [catalogAssets, catalogKindFilter, catalogSavedAssets, catalogSearch])
 
   const catalogFolderGroups = useMemo(() => {
-    const groups = new Map<string, AssetRecord[]>()
+    const groups = new Map<string, MediaRecord[]>()
     for (const asset of filteredCatalogAssets) {
       const prefix =
         asset.source === 'saved'
@@ -260,7 +260,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const selectedSourceUsageCount = selectedSourcePreset ? usageCountByPreset[selectedSourcePreset.id] ?? 0 : 0
 
   const pendingTransitionKind = useMemo(() => {
-    const inferred = inferAssetKindFromUrl(url, 'image')
+    const inferred = inferMediaKindFromUrl(url, 'image')
     return inferred === 'video' ? 'video' : 'image'
   }, [url])
 
@@ -407,10 +407,10 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     setSourcePresetDraft(null)
   }
 
-  const handleDeleteCatalogAsset = async (asset: AssetRecord) => {
+  const handleDeleteCatalogAsset = async (asset: MediaRecord) => {
     if (typeof window !== 'undefined' && !window.confirm(`Delete ${asset.name}?`)) return
     if (asset.source === 'saved') { await handleDeleteMediaEntry(asset.id); return }
-    if (asset.source === 'filesystem') { await deleteAssetFile(asset.url); await refreshCatalog() }
+    if (asset.source === 'filesystem') { await deleteMediaFile(asset.url); await refreshCatalog() }
   }
 
   const createEventDraft = (presetId: EventPresetId = 'blank') => {

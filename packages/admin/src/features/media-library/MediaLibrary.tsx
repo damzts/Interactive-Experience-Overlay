@@ -2,23 +2,23 @@ import { useMemo, useState } from 'react'
 import type { MediaEntry } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
-  deleteAssetFile,
-  inferAssetKindFromUrl,
-  isLikelyAssetUrl,
-  mediaEntryToAsset,
-  uploadAssetFile,
-  useAssetCatalog,
+  deleteMediaFile,
+  inferMediaKindFromUrl,
+  isLikelyMediaUrl,
+  mediaEntryToRecord,
+  uploadMediaFile,
+  useMediaCatalog,
 } from '../../shared/catalog'
-import type { AssetKind, AssetRecord } from '../../shared/catalog'
+import type { MediaKind, MediaRecord } from '../../shared/catalog'
 import { Btn, ConfigCard, ConfigNotice, ConfigToolbar, FloatingWindowHeader, FloatingWindowShell } from '../../shared/ui'
 
-const ASSET_RESULT_LIMIT = 60
+const MEDIA_RESULT_LIMIT = 60
 
-function getAssetSearchText(asset: AssetRecord) {
+function getAssetSearchText(asset: MediaRecord) {
   return [asset.name, asset.url, asset.folder, asset.relativePath, asset.game ?? ''].join(' ').toLowerCase()
 }
 
-function getAssetLabel(asset: AssetRecord) {
+function getAssetLabel(asset: MediaRecord) {
   if (asset.source === 'games') return asset.game ? `Game: ${asset.game}` : 'Game Image'
   if (asset.source === 'saved') return 'Saved Media'
   return asset.folder
@@ -29,7 +29,7 @@ function getAssetNameFromUrl(url: string) {
   return decodeURIComponent(tail).replace(/\.[^.]+$/, '') || 'Untitled'
 }
 
-function AssetPreview({ asset }: { asset: AssetRecord }) {
+function AssetPreview({ asset }: { asset: MediaRecord }) {
   return (
     <div className="w-20 h-12 rounded overflow-hidden bg-zinc-950 border border-zinc-700/60 shrink-0 flex items-center justify-center">
       {asset.kind === 'image' && (
@@ -61,10 +61,10 @@ function AssetRow({
   onSelect,
   onDelete,
 }: {
-  asset: AssetRecord
+  asset: MediaRecord
   selected: boolean
-  onSelect?: (asset: AssetRecord) => void
-  onDelete?: (asset: AssetRecord) => void
+  onSelect?: (asset: MediaRecord) => void
+  onDelete?: (asset: MediaRecord) => void
 }) {
   const interactive = Boolean(onSelect)
 
@@ -112,7 +112,7 @@ function AssetRow({
   )
 }
 
-function AssetSectionBlock({
+function MediaSectionBlock({
   title,
   items,
   selectedUrl,
@@ -121,10 +121,10 @@ function AssetSectionBlock({
   emptyMessage,
 }: {
   title: string
-  items: AssetRecord[]
+  items: MediaRecord[]
   selectedUrl?: string
-  onSelect?: (asset: AssetRecord) => void
-  onDelete?: (asset: AssetRecord) => void
+  onSelect?: (asset: MediaRecord) => void
+  onDelete?: (asset: MediaRecord) => void
   emptyMessage?: string
 }) {
   if (items.length === 0) {
@@ -136,7 +136,7 @@ function AssetSectionBlock({
       </div>
     )
   }
-  const visibleItems = items.slice(0, ASSET_RESULT_LIMIT)
+  const visibleItems = items.slice(0, MEDIA_RESULT_LIMIT)
   const remaining = items.length - visibleItems.length
   return (
     <div className="space-y-2">
@@ -168,23 +168,23 @@ export function AssetCatalogPanel({
   onKindFilterChange,
   showControls = true,
 }: {
-  kinds?: AssetKind[]
+  kinds?: MediaKind[]
   selectedUrl?: string
-  onSelect?: (asset: AssetRecord) => void
-  onDeleteSavedEntry?: (asset: AssetRecord) => Promise<void> | void
+  onSelect?: (asset: MediaRecord) => void
+  onDeleteSavedEntry?: (asset: MediaRecord) => Promise<void> | void
   allowFilesystemDelete?: boolean
   savedEntries?: MediaEntry[] | false
   emptyMessage?: string
   search?: string
   onSearchChange?: (value: string) => void
-  kindFilter?: 'all' | AssetKind
-  onKindFilterChange?: (value: 'all' | AssetKind) => void
+  kindFilter?: 'all' | MediaKind
+  onKindFilterChange?: (value: 'all' | MediaKind) => void
   showControls?: boolean
 }) {
   const fallbackSavedEntries = useAdminStore((store) => store.config.sourceMedia ?? [])
-  const { assets, error, loading, refresh } = useAssetCatalog()
+  const { assets, error, loading, refresh } = useMediaCatalog()
   const [internalSearch, setInternalSearch] = useState('')
-  const [internalKindFilter, setInternalKindFilter] = useState<'all' | AssetKind>(kinds.length === 1 ? kinds[0] : 'all')
+  const [internalKindFilter, setInternalKindFilter] = useState<'all' | MediaKind>(kinds.length === 1 ? kinds[0] : 'all')
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -196,7 +196,7 @@ export function AssetCatalogPanel({
     else setInternalSearch(value)
   }
 
-  const setKindFilterValue = (value: 'all' | AssetKind) => {
+  const setKindFilterValue = (value: 'all' | MediaKind) => {
     if (onKindFilterChange) onKindFilterChange(value)
     else setInternalKindFilter(value)
   }
@@ -204,13 +204,13 @@ export function AssetCatalogPanel({
   const savedAssets = useMemo(() => {
     if (savedEntries === false) return []
     const entries = savedEntries ?? fallbackSavedEntries
-    return entries.map(mediaEntryToAsset)
+    return entries.map(mediaEntryToRecord)
   }, [fallbackSavedEntries, savedEntries])
 
   const allowedKinds = new Set(kinds)
   const normalizedSearch = effectiveSearch.trim().toLowerCase()
 
-  const matches = (asset: AssetRecord) => {
+  const matches = (asset: MediaRecord) => {
     if (!allowedKinds.has(asset.kind)) return false
     if (effectiveKindFilter !== 'all' && asset.kind !== effectiveKindFilter) return false
     if (!normalizedSearch) return true
@@ -221,7 +221,7 @@ export function AssetCatalogPanel({
   const visibleProjectAssets = useMemo(() => assets.filter((asset) => asset.source === 'filesystem' && matches(asset)), [assets, effectiveKindFilter, normalizedSearch])
   const visibleGameAssets = useMemo(() => assets.filter((asset) => asset.source === 'games' && matches(asset)), [assets, effectiveKindFilter, normalizedSearch])
 
-  const handleDelete = async (asset: AssetRecord) => {
+  const handleDelete = async (asset: MediaRecord) => {
     const actionLabel = asset.source === 'saved' ? 'delete this saved media entry' : 'delete this project asset file'
     if (typeof window !== 'undefined' && !window.confirm(`Delete ${asset.name}? This will ${actionLabel}.`)) {
       return
@@ -234,7 +234,7 @@ export function AssetCatalogPanel({
       if (asset.source === 'saved') {
         await onDeleteSavedEntry?.(asset)
       } else if (asset.source === 'filesystem') {
-        await deleteAssetFile(asset.url)
+        await deleteMediaFile(asset.url)
       }
       await refresh()
     } catch (err) {
@@ -297,21 +297,21 @@ export function AssetCatalogPanel({
 
       {!loading && (
         <div className="space-y-4">
-          <AssetSectionBlock
+          <MediaSectionBlock
             title="Saved Media"
             items={visibleSaved}
             selectedUrl={selectedUrl}
             onSelect={onSelect}
             onDelete={onDeleteSavedEntry ? ((asset) => { void handleDelete(asset) }) : undefined}
           />
-          <AssetSectionBlock
+          <MediaSectionBlock
             title="Project Assets"
             items={visibleProjectAssets}
             selectedUrl={selectedUrl}
             onSelect={onSelect}
             onDelete={allowFilesystemDelete ? ((asset) => { void handleDelete(asset) }) : undefined}
           />
-          <AssetSectionBlock
+          <MediaSectionBlock
             title="Game Images"
             items={visibleGameAssets}
             selectedUrl={selectedUrl}
@@ -344,9 +344,9 @@ export function AssetPickerModal({
   onClose,
 }: {
   title: string
-  kinds: AssetKind[]
+  kinds: MediaKind[]
   selectedUrl?: string
-  onSelect: (asset: AssetRecord) => void
+  onSelect: (asset: MediaRecord) => void
   onClose: () => void
 }) {
   const mediaLibrary = useAdminStore((store) => store.config.sourceMedia ?? [])
@@ -355,7 +355,7 @@ export function AssetPickerModal({
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading] = useState(false)
 
-  const handleCatalogSelect = (asset: AssetRecord) => {
+  const handleCatalogSelect = (asset: MediaRecord) => {
     onSelect(asset)
     onClose()
   }
@@ -370,7 +370,7 @@ export function AssetPickerModal({
     handleCatalogSelect({
       id: `manual:${trimmed}`,
       name: getAssetNameFromUrl(trimmed),
-      kind: inferAssetKindFromUrl(trimmed, kinds[0] ?? 'image'),
+      kind: inferMediaKindFromUrl(trimmed, kinds[0] ?? 'image'),
       url: trimmed,
       source: 'saved',
       folder: 'Manual Entry',
@@ -387,7 +387,7 @@ export function AssetPickerModal({
     setUploadError('')
     setUploading(true)
     try {
-      const uploaded = await uploadAssetFile(file)
+      const uploaded = await uploadMediaFile(file)
       if (!kinds.includes(uploaded.kind)) {
         throw new Error(`This field expects ${kinds.join(' / ')} assets.`)
       }
@@ -402,7 +402,7 @@ export function AssetPickerModal({
       await persistSavedMediaEntry({ entry, existingEntries: mediaLibrary, saveConfig })
 
       handleCatalogSelect({
-        ...mediaEntryToAsset(entry),
+        ...mediaEntryToRecord(entry),
         source: 'saved',
       })
     } catch (err) {
@@ -453,7 +453,7 @@ export function AssetPickerModal({
   )
 }
 
-export function AssetSelectionInput({
+export function MediaSelectionInput({
   value,
   onChange,
   kinds,
@@ -467,18 +467,18 @@ export function AssetSelectionInput({
 }: {
   value: string
   onChange: (value: string) => void
-  kinds: AssetKind[]
+  kinds: MediaKind[]
   modalTitle: string
   placeholder?: string
   buttonLabel?: string
   hint?: string
-  previewKind?: AssetKind | 'auto'
+  previewKind?: MediaKind | 'auto'
   showPreview?: boolean
   inputClassName?: string
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
-  const resolvedPreviewKind = previewKind === 'auto' ? inferAssetKindFromUrl(value, kinds[0] ?? 'image') : previewKind
-  const shouldShowPreview = showPreview && isLikelyAssetUrl(value) && resolvedPreviewKind !== 'audio'
+  const resolvedPreviewKind = previewKind === 'auto' ? inferMediaKindFromUrl(value, kinds[0] ?? 'image') : previewKind
+  const shouldShowPreview = showPreview && isLikelyMediaUrl(value) && resolvedPreviewKind !== 'audio'
 
   return (
     <div className="space-y-2">

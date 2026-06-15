@@ -141,7 +141,7 @@ export interface SceneDefaultSnapshot {
 
 // ── Media asset entry ────────────────────────────────────────────
 
-/** A named media asset saved in the centralised Asset Library (source_media table) */
+/** A named media entry saved in the Media Library gallery (media_gallery table) */
 export interface MediaEntry {
   id: string
   name: string

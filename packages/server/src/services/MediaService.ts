@@ -9,19 +9,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const MONO_ROOT    = join(__dirname, '../../../..')
 const GAMES_ASSETS = join(MONO_ROOT, 'assets/images/games')
 
-const ASSET_ROOT = join(MONO_ROOT, 'assets')
+const MEDIA_ROOT = join(MONO_ROOT, 'assets')
 
 const IMAGE_EXTS         = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp'])
 const CATALOG_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.avif'])
 const VIDEO_EXTS         = new Set(['.mp4', '.webm', '.mov', '.m4v'])
 const AUDIO_EXTS         = new Set(['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac'])
 
-type AssetKind = 'image' | 'video' | 'audio'
+type MediaKind = 'image' | 'video' | 'audio'
 
-export interface AssetCatalogEntry {
+export interface MediaCatalogEntry {
   id: string
   name: string
-  kind: AssetKind
+  kind: MediaKind
   url: string
   source: 'filesystem' | 'games'
   folder: string
@@ -30,8 +30,8 @@ export interface AssetCatalogEntry {
   game?: string
 }
 
-interface AssetCatalogCache {
-  assets: AssetCatalogEntry[]
+interface MediaCatalogCache {
+  assets: MediaCatalogEntry[]
 }
 
 interface MediaCache {
@@ -41,20 +41,20 @@ interface MediaCache {
 
 export class MediaService {
   private mediaCache: MediaCache | null = null
-  private assetCatalogCache: AssetCatalogCache | null = null
+  private mediaCatalogCache: MediaCatalogCache | null = null
 
   constructor() {}
 
   clearCaches(): void {
     this.mediaCache = null
-    this.assetCatalogCache = null
+    this.mediaCatalogCache = null
   }
 
-  getCatalog(): AssetCatalogCache {
-    if (this.assetCatalogCache) return this.assetCatalogCache
+  getCatalog(): MediaCatalogCache {
+    if (this.mediaCatalogCache) return this.mediaCatalogCache
 
-    const assets: AssetCatalogEntry[] = []
-    this.scanAssetTree(ASSET_ROOT, [], assets)
+    const assets: MediaCatalogEntry[] = []
+    this.scanMediaTree(MEDIA_ROOT, [], assets)
 
     for (const [gameName, urls] of Object.entries(this.getGames().games)) {
       for (const url of urls) {
@@ -84,8 +84,8 @@ export class MediaService {
       return left.name.localeCompare(right.name)
     })
 
-    this.assetCatalogCache = { assets }
-    return this.assetCatalogCache
+    this.mediaCatalogCache = { assets }
+    return this.mediaCatalogCache
   }
 
   getGames(): MediaCache {
@@ -123,7 +123,7 @@ export class MediaService {
     return (this.mediaCache = { games, total })
   }
 
-  resolveDeletePath(assetUrl: string): string | null {
+  resolveMediaPath(assetUrl: string): string | null {
     if (!assetUrl.startsWith('/assets/')) return null
 
     const sanitizedUrl = assetUrl.split('?')[0]?.split('#')[0] ?? assetUrl
@@ -134,15 +134,15 @@ export class MediaService {
     if (normalizedRelativePath.startsWith('..') || normalizedRelativePath.includes(':')) return null
     if (/^images[\\/]games(?:[\\/]|$)/i.test(normalizedRelativePath)) return null
 
-    const absolutePath = join(ASSET_ROOT, normalizedRelativePath)
-    const relativeToRoot = relative(ASSET_ROOT, absolutePath)
+    const absolutePath = join(MEDIA_ROOT, normalizedRelativePath)
+    const relativeToRoot = relative(MEDIA_ROOT, absolutePath)
     if (relativeToRoot.startsWith('..') || relativeToRoot.includes(':')) return null
 
     return absolutePath
   }
 
-  deleteAsset(assetUrl: string): { ok: true } | { error: string; code: number } {
-    const assetPath = this.resolveDeletePath(assetUrl.trim())
+  deleteMedia(assetUrl: string): { ok: true } | { error: string; code: number } {
+    const assetPath = this.resolveMediaPath(assetUrl.trim())
     if (!assetPath) return { error: 'Only project assets under /assets can be deleted.', code: 400 }
 
     if (!existsSync(assetPath)) return { error: 'Asset file not found.', code: 404 }
@@ -163,7 +163,7 @@ export class MediaService {
     return { ok: true }
   }
 
-  private scanAssetTree(dir: string, relativeParts: string[], assets: AssetCatalogEntry[]) {
+  private scanMediaTree(dir: string, relativeParts: string[], assets: MediaCatalogEntry[]) {
     if (!existsSync(dir)) return
 
     for (const entryName of readdirSync(dir).sort()) {
@@ -182,11 +182,11 @@ export class MediaService {
       }
 
       if (stats.isDirectory()) {
-        this.scanAssetTree(entryPath, nextParts, assets)
+        this.scanMediaTree(entryPath, nextParts, assets)
         continue
       }
 
-      const kind = this.detectAssetKind(entryName)
+      const kind = this.detectMediaKind(entryName)
       if (!kind) continue
 
       const relativePath = nextParts.join('/')
@@ -203,7 +203,7 @@ export class MediaService {
     }
   }
 
-  private detectAssetKind(fileName: string): AssetKind | null {
+  private detectMediaKind(fileName: string): MediaKind | null {
     const ext = extname(fileName).toLowerCase()
     if (CATALOG_IMAGE_EXTS.has(ext)) return 'image'
     if (VIDEO_EXTS.has(ext)) return 'video'
@@ -218,7 +218,7 @@ export class MediaService {
   private pruneEmptyDirectories(startPath: string) {
     let currentPath = dirname(startPath)
 
-    while (currentPath.startsWith(ASSET_ROOT) && currentPath !== ASSET_ROOT) {
+    while (currentPath.startsWith(MEDIA_ROOT) && currentPath !== MEDIA_ROOT) {
       if (!existsSync(currentPath)) break
       if (readdirSync(currentPath).length > 0) break
       rmdirSync(currentPath)

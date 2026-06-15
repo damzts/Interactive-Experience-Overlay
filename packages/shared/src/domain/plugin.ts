@@ -1,6 +1,6 @@
 import type { TierName } from './scene.js'
 
-export type AssetKind = 'image' | 'video' | 'audio'
+export type MediaKind = 'image' | 'video' | 'audio'
 
 export type RendererCategory = 'background' | 'media' | 'overlay' | 'text' | 'post' | 'builtin'
 
@@ -8,7 +8,7 @@ export type RendererFieldDef = {
   key: string
   label: string
   type: 'text' | 'number' | 'color' | 'boolean' | 'select'
-  assetKinds?: AssetKind[]
+  mediaKinds?: MediaKind[]
   options?: string[]
   min?: number
   max?: number
@@ -38,8 +38,8 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
       { key: 'type', label: 'Type', type: 'select', options: ['none', 'color', 'gradient', 'image-url', 'video-url', 'pattern'] },
       { key: 'color', label: 'Color', type: 'color' },
       { key: 'gradient', label: 'Gradient CSS', type: 'text' },
-      { key: 'imageUrl', label: 'Image URL', type: 'text', assetKinds: ['image'] },
-      { key: 'videoUrl', label: 'Video URL', type: 'text', assetKinds: ['video'] },
+      { key: 'imageUrl', label: 'Image URL', type: 'text', mediaKinds: ['image'] },
+      { key: 'videoUrl', label: 'Video URL', type: 'text', mediaKinds: ['video'] },
       { key: 'pattern', label: 'Pattern', type: 'select', options: ['none', 'grid', 'dots', 'diagonal', 'honeycomb', 'circuit', 'topography'] },
       { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
       { key: 'blur', label: 'Blur (px)', type: 'number', min: 0, max: 20, step: 0.5 },
@@ -85,7 +85,7 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
     desc: 'Single image — local path or URL',
     defaultConfig: { url: '', objectFit: 'cover', opacity: 1 },
     fields: [
-      { key: 'url', label: 'URL / Path', type: 'text', assetKinds: ['image'], placeholder: '/assets/backgrounds/name.jpg' },
+      { key: 'url', label: 'URL / Path', type: 'text', mediaKinds: ['image'], placeholder: '/assets/backgrounds/name.jpg' },
       { key: 'objectFit', label: 'Fit', type: 'select', options: ['cover', 'contain', 'fill'] },
       { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
@@ -95,7 +95,7 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
     desc: 'Muted looping video — local path or URL',
     defaultConfig: { url: '', opacity: 1 },
     fields: [
-      { key: 'url', label: 'URL / Path', type: 'text', assetKinds: ['video'], placeholder: '/assets/video/name.mp4' },
+      { key: 'url', label: 'URL / Path', type: 'text', mediaKinds: ['video'], placeholder: '/assets/video/name.mp4' },
       { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },

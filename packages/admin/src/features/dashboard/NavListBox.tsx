@@ -61,9 +61,9 @@ function SidebarAppIcon({ app }: { app: Application }) {
   return <IconGlyph icon={app.icon} label={app.label} size={14} />
 }
 
-// ── AssetSection ───────────────────────────────────────────────────
+// ── MediaSection ───────────────────────────────────────────────────
 
-export function AssetSection({ title, items, selectedId, onSelect }: {
+export function MediaSection({ title, items, selectedId, onSelect }: {
   title: string
   items: AssetRecord[]
   selectedId?: string | null

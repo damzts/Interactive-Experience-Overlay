@@ -100,7 +100,7 @@ export function Dashboard() {
 
   const handleNavigate = useCallback((section: string) => {
     setActiveSection(section)
-    setSelected(section === 'media' ? { kind: 'asset-catalog' } : null)
+    setSelected(section === 'media' ? { kind: 'media-gallery' } : null)
   }, [])
 
   const handleSidebarToggle = useCallback(() => {

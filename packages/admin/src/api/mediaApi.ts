@@ -1,14 +1,14 @@
 import { apiFetch, apiSend } from './client.js'
 
-export type AssetKind = 'image' | 'video' | 'audio'
-export type AssetSource = 'filesystem' | 'games' | 'saved'
+export type MediaKind = 'image' | 'video' | 'audio'
+export type MediaSource = 'filesystem' | 'games' | 'saved'
 
-export interface AssetRecord {
+export interface MediaRecord {
   id: string
   name: string
-  kind: AssetKind
+  kind: MediaKind
   url: string
-  source: AssetSource
+  source: MediaSource
   folder: string
   relativePath: string
   ext: string
@@ -16,16 +16,16 @@ export interface AssetRecord {
   duration?: number
 }
 
-interface AssetCatalogResponse {
-  assets: AssetRecord[]
+interface MediaCatalogResponse {
+  assets: MediaRecord[]
 }
 
-export async function getAssetCatalog(): Promise<AssetRecord[]> {
-  const json = await apiFetch<AssetCatalogResponse>('/api/assets/catalog')
+export async function getMediaCatalog(): Promise<MediaRecord[]> {
+  const json = await apiFetch<MediaCatalogResponse>('/api/assets/catalog')
   return Array.isArray(json.assets) ? json.assets : []
 }
 
-export async function uploadAsset(file: File): Promise<{ url: string; kind: AssetKind }> {
+export async function uploadMedia(file: File): Promise<{ url: string; kind: MediaKind }> {
   const form = new FormData()
   form.append('file', file)
   const json = await apiFetch<{ url: string }>('/api/upload/asset', { method: 'POST', body: form })
@@ -35,6 +35,6 @@ export async function uploadAsset(file: File): Promise<{ url: string; kind: Asse
   }
 }
 
-export async function deleteAsset(url: string): Promise<void> {
+export async function deleteMedia(url: string): Promise<void> {
   return apiSend('/api/assets', 'DELETE', { url })
 }

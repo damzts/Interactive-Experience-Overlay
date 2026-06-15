@@ -1,6 +1,6 @@
-import { STATE } from '@ieomlabs/shared'
+﻿import { STATE } from '@ieomlabs/shared'
 import type { BackgroundType, OverlayStyle, ParticlePreset } from '@ieomlabs/shared'
-import { AssetSelectionInput } from '../asset-library/AssetLibrary'
+import { MediaSelectionInput } from '../media-library/MediaLibrary'
 import { ConfigSectionPanel, Slider, Toggle } from '../../shared/ui'
 import { BG_TYPES, GRADIENT_PRESETS, PARTICLE_PRESETS, PATTERN_CSS } from './constants'
 
@@ -57,13 +57,13 @@ export function StyleSections({ sceneId, style, update }: {
             )}
 
             {bg.type === 'image-url' && (
-              <AssetSelectionInput value={bg.imageUrl} onChange={(v) => update((d) => { d.background.imageUrl = v })}
+              <MediaSelectionInput value={bg.imageUrl} onChange={(v) => update((d) => { d.background.imageUrl = v })}
                 kinds={['image']} modalTitle="Background Image" placeholder="/assets/backgrounds/name.jpg or https://..."
                 buttonLabel="Choose Image" hint="Pick from the unified asset library, game-image catalog, or paste any direct image URL." previewKind="image" />
             )}
 
             {bg.type === 'video-url' && (
-              <AssetSelectionInput value={bg.videoUrl} onChange={(v) => update((d) => { d.background.videoUrl = v })}
+              <MediaSelectionInput value={bg.videoUrl} onChange={(v) => update((d) => { d.background.videoUrl = v })}
                 kinds={['video']} modalTitle="Background Video" placeholder="/assets/video/name.mp4 or https://..."
                 buttonLabel="Choose Video" hint="Use the asset library for local loops or paste any direct MP4/WebM URL." previewKind="video" />
             )}

@@ -1,4 +1,4 @@
-import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
+﻿import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
 import type { DesktopAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventAction, EventConfig } from './event.js'
@@ -45,13 +45,13 @@ export interface AppConfig {
   desktopAmbiance?: DesktopAmbianceConfig
   /** Named widget layout presets (owned by WidgetLayoutPanel → widget_layouts table) */
   widgetLayouts?: WidgetLayoutDefinition[]
-  /** Source events (Asset Library Events tab → source_events table) */
+  /** Media effects (Media Library → Effects tab → media_effects table) */
   sourceEvents?: EventConfig[]
-  /** Centralised media asset library (Asset Library Catalog tab → source_media table) */
+  /** Saved media gallery entries (Media Library → Gallery tab → media_gallery table) */
   sourceMedia?: MediaEntry[]
-  /** Reusable window presets (Asset Library Sources tab → window_presets table) */
+  /** Reusable renderer presets (Media Library → Renders tab → media_renders table) */
   windowPresets?: WindowPreset[]
-  /** Named transition definitions (Asset Library Transitions tab → source_transitions table) */
+  /** Named transition definitions (Media Library → Transitions tab → media_transitions table) */
   sourceTransitions?: TransitionDefinition[]
   /** Operator-configured widget wires (Wires panel → widget_wires table) */
   widgetWires?: WidgetWire[]

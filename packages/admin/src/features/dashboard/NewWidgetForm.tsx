@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import type { Application } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { AssetSelectionInput } from '../asset-library/AssetLibrary'
+import { MediaSelectionInput } from '../media-library/MediaLibrary'
 import { IconGlyph } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
@@ -109,7 +109,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
                 <IconGlyph icon={icon || componentMeta.icon} label={nextLabel} size={32} />
               </div>
               <div className="flex-1 min-w-0">
-                <AssetSelectionInput value={icon} onChange={setIcon} kinds={['image']} modalTitle="Widget Icon"
+                <MediaSelectionInput value={icon} onChange={setIcon} kinds={['image']} modalTitle="Widget Icon"
                   placeholder="Emoji or /assets/icons/custom.png" buttonLabel="Choose Image"
                   hint="Leave an emoji in the field, or use the asset library to assign a custom image icon."
                   inputClassName="font-mono" previewKind="image" showPreview={false} />

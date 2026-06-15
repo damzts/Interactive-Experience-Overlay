@@ -1,10 +1,10 @@
-import { type ReactNode } from 'react'
+﻿import { type ReactNode } from 'react'
 import type { WindowPreset } from '@ieomlabs/shared'
-import { AssetSelectionInput } from './AssetLibrary'
+import { MediaSelectionInput } from './MediaLibrary'
 import { findRendererCatalogEntry, RENDERER_CATALOG, type RendererCatalogEntry as CatalogEntry, type RendererFieldDef as FieldDef } from '@ieomlabs/shared'
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
 import { LibraryItemBtn } from './mediaLibraryUi'
-import { MediaSearchInput } from './AssetLibraryPanel'
+import { MediaSearchInput } from './MediaLibraryPanel'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
   return (
@@ -31,16 +31,16 @@ export function SourceField({ field, value, onChange }: { field: FieldDef; value
         />
       )}
       {field.type === 'text' && (
-        field.assetKinds?.length ? (
+        field.mediaKinds?.length ? (
           <div className="min-w-0 flex-1">
-            <AssetSelectionInput
+            <MediaSelectionInput
               value={String(value ?? '')}
               onChange={(nextValue) => onChange(nextValue)}
-              kinds={field.assetKinds}
+              kinds={field.mediaKinds}
               modalTitle={field.label}
               placeholder={field.placeholder}
               buttonLabel="Browse Assets"
-              previewKind={field.assetKinds[0] ?? 'auto'}
+              previewKind={field.mediaKinds[0] ?? 'auto'}
             />
           </div>
         ) : (

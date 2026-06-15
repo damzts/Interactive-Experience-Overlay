@@ -19,10 +19,10 @@ export type SelectedItem =
   | { kind: 'scheduler' }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
-  | { kind: 'asset-catalog' }
-  | { kind: 'asset-events' }
-  | { kind: 'asset-sources' }
-  | { kind: 'asset-transitions' }
+  | { kind: 'media-gallery' }
+  | { kind: 'media-effects' }
+  | { kind: 'media-renders' }
+  | { kind: 'media-transitions' }
   | { kind: 'kernel-health' }
   | { kind: 'wires' }
   | { kind: 'shows' }

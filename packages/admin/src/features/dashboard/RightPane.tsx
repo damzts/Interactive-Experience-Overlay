@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react'
+﻿import { Component, type ReactNode } from 'react'
 import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
@@ -20,8 +20,8 @@ import { WiresPanel } from '../wires/WiresPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
 import { SpotifyPanel } from '../spotify/SpotifyPanel'
-import { MediaLibraryPanel } from '../asset-library/AssetLibraryPanel'
-import { MediaLibraryProvider } from '../asset-library/AssetLibraryContext'
+import { MediaLibraryPanel } from '../media-library/MediaLibraryPanel'
+import { MediaLibraryProvider } from '../media-library/MediaLibraryContext'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
@@ -126,10 +126,10 @@ if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'spotify') return <SpotifyPanel />
   if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
-  if (selected.kind === 'asset-catalog')     return <MediaLibraryPanel tab="catalog" />
-  if (selected.kind === 'asset-events')      return <MediaLibraryPanel tab="events" />
-  if (selected.kind === 'asset-sources')     return <MediaLibraryPanel tab="sources" />
-  if (selected.kind === 'asset-transitions') return <MediaLibraryPanel tab="transitions" />
+  if (selected.kind === 'media-gallery')     return <MediaLibraryPanel tab="catalog" />
+  if (selected.kind === 'media-effects')     return <MediaLibraryPanel tab="events" />
+  if (selected.kind === 'media-renders')     return <MediaLibraryPanel tab="sources" />
+  if (selected.kind === 'media-transitions') return <MediaLibraryPanel tab="transitions" />
 
   return null
 }
@@ -137,10 +137,10 @@ if (selected.kind === 'obs') return <ObsPanel />
 // ── Media tabs (module-level — stable across renders) ──────────────
 
 const MEDIA_TABS: Array<{ kind: SelectedItem['kind']; icon: string; label: string }> = [
-  { kind: 'asset-catalog',     icon: '🖼', label: 'Gallery' },
-  { kind: 'asset-events',      icon: '⚡', label: 'Effects' },
-  { kind: 'asset-sources',     icon: '📺', label: 'Renders' },
-  { kind: 'asset-transitions', icon: '✨', label: 'Transitions' },
+  { kind: 'media-gallery',     icon: '🖼', label: 'Gallery' },
+  { kind: 'media-effects',     icon: '⚡', label: 'Effects' },
+  { kind: 'media-renders',     icon: '📺', label: 'Renders' },
+  { kind: 'media-transitions', icon: '✨', label: 'Transitions' },
 ]
 
 // ── SystemSidebar ──────────────────────────────────────────────────

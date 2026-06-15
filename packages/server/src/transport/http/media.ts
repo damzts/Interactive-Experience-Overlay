@@ -50,7 +50,7 @@ export async function mediaRoute(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Asset URL is required.' })
     }
 
-    const result = mediaService.deleteAsset(assetUrl)
+    const result = mediaService.deleteMedia(assetUrl)
     if ('error' in result) {
       return reply.code(result.code).send({ error: result.error })
     }

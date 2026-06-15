@@ -75,7 +75,7 @@ const SCHEMA = `
     PRIMARY KEY (layout_id, widget_id)
   );
 
-  CREATE TABLE IF NOT EXISTS source_events (
+  CREATE TABLE IF NOT EXISTS media_effects (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
     icon TEXT NOT NULL DEFAULT '',
@@ -111,7 +111,7 @@ const SCHEMA = `
     simulation_json TEXT
   );
 
-  CREATE TABLE IF NOT EXISTS window_presets (
+  CREATE TABLE IF NOT EXISTS media_renders (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
     renderer_type TEXT NOT NULL,
@@ -119,7 +119,7 @@ const SCHEMA = `
     default_position_json TEXT
   );
 
-  CREATE TABLE IF NOT EXISTS source_media (
+  CREATE TABLE IF NOT EXISTS media_gallery (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -137,7 +137,7 @@ const SCHEMA = `
     condition_json TEXT
   );
 
-  CREATE TABLE IF NOT EXISTS source_transitions (
+  CREATE TABLE IF NOT EXISTS media_transitions (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -245,6 +245,13 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
       db.exec('ALTER TABLE window_presets RENAME COLUMN plugin_type TO renderer_type')
     }
   }
+
+  // asset-library → media-library rename: migrate legacy table names
+  const tableNames = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map((t) => t.name)
+  if (tableNames.includes('source_events')     && !tableNames.includes('media_effects'))     db.exec('ALTER TABLE source_events RENAME TO media_effects')
+  if (tableNames.includes('source_media')      && !tableNames.includes('media_gallery'))     db.exec('ALTER TABLE source_media RENAME TO media_gallery')
+  if (tableNames.includes('window_presets')    && !tableNames.includes('media_renders'))     db.exec('ALTER TABLE window_presets RENAME TO media_renders')
+  if (tableNames.includes('source_transitions') && !tableNames.includes('media_transitions')) db.exec('ALTER TABLE source_transitions RENAME TO media_transitions')
 
   // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
   try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }
