@@ -43,6 +43,9 @@ function makeMockRoomSignaling() {
     isConnected: vi.fn(() => connected),
     getRoomId: () => currentRoomId,
     kickParticipant: vi.fn(),
+    manageParticipant: vi.fn(),
+    unmanageParticipant: vi.fn(),
+    requestReOffer: vi.fn(),
     onStatus: vi.fn((cb: any) => { statusCallbacks.push(cb) }),
     onParticipantConnectionChange: vi.fn((cb: any) => { connectionChangeCallbacks.push(cb) }),
     get intentionalClose() { return intentionalCloseFlag },
@@ -465,12 +468,10 @@ describe('Preservation: Overlay Relay (Req 3.5)', () => {
    * and queries participant video tracks. When an admin socket is set, the relay
    * attempts to create offers for participants with tracks.
    *
-   * We test the relay's hub-binding and track-query behavior without invoking
-   * the real RTCPeerConnection (which requires real MediaStreamTrack objects).
-   * Instead, we verify the relay correctly:
-   * 1. Registers onTrack and onParticipantRemoved callbacks with the hub
-   * 2. Queries all participant IDs and their video tracks on setSocket
-   * 3. Emits preview:status to the admin socket on connection
+   * We test the relay's hub-binding behavior in hybrid mode.
+   * The relay registers onParticipantRemoved with the hub, and receives
+   * producer notifications via notifyProducer(). On setSocket, it sends
+   * the status to the admin.
    */
   it('property: bindHub and setSocket queries participant tracks for relay creation', () => {
     fc.assert(
@@ -479,22 +480,17 @@ describe('Preservation: Overlay Relay (Req 3.5)', () => {
         (numParticipants) => {
           const previewRelay = new RoomPreviewRelay()
 
-          const participantIds = Array.from({ length: numParticipants }, (_, i) => `user-${i}`)
-
           const mockHub = {
             onTrack: vi.fn(),
             onParticipantRemoved: vi.fn(),
-            getParticipantIds: vi.fn(() => participantIds),
-            // Return null for video tracks — this avoids triggering real RTCPeerConnection
-            // but still verifies the relay queries tracks for all participants
+            getParticipantIds: vi.fn(() => []),
             getVideoTrack: vi.fn(() => null),
             getAudioTrack: vi.fn(() => null),
           }
 
           previewRelay.bindHub(mockHub as any)
 
-          // Verify hub callbacks registered
-          expect(mockHub.onTrack).toHaveBeenCalledTimes(1)
+          // Verify hub callback registered (only onParticipantRemoved in hybrid mode)
           expect(mockHub.onParticipantRemoved).toHaveBeenCalledTimes(1)
 
           const mockSocket = {
@@ -504,15 +500,6 @@ describe('Preservation: Overlay Relay (Req 3.5)', () => {
           }
 
           previewRelay.setSocket(mockSocket as any)
-
-          // Verify: relay queried hub for participant IDs
-          expect(mockHub.getParticipantIds).toHaveBeenCalled()
-
-          // Verify: relay queried video track for each participant
-          expect(mockHub.getVideoTrack).toHaveBeenCalledTimes(numParticipants)
-          for (const id of participantIds) {
-            expect(mockHub.getVideoTrack).toHaveBeenCalledWith(id)
-          }
 
           // Verify: admin socket received initial status emission
           expect(mockSocket.emit).toHaveBeenCalledWith(

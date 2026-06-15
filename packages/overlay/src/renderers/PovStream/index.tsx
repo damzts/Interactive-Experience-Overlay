@@ -18,7 +18,6 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
   const shouldMute = Boolean(config.muted ?? true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
-  const playPromiseRef = useRef<Promise<void> | null>(null)
   const stream = useRtcStream()
 
   useEffect(() => {
@@ -36,14 +35,17 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
 
     console.log('[PovStream] stream set, tracks:', stream.getTracks().map(t => `${t.kind}:${t.readyState}:${t.muted}`))
 
-    // Always play muted first — Chrome autoplay policy requires this.
-    // Audio will be enabled after user interaction (click/keydown).
-    el.muted = true
-    playPromiseRef.current = el.play().then(() => {
-      console.log('[PovStream] playing (muted)', 'paused:', el.paused, 'videoWidth:', el.videoWidth)
-    }).catch((e) => {
-      console.warn('[PovStream] play() failed:', e.name, e.message, 'paused:', el.paused, 'readyState:', el.readyState)
-    })
+    // Debounce play() — wait for stream to stabilize (audio + video arrive ~50ms apart)
+    const playTimer = setTimeout(() => {
+      el.muted = true
+      el.play().then(() => {
+        console.log('[PovStream] playing (muted)', 'paused:', el.paused, 'videoWidth:', el.videoWidth)
+      }).catch((e) => {
+        if (e.name !== 'AbortError') {
+          console.warn('[PovStream] play() failed:', e.name, e.message)
+        }
+      })
+    }, 50)
 
     // Unmute after user interaction
     if (!shouldMute) {
@@ -57,10 +59,13 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       document.addEventListener('keydown', tryUnmute, { once: true })
 
       return () => {
+        clearTimeout(playTimer)
         document.removeEventListener('click', tryUnmute)
         document.removeEventListener('keydown', tryUnmute)
       }
     }
+
+    return () => clearTimeout(playTimer)
   }, [stream, shouldMute])
 
   // Separate effect for frame detection — doesn't depend on stream identity changes

@@ -43,6 +43,9 @@ function makeMockRoomSignaling() {
     isConnected: vi.fn(() => connected),
     getRoomId: () => currentRoomId,
     kickParticipant: vi.fn(),
+    manageParticipant: vi.fn(),
+    unmanageParticipant: vi.fn(),
+    requestReOffer: vi.fn(),
     onStatus: vi.fn(),
     onParticipantConnectionChange: vi.fn(),
     get intentionalClose() { return intentionalCloseFlag },
@@ -364,12 +367,6 @@ describe('Bug 1.4 — Preview Relay Destruction', () => {
       fc.property(
         fc.integer({ min: 1, max: 4 }), // number of simulated participant relays
         (numParticipants) => {
-          // Create a RoomPreviewRelay and simulate the lifecycle:
-          // 1. Admin connects → setSocket called
-          // 2. Tracks arrive via onTrack → relays established
-          // 3. Admin disconnects (navigates away) → clearSocket called
-          // 4. Assert: relays should survive (persistOnDisconnect = true)
-
           const previewRelay = new RoomPreviewRelay()
 
           const mockSocket = {
@@ -378,44 +375,24 @@ describe('Bug 1.4 — Preview Relay Destruction', () => {
             on: vi.fn(),
           }
 
-          // Mock hub — getVideoTrack returns null initially (no existing participants),
-          // tracks arrive via onTrack callback after socket is connected
-          let trackCallback: any = null
           const mockHub = {
-            onTrack: vi.fn((cb: any) => { trackCallback = cb }),
             onParticipantRemoved: vi.fn(),
-            getParticipantIds: vi.fn(() => []),
-            getVideoTrack: vi.fn(() => null),
-            getAudioTrack: vi.fn(() => null),
           }
 
           previewRelay.bindHub(mockHub as any)
           previewRelay.setSocket(mockSocket as any)
 
-          // Simulate tracks arriving from participants while admin is connected.
-          // The onTrack handler in bindHub will call createRelay, which attempts
-          // to create a RTCPeerConnection. If that fails due to test environment,
-          // it removes the relay. We use a mock track object.
-          // Since createRelay will try to use RTCPeerConnection and may fail,
-          // instead verify the persistOnDisconnect behavior by firing tracks
-          // AFTER disconnect — which should still create lightweight relay entries.
-
           // Disconnect admin (navigates away)
           previewRelay.clearSocket(mockSocket.id)
 
-          // After disconnect, fire tracks — with persistOnDisconnect=true,
-          // the relay should store lightweight entries even without admin socket
-          if (trackCallback) {
-            for (let i = 0; i < numParticipants; i++) {
-              trackCallback(`user-${i}`, 'video', { kind: 'video' } as any)
-            }
+          // After disconnect, notify producers — with persistOnDisconnect=true,
+          // the relay should store entries even without admin socket
+          for (let i = 0; i < numParticipants; i++) {
+            previewRelay.notifyProducer(`user-${i}`, 'video', `producer-${i}`)
           }
 
           // PROPERTY: After admin disconnect with persistOnDisconnect=true,
-          // new tracks that arrive are persisted as lightweight relay entries.
-          // When admin reconnects via setSocket(), these will be rebuilt.
-          // Before fix: tracks dropped because adminSockets.size === 0
-          // After fix: tracks stored as lightweight relays
+          // new producers are persisted as entries.
           const status = previewRelay.getStatus()
           return status.length >= numParticipants
         },
@@ -429,13 +406,8 @@ describe('Bug 1.4 — Preview Relay Destruction', () => {
 
     const mockSocket = { id: 'admin-1', emit: vi.fn(), on: vi.fn() }
 
-    let trackCallback: any = null
     const mockHub = {
-      onTrack: vi.fn((cb: any) => { trackCallback = cb }),
       onParticipantRemoved: vi.fn(),
-      getParticipantIds: vi.fn(() => []),
-      getVideoTrack: vi.fn(() => null),
-      getAudioTrack: vi.fn(() => null),
     }
 
     previewRelay.bindHub(mockHub as any)
@@ -444,14 +416,10 @@ describe('Bug 1.4 — Preview Relay Destruction', () => {
     // Admin navigates away (component unmounts, socket disconnects)
     previewRelay.clearSocket('admin-1')
 
-    // Now a participant sends a track — but admin socket is gone
-    // Bug: this track is silently dropped because adminSockets.size === 0
-    if (trackCallback) {
-      trackCallback('participant-1', 'video', { kind: 'video' })
-    }
+    // Now a producer notification arrives — but admin socket is gone
+    previewRelay.notifyProducer('participant-1', 'video', 'producer-1')
 
-    // EXPECTED: relay should queue or persist the track for when admin returns
-    // BUG: track is dropped, relay is destroyed, admin must wait for re-offer
+    // EXPECTED: relay should persist the producer for when admin returns
     const status = previewRelay.getStatus()
     expect(status.length).toBeGreaterThan(0)
   })
