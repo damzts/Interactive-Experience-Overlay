@@ -66,7 +66,8 @@ describe('AdminRelay', () => {
       const hub = makeMockHub()
       relay.bindHub(hub as any)
 
-      expect(hub._trackCallbacks.length).toBe(1)
+      // In hybrid mode, bindHub only registers onParticipantRemoved.
+      // Track notifications come via notifyProducer() from the RTP bridge.
       expect(hub._removeCallbacks.length).toBe(1)
     })
   })

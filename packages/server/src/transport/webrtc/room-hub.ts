@@ -1,7 +1,12 @@
 /**
- * WebRTC hub connection manager using werift.
+ * WebRTC hub connection manager using werift (ICE completo).
  * Manages N peer connections from browser participants.
  * Each participant sends their camera/mic; the server receives all streams.
+ *
+ * HYBRID ARCHITECTURE:
+ *  - werift handles guest connections (ICE completo → NAT traversal sin TURN)
+ *  - Tracks from werift are piped to mediasoup Producers via RtpBridge
+ *  - mediasoup handles relay to overlay/admin (Consumer model → reconnect sin freeze)
  */
 
 import {

@@ -23,25 +23,64 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
   useEffect(() => {
     const el = videoRef.current
     if (!el) return
-    el.srcObject = stream
-    if (stream) {
-      console.log('[PovStream] stream set, tracks:', stream.getTracks().map(t => `${t.kind}:${t.readyState}:${t.muted}`))
-      // Start muted to satisfy autoplay policy, then unmute once playing
-      el.muted = true
-      el.play()
-        .then(() => {
-          el.muted = shouldMute
-        })
-        .catch(e => console.warn('[PovStream] play() rejected:', e))
-      const checkVideo = setInterval(() => {
-        if (el.videoWidth > 0 && el.videoHeight > 0) {
-          console.log('[PovStream] video has frames:', el.videoWidth, 'x', el.videoHeight)
-          clearInterval(checkVideo)
-        }
-      }, 500)
-      return () => clearInterval(checkVideo)
+    if (!stream) {
+      el.srcObject = null
+      return
     }
+
+    // Only update srcObject if it actually changed
+    if (el.srcObject !== stream) {
+      el.srcObject = stream
+    }
+
+    console.log('[PovStream] stream set, tracks:', stream.getTracks().map(t => `${t.kind}:${t.readyState}:${t.muted}`))
+
+    // Debounce play() — wait for stream to stabilize (audio + video arrive ~50ms apart)
+    const playTimer = setTimeout(() => {
+      el.muted = true
+      el.play().then(() => {
+        console.log('[PovStream] playing (muted)', 'paused:', el.paused, 'videoWidth:', el.videoWidth)
+      }).catch((e) => {
+        if (e.name !== 'AbortError') {
+          console.warn('[PovStream] play() failed:', e.name, e.message)
+        }
+      })
+    }, 50)
+
+    // Unmute after user interaction
+    if (!shouldMute) {
+      const tryUnmute = () => {
+        if (el && !el.paused) {
+          el.muted = false
+          console.log('[PovStream] unmuted after user interaction')
+        }
+      }
+      document.addEventListener('click', tryUnmute, { once: true })
+      document.addEventListener('keydown', tryUnmute, { once: true })
+
+      return () => {
+        clearTimeout(playTimer)
+        document.removeEventListener('click', tryUnmute)
+        document.removeEventListener('keydown', tryUnmute)
+      }
+    }
+
+    return () => clearTimeout(playTimer)
   }, [stream, shouldMute])
+
+  // Separate effect for frame detection — doesn't depend on stream identity changes
+  useEffect(() => {
+    if (!stream) return
+    const el = videoRef.current
+    if (!el) return
+    const checkVideo = setInterval(() => {
+      if (el.videoWidth > 0 && el.videoHeight > 0) {
+        console.log('[PovStream] video has frames:', el.videoWidth, 'x', el.videoHeight)
+        clearInterval(checkVideo)
+      }
+    }, 500)
+    return () => clearInterval(checkVideo)
+  }, [stream])
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity }}>
@@ -57,6 +96,8 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       <video
         ref={videoRef}
         playsInline
+        muted
+        autoPlay
         style={{
           position: 'absolute', inset: 0,
           width: '100%', height: '100%',

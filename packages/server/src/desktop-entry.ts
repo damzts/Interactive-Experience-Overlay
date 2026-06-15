@@ -18,6 +18,8 @@ import { existsSync, mkdirSync, createWriteStream, readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { pipeline } from 'stream/promises'
+import * as mediasoup from 'mediasoup'
+import { bridgeTrackToProducer, closeBridgedProducer, type BridgedProducer } from './transport/webrtc/rtp-bridge.js'
 import logger from './lib/logger.js'
 
 import { DEFAULT_CONFIG, withDesktopAmbianceDefaults, WIDGET_INTENT_MANIFESTS } from '@ieomlabs/shared'
@@ -335,24 +337,181 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   })
 
   // ── Room system ───────────────────────────────────────────────
+  // Create mediasoup Worker and Router
+  const msWorker = await mediasoup.createWorker({
+    logLevel: 'warn',
+    rtcMinPort: Number(process.env['MEDIASOUP_RTC_MIN_PORT'] || 10000),
+    rtcMaxPort: Number(process.env['MEDIASOUP_RTC_MAX_PORT'] || 10100),
+  })
+  msWorker.on('died', () => {
+    logger.error('[mediasoup] Worker died — exiting')
+    process.exit(1)
+  })
+
+  const msRouter = await msWorker.createRouter({
+    mediaCodecs: [
+      {
+        kind: 'audio',
+        mimeType: 'audio/opus',
+        clockRate: 48000,
+        channels: 2,
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/VP8',
+        clockRate: 90000,
+        parameters: {},
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/VP9',
+        clockRate: 90000,
+        parameters: {
+          'profile-id': 0,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/VP9',
+        clockRate: 90000,
+        parameters: {
+          'profile-id': 2,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/H264',
+        clockRate: 90000,
+        parameters: {
+          'packetization-mode': 1,
+          'profile-level-id': '42001f',
+          'level-asymmetry-allowed': 1,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/H264',
+        clockRate: 90000,
+        parameters: {
+          'packetization-mode': 0,
+          'profile-level-id': '42001f',
+          'level-asymmetry-allowed': 1,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/H264',
+        clockRate: 90000,
+        parameters: {
+          'packetization-mode': 1,
+          'profile-level-id': '42e01f',
+          'level-asymmetry-allowed': 1,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/H264',
+        clockRate: 90000,
+        parameters: {
+          'packetization-mode': 0,
+          'profile-level-id': '42e01f',
+          'level-asymmetry-allowed': 1,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/H264',
+        clockRate: 90000,
+        parameters: {
+          'packetization-mode': 1,
+          'profile-level-id': '4d0032',
+          'level-asymmetry-allowed': 1,
+        },
+      },
+      {
+        kind: 'video',
+        mimeType: 'video/H264',
+        clockRate: 90000,
+        parameters: {
+          'packetization-mode': 1,
+          'profile-level-id': '640032',
+          'level-asymmetry-allowed': 1,
+        },
+      },
+    ],
+  })
+  logger.info('[mediasoup] Worker and Router created')
+
   const roomRelay = new RoomRelay()
-  // Start WebRTC freeze detection (monitorea tracks congelados cada 2s)
+  roomRelay.setRouter(msRouter)
+
+  const roomPreviewRelay = new RoomPreviewRelay()
+  roomPreviewRelay.setRouter(msRouter)
+  roomPreviewRelay.bindHub(roomHub)
+
+  // Start WebRTC freeze detection (monitors frozen tracks every 500ms)
   roomHub.startFreezeDetection()
+
+  // ── RTP Bridge: werift tracks → mediasoup Producers ───────────
+  // Maps userId → bridged producers. When a track arrives from werift,
+  // we pipe it into mediasoup so the relay can consume it.
+  const bridgedProducers = new Map<string, { audio?: BridgedProducer; video?: BridgedProducer }>()
 
   // Wire POV → room relay for all participants (LAN and cloud)
   povOrchestrator.onSwitch((_prev, next) => {
     logger.info(`[pov-relay] switch → ${next}`)
-    roomRelay.switchTo(roomHub.getAudioTrack(next), roomHub.getVideoTrack(next))
-      .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
+    const bridged = bridgedProducers.get(next)
+    const videoProducer = bridged?.video?.producer ?? null
+    const audioProducer = bridged?.audio?.producer ?? null
+    if (videoProducer || audioProducer) {
+      roomRelay.switchTo(audioProducer, videoProducer)
+        .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
+    }
   })
 
-  // Auto-select first participant; relay fresh tracks on re-offer for active camera
-  roomHub.onTrack((userId) => {
-    if (!povOrchestrator.activeCameraId) {
-      povOrchestrator.switcher.manualSelect(userId)
-    } else if (userId === povOrchestrator.activeCameraId) {
-      roomRelay.switchTo(roomHub.getAudioTrack(userId), roomHub.getVideoTrack(userId))
-        .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on re-offer failed'))
+  // When a werift track arrives, bridge it to mediasoup
+  roomHub.onTrack(async (userId, kind, track) => {
+    try {
+      // Close existing bridge for this kind if re-offering
+      const existing = bridgedProducers.get(userId)
+      if (existing?.[kind]) {
+        closeBridgedProducer(existing[kind]!)
+        existing[kind] = undefined
+      }
+
+      // Bridge the werift track → mediasoup Producer
+      const bridged = await bridgeTrackToProducer(msRouter, track, kind)
+
+      if (!bridgedProducers.has(userId)) bridgedProducers.set(userId, {})
+      bridgedProducers.get(userId)![kind] = bridged
+
+      logger.info(`[rtp-bridge] ${userId} ${kind} bridged → Producer ${bridged.producer.id}`)
+
+      // Notify preview relay about the new producer
+      roomPreviewRelay.notifyProducer(userId, kind, bridged.producer.id)
+
+      // If this is video for the active camera, update the relay
+      if (kind === 'video') {
+        if (!povOrchestrator.activeCameraId) {
+          povOrchestrator.switcher.manualSelect(userId)
+        } else if (userId === povOrchestrator.activeCameraId) {
+          const audioBridged = bridgedProducers.get(userId)?.audio
+          roomRelay.switchTo(audioBridged?.producer ?? null, bridged.producer)
+            .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on new producer failed'))
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, `[rtp-bridge] failed to bridge ${kind} for ${userId}`)
+    }
+  })
+
+  // Clean up bridged producers when participant leaves
+  roomHub.onParticipantRemoved((userId) => {
+    const bridged = bridgedProducers.get(userId)
+    if (bridged) {
+      if (bridged.audio) closeBridgedProducer(bridged.audio)
+      if (bridged.video) closeBridgedProducer(bridged.video)
+      bridgedProducers.delete(userId)
     }
   })
 
@@ -365,30 +524,48 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     socket.on('pov-online:relay:subscribe', () => {
       logger.info('[pov-relay] overlay subscribed')
       roomRelay.createOffer((event, payload) => socket.emit(event, payload))
-        .catch(e => logger.error('[pov-relay] createOffer failed:', e.message))
+        .then(() => {
+          const activeId = povOrchestrator.activeCameraId
+          if (activeId && roomHub.hasParticipant(activeId)) {
+            logger.info(`[pov-relay] active camera ${activeId} exists — consuming producers`)
+            const bridged = bridgedProducers.get(activeId)
+            const videoProducer = bridged?.video?.producer ?? null
+            const audioProducer = bridged?.audio?.producer ?? null
+            if (videoProducer) {
+              roomRelay.switchTo(audioProducer, videoProducer)
+                .catch(e => logger.warn({ err: e }, '[pov-relay] initial switchTo failed'))
+            }
+          } else {
+            logger.info('[pov-relay] no active camera with producer — will wait for next offer')
+          }
+        })
+        .catch(e => logger.error({ err: e?.message ?? e, stack: e?.stack }, '[pov-relay] createOffer failed'))
     })
-    socket.on('pov-online:relay:answer', async (payload: { sdp: string }) => {
+    socket.on('pov-online:relay:answer', async (payload: { dtlsParameters: any }) => {
       try {
-        await roomRelay.handleAnswer(payload.sdp)
+        await roomRelay.handleAnswer(payload)
       } catch (err) {
         logger.error({ err }, '[pov-relay] handleAnswer error:')
       }
     })
-    socket.on('pov-online:relay:ice', async (candidate: any) => {
-      try {
-        await roomRelay.handleIceCandidate(candidate)
-      } catch (err) {
-        logger.error({ err }, '[pov-relay] ice-candidate error:')
-      }
+    socket.on('pov-online:relay:ice', async (_candidate: any) => {
+      // mediasoup handles ICE internally — no-op but kept for protocol compat
     })
   })
 
   roomSignaling.onStatus((status) => io.emit('room:status' as any, status))
   await app.register(roomHttpRoute, { cloudSignaling: roomSignaling, pov: povOrchestrator, hub: roomHub })
 
-  const roomManager = new RoomManager(roomSignaling, povOrchestrator, { cloudUrl, getToken })
-  const roomPreviewRelay = new RoomPreviewRelay()
-  roomPreviewRelay.bindHub(roomHub)
+  const roomManager = new RoomManager(roomSignaling, povOrchestrator, {
+    cloudUrl,
+    getToken,
+    signalingFactory: () => new RoomSignaling(roomHub, povOrchestrator),
+  })
+
+  // mediasoup doesn't need re-offers — Consumers are created from existing Producers
+  // onNeedReOffer is kept as no-op for interface compat
+  roomRelay.onNeedReOffer = null
+
   registerRoomNamespace(io, roomManager, roomPreviewRelay)
   await app.register(onlineRoomRoute, { roomManager })
 
@@ -442,11 +619,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   // ── Global crash handler ────────────────────────────────────────
   // Log and exit on uncaught exceptions; let the process manager restart.
-  // Exception: werift WebRTC errors are non-fatal and caught here to avoid killing the app.
+  // Exception: mediasoup internal errors are logged but non-fatal when possible.
   process.on('uncaughtException', (err) => {
-    const isWeriftNoise = err.stack?.includes('werift') || err.message?.includes('RTCPeerConnection')
-    if (isWeriftNoise) {
-      logger.warn({ err }, '[crash] Suppressed werift exception:')
+    const isMediasoupNoise = err.stack?.includes('mediasoup')
+    if (isMediasoupNoise) {
+      logger.warn({ err }, '[crash] Suppressed mediasoup exception:')
       return
     }
     logger.error({ err }, '[crash] Uncaught exception — exiting:')
@@ -474,6 +651,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     roomSignaling.disconnect()
     roomRelay.cleanup()
     await roomHub.closeAll()
+    msWorker.close()
     io.close()
     await app.close()
     await kernel.shutdown()

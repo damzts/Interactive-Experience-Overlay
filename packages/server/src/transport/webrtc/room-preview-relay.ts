@@ -1,17 +1,16 @@
 /**
- * Room preview relay — forward participant video streams to the admin UI.
+ * Room preview relay — forward participant video streams to the admin UI using mediasoup.
  *
- * Creates one sendonly RTCPeerConnection per participant that has a video track,
- * then signals the SDP offer to the admin via Socket.IO.
+ * Creates one send-only WebRtcTransport per admin socket, then creates Consumers
+ * for each participant's video Producer.
+ *
+ * mediasoup advantage: Consumers can be created/destroyed independently of Producers.
+ * When admin disconnects and reconnects, we simply create new Consumers.
  */
 
-import {
-  RTCPeerConnection,
-  MediaStreamTrack,
-  type RTCIceCandidateInit,
-} from 'werift'
+import type * as mediasoup from 'mediasoup'
 import type { Socket } from 'socket.io'
-import type { RoomHub, ParticipantMedia } from './room-hub.js'
+import type { RoomHub } from './room-hub.js'
 import logger from '../../lib/logger.js'
 
 // ---------------------------------------------------------------------------
@@ -28,16 +27,25 @@ export interface RoomPreviewStreamInfo {
 export type RoomPreviewOfferCallback = (userId: string, sdp: string) => void
 
 // ---------------------------------------------------------------------------
-// Participant connection state
+// Per-admin transport state
 // ---------------------------------------------------------------------------
 
-interface ParticipantRelay {
+interface AdminTransport {
+  socketId: string
+  transport: mediasoup.types.WebRtcTransport
+  connected: boolean
+  consumers: Map<string, mediasoup.types.Consumer> // producerId → Consumer
+}
+
+// ---------------------------------------------------------------------------
+// Participant producer tracking
+// ---------------------------------------------------------------------------
+
+interface ParticipantProducers {
   userId: string
   displayName: string
-  pc: RTCPeerConnection
-  audioTrack: MediaStreamTrack | null
-  videoTrack: MediaStreamTrack | null
-  connected: boolean
+  videoProducerId: string | null
+  audioProducerId: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -45,174 +53,246 @@ interface ParticipantRelay {
 // ---------------------------------------------------------------------------
 
 export class RoomPreviewRelay {
-  private relays = new Map<string, ParticipantRelay>()
+  private participantProducers = new Map<string, ParticipantProducers>()
+  private adminTransports = new Map<string, AdminTransport>() // socketId → AdminTransport
   private adminSockets = new Map<string, Socket>()
   private hub: RoomHub | null = null
+  private router: mediasoup.types.Router | null = null
   private offerCallbacks: RoomPreviewOfferCallback[] = []
 
-  private get adminSocket(): Socket | null {
-    return this.adminSockets.values().next().value ?? null
-  }
+  /**
+   * When true, producer references persist even when all admin sockets
+   * disconnect. When a new admin socket connects, consumers are re-created.
+   */
+  persistOnDisconnect = true
 
   private emit(event: string, payload: unknown): void {
     for (const sock of this.adminSockets.values()) sock.emit(event as any, payload)
   }
 
+  setRouter(router: mediasoup.types.Router): void {
+    this.router = router
+  }
+
   bindHub(hub: RoomHub): void {
     this.hub = hub
 
-    hub.onTrack((userId, kind, _track) => {
-      if (this.adminSockets.size === 0) return
-
-      if (kind === 'video') {
-        const existing = this.relays.get(userId)
-        if (existing) {
-          existing.videoTrack = _track
-          if (existing.connected) {
-            const sender = existing.pc.getSenders().find(s => s.track?.kind === 'video')
-            if (sender) sender.replaceTrack(_track).catch(() => {})
-          }
-          return
-        }
-        this.createRelay(userId, _track, hub.getAudioTrack(userId) ?? undefined)
-      } else if (kind === 'audio') {
-        const existing = this.relays.get(userId)
-        if (existing) existing.audioTrack = _track
-      }
-    })
-
     hub.onParticipantRemoved((userId) => {
-      this.removeRelay(userId)
+      this.removeParticipant(userId)
     })
   }
 
-  setSocket(socket: Socket): void {
+  /**
+   * Notify the preview relay that a new mediasoup Producer is available for a participant.
+   * Called by the RTP bridge in desktop-entry when a track is bridged.
+   */
+  notifyProducer(userId: string, kind: 'audio' | 'video', producerId: string): void {
+    if (this.adminSockets.size === 0 && !this.persistOnDisconnect) return
+
+    let entry = this.participantProducers.get(userId)
+    if (!entry) {
+      entry = { userId, displayName: 'Participant', videoProducerId: null, audioProducerId: null }
+      this.participantProducers.set(userId, entry)
+    }
+
+    if (kind === 'video') {
+      entry.videoProducerId = producerId
+    } else {
+      entry.audioProducerId = producerId
+    }
+
+    // Create consumers on all connected admin transports
+    if (kind === 'video') {
+      for (const adminTransport of this.adminTransports.values()) {
+        if (adminTransport.connected) {
+          void this.consumeForAdmin(adminTransport, userId, producerId)
+        }
+      }
+    }
+  }
+
+  async setSocket(socket: Socket): Promise<void> {
     this.adminSockets.set(socket.id, socket)
     socket.emit('pov-online:preview:status', this.getStatus())
-    const existingRelays = [...this.relays.values()]
-    for (const relay of existingRelays) this.removeRelay(relay.userId)
-    if (this.hub) {
-      for (const userId of this.hub.getParticipantIds()) {
-        const videoTrack = this.hub.getVideoTrack(userId)
-        if (videoTrack) {
-          const audioTrack = this.hub.getAudioTrack(userId) ?? undefined
-          void this.createRelay(userId, videoTrack, audioTrack)
-        }
+
+    if (!this.router) {
+      logger.warn('[room-preview-relay] No router set — cannot create admin transport')
+      return
+    }
+
+    // Create a new transport for this admin socket
+    const transport = await this.router.createWebRtcTransport({
+      listenInfos: [
+        { protocol: 'udp', ip: '0.0.0.0', announcedAddress: getAnnouncedIp() },
+        { protocol: 'tcp', ip: '0.0.0.0', announcedAddress: getAnnouncedIp() },
+      ],
+      enableUdp: true,
+      enableTcp: true,
+      preferUdp: true,
+    })
+
+    const adminTransport: AdminTransport = {
+      socketId: socket.id,
+      transport,
+      connected: false,
+      consumers: new Map(),
+    }
+    this.adminTransports.set(socket.id, adminTransport)
+
+    // Send transport info to admin
+    socket.emit('pov-online:preview:transport-offer' as any, {
+      transportOptions: {
+        id: transport.id,
+        iceParameters: transport.iceParameters,
+        iceCandidates: transport.iceCandidates,
+        dtlsParameters: transport.dtlsParameters,
+        sctpParameters: transport.sctpParameters,
+      },
+      routerRtpCapabilities: this.router.rtpCapabilities,
+      participants: this.getStatus(),
+    })
+
+    logger.info({ socketId: socket.id }, '[room-preview-relay] transport offer sent to admin')
+  }
+
+  /**
+   * Handle admin transport connect (DTLS handshake).
+   */
+  async handleTransportConnect(socketId: string, dtlsParameters: mediasoup.types.DtlsParameters): Promise<void> {
+    const adminTransport = this.adminTransports.get(socketId)
+    if (!adminTransport) {
+      logger.warn({ socketId }, '[room-preview-relay] connect for unknown admin transport')
+      return
+    }
+
+    await adminTransport.transport.connect({ dtlsParameters })
+    adminTransport.connected = true
+    logger.info({ socketId }, '[room-preview-relay] admin transport connected')
+
+    // Create consumers for all current participants
+    for (const [userId, entry] of this.participantProducers) {
+      if (entry.videoProducerId) {
+        await this.consumeForAdmin(adminTransport, userId, entry.videoProducerId)
       }
     }
   }
 
   clearSocket(socketId: string): void {
     this.adminSockets.delete(socketId)
-    if (this.adminSockets.size === 0) {
-      for (const [id] of this.relays) this.removeRelay(id)
+
+    const adminTransport = this.adminTransports.get(socketId)
+    if (adminTransport) {
+      // Close all consumers for this admin
+      for (const consumer of adminTransport.consumers.values()) {
+        consumer.close()
+      }
+      adminTransport.transport.close()
+      this.adminTransports.delete(socketId)
+    }
+
+    if (this.adminSockets.size === 0 && !this.persistOnDisconnect) {
+      this.participantProducers.clear()
     }
   }
 
-  async handleAnswer(userId: string, sdp: string): Promise<void> {
-    const relay = this.relays.get(userId)
-    if (!relay) {
-      logger.warn({ userId }, '[room-preview-relay] answer for unknown participant')
+  // Legacy SDP-based methods kept for backward compat (no-ops in mediasoup mode)
+  async handleAnswer(_userId: string, _sdp: string): Promise<void> {
+    // Handled via handleTransportConnect in mediasoup mode
+  }
+
+  async handleIceCandidate(_userId: string, _candidate: unknown): Promise<void> {
+    // mediasoup handles ICE internally
+  }
+
+  private async consumeForAdmin(adminTransport: AdminTransport, userId: string, producerId: string): Promise<void> {
+    if (!this.router) return
+
+    // Check if already consuming this producer
+    if (adminTransport.consumers.has(producerId)) return
+
+    if (!this.router.canConsume({ producerId, rtpCapabilities: this.router.rtpCapabilities })) {
+      logger.warn(`[room-preview-relay] cannot consume producer ${producerId} for admin`)
       return
     }
-    try {
-      await relay.pc.setRemoteDescription({ type: 'answer', sdp })
-      relay.connected = true
-      logger.info({ userId }, '[room-preview-relay] participant relay connected')
-    } catch (err) {
-      logger.error({ err, userId }, '[room-preview-relay] failed to set answer')
-    }
-  }
-
-  async handleIceCandidate(userId: string, candidate: RTCIceCandidateInit): Promise<void> {
-    const relay = this.relays.get(userId)
-    if (!relay) return
-    try {
-      await relay.pc.addIceCandidate(candidate)
-    } catch {
-      // Stale candidates are fine
-    }
-  }
-
-  private async createRelay(
-    userId: string,
-    videoTrack: MediaStreamTrack,
-    audioTrack?: MediaStreamTrack,
-  ): Promise<void> {
-    if (this.adminSockets.size === 0) return
-
-    const existing = this.relays.get(userId)
-    if (existing) return
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    })
-
-    const relay: ParticipantRelay = {
-      userId,
-      displayName: `Participant`,
-      pc,
-      audioTrack: audioTrack ?? null,
-      videoTrack,
-      connected: false,
-    }
-    this.relays.set(userId, relay)
-
-    pc.onIceCandidate.subscribe((candidate: any) => {
-      if (candidate) {
-        this.emit('pov-online:preview:ice', { userId, candidate: candidate.toJSON() })
-      }
-    })
-
-    pc.addTrack(videoTrack)
 
     try {
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-
-      this.emit('pov-online:preview:offer', {
-        userId,
-        sdp: pc.localDescription!.sdp,
-        displayName: relay.displayName,
-        hasAudio: !!audioTrack,
-        hasVideo: true,
+      const consumer = await adminTransport.transport.consume({
+        producerId,
+        rtpCapabilities: this.router.rtpCapabilities,
+        paused: false,
       })
 
-      logger.info({ userId }, '[room-preview-relay] offer sent to admin')
+      adminTransport.consumers.set(producerId, consumer)
+
+      // Notify the specific admin socket
+      const socket = this.adminSockets.get(adminTransport.socketId)
+      if (socket) {
+        socket.emit('pov-online:preview:new-consumer' as any, {
+          userId,
+          consumerId: consumer.id,
+          producerId: consumer.producerId,
+          kind: consumer.kind,
+          rtpParameters: consumer.rtpParameters,
+          displayName: this.participantProducers.get(userId)?.displayName ?? 'Participant',
+        })
+      }
+
+      logger.info({ userId, socketId: adminTransport.socketId }, '[room-preview-relay] consumer created for admin')
     } catch (err) {
-      logger.error({ err, userId }, '[room-preview-relay] failed to create offer')
-      this.removeRelay(userId)
+      logger.error({ err, userId }, '[room-preview-relay] failed to create consumer for admin')
     }
   }
 
-  private removeRelay(userId: string): void {
-    const relay = this.relays.get(userId)
-    if (!relay) return
-    try { relay.pc.close() } catch { /* ignore */ }
-    this.relays.delete(userId)
+  private removeParticipant(userId: string): void {
+    const entry = this.participantProducers.get(userId)
+    if (!entry) return
+
+    // Close consumers for this participant across all admin transports
+    for (const adminTransport of this.adminTransports.values()) {
+      if (entry.videoProducerId) {
+        const consumer = adminTransport.consumers.get(entry.videoProducerId)
+        if (consumer) { consumer.close(); adminTransport.consumers.delete(entry.videoProducerId) }
+      }
+      if (entry.audioProducerId) {
+        const consumer = adminTransport.consumers.get(entry.audioProducerId)
+        if (consumer) { consumer.close(); adminTransport.consumers.delete(entry.audioProducerId) }
+      }
+    }
+
+    this.participantProducers.delete(userId)
 
     if (this.adminSockets.size > 0) {
       this.emit('pov-online:preview:removed', { userId })
     }
 
-    logger.info({ userId }, '[room-preview-relay] relay removed')
+    logger.info({ userId }, '[room-preview-relay] participant removed')
   }
 
   cleanup(): void {
-    for (const [id] of [...this.relays]) {
-      this.removeRelay(id)
+    for (const adminTransport of this.adminTransports.values()) {
+      for (const consumer of adminTransport.consumers.values()) consumer.close()
+      adminTransport.transport.close()
     }
+    this.adminTransports.clear()
+    this.participantProducers.clear()
     this.adminSockets.clear()
   }
 
   getStatus(): RoomPreviewStreamInfo[] {
-    return [...this.relays.values()].map(r => ({
+    return [...this.participantProducers.values()].map(r => ({
       userId: r.userId,
       displayName: r.displayName,
-      hasVideo: !!r.videoTrack,
-      hasAudio: !!r.audioTrack,
+      hasVideo: !!r.videoProducerId,
+      hasAudio: !!r.audioProducerId,
     }))
   }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+/** Preview relay is always localhost — admin runs on the same machine */
+function getAnnouncedIp(): string {
+  return '127.0.0.1'
 }
 
 /** @deprecated Use RoomPreviewRelay */
