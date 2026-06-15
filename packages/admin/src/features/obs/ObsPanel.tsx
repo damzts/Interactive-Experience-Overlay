@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigCard, ConfigPageIntro, ConfigSectionPanel, Field } from '../../shared/ui'
+import { getOverlayRuntimeOrigin } from '../../shared/runtimeUrls'
 
 export function ObsPanel() {
+  const overlayRuntimeUrl = getOverlayRuntimeOrigin()
   const obsStatus  = useAdminStore((s) => s.obsStatus)
   const saveConfig = useAdminStore((s) => s.saveConfig)
   const savedObs   = useAdminStore((s) => s.config.obs)
@@ -50,6 +52,21 @@ export function ObsPanel() {
         title="OBS"
         description="WebSocket connection to OBS Studio. The server uses this bridge for hotkey passthrough and scene sync."
       />
+
+      <ConfigSectionPanel label="Setup guide">
+        <ConfigCard>
+          <ol className="text-xs text-zinc-400 list-decimal list-inside space-y-1.5 leading-relaxed">
+            <li>In OBS: create ONE scene called <strong className="text-zinc-200">STREAM</strong></li>
+            <li>Add a <strong className="text-zinc-200">Game Capture</strong> source as the bottom layer</li>
+            <li>Add a <strong className="text-zinc-200">Browser Source</strong> pointing to{' '}
+              <code className="font-mono text-cyan-400">{overlayRuntimeUrl}</code>
+            </li>
+            <li>Set Browser Source to 1920×1080 and enable <em>Transparent Background</em></li>
+            <li>Enable OBS WebSocket from <strong className="text-zinc-200">Tools → obs-websocket Settings → Enable</strong></li>
+            <li>Configure the URL and password in <strong className="text-zinc-200">WebSocket settings</strong> below</li>
+          </ol>
+        </ConfigCard>
+      </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Connection status">
         <ConfigCard>
