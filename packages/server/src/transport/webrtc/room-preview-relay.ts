@@ -50,6 +50,14 @@ export class RoomPreviewRelay {
   private hub: RoomHub | null = null
   private offerCallbacks: RoomPreviewOfferCallback[] = []
 
+  /**
+   * When true, relay PeerConnections persist even when all admin sockets
+   * disconnect. This provides defense-in-depth: if the admin socket briefly
+   * disconnects (network hiccup or navigation), relays survive and are
+   * re-bound when a new admin socket connects via `setSocket()`.
+   */
+  persistOnDisconnect = true
+
   private get adminSocket(): Socket | null {
     return this.adminSockets.values().next().value ?? null
   }
@@ -62,7 +70,7 @@ export class RoomPreviewRelay {
     this.hub = hub
 
     hub.onTrack((userId, kind, _track) => {
-      if (this.adminSockets.size === 0) return
+      if (this.adminSockets.size === 0 && !this.persistOnDisconnect) return
 
       if (kind === 'video') {
         const existing = this.relays.get(userId)
@@ -104,9 +112,12 @@ export class RoomPreviewRelay {
 
   clearSocket(socketId: string): void {
     this.adminSockets.delete(socketId)
-    if (this.adminSockets.size === 0) {
+    if (this.adminSockets.size === 0 && !this.persistOnDisconnect) {
       for (const [id] of this.relays) this.removeRelay(id)
     }
+    // When persistOnDisconnect is true (default), relays stay alive even
+    // after the last admin socket disconnects. They will be re-bound when
+    // a new admin socket calls setSocket().
   }
 
   async handleAnswer(userId: string, sdp: string): Promise<void> {
@@ -139,10 +150,28 @@ export class RoomPreviewRelay {
     videoTrack: MediaStreamTrack,
     audioTrack?: MediaStreamTrack,
   ): Promise<void> {
-    if (this.adminSockets.size === 0) return
+    if (this.adminSockets.size === 0 && !this.persistOnDisconnect) return
 
     const existing = this.relays.get(userId)
     if (existing) return
+
+    // When no admin socket is connected but persistOnDisconnect is active,
+    // store a lightweight relay entry without creating a PeerConnection.
+    // When an admin reconnects via setSocket(), relays are rebuilt with
+    // proper PeerConnections and signaling.
+    if (this.adminSockets.size === 0) {
+      const relay: ParticipantRelay = {
+        userId,
+        displayName: `Participant`,
+        pc: null as unknown as RTCPeerConnection,
+        audioTrack: audioTrack ?? null,
+        videoTrack,
+        connected: false,
+      }
+      this.relays.set(userId, relay)
+      logger.info({ userId }, '[room-preview-relay] relay persisted (no admin socket)')
+      return
+    }
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -188,7 +217,7 @@ export class RoomPreviewRelay {
   private removeRelay(userId: string): void {
     const relay = this.relays.get(userId)
     if (!relay) return
-    try { relay.pc.close() } catch { /* ignore */ }
+    try { if (relay.pc) relay.pc.close() } catch { /* ignore */ }
     this.relays.delete(userId)
 
     if (this.adminSockets.size > 0) {

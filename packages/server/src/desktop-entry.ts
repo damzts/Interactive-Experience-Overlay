@@ -345,7 +345,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   })
 
   // Auto-select first participant; relay fresh tracks on re-offer for active camera
-  roomHub.onTrack((userId) => {
+  roomHub.onTrack((userId, kind) => {
+    if (kind !== 'video') return  // Only trigger relay when VIDEO track arrives
     if (!povOrchestrator.activeCameraId) {
       povOrchestrator.switcher.manualSelect(userId)
     } else if (userId === povOrchestrator.activeCameraId) {
@@ -363,6 +364,19 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     socket.on('pov-online:relay:subscribe', () => {
       logger.info('[pov-relay] overlay subscribed')
       roomRelay.createOffer((event, payload) => socket.emit(event, payload))
+        .then(() => {
+          // If there's already an active camera, push its tracks to the relay
+          const activeId = povOrchestrator.activeCameraId
+          if (activeId) {
+            const videoTrack = roomHub.getVideoTrack(activeId)
+            const audioTrack = roomHub.getAudioTrack(activeId)
+            if (videoTrack) {
+              logger.info(`[pov-relay] pushing existing active camera ${activeId} to relay`)
+              roomRelay.switchTo(audioTrack, videoTrack)
+                .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo after subscribe failed'))
+            }
+          }
+        })
         .catch(e => logger.error('[pov-relay] createOffer failed:', e.message))
     })
     socket.on('pov-online:relay:answer', async (payload: { sdp: string }) => {
@@ -384,7 +398,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   roomSignaling.onStatus((status) => io.emit('room:status' as any, status))
   await app.register(roomHttpRoute, { cloudSignaling: roomSignaling, pov: povOrchestrator, hub: roomHub })
 
-  const roomManager = new RoomManager(roomSignaling, povOrchestrator, { cloudUrl, getToken })
+  const roomManager = new RoomManager(roomSignaling, povOrchestrator, {
+    cloudUrl,
+    getToken,
+    signalingFactory: () => new RoomSignaling(roomHub, povOrchestrator),
+  })
   const roomPreviewRelay = new RoomPreviewRelay()
   roomPreviewRelay.bindHub(roomHub)
   registerRoomNamespace(io, roomManager, roomPreviewRelay)

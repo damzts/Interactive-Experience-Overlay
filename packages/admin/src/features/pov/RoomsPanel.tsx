@@ -27,6 +27,45 @@ import { useAuth } from '../../auth/AuthContext'
 
 type RoomSocket = Socket<RoomServerToAdminEvents, RoomClientToServerEvents>
 
+// ── Persistent Admin Socket Singleton (Bug 1.4 fix) ────────────────
+// The /room namespace socket is created once at module level and persists
+// across component mount/unmount cycles. This prevents admin navigation
+// from destroying the server-side preview relay PeerConnections.
+
+let persistentRoomSocket: RoomSocket | null = null
+
+function getRoomSocket(): RoomSocket {
+  if (!persistentRoomSocket) {
+    persistentRoomSocket = io(`${window.location.origin}/room`, {
+      forceNew: false,
+      autoConnect: true,
+      auth: { clientType: 'admin', ...(getStoredAuthToken() ? { token: getStoredAuthToken() } : {}) },
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    }) as RoomSocket
+  }
+  return persistentRoomSocket
+}
+
+/**
+ * Re-authenticate the persistent socket with the current token and reconnect.
+ * Call this after login completes to ensure the socket has valid credentials.
+ */
+function reconnectRoomSocketWithToken(): void {
+  const socket = getRoomSocket()
+  const token = getStoredAuthToken()
+  if (token) {
+    ;(socket as any).auth = { clientType: 'admin', token }
+    if (!socket.connected) {
+      socket.connect()
+    } else {
+      // Force reconnect to send the updated auth
+      socket.disconnect()
+      socket.connect()
+    }
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 const CLOUD_ORIGIN = import.meta.env.VITE_API_ORIGIN as string || 'https://ieom.danhub.dev'
@@ -624,6 +663,8 @@ export function RoomsPanel() {
   const socketRef = useRef<RoomSocket | null>(null)
   const mountedRef = useRef(true)
   const logIdRef = useRef(0)
+  /** Ref-based Set for atomic deduplication of room codes regardless of React batching */
+  const knownRoomCodesRef = useRef(new Set<string>())
 
   // ── LAN state ────────────────────────────────────────────────────
 
@@ -662,26 +703,35 @@ export function RoomsPanel() {
     setActivityLog((prev) => [{ id, time: Date.now(), icon, text }, ...prev].slice(0, 50))
   }, [])
 
-  // ── Connect to /room namespace on mount ──────────────────────────
+  // ── Subscribe to /room namespace events (persistent socket, Bug 1.4 fix) ──
+  // The socket itself is a module-level singleton that stays connected across
+  // component mount/unmount cycles. On mount we register listeners; on unmount
+  // we remove them WITHOUT disconnecting the socket.
 
   useEffect(() => {
     mountedRef.current = true
 
-    const roomSocket: RoomSocket = io(`${window.location.origin}/room`, {
-      forceNew: true,
-      autoConnect: true,
-      auth: { clientType: 'admin', ...(getStoredAuthToken() ? { token: getStoredAuthToken() } : {}) },
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    })
-
+    const roomSocket = getRoomSocket()
     socketRef.current = roomSocket
 
-    roomSocket.on('connect', () => { if (mountedRef.current) { setSocketConnected(true); pushLog('🟢', 'Connected to server') } })
-    roomSocket.on('disconnect', () => { if (mountedRef.current) { setSocketConnected(false); pushLog('🔴', 'Disconnected from server') } })
+    // Ensure socket has current auth token (handles case where singleton
+    // was created before login completed)
+    reconnectRoomSocketWithToken()
 
-    roomSocket.on('pov-online:room:created', (payload: RoomCreatedPayload) => {
+    // If the socket is already connected, sync state immediately
+    if (roomSocket.connected) {
+      setSocketConnected(true)
+    }
+
+    // ── Event handlers ──
+    const onConnect = () => { if (mountedRef.current) { setSocketConnected(true); pushLog('🟢', 'Connected to server') } }
+    const onDisconnect = () => { if (mountedRef.current) { setSocketConnected(false); knownRoomCodesRef.current.clear(); pushLog('🔴', 'Disconnected from server') } }
+
+    const onRoomCreated = (payload: RoomCreatedPayload) => {
       if (!mountedRef.current) return
+      // Atomic deduplication: skip if room code is already known (Bug 1.1 fix)
+      if (knownRoomCodesRef.current.has(payload.roomCode)) return
+      knownRoomCodesRef.current.add(payload.roomCode)
       const newRoom: RoomStatus = {
         roomCode: payload.roomCode,
         createdAt: payload.createdAt,
@@ -696,15 +746,16 @@ export function RoomsPanel() {
       }
       setRooms((prev) => [...prev, newRoom])
       pushLog('🏠', `Room ${payload.roomCode} created`)
-    })
+    }
 
-    roomSocket.on('pov-online:room:closed', (payload: RoomClosedPayload) => {
+    const onRoomClosed = (payload: RoomClosedPayload) => {
       if (!mountedRef.current) return
+      knownRoomCodesRef.current.delete(payload.roomCode)
       setRooms((prev) => prev.filter((r) => r.roomCode !== payload.roomCode))
       pushLog('🚪', `Room ${payload.roomCode} closed`)
-    })
+    }
 
-    roomSocket.on('pov-online:participant:joined', (payload: RoomParticipantJoinedPayload) => {
+    const onParticipantJoined = (payload: RoomParticipantJoinedPayload) => {
       if (!mountedRef.current) return
       setRooms((prev) =>
         prev.map((room) => {
@@ -723,9 +774,9 @@ export function RoomsPanel() {
       setToast(`🎥 ${payload.participant.displayName} joined the room`)
       setTimeout(() => { if (mountedRef.current) setToast(null) }, 4000)
       pushLog('🎥', `${payload.participant.displayName} joined`)
-    })
+    }
 
-    roomSocket.on('pov-online:participant:left', (payload: RoomParticipantLeftPayload) => {
+    const onParticipantLeft = (payload: RoomParticipantLeftPayload) => {
       if (!mountedRef.current) return
       setRooms((prev) =>
         prev.map((room) => {
@@ -738,9 +789,9 @@ export function RoomsPanel() {
         }),
       )
       pushLog('👋', `${payload.participantId.slice(0, 8)}… left`)
-    })
+    }
 
-    roomSocket.on('pov-online:scores', (payload: RoomScoresPayload) => {
+    const onScores = (payload: RoomScoresPayload) => {
       if (!mountedRef.current) return
       setRooms((prev) =>
         prev.map((room) => {
@@ -754,9 +805,9 @@ export function RoomsPanel() {
           }
         }),
       )
-    })
+    }
 
-    roomSocket.on('pov-online:switch', (payload: RoomSwitchPayload) => {
+    const onSwitch = (payload: RoomSwitchPayload) => {
       if (!mountedRef.current) return
       setRooms((prev) =>
         prev.map((room) => {
@@ -765,13 +816,22 @@ export function RoomsPanel() {
         }),
       )
       pushLog('🔄', `POV → ${payload.newId.slice(0, 8)}… (${payload.reason})`)
-    })
+    }
 
-    roomSocket.on('pov-online:status', (payload: RoomStatus) => {
+    const onStatus = (payload: RoomStatus) => {
       if (!mountedRef.current) return
       setRooms((prev) => {
         const idx = prev.findIndex((r) => r.roomCode === payload.roomCode)
-        if (idx === -1) return [...prev, payload]
+        // Use ref-based Set for atomic deduplication (Bug 1.1 fix)
+        // Even if React state hasn't propagated yet, the Set catches duplicates
+        if (idx === -1) {
+          if (knownRoomCodesRef.current.has(payload.roomCode)) {
+            // Room already added by room:created handler — update in place instead
+            return prev.map((r) => r.roomCode === payload.roomCode ? payload : r)
+          }
+          knownRoomCodesRef.current.add(payload.roomCode)
+          return [...prev, payload]
+        }
         const updated = [...prev]
         const old = updated[idx]
         if (old.hubConnected !== payload.hubConnected) {
@@ -780,17 +840,41 @@ export function RoomsPanel() {
         updated[idx] = payload
         return updated
       })
-    })
+    }
 
-    roomSocket.on('pov-online:active-room', (payload: { roomCode: string | null }) => {
+    const onActiveRoom = (payload: { roomCode: string | null }) => {
       if (!mountedRef.current) return
       setActiveRoomCode(payload.roomCode)
-    })
+    }
 
+    // ── Register listeners ──
+    roomSocket.on('connect', onConnect)
+    roomSocket.on('disconnect', onDisconnect)
+    roomSocket.on('pov-online:room:created', onRoomCreated)
+    roomSocket.on('pov-online:room:closed', onRoomClosed)
+    roomSocket.on('pov-online:participant:joined', onParticipantJoined)
+    roomSocket.on('pov-online:participant:left', onParticipantLeft)
+    roomSocket.on('pov-online:scores', onScores)
+    roomSocket.on('pov-online:switch', onSwitch)
+    roomSocket.on('pov-online:status', onStatus)
+    roomSocket.on('pov-online:active-room', onActiveRoom)
+
+    // ── Cleanup: remove listeners only, do NOT disconnect (Bug 1.4 fix) ──
     return () => {
       mountedRef.current = false
-      roomSocket.disconnect()
-      socketRef.current = null
+      knownRoomCodesRef.current.clear()
+      roomSocket.off('connect', onConnect)
+      roomSocket.off('disconnect', onDisconnect)
+      roomSocket.off('pov-online:room:created', onRoomCreated)
+      roomSocket.off('pov-online:room:closed', onRoomClosed)
+      roomSocket.off('pov-online:participant:joined', onParticipantJoined)
+      roomSocket.off('pov-online:participant:left', onParticipantLeft)
+      roomSocket.off('pov-online:scores', onScores)
+      roomSocket.off('pov-online:switch', onSwitch)
+      roomSocket.off('pov-online:status', onStatus)
+      roomSocket.off('pov-online:active-room', onActiveRoom)
+      // Socket stays connected — preserves server-side preview relay connections
+      // socketRef is NOT nulled so other callbacks can still reference it briefly
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -803,6 +887,11 @@ export function RoomsPanel() {
         await provideAuthToken()
         const [roomsData, configData, activeRoom] = await Promise.all([getRooms(), getRoomConfig(), getActiveRoomCode()])
         if (!cancelled) {
+          // Populate known room codes Set with initially loaded rooms
+          knownRoomCodesRef.current.clear()
+          for (const room of roomsData) {
+            knownRoomCodesRef.current.add(room.roomCode)
+          }
           setRooms(roomsData)
           setConfig(configData)
           setConfigDraft(configData)

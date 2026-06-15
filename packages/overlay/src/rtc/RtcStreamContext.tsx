@@ -14,19 +14,22 @@ export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false
 
-    const cleanup = () => {
+    const cleanup = (clearStream = true) => {
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null }
-      if (!cancelled) setStream(null)
+      if (clearStream && !cancelled) setStream(null)
     }
 
     const subscribe = () => {
-      cleanup()
+      // Close old PeerConnection but DON'T clear the stream yet —
+      // keep showing the last frame until the new stream arrives.
+      cleanup(false)
       socket.emit('pov-online:relay:subscribe' as any)
     }
 
     const handleOffer = async (payload: { sdp: string }) => {
       if (cancelled) return
-      cleanup()
+      // Close old PC without clearing stream (avoid freeze flash)
+      cleanup(false)
       try {
         const pc = new RTCPeerConnection({ iceServers: [] })
         pcRef.current = pc
@@ -35,7 +38,9 @@ export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
         let streamSet = false
         pc.ontrack = (event) => {
           ms.addTrack(event.track)
-          if (!streamSet && !cancelled) {
+          // Only set the stream if at least one track is live
+          // Reject streams where all tracks are already ended
+          if (!streamSet && !cancelled && event.track.readyState === 'live') {
             streamSet = true
             setStream(ms)
           }
@@ -89,7 +94,7 @@ export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
       socket.off('pov-online:relay:offer' as any, handleOffer)
       socket.off('pov-online:relay:ice' as any, handleIce)
       socket.off('connect', subscribe)
-      cleanup()
+      cleanup(true)
     }
   }, [])
 

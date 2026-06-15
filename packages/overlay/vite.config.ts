@@ -11,10 +11,10 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
-      '/api': { target: 'https://localhost:3000', secure: false },
-      '/socket.io': { target: 'https://localhost:3000', ws: true, secure: false },
-      '/assets': { target: 'https://localhost:3000', secure: false },
-      '/media': { target: 'https://localhost:3000', secure: false },
+      '/api': { target: 'http://localhost:3000', secure: false },
+      '/socket.io': { target: 'http://localhost:3000', ws: true, secure: false },
+      '/assets': { target: 'http://localhost:3000', secure: false },
+      '/media': { target: 'http://localhost:3000', secure: false },
     },
   },
   optimizeDeps: {

@@ -18,10 +18,12 @@ function makeMockCloudSignaling() {
     isConnected: vi.fn(() => false),
     kickParticipant: vi.fn(),
     onStatus: vi.fn(),
+    onParticipantConnectionChange: vi.fn(),
     onParticipantJoin: vi.fn(),
     onParticipantLeave: vi.fn(),
     onMessage: vi.fn(),
     send: vi.fn(),
+    intentionalClose: false,
   }
 }
 
@@ -158,9 +160,19 @@ describe('OnlineRoomManager', () => {
   // ── emitKick ──────────────────────────────────────────────────────
 
   describe('emitKick', () => {
-    it('calls cloudSignaling.kickParticipant', () => {
+    it('calls cloudSignaling.kickParticipant', async () => {
+      // emitKick uses per-room signaling — need to create the room first
+      vi.stubGlobal('fetch', vi.fn(async (url: string, opts?: any) => {
+        if (opts?.method === 'POST' && url.includes('/api/rooms')) {
+          return { ok: true, json: async () => ({ room: { id: 'some-room' } }) }
+        }
+        return { ok: false, json: async () => ({}) }
+      }))
+      cloud.connect.mockResolvedValue(undefined)
+      await manager.createRoom()
       manager.emitKick('some-room', 'p1')
       expect(cloud.kickParticipant).toHaveBeenCalledWith('p1')
+      vi.unstubAllGlobals()
     })
   })
 

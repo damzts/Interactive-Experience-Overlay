@@ -48,14 +48,28 @@ export class RoomSignaling {
   private pendingCandidates = new Map<string, Record<string, unknown>[]>()
   private knownParticipants = new Set<string>()
   private frozenParticipants = new Set<string>()
+  private freezeRecoveryAttempts = new Map<string, number>()
   /** userId that was the active camera when ICE failed; cleared once they reconnect */
   private recoveringActiveParticipant: string | null = null
+  /** Set of participant userIds managed by this signaling instance's room */
+  private managedParticipants = new Set<string>()
+
+  /** Register a participant as managed by this signaling instance */
+  manageParticipant(userId: string): void {
+    this.managedParticipants.add(userId)
+  }
+
+  /** Unregister a participant from this signaling instance */
+  unmanageParticipant(userId: string): void {
+    this.managedParticipants.delete(userId)
+  }
 
   constructor(
     private hub: RoomHub,
     private pov: POVOrchestrator,
   ) {
     this.hub.onTrack((userId) => {
+      if (!this.managedParticipants.has(userId)) return
       if (!this.pov.activeCameraId) {
         this.pov.switcher.manualSelect(userId)
       } else if (this.recoveringActiveParticipant === userId) {
@@ -70,6 +84,7 @@ export class RoomSignaling {
     })
 
     this.hub.onIceCandidate((userId, candidate) => {
+      if (!this.managedParticipants.has(userId)) return
       if (this.pendingCandidates.has(userId)) {
         this.pendingCandidates.get(userId)!.push(candidate as unknown as Record<string, unknown>)
       } else {
@@ -84,6 +99,7 @@ export class RoomSignaling {
     })
 
     this.hub.onIceFailed((userId) => {
+      if (!this.managedParticipants.has(userId)) return
       if (this.frozenParticipants.has(userId)) return  // Already handling this failure
       logger.info(`[room-signaling] ICE failed for ${userId} — sending restart request`)
       this.frozenParticipants.add(userId)
@@ -107,9 +123,11 @@ export class RoomSignaling {
     })
 
     this.hub.onIceRecovered((userId) => {
+      if (!this.managedParticipants.has(userId)) return
       if (!this.frozenParticipants.has(userId)) return
       logger.info(`[room-signaling] ${userId} ICE self-recovered`)
       this.frozenParticipants.delete(userId)
+      this.freezeRecoveryAttempts.delete(userId)
       this.emitConnectionChange(userId, true)
       if (this.recoveringActiveParticipant === userId) {
         this.recoveringActiveParticipant = null
@@ -120,10 +138,30 @@ export class RoomSignaling {
     })
 
     this.hub.onTrackMuted((userId, kind) => {
+      if (!this.managedParticipants.has(userId)) return
       if (kind !== 'video') return
       if (this.frozenParticipants.has(userId)) return  // ICE failure already handling this
-      logger.info(`[room-signaling] ${userId} video frozen/muted, scheduling recovery`)
       this.frozenParticipants.add(userId)
+
+      // Track freeze recovery attempts per participant
+      const attempts = (this.freezeRecoveryAttempts.get(userId) ?? 0) + 1
+      this.freezeRecoveryAttempts.set(userId, attempts)
+
+      if (attempts > 2) {
+        // Escalate: ICE restart isn't fixing it — tell the guest to fully reconnect
+        logger.info(`[room-signaling] ${userId} video frozen after ${attempts} attempts, requesting full reconnect`)
+        this.send({
+          type: 'full-reconnect-request',
+          payload: { userId, reason: 'video-frozen-escalation' },
+          senderId: 'self',
+          timestamp: new Date().toISOString(),
+          targetUserId: userId,
+        })
+        this.frozenParticipants.delete(userId)
+        return
+      }
+
+      logger.info(`[room-signaling] ${userId} video frozen/muted, scheduling recovery (attempt ${attempts})`)
 
       const t = setTimeout(() => {
         this.freezeRecoveryTimers.delete(t)
@@ -143,7 +181,11 @@ export class RoomSignaling {
   }
 
   async connect(config: RoomSignalingConfig, timeoutMs = 10_000): Promise<void> {
-    this.disconnect()
+    // Only disconnect if this instance already has an active WebSocket (same-instance reconnect).
+    // With per-room signaling, fresh instances won't have a ws — no need to tear down other rooms.
+    if (this.ws) {
+      this.disconnect()
+    }
     this.config = config
     this.intentionalClose = false
     this.reconnectAttempt = 0
@@ -330,6 +372,7 @@ export class RoomSignaling {
           this.participantNames.delete(userId)
           this.knownParticipants.delete(userId)
           this.frozenParticipants.delete(userId)
+          this.freezeRecoveryAttempts.delete(userId)
           if (this.recoveringActiveParticipant === userId) this.recoveringActiveParticipant = null
           const pendingOffer = this.pendingOfferTimers.get(userId)
           if (pendingOffer) { clearTimeout(pendingOffer); this.pendingOfferTimers.delete(userId) }
@@ -373,6 +416,7 @@ export class RoomSignaling {
           const t = setTimeout(() => {
             this.pendingOfferTimers.delete(userId)
             logger.info(`[room-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
+            this.managedParticipants.add(userId)
             this.pendingCandidates.set(userId, [])
             this.hub.handleOffer(userId, sdp).then(answerSdp => {
               if (!answerSdp) {
@@ -389,6 +433,7 @@ export class RoomSignaling {
                 this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
               }
               this.frozenParticipants.delete(userId)
+              this.freezeRecoveryAttempts.delete(userId)
             }).catch(e => {
               logger.error({ err: e }, '[room-signaling] offer handling failed')
               this.pendingCandidates.delete(userId)

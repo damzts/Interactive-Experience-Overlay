@@ -113,8 +113,12 @@ export class RoomRelay {
   async switchTo(audioTrack: MediaStreamTrack | null, videoTrack: MediaStreamTrack | null): Promise<void> {
     this.audioTrack = audioTrack
     this.videoTrack = videoTrack
+    logger.info(`[room-relay] switchTo: video=${!!videoTrack}, audio=${!!audioTrack}, pc=${!!this.pc}, connected=${this.connected}, offered=${this.offered}`)
 
-    if (!this.pc || !this.sendSignal) return
+    if (!this.pc || !this.sendSignal) {
+      logger.warn('[room-relay] switchTo: no PC or sendSignal — cannot relay')
+      return
+    }
 
     // If the PC is closed/failed, re-create the offer from scratch
     if (this.pc.connectionState === 'closed' || this.pc.connectionState === 'failed') {
@@ -127,7 +131,10 @@ export class RoomRelay {
     if (this.connected) {
       if (videoTrack) {
         const sender = this.pc.getSenders().find(s => s.track?.kind === 'video')
-        if (sender) await sender.replaceTrack(videoTrack)
+        if (sender) {
+          await sender.replaceTrack(videoTrack)
+          logger.info('[room-relay] replaced video track on connected relay')
+        }
       }
       if (audioTrack) {
         const audioSender = this.pc.getSenders().find(s => s.track?.kind === 'audio')

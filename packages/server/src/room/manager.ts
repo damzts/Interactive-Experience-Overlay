@@ -23,6 +23,8 @@ export interface Room {
 export interface RoomManagerOptions {
   cloudUrl?: string
   getToken?: () => string | null
+  /** Factory to create per-room RoomSignaling instances. Used for testing. */
+  signalingFactory?: () => RoomSignaling
 }
 
 export type RoomEventCallback = (event: string, payload: unknown) => void
@@ -35,9 +37,12 @@ export class RoomManager {
   private eventCallbacks: RoomEventCallback[] = []
   private cloudUrl: string
   private getToken: () => string | null
-  private hubRoomId: string | null = null
+  private signalingInstances = new Map<string, RoomSignaling>()
   private hubReconnectTimer: ReturnType<typeof setTimeout> | null = null
   private activeRoomCode: string | null = null  // Room whose POV is relayed to overlay
+  private signalingFactory: () => RoomSignaling
+
+  private syncInProgress: Promise<void> | null = null
 
   private circuitBreaker = new CircuitBreaker({
     failureThreshold: 3,
@@ -46,12 +51,17 @@ export class RoomManager {
   })
 
   constructor(
-    private roomSignaling: RoomSignaling,
+    roomSignaling: RoomSignaling,
     private pov: POVOrchestrator,
     opts?: RoomManagerOptions,
   ) {
     this.cloudUrl = opts?.cloudUrl ?? process.env['IEOM_CLOUD_URL'] ?? 'https://ieom.danhub.dev'
     this.getToken = opts?.getToken ?? (() => null)
+    // Use provided factory or fall back to returning the passed-in signaling instance.
+    // IMPORTANT: The default factory returns the SAME instance for backward compat with
+    // single-room mode only. Multi-room mode REQUIRES a custom signalingFactory that
+    // creates independent instances (see desktop-entry.ts).
+    this.signalingFactory = opts?.signalingFactory ?? (() => roomSignaling)
 
     this.pov.onSwitch((prev, next, timestamp, reason) => {
       for (const room of this.rooms.values()) {
@@ -100,8 +110,15 @@ export class RoomManager {
         }
       }
     })
+  }
 
-    this.roomSignaling.onParticipantConnectionChange((userId, connected) => {
+  /**
+   * Wire up onStatus and onParticipantConnectionChange callbacks for a per-room
+   * signaling instance. Each instance reports status/connection changes only for
+   * its own room, avoiding cross-room interference.
+   */
+  private bindSignalingCallbacks(signaling: RoomSignaling): void {
+    signaling.onParticipantConnectionChange((userId, connected) => {
       for (const room of this.rooms.values()) {
         const participant = room.participants.get(userId)
         if (participant) {
@@ -115,9 +132,9 @@ export class RoomManager {
       }
     })
 
-    this.roomSignaling.onStatus((status) => {
+    signaling.onStatus((status) => {
       if (!status.roomId) return
-      if (this.roomSignaling.intentionalClose) return
+      if (signaling.intentionalClose) return
       logger.info(`[room] onStatus: roomId=${status.roomId}, participants=${status.participants.length}, rooms=${[...this.rooms.keys()].join(',')}`)
       let targetRoom: Room | undefined
       for (const room of this.rooms.values()) {
@@ -137,6 +154,17 @@ export class RoomManager {
         logger.info(`[room] onStatus: no matching room found for ${status.roomId}`)
       }
     })
+  }
+
+  /**
+   * Create a new RoomSignaling instance for a specific room, bind its callbacks,
+   * and store it in the per-room map.
+   */
+  private createSignalingForRoom(roomCode: string): RoomSignaling {
+    const signaling = this.signalingFactory()
+    this.bindSignalingCallbacks(signaling)
+    this.signalingInstances.set(roomCode, signaling)
+    return signaling
   }
 
   onEvent(cb: RoomEventCallback): void {
@@ -223,8 +251,6 @@ export class RoomManager {
       return { ok: false, error: e.name === 'AbortError' ? 'cloud_timeout' : (e.message ?? 'cloud_unreachable') }
     }
 
-    this.hubRoomId = roomCode
-
     // Register the room BEFORE connecting signaling so that the onStatus
     // callback (fired immediately on WebSocket open) can find it.
     const room: Room = {
@@ -240,14 +266,17 @@ export class RoomManager {
     this.roomConfigs.set(roomCode, { ...DEFAULT_PER_ROOM_CONFIG })
     this.participantTransitions.set(roomCode, new Map())
 
+    // Create a dedicated signaling instance for this room (per-room isolation)
+    const signaling = this.createSignalingForRoom(roomCode)
+
     try {
-      await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+      await signaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
     } catch (e: any) {
       // Rollback: remove room from local state if signaling fails
       this.rooms.delete(roomCode)
       this.roomConfigs.delete(roomCode)
       this.participantTransitions.delete(roomCode)
-      this.hubRoomId = null
+      this.signalingInstances.delete(roomCode)
       logger.error({ err: e?.message ?? e }, '[room] Hub connect failed after room creation')
       return { ok: false, error: 'hub_connect_failed' }
     }
@@ -273,8 +302,18 @@ export class RoomManager {
     }
     this.roomConfigs.delete(roomCode)
     this.participantTransitions.delete(roomCode)
-    this.hubRoomId = null
-    this.roomSignaling.disconnect()
+
+    // Clear activeRoomCode only if THIS room was the active one (scoped)
+    if (this.activeRoomCode === roomCode) {
+      this.activeRoomCode = null
+    }
+
+    // Disconnect only this room's signaling instance (scoped close)
+    const signaling = this.signalingInstances.get(roomCode)
+    if (signaling) {
+      signaling.disconnect()
+      this.signalingInstances.delete(roomCode)
+    }
 
     // Await DELETE from cloud (no longer fire-and-forget)
     const token = this.getToken()
@@ -345,19 +384,22 @@ export class RoomManager {
     }
     if (!token) return { ok: false, error: 'not_authenticated' }
 
-    if (this.hubRoomId === roomCode && this.roomSignaling.isConnected()) {
+    // Check if this room already has a connected signaling instance
+    const existing = this.signalingInstances.get(roomCode)
+    if (existing?.isConnected()) {
       return { ok: true }
     }
 
-    if (this.hubRoomId && this.hubRoomId !== roomCode) {
-      this.roomSignaling.disconnect()
+    // Create or reuse signaling instance for this room
+    let signaling = this.signalingInstances.get(roomCode)
+    if (!signaling) {
+      signaling = this.createSignalingForRoom(roomCode)
     }
 
-    this.hubRoomId = roomCode
     try {
-      await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
+      await signaling.connect({ cloudUrl: this.cloudUrl, token, roomId: roomCode })
     } catch (e: any) {
-      this.hubRoomId = null
+      this.signalingInstances.delete(roomCode)
       logger.error({ err: e?.message ?? e }, '[room] Rejoin room failed')
       return { ok: false, error: 'hub_connect_failed' }
     }
@@ -436,89 +478,110 @@ export class RoomManager {
   }
 
   async syncFromCloud(): Promise<void> {
-    let token = this.getToken()
-    const hasUserToken = !!token
-    if (!token) {
-      try {
-        const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
-        if (res.ok) {
-          const data = await res.json() as { token: string }
-          // Re-check after the async fetch: POST /api/online/auth may have set a real
-          // user token while we were waiting. If so, use it and don't overwrite it.
-          const currentToken = this.getToken()
-          if (currentToken) {
-            token = currentToken
-            logger.info('[room] syncFromCloud: real token arrived during guest fetch, using it')
-          } else {
-            token = data.token
-            this.setToken(token)
-            logger.info('[room] syncFromCloud: obtained guest token')
-          }
-        }
-      } catch { /* ignore */ }
-    }
-    if (!token) {
-      logger.warn('[room] syncFromCloud: no token available (user not authenticated, guest token failed)')
-      return
-    }
+    // Mutex: coalesce concurrent calls into a single execution
+    if (this.syncInProgress) return this.syncInProgress
+    this.syncInProgress = this.doSyncFromCloud()
+    return this.syncInProgress
+  }
+
+  private async doSyncFromCloud(): Promise<void> {
     try {
-      const res = await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-      if (!res.ok) {
-        logger.warn({ status: res.status, hasUserToken }, '[room] syncFromCloud: cloud API error')
+      let token = this.getToken()
+      const hasUserToken = !!token
+      if (!token) {
+        try {
+          const res = await fetch(`${this.cloudUrl}/api/auth/guest-token`, { method: 'GET' })
+          if (res.ok) {
+            const data = await res.json() as { token: string }
+            // Re-check after the async fetch: POST /api/online/auth may have set a real
+            // user token while we were waiting. If so, use it and don't overwrite it.
+            const currentToken = this.getToken()
+            if (currentToken) {
+              token = currentToken
+              logger.info('[room] syncFromCloud: real token arrived during guest fetch, using it')
+            } else {
+              token = data.token
+              this.setToken(token)
+              logger.info('[room] syncFromCloud: obtained guest token')
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      if (!token) {
+        logger.warn('[room] syncFromCloud: no token available (user not authenticated, guest token failed)')
         return
       }
-      const cloudRooms = await res.json() as Array<{ id: string; createdAt: string; participantCount: number; hubConnected: boolean }>
-      logger.info({ count: cloudRooms.length, hasUserToken }, '[room] syncFromCloud: found rooms')
-
-      for (const [code] of this.rooms) {
-        if (!cloudRooms.some((cr) => cr.id === code) && code !== this.hubRoomId) {
-          this.rooms.delete(code)
-        }
-      }
-
-      for (const cr of cloudRooms) {
-        if (!this.rooms.has(cr.id)) {
-          const room: Room = {
-            roomCode: cr.id,
-            createdAt: new Date(cr.createdAt).getTime(),
-            mode: 'automatic',
-            participants: new Map(),
-            activePlayerId: null,
-            idleTimer: null,
-          }
-          this.rooms.set(cr.id, room)
-        }
-      }
-
-      if (!this.hubRoomId && cloudRooms.length > 0) {
-        const firstRoom = cloudRooms[0]
-        // NO reconectar si la room está en proceso de cierre
-        if (this.rooms.get(firstRoom.id)?.closing) {
-          logger.info({ roomId: firstRoom.id }, '[room] syncFromCloud: skipping reconnect for closing room')
+      try {
+        const res = await this.circuitBreaker.call(`${this.cloudUrl}/api/rooms`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          logger.warn({ status: res.status, hasUserToken }, '[room] syncFromCloud: cloud API error')
           return
         }
-        this.hubRoomId = firstRoom.id
-        if (this.hubReconnectTimer) { clearTimeout(this.hubReconnectTimer); this.hubReconnectTimer = null }
-        try {
-          await this.roomSignaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
-          this.setActiveRoomCode(firstRoom.id)
-          const room = this.rooms.get(firstRoom.id)
-          if (room) this.emit('pov-online:status', this.toStatus(room))
-        } catch (e: any) {
-          this.hubRoomId = null
-          logger.info({ err: e?.message ?? e }, '[room] syncFromCloud: hub reconnect failed, retrying in 5s')
-          // Cloud may need a moment to clean up after an abrupt hub disconnect.
-          // Schedule one automatic retry so the hub rejoins without admin intervention.
-          if (this.hubReconnectTimer) clearTimeout(this.hubReconnectTimer)
-          this.hubReconnectTimer = setTimeout(() => {
-            this.hubReconnectTimer = null
-            this.syncFromCloud().catch(() => {})
-          }, 5_000)
+        const cloudRooms = await res.json() as Array<{ id: string; createdAt: string; participantCount: number; hubConnected: boolean }>
+        logger.info({ count: cloudRooms.length, hasUserToken }, '[room] syncFromCloud: found rooms')
+
+        for (const [code] of this.rooms) {
+          if (!cloudRooms.some((cr) => cr.id === code)) {
+            // Protect rooms that have an actively connected signaling instance
+            // (race condition: cloud may not have propagated a recently-created room yet)
+            const sig = this.signalingInstances.get(code)
+            if (sig?.isConnected()) continue
+            // Stale room — clean up signaling and remove
+            if (sig) { sig.disconnect(); this.signalingInstances.delete(code) }
+            this.rooms.delete(code)
+          }
         }
-      }
-    } catch (e: any) { logger.info({ err: e.message }, '[room] syncFromCloud error') }
+
+        for (const cr of cloudRooms) {
+          if (!this.rooms.has(cr.id)) {
+            const room: Room = {
+              roomCode: cr.id,
+              createdAt: new Date(cr.createdAt).getTime(),
+              mode: 'automatic',
+              participants: new Map(),
+              activePlayerId: null,
+              idleTimer: null,
+            }
+            this.rooms.set(cr.id, room)
+          }
+        }
+
+        // Connect signaling for rooms that don't yet have an active instance
+        if (cloudRooms.length > 0) {
+          const firstRoom = cloudRooms[0]
+          // Don't reconnect if the room is closing
+          if (this.rooms.get(firstRoom.id)?.closing) {
+            logger.info({ roomId: firstRoom.id }, '[room] syncFromCloud: skipping reconnect for closing room')
+            return
+          }
+          // Only connect if no signaling instance exists for this room yet
+          if (!this.signalingInstances.has(firstRoom.id)) {
+            if (this.hubReconnectTimer) { clearTimeout(this.hubReconnectTimer); this.hubReconnectTimer = null }
+            const signaling = this.createSignalingForRoom(firstRoom.id)
+            try {
+              await signaling.connect({ cloudUrl: this.cloudUrl, token, roomId: firstRoom.id })
+              this.setActiveRoomCode(firstRoom.id)
+              const room = this.rooms.get(firstRoom.id)
+              if (room) this.emit('pov-online:status', this.toStatus(room))
+            } catch (e: any) {
+              this.signalingInstances.delete(firstRoom.id)
+              logger.info({ err: e?.message ?? e }, '[room] syncFromCloud: hub reconnect failed, retrying in 5s')
+              // Cloud may need a moment to clean up after an abrupt hub disconnect.
+              // Schedule one automatic retry so the hub rejoins without admin intervention.
+              if (this.hubReconnectTimer) clearTimeout(this.hubReconnectTimer)
+              this.hubReconnectTimer = setTimeout(() => {
+                this.hubReconnectTimer = null
+                this.syncFromCloud().catch(() => {})
+              }, 5_000)
+            }
+          }
+        }
+      } catch (e: any) { logger.info({ err: e.message }, '[room] syncFromCloud error') }
+    } finally {
+      this.syncInProgress = null
+    }
   }
 
   getRoom(roomCode: string): RoomStatus | undefined {
@@ -540,6 +603,9 @@ export class RoomManager {
     }
     room.participants.set(id, participant)
     this.pov.addParticipant(id, displayName)
+    // Register participant with the room's signaling instance so hub callbacks route correctly
+    const signaling = this.signalingInstances.get(roomCode)
+    if (signaling) signaling.manageParticipant(id)
     if (room.idleTimer) { clearTimeout(room.idleTimer); room.idleTimer = null }
     this.emit('pov-online:participant:joined', { roomCode, participant })
   }
@@ -549,6 +615,9 @@ export class RoomManager {
     if (!room || !room.participants.has(participantId)) return
     room.participants.delete(participantId)
     this.pov.removeParticipant(participantId)
+    // Unregister participant from the room's signaling instance
+    const signaling = this.signalingInstances.get(roomCode)
+    if (signaling) signaling.unmanageParticipant(participantId)
     if (room.activePlayerId === participantId) room.activePlayerId = null
     const transitionMap = this.participantTransitions.get(roomCode)
     if (transitionMap) transitionMap.delete(participantId)
@@ -562,7 +631,10 @@ export class RoomManager {
 
   emitKick(roomCode: string, participantId: string): void {
     this.emit('pov-online:participant:kicked', { roomCode, participantId })
-    this.roomSignaling.kickParticipant(participantId)
+    const signaling = this.signalingInstances.get(roomCode)
+    if (signaling) {
+      signaling.kickParticipant(participantId)
+    }
   }
 
   private syncParticipants(room: Room, participantIds: string[], names?: Map<string, string>): void {
@@ -580,6 +652,7 @@ export class RoomManager {
   }
 
   private toStatus(room: Room): RoomStatus {
+    const signaling = this.signalingInstances.get(room.roomCode)
     return {
       roomCode: room.roomCode,
       createdAt: room.createdAt,
@@ -589,7 +662,7 @@ export class RoomManager {
       participants: [...room.participants.values()],
       activePlayerId: room.activePlayerId,
       mode: room.mode,
-      hubConnected: this.hubRoomId === room.roomCode && this.roomSignaling.isConnected(),
+      hubConnected: signaling?.isConnected() ?? false,
       config: this.roomConfigs.get(room.roomCode) ?? { ...DEFAULT_PER_ROOM_CONFIG },
     }
   }
