@@ -20,7 +20,8 @@ import { WiresPanel } from '../wires/WiresPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
 import { SpotifyPanel } from '../spotify/SpotifyPanel'
-import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
+import { MediaLibraryPanel } from '../asset-library/AssetLibraryPanel'
+import { MediaLibraryProvider } from '../asset-library/AssetLibraryContext'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
 import { NewWidgetForm } from './NewWidgetForm'
@@ -125,14 +126,22 @@ if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'spotify') return <SpotifyPanel />
   if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
-  if (selected.kind === 'asset-catalog')     return <AssetLibraryPanel tab="catalog" />
-  if (selected.kind === 'asset-events')      return <AssetLibraryPanel tab="events" />
-  if (selected.kind === 'asset-sources')     return <AssetLibraryPanel tab="sources" />
-  if (selected.kind === 'asset-transitions') return <AssetLibraryPanel tab="transitions" />
-  if (selected.kind === 'asset-library')     return <AssetLibraryPanel tab="catalog" />
+  if (selected.kind === 'asset-catalog')     return <MediaLibraryPanel tab="catalog" />
+  if (selected.kind === 'asset-events')      return <MediaLibraryPanel tab="events" />
+  if (selected.kind === 'asset-sources')     return <MediaLibraryPanel tab="sources" />
+  if (selected.kind === 'asset-transitions') return <MediaLibraryPanel tab="transitions" />
 
   return null
 }
+
+// ── Media tabs (module-level — stable across renders) ──────────────
+
+const MEDIA_TABS: Array<{ kind: SelectedItem['kind']; icon: string; label: string }> = [
+  { kind: 'asset-catalog',     icon: '🖼', label: 'Gallery' },
+  { kind: 'asset-events',      icon: '⚡', label: 'Effects' },
+  { kind: 'asset-sources',     icon: '📺', label: 'Renders' },
+  { kind: 'asset-transitions', icon: '✨', label: 'Transitions' },
+]
 
 // ── SystemSidebar ──────────────────────────────────────────────────
 
@@ -168,184 +177,147 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   const applications  = useAdminStore((s) => s.config.applications)
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds)
-  const triggerScene = (state: string) => {
+  const triggerScene  = (state: string) => {
     setLastError(null)
     socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
   }
 
   const showNavList = activeSection === 'scenes' || activeSection === 'widgets'
 
-  const ASSET_TABS: Array<{ kind: SelectedItem['kind']; icon: string; label: string }> = [
-    { kind: 'asset-catalog',     icon: '🗂', label: 'Catalog' },
-    { kind: 'asset-events',      icon: '⚡', label: 'Events' },
-    { kind: 'asset-sources',     icon: '📺', label: 'Sources' },
-    { kind: 'asset-transitions', icon: '✨', label: 'Transitions' },
-  ]
-
-  if (!selected) {
-    return (
-      <div className="flex flex-1 min-w-0 overflow-hidden bg-[var(--color-bg-base)]">
-        {showNavList && onSelect && onActivate && (
-          <NavListBox selected={selected} onSelect={onSelect} onActivate={onActivate} activeSection={activeSection} />
-        )}
-        {activeSection === 'media' && (
-          <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
-            <SectionLabel first>Media</SectionLabel>
-            {ASSET_TABS.map(({ kind, icon, label }) => (
-              <SidebarBtn key={kind} icon={icon} label={label} active={false} onClick={() => onSelectItem({ kind } as SelectedItem)} />
-            ))}
-          </div>
-        )}
-        {activeSection === 'system' && (
-          <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
-            <SectionLabel first>System</SectionLabel>
-            {SYSTEM_ITEMS.map(({ icon, label, kind }) => (
-              <SidebarBtn key={kind} icon={icon} label={label}
-                active={false}
-                onClick={() => onSelectItem({ kind } as SelectedItem)} />
-            ))}
-          </div>
-        )}
-        <div className="flex-1 min-w-0 overflow-y-auto">
-          <ConfigCard className="text-left">
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
-            <div className="text-[10px] text-zinc-400 leading-relaxed">
-              Scene = compositor content. Widget = desktop window. Runtime = lifecycle manager (Lobby, Desktop).
-            </div>
-          </ConfigCard>
-        </div>
-      </div>
-    )
-  }
-
-  // Build header info
+  // ── Header metadata (only used when selected is non-null) ──────────
   let headerIcon: React.ReactNode = ''
   let headerLabel = ''
-  let headerMeta = ''
+  let headerMeta  = ''
   let actionLabel = ''
   let actionFn: (() => void) | null = null
   let isLive = false
 
-  if (selected.kind === 'env') {
-    headerIcon  = selected.envState === STATE.LOBBY ? '🖥' : '💾'
-    headerLabel = selected.envState === STATE.LOBBY ? 'Lobby' : 'Desktop'
-    headerMeta  = 'Scene'
-    isLive      = currentState === selected.envState
-    actionLabel = isLive ? '● Live' : '▶ Go Live'
-    actionFn    = () => triggerScene(selected.envState)
-  } else if (selected.kind === 'scene') {
-    const app   = applications.find((a) => a.targetSceneId === selected.sceneState)
-    const scene = scenes[selected.sceneState]
-    headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
-    headerLabel = app?.label ?? scene?.label ?? selected.sceneState
-    headerMeta  = 'Scene'
-    isLive      = currentState === selected.sceneState
-    actionLabel = isLive ? '● Live' : '▶ Go Live'
-    actionFn    = () => triggerScene(selected.sceneState)
-  } else if (selected.kind === 'app') {
-    const app   = applications.find((a) => a.id === selected.appId)
-    headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
-    headerLabel = app?.label ?? 'Widget'
-    headerMeta  = 'Widget'
-    const isOpen = app ? openWidgetIds.includes(app.id) : false
-    actionLabel = isOpen ? '● Open' : '▶ Open'
-    actionFn    = app ? () => socket.emit('widget:toggle', app.id) : null
-  } else if (selected.kind === 'widget-create') {
-    headerIcon  = '+'
-    headerLabel = 'New Widget'
-    headerMeta  = 'User Widget Creator'
-  } else if (selected.kind === 'widget-layout') {
-    const layout = (widgetLayouts).find((entry) => entry.id === selected.layoutId)
-    headerIcon  = layout?.icon ?? '📐'
-    headerLabel = layout?.label ?? 'Widget Layout'
-    headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
-    actionLabel = '▶ Test'
-    actionFn    = () => socket.emit('widget:layout:apply', selected.layoutId)
-  } else if (selected.kind === 'lobby-theme') {
-    headerIcon  = '🖥'
-    headerLabel = 'Lobby Theme'
-    headerMeta  = 'Utility'
-  } else if (selected.kind === 'desktop-theme') {
-    headerIcon  = '🎨'
-    headerLabel = 'Desktop Theme'
-    headerMeta  = 'Utility'
-  } else if (selected.kind === 'audio')    { headerIcon = '🔊'; headerLabel = 'Audio Engine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'keybinds')   { headerIcon = '⌨';  headerLabel = 'Input Engine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'archive')    { headerIcon = '📁'; headerLabel = 'Archive';       headerMeta = 'Utility' }
-  else if (selected.kind === 'settings')   { headerIcon = '⚙';  headerLabel = 'Settings';      headerMeta = 'Utility' }
-  else if (selected.kind === 'asset-library' || selected.kind === 'asset-catalog') { headerIcon = '🗂'; headerLabel = 'Catalog';     headerMeta = 'Asset Library' }
-  else if (selected.kind === 'asset-events')      { headerIcon = '⚡'; headerLabel = 'Events';      headerMeta = 'Asset Library' }
-  else if (selected.kind === 'asset-sources')     { headerIcon = '📺'; headerLabel = 'Sources';     headerMeta = 'Asset Library' }
-  else if (selected.kind === 'asset-transitions') { headerIcon = '✨'; headerLabel = 'Transitions'; headerMeta = 'Asset Library' }
-  else if (selected.kind === 'ambiance')      { headerIcon = '🌌'; headerLabel = 'Ambiance';      headerMeta = 'Engine' }
-  else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
-else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
-  else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
-  else if (selected.kind === 'wires')         { headerIcon = '⚡'; headerLabel = 'Wires';         headerMeta = 'Engine' }
-  else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }
-  else if (selected.kind === 'shows')  { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
-  else if (selected.kind === 'twitch') { headerIcon = '💬'; headerLabel = 'Twitch Chat';    headerMeta = 'Engine' }
+  if (selected) {
+    if (selected.kind === 'env') {
+      headerIcon  = selected.envState === STATE.LOBBY ? '🖥' : '💾'
+      headerLabel = selected.envState === STATE.LOBBY ? 'Lobby' : 'Desktop'
+      headerMeta  = 'Scene'
+      isLive      = currentState === selected.envState
+      actionLabel = isLive ? '● Live' : '▶ Go Live'
+      actionFn    = () => triggerScene(selected.envState)
+    } else if (selected.kind === 'scene') {
+      const app   = applications.find((a) => a.targetSceneId === selected.sceneState)
+      const scene = scenes[selected.sceneState]
+      headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
+      headerLabel = app?.label ?? scene?.label ?? selected.sceneState
+      headerMeta  = 'Scene'
+      isLive      = currentState === selected.sceneState
+      actionLabel = isLive ? '● Live' : '▶ Go Live'
+      actionFn    = () => triggerScene(selected.sceneState)
+    } else if (selected.kind === 'app') {
+      const app    = applications.find((a) => a.id === selected.appId)
+      headerIcon   = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
+      headerLabel  = app?.label ?? 'Widget'
+      headerMeta   = 'Widget'
+      const isOpen = app ? openWidgetIds.includes(app.id) : false
+      actionLabel  = isOpen ? '● Open' : '▶ Open'
+      actionFn     = app ? () => socket.emit('widget:toggle', app.id) : null
+    } else if (selected.kind === 'widget-create') {
+      headerIcon = '+'; headerLabel = 'New Widget'; headerMeta = 'User Widget Creator'
+    } else if (selected.kind === 'widget-layout') {
+      const layout = widgetLayouts.find((entry) => entry.id === selected.layoutId)
+      headerIcon  = layout?.icon ?? '📐'
+      headerLabel = layout?.label ?? 'Widget Layout'
+      headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
+      actionLabel = '▶ Test'
+      actionFn    = () => socket.emit('widget:layout:apply', selected.layoutId)
+    } else if (selected.kind === 'lobby-theme')    { headerIcon = '🖥'; headerLabel = 'Lobby Theme';    headerMeta = 'Utility' }
+    else if (selected.kind === 'desktop-theme')     { headerIcon = '🎨'; headerLabel = 'Desktop Theme';  headerMeta = 'Utility' }
+    else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
+    else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
+    else if (selected.kind === 'archive')           { headerIcon = '📁'; headerLabel = 'Archive';        headerMeta = 'Utility' }
+    else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
+    else if (selected.kind === 'ambiance')          { headerIcon = '🌌'; headerLabel = 'Ambiance';       headerMeta = 'Engine' }
+    else if (selected.kind === 'scheduler')         { headerIcon = '⏱';  headerLabel = 'Scheduler';      headerMeta = 'Engine' }
+    else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Engine' }
+    else if (selected.kind === 'kernel-health')     { headerIcon = '⚙';  headerLabel = 'Kernel Health';  headerMeta = 'Engine' }
+    else if (selected.kind === 'wires')             { headerIcon = '⚡'; headerLabel = 'Wires';          headerMeta = 'Engine' }
+    else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
+    else if (selected.kind === 'shows')             { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
+    else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Chat';    headerMeta = 'Engine' }
+    else {
+      const mediaTab = MEDIA_TABS.find((t) => t.kind === selected.kind)
+      if (mediaTab) { headerIcon = mediaTab.icon; headerLabel = mediaTab.label; headerMeta = 'Media Library' }
+    }
+  }
 
-  return (
-    <div className="flex flex-1 min-w-0 overflow-hidden bg-[var(--color-bg-base)]">
-      {showNavList && onSelect && onActivate && (
-        <NavListBox selected={selected} onSelect={onSelect} onActivate={onActivate} activeSection={activeSection} />
-      )}
-      {activeSection === 'media' && (
-        <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
-          <SectionLabel first>Media</SectionLabel>
-          {ASSET_TABS.map(({ kind, icon, label }) => (
-            <SidebarBtn key={kind} icon={icon} label={label} active={selected?.kind === kind} onClick={() => onSelectItem({ kind } as SelectedItem)} />
-          ))}
-        </div>
-      )}
-      {activeSection === 'system' && (
-        <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
-          <SectionLabel first>System</SectionLabel>
-          {SYSTEM_ITEMS.map(({ icon, label, kind }) => (
-            <SidebarBtn key={kind} icon={icon} label={label}
-              active={selected?.kind === kind}
-              onClick={() => onSelectItem({ kind } as SelectedItem)} />
-          ))}
-        </div>
-      )}
-      <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-        <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
-          <span className="text-sm shrink-0">{headerIcon}</span>
-          <span className="flex-1 min-w-0">
-            <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
-            {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
-          </span>
-          {selected.kind === 'widget-layout' && (() => {
-            const layout = widgetLayouts.find((l) => l.id === selected.layoutId)
-            return layout?.source !== 'system' ? (
-              <button
-                onClick={async () => {
-                  await useAdminStore.getState().saveConfig({ widgetLayouts: widgetLayouts.filter((l) => l.id !== selected.layoutId) })
-                  onClose()
-                }}
-                className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
-                Delete
-              </button>
-            ) : null
-          })()}
-          {actionFn && (
-            <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-3 py-1.5 text-xs">
-              {actionLabel}
-            </Btn>
-          )}
-          <button onClick={onClose}
-            className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
-            ×
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5">
-          <RightPaneErrorBoundary>
-            <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
-          </RightPaneErrorBoundary>
-        </div>
-      </div>
+  // ── Shared section sidebars ───────────────────────────────────────
+  const systemSidebar = activeSection === 'system' ? (
+    <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
+      <SectionLabel first>System</SectionLabel>
+      {SYSTEM_ITEMS.map(({ icon, label, kind }) => (
+        <SidebarBtn key={kind} icon={icon} label={label}
+          active={selected?.kind === kind}
+          onClick={() => onSelectItem({ kind } as SelectedItem)} />
+      ))}
     </div>
+  ) : null
+
+  // ── Single return — ONE MediaLibraryProvider survives all navigation ──
+  return (
+    <MediaLibraryProvider>
+      <div className="flex flex-1 min-w-0 overflow-hidden bg-[var(--color-bg-base)]">
+        {showNavList && onSelect && onActivate && (
+          <NavListBox selected={selected} onSelect={onSelect} onActivate={onActivate} activeSection={activeSection} />
+        )}
+        {systemSidebar}
+
+        {!selected ? (
+          <div className="flex-1 min-w-0 overflow-y-auto">
+            <ConfigCard className="text-left">
+              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
+              <div className="text-[10px] text-zinc-400 leading-relaxed">
+                Scene = compositor content. Widget = desktop window. Runtime = lifecycle manager (Lobby, Desktop).
+              </div>
+            </ConfigCard>
+          </div>
+        ) : (
+          <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+            {!MEDIA_TABS.some((t) => t.kind === selected.kind) && (
+              <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
+                <span className="text-sm shrink-0">{headerIcon}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-xs font-semibold text-[var(--color-text-primary)] truncate">{headerLabel}</span>
+                  {headerMeta && <span className="block text-[10px] text-[var(--color-text-muted)] truncate mt-0.5">{headerMeta}</span>}
+                </span>
+                {selected.kind === 'widget-layout' && (() => {
+                  const layout = widgetLayouts.find((l) => l.id === selected.layoutId)
+                  return layout?.source !== 'system' ? (
+                    <button
+                      onClick={async () => {
+                        await useAdminStore.getState().saveConfig({ widgetLayouts: widgetLayouts.filter((l) => l.id !== selected.layoutId) })
+                        onClose()
+                      }}
+                      className="rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-xs text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
+                      Delete
+                    </button>
+                  ) : null
+                })()}
+                {actionFn && (
+                  <Btn onClick={actionFn} variant={isLive ? 'active' : 'default'} className="px-3 py-1.5 text-xs">
+                    {actionLabel}
+                  </Btn>
+                )}
+                <button onClick={onClose}
+                  className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
+                  ×
+                </button>
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto p-5">
+              <RightPaneErrorBoundary>
+                <RightPaneContent selected={selected} onDeleted={onClose} onSelectItem={onSelectItem} />
+              </RightPaneErrorBoundary>
+            </div>
+          </div>
+        )}
+      </div>
+    </MediaLibraryProvider>
   )
 }
 

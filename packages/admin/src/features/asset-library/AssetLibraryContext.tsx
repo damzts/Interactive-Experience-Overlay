@@ -8,11 +8,11 @@ import { getSafeSceneWindows } from '../../shared/windowCatalog'
 import { TRANSITION_OPTIONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
 import type { MediaEntry, WindowPreset } from '@ieomlabs/shared'
 
-export type AssetLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
+export type MediaLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
 
-export interface AssetLibraryContextValue {
-  tab: AssetLibraryTab
-  setTab: (t: AssetLibraryTab) => void
+// ── Per-tab state interfaces ───────────────────────────────────────
+
+export interface CatalogTabState {
   catalogSearch: string
   setCatalogSearch: (v: string) => void
   catalogKindFilter: 'all' | AssetKind
@@ -24,6 +24,9 @@ export interface AssetLibraryContextValue {
   catalogError: string | null
   refreshCatalog: () => void
   handleDeleteCatalogAsset: (asset: AssetRecord) => void
+}
+
+export interface EventsTabState {
   eventSearch: string
   setEventSearch: (v: string) => void
   filteredEventDefs: EventDef[]
@@ -37,6 +40,9 @@ export interface AssetLibraryContextValue {
   saveEventDraft: () => void
   deleteEventDraft: () => void
   handleTriggerEvent: (def: EventDef) => void
+}
+
+export interface SourcesTabState {
   sourceSearch: string
   setSourceSearch: (v: string) => void
   filteredSourcePresets: WindowPreset[]
@@ -52,6 +58,9 @@ export interface AssetLibraryContextValue {
   patchSourcePresetDraft: (updates: Partial<WindowPreset>) => void
   saveSourcePresetDraft: () => void
   deleteSourcePresetDraft: () => void
+}
+
+export interface TransitionsTabState {
   transitionSearch: string
   setTransitionSearch: (v: string) => void
   filteredSystemTransitions: typeof TRANSITION_OPTIONS
@@ -70,45 +79,66 @@ export interface AssetLibraryContextValue {
   resetForm: () => void
 }
 
-const AssetLibraryContext = createContext<AssetLibraryContextValue | null>(null)
+export interface MediaLibraryContextValue
+  extends CatalogTabState,
+    EventsTabState,
+    SourcesTabState,
+    TransitionsTabState {
+  tab: MediaLibraryTab
+  setTab: (t: MediaLibraryTab) => void
+}
 
-export function useAssetLibrary(): AssetLibraryContextValue {
-  const ctx = useContext(AssetLibraryContext)
-  if (!ctx) throw new Error('useAssetLibrary must be used within AssetLibraryProvider')
+// ── Context + hooks ────────────────────────────────────────────────
+
+const MediaLibraryContext = createContext<MediaLibraryContextValue | null>(null)
+
+export function useMediaLibrary(): MediaLibraryContextValue {
+  const ctx = useContext(MediaLibraryContext)
+  if (!ctx) throw new Error('useMediaLibrary must be used within MediaLibraryProvider')
   return ctx
 }
 
-export function useAssetLibraryOptional(): AssetLibraryContextValue | null {
-  return useContext(AssetLibraryContext)
+export function useMediaLibraryOptional(): MediaLibraryContextValue | null {
+  return useContext(MediaLibraryContext)
 }
 
-export function AssetLibraryProvider({ children }: { children: ReactNode }) {
-  const config      = useAdminStore((s) => s.config)
-  const sourceMedia = useAdminStore((s) => s.config.sourceMedia ?? [])
-  const eventDefs   = useAdminStore((s) => (s.config.sourceEvents ?? DEFAULT_EVENT_DEFS) as EventDef[])
-  const widgetIds   = useAdminStore((s) => s.config.applications.map((a) => a.id))
+// ── Provider ───────────────────────────────────────────────────────
+
+export function MediaLibraryProvider({ children }: { children: ReactNode }) {
+  const config        = useAdminStore((s) => s.config)
+  const sourceMedia   = useAdminStore((s) => s.config.sourceMedia ?? [])
+  const eventDefs     = useAdminStore((s) => (s.config.sourceEvents ?? DEFAULT_EVENT_DEFS) as EventDef[])
+  const widgetIds     = useAdminStore((s) => s.config.applications.map((a) => a.id))
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
-  const saveConfig  = useAdminStore((s) => s.saveConfig)
+  const saveConfig    = useAdminStore((s) => s.saveConfig)
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useAssetCatalog()
 
-  const [tab, setTab] = useState<AssetLibraryTab>('catalog')
-  const [name, setName] = useState('')
-  const [url, setUrl] = useState('')
-  const [durStr, setDurStr] = useState('')
-  const [catalogSearch, setCatalogSearch] = useState('')
+  const [tab, setTab]                       = useState<MediaLibraryTab>('catalog')
+  const [name, setName]                     = useState('')
+  const [url, setUrl]                       = useState('')
+  const [durStr, setDurStr]                 = useState('')
+  const [catalogSearch, setCatalogSearch]   = useState('')
   const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | AssetKind>('all')
   const [selectedCatalogAssetId, setSelectedCatalogAssetId] = useState<string | null>(null)
-  const [eventSearch, setEventSearch] = useState('')
-  const [eventDraft, setEventDraft] = useState<{ event: EventDef; originalId: string | null } | null>(null)
-  const [sourceSearch, setSourceSearch] = useState('')
-  const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>((useAdminStore.getState().config.windowPresets ?? [])[0]?.id ?? null)
-  const [sourcePresetDraft, setSourcePresetDraft] = useState<{ preset: WindowPreset; originalId: string | null; originalLabel: string | null } | null>(null)
+  const [eventSearch, setEventSearch]       = useState('')
+  const [eventDraft, setEventDraft]         = useState<{ event: EventDef; originalId: string | null } | null>(null)
+  const [sourceSearch, setSourceSearch]     = useState('')
+  const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>(
+    (useAdminStore.getState().config.windowPresets ?? [])[0]?.id ?? null
+  )
+  const [sourcePresetDraft, setSourcePresetDraft] = useState<{
+    preset: WindowPreset
+    originalId: string | null
+    originalLabel: string | null
+  } | null>(null)
   const [transitionSearch, setTransitionSearch] = useState('')
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const sourcePresets = config.windowPresets ?? []
   const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
+
+  // ── Derived: Events ──────────────────────────────────────────────
 
   const filteredEventDefs = useMemo(() => {
     const q = eventSearch.trim().toLowerCase()
@@ -118,10 +148,15 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
 
   const filteredEventPresets = useMemo(() => {
     const q = eventSearch.trim().toLowerCase()
-    return EVENT_PRESET_OPTIONS.filter((p) => p.id !== 'blank' && (!q || [p.label, p.description, p.id].some((v) => v.toLowerCase().includes(q))))
+    return EVENT_PRESET_OPTIONS.filter(
+      (p) => p.id !== 'blank' && (!q || [p.label, p.description, p.id].some((v) => v.toLowerCase().includes(q)))
+    )
   }, [eventSearch])
 
+  // ── Derived: Catalog ─────────────────────────────────────────────
+
   const catalogSavedAssets = useMemo(() => sourceMedia.map(mediaEntryToAsset), [sourceMedia])
+
   const filteredCatalogAssets = useMemo(() => {
     const q = catalogSearch.trim().toLowerCase()
     const matches = (a: AssetRecord) => {
@@ -135,17 +170,32 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const catalogFolderGroups = useMemo(() => {
     const groups = new Map<string, AssetRecord[]>()
     for (const asset of filteredCatalogAssets) {
-      const prefix = asset.source === 'saved' ? 'Saved Media' : asset.source === 'games' ? `Game Images${asset.game ? ` / ${asset.game}` : ''}` : `Project Assets / ${asset.folder}`
-      const list = groups.get(prefix); if (list) list.push(asset); else groups.set(prefix, [asset])
+      const prefix =
+        asset.source === 'saved'
+          ? 'Saved Media'
+          : asset.source === 'games'
+          ? `Game Images${asset.game ? ` / ${asset.game}` : ''}`
+          : `Project Assets / ${asset.folder}`
+      const list = groups.get(prefix)
+      if (list) list.push(asset)
+      else groups.set(prefix, [asset])
     }
     return Array.from(groups.entries())
       .map(([folder, items]) => ({ folder, items: [...items].sort((a, b) => a.name.localeCompare(b.name)) }))
       .sort((a, b) => a.folder.localeCompare(b.folder))
   }, [filteredCatalogAssets])
 
-  const sortedTransitionLibrary = useMemo(() => (
-    [...sourceMedia].sort((a, b) => getMediaTransitionLabel(a).localeCompare(getMediaTransitionLabel(b)))
-  ), [sourceMedia])
+  const selectedCatalogAsset = useMemo(
+    () => filteredCatalogAssets.find((a) => a.id === selectedCatalogAssetId) ?? filteredCatalogAssets[0] ?? null,
+    [filteredCatalogAssets, selectedCatalogAssetId]
+  )
+
+  // ── Derived: Transitions ─────────────────────────────────────────
+
+  const sortedTransitionLibrary = useMemo(
+    () => [...sourceMedia].sort((a, b) => getMediaTransitionLabel(a).localeCompare(getMediaTransitionLabel(b))),
+    [sourceMedia]
+  )
 
   const filteredSystemTransitions = useMemo(() => {
     const q = transitionSearch.trim().toLowerCase()
@@ -156,15 +206,19 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   const filteredTransitionLibrary = useMemo(() => {
     const q = transitionSearch.trim().toLowerCase()
     if (!q) return sortedTransitionLibrary
-    return sortedTransitionLibrary.filter((e) => [e.name, e.url, e.id, getMediaTransitionLabel(e)].some((v) => v.toLowerCase().includes(q)))
+    return sortedTransitionLibrary.filter((e) =>
+      [e.name, e.url, e.id, getMediaTransitionLabel(e)].some((v) => v.toLowerCase().includes(q))
+    )
   }, [sortedTransitionLibrary, transitionSearch])
 
-  const selectedCatalogAsset = useMemo(() => (
-    filteredCatalogAssets.find((a) => a.id === selectedCatalogAssetId) ?? filteredCatalogAssets[0] ?? null
-  ), [filteredCatalogAssets, selectedCatalogAssetId])
-
   const selectedTransition = useMemo(() => {
-    if (!selectedTransitionKey) return filteredSystemTransitions[0] ? { kind: 'system' as const, entry: filteredSystemTransitions[0] } : filteredTransitionLibrary[0] ? { kind: 'user' as const, entry: filteredTransitionLibrary[0] } : null
+    if (!selectedTransitionKey) {
+      return filteredSystemTransitions[0]
+        ? { kind: 'system' as const, entry: filteredSystemTransitions[0] }
+        : filteredTransitionLibrary[0]
+        ? { kind: 'user' as const, entry: filteredTransitionLibrary[0] }
+        : null
+    }
     if (selectedTransitionKey.startsWith('system:')) {
       const entry = filteredSystemTransitions.find((t) => t.id === selectedTransitionKey.slice(7))
       return entry ? { kind: 'system' as const, entry } : null
@@ -173,29 +227,36 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     return entry ? { kind: 'user' as const, entry } : null
   }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
 
+  // ── Derived: Sources ─────────────────────────────────────────────
+
   const filteredSourcePresets = useMemo(() => {
     const q = sourceSearch.trim().toLowerCase()
     if (!q) return sourcePresets
     return sourcePresets.filter((p) => [p.label, p.id, p.rendererType].some((v) => v.toLowerCase().includes(q)))
   }, [sourcePresets, sourceSearch])
 
-  const usageCountByPreset = useMemo(() => (
-    Object.values(config.scenes).reduce<Record<string, number>>((counts, scene) => {
-      for (const w of getSafeSceneWindows(scene)) {
-        if (!w.windowPresetId) continue
-        counts[w.windowPresetId] = (counts[w.windowPresetId] ?? 0) + 1
-      }
-      return counts
-    }, {})
-  ), [config.scenes])
+  const usageCountByPreset = useMemo(
+    () =>
+      Object.values(config.scenes).reduce<Record<string, number>>((counts, scene) => {
+        for (const w of getSafeSceneWindows(scene)) {
+          if (!w.windowPresetId) continue
+          counts[w.windowPresetId] = (counts[w.windowPresetId] ?? 0) + 1
+        }
+        return counts
+      }, {}),
+    [config.scenes]
+  )
 
-  const selectedSourcePreset = useMemo(() => (
-    selectedSourcePresetId ? sourcePresets.find((p) => p.id === selectedSourcePresetId) ?? null : null
-  ), [selectedSourcePresetId, sourcePresets])
+  const selectedSourcePreset = useMemo(
+    () => (selectedSourcePresetId ? sourcePresets.find((p) => p.id === selectedSourcePresetId) ?? null : null),
+    [selectedSourcePresetId, sourcePresets]
+  )
 
   const editingSourcePreset = sourcePresetDraft?.preset ?? selectedSourcePreset
-  const selectedSourceMeta = editingSourcePreset ? findRendererCatalogEntry(editingSourcePreset.rendererType) : undefined
-  const sourceDraftCreatesNewPreset = !!sourcePresetDraft && (!sourcePresetDraft.originalId || sourcePresetDraft.originalLabel?.trim() !== sourcePresetDraft.preset.label.trim())
+  const selectedSourceMeta  = editingSourcePreset ? findRendererCatalogEntry(editingSourcePreset.rendererType) : undefined
+  const sourceDraftCreatesNewPreset =
+    !!sourcePresetDraft &&
+    (!sourcePresetDraft.originalId || sourcePresetDraft.originalLabel?.trim() !== sourcePresetDraft.preset.label.trim())
   const selectedSourceUsageCount = selectedSourcePreset ? usageCountByPreset[selectedSourcePreset.id] ?? 0 : 0
 
   const pendingTransitionKind = useMemo(() => {
@@ -205,12 +266,17 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
 
   const editingEvent = eventDraft?.event ?? null
 
+  // ── Sync effects ─────────────────────────────────────────────────
+
   useEffect(() => {
     if (selectedEventId && !eventDefs.some((d) => d.id === selectedEventId)) setSelectedEventId(null)
   }, [eventDefs, selectedEventId])
 
   useEffect(() => {
-    if (filteredSourcePresets.length === 0) { if (selectedSourcePresetId !== null) setSelectedSourcePresetId(null); return }
+    if (filteredSourcePresets.length === 0) {
+      if (selectedSourcePresetId !== null) setSelectedSourcePresetId(null)
+      return
+    }
     if (sourcePresetDraft && !sourcePresetDraft.originalId) return
     if (!selectedSourcePresetId || !filteredSourcePresets.some((p) => p.id === selectedSourcePresetId)) {
       setSelectedSourcePresetId(filteredSourcePresets[0].id)
@@ -221,28 +287,49 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     if (!selectedSourcePresetId) return
     const preset = sourcePresets.find((e) => e.id === selectedSourcePresetId)
     if (!preset || sourcePresetDraft?.originalId === preset.id) return
-    setSourcePresetDraft({ preset: { ...preset, config: { ...preset.config }, defaultPosition: preset.defaultPosition ? { ...preset.defaultPosition } : undefined }, originalId: preset.id, originalLabel: preset.label })
+    setSourcePresetDraft({
+      preset: { ...preset, config: { ...preset.config }, defaultPosition: preset.defaultPosition ? { ...preset.defaultPosition } : undefined },
+      originalId: preset.id,
+      originalLabel: preset.label,
+    })
   }, [selectedSourcePresetId, sourcePresets, sourcePresetDraft?.originalId])
 
   useEffect(() => {
-    if (filteredCatalogAssets.length === 0) { if (selectedCatalogAssetId !== null) setSelectedCatalogAssetId(null); return }
-    if (!selectedCatalogAssetId || !filteredCatalogAssets.some((a) => a.id === selectedCatalogAssetId)) setSelectedCatalogAssetId(filteredCatalogAssets[0].id)
+    if (filteredCatalogAssets.length === 0) {
+      if (selectedCatalogAssetId !== null) setSelectedCatalogAssetId(null)
+      return
+    }
+    if (!selectedCatalogAssetId || !filteredCatalogAssets.some((a) => a.id === selectedCatalogAssetId)) {
+      setSelectedCatalogAssetId(filteredCatalogAssets[0].id)
+    }
   }, [filteredCatalogAssets, selectedCatalogAssetId])
 
   useEffect(() => {
-    const options = [...filteredSystemTransitions.map((t) => `system:${t.id}`), ...filteredTransitionLibrary.map((t) => `user:${t.id}`)]
-    if (options.length === 0) { if (selectedTransitionKey !== null) setSelectedTransitionKey(null); return }
+    const options = [
+      ...filteredSystemTransitions.map((t) => `system:${t.id}`),
+      ...filteredTransitionLibrary.map((t) => `user:${t.id}`),
+    ]
+    if (options.length === 0) {
+      if (selectedTransitionKey !== null) setSelectedTransitionKey(null)
+      return
+    }
     if (!selectedTransitionKey || !options.includes(selectedTransitionKey)) setSelectedTransitionKey(options[0])
   }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
 
-  // ── Handlers ───────────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!url) return
     const durVal = parseFloat(durStr)
-    const type = pendingTransitionKind
+    const type   = pendingTransitionKind
     const hasDur = type === 'image' && !Number.isNaN(durVal) && durVal > 0
-    const entry: MediaEntry = { id: 'media-' + Date.now(), name: name.trim() || url.split('/').pop() || 'Unnamed', type, url, ...(hasDur ? { duration: durVal } : {}) }
+    const entry: MediaEntry = {
+      id:   'media-' + Date.now(),
+      name: name.trim() || url.split('/').pop() || 'Unnamed',
+      type,
+      url,
+      ...(hasDur ? { duration: durVal } : {}),
+    }
     await saveConfig({ sourceMedia: [...sourceMedia, entry] })
     resetForm()
   }
@@ -251,36 +338,60 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
     await saveConfig({ sourceMedia: sourceMedia.filter((e) => e.id !== id) })
   }
 
-  const saveSourcePresets = (next: WindowPreset[]) => {
-    void saveConfig({ windowPresets: next })
-  }
+  const saveSourcePresets = (next: WindowPreset[]) => { void saveConfig({ windowPresets: next }) }
 
   const removeSourcePreset = (presetId: string) => {
     saveSourcePresets(sourcePresets.filter((p) => p.id !== presetId))
-    if (selectedSourcePresetId === presetId) setSelectedSourcePresetId((sourcePresets.filter((p) => p.id !== presetId))[0]?.id ?? null)
+    if (selectedSourcePresetId === presetId)
+      setSelectedSourcePresetId((sourcePresets.filter((p) => p.id !== presetId))[0]?.id ?? null)
   }
 
   const createSourcePresetDraft = (entry: typeof RENDERER_CATALOG[number]) => {
     const defaultPosition = entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 }
-    const newPreset: WindowPreset = { id: `${entry.id}-${Date.now()}`, label: entry.label, rendererType: entry.id, config: { ...entry.defaultConfig }, defaultPosition: { ...defaultPosition } }
+    const newPreset: WindowPreset = {
+      id: `${entry.id}-${Date.now()}`,
+      label: entry.label,
+      rendererType: entry.id,
+      config: { ...entry.defaultConfig },
+      defaultPosition: { ...defaultPosition },
+    }
     setSourcePresetDraft({ preset: newPreset, originalId: null, originalLabel: null })
     setSelectedSourcePresetId(null)
     setTab('sources')
   }
 
   const patchSourcePresetDraft = (updates: Partial<WindowPreset>) => {
-    setSourcePresetDraft((cur) => cur ? { ...cur, preset: { ...cur.preset, ...updates } } : cur)
+    setSourcePresetDraft((cur) => (cur ? { ...cur, preset: { ...cur.preset, ...updates } } : cur))
   }
 
   const saveSourcePresetDraft = () => {
     if (!sourcePresetDraft) return
-    const label = sourcePresetDraft.preset.label.trim() || findRendererCatalogEntry(sourcePresetDraft.preset.rendererType)?.label || 'Untitled preset'
-    const normalizedPreset: WindowPreset = { ...sourcePresetDraft.preset, label, config: { ...sourcePresetDraft.preset.config }, defaultPosition: { x: sourcePresetDraft.preset.defaultPosition?.x ?? 0, y: sourcePresetDraft.preset.defaultPosition?.y ?? 0, width: sourcePresetDraft.preset.defaultPosition?.width ?? 1920, height: sourcePresetDraft.preset.defaultPosition?.height ?? 1080 } }
+    const label =
+      sourcePresetDraft.preset.label.trim() ||
+      findRendererCatalogEntry(sourcePresetDraft.preset.rendererType)?.label ||
+      'Untitled preset'
+    const normalizedPreset: WindowPreset = {
+      ...sourcePresetDraft.preset,
+      label,
+      config: { ...sourcePresetDraft.preset.config },
+      defaultPosition: {
+        x: sourcePresetDraft.preset.defaultPosition?.x ?? 0,
+        y: sourcePresetDraft.preset.defaultPosition?.y ?? 0,
+        width: sourcePresetDraft.preset.defaultPosition?.width ?? 1920,
+        height: sourcePresetDraft.preset.defaultPosition?.height ?? 1080,
+      },
+    }
     if (sourcePresetDraft.originalId && sourcePresetDraft.originalLabel?.trim() === label) {
-      const next = sourcePresets.map((p) => p.id === sourcePresetDraft.originalId ? { ...normalizedPreset, id: sourcePresetDraft.originalId } : p)
+      const next = sourcePresets.map((p) =>
+        p.id === sourcePresetDraft.originalId ? { ...normalizedPreset, id: sourcePresetDraft.originalId } : p
+      )
       saveSourcePresets(next)
       setSelectedSourcePresetId(sourcePresetDraft.originalId)
-      setSourcePresetDraft({ preset: { ...normalizedPreset, id: sourcePresetDraft.originalId }, originalId: sourcePresetDraft.originalId, originalLabel: label })
+      setSourcePresetDraft({
+        preset: { ...normalizedPreset, id: sourcePresetDraft.originalId },
+        originalId: sourcePresetDraft.originalId,
+        originalLabel: label,
+      })
       return
     }
     const savedPreset = { ...normalizedPreset, id: `${normalizedPreset.rendererType}-${Date.now()}` }
@@ -317,14 +428,26 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
   }
 
   const patchEventDraft = (updated: EventDef) => {
-    setEventDraft((cur) => cur ? { ...cur, event: updated } : cur)
+    setEventDraft((cur) => (cur ? { ...cur, event: updated } : cur))
   }
 
   const saveEventDraft = () => {
     if (!eventDraft) return
-    const normalizedEvent: EventDef = { ...eventDraft.event, label: eventDraft.event.label.trim() || 'New Event', icon: eventDraft.event.icon || '⚡', desc: eventDraft.event.desc ?? '', actions: structuredClone(eventDraft.event.actions ?? []), effects: structuredClone(eventDraft.event.effects ?? []), auto: { ...eventDraft.event.auto } }
+    const normalizedEvent: EventDef = {
+      ...eventDraft.event,
+      label:   eventDraft.event.label.trim() || 'New Event',
+      icon:    eventDraft.event.icon || '⚡',
+      desc:    eventDraft.event.desc ?? '',
+      actions: structuredClone(eventDraft.event.actions ?? []),
+      effects: structuredClone(eventDraft.event.effects ?? []),
+      auto:    { ...eventDraft.event.auto },
+    }
     if (eventDraft.originalId) {
-      void saveConfig({ sourceEvents: eventDefs.map((e) => e.id === eventDraft.originalId ? { ...normalizedEvent, id: eventDraft.originalId } : e) })
+      void saveConfig({
+        sourceEvents: eventDefs.map((e) =>
+          e.id === eventDraft.originalId ? { ...normalizedEvent, id: eventDraft.originalId } : e
+        ),
+      })
       setSelectedEventId(eventDraft.originalId)
       setEventDraft({ event: { ...normalizedEvent, id: eventDraft.originalId }, originalId: eventDraft.originalId })
       return
@@ -345,23 +468,29 @@ export function AssetLibraryProvider({ children }: { children: ReactNode }) {
 
   const handleTriggerEvent = (def: EventDef) => socket.emit('event:preview', def)
 
-  const value: AssetLibraryContextValue = {
+  // ── Context value ─────────────────────────────────────────────────
+
+  const value: MediaLibraryContextValue = {
     tab, setTab,
+    // catalog
     catalogSearch, setCatalogSearch, catalogKindFilter, setCatalogKindFilter,
     selectedCatalogAsset, setSelectedCatalogAssetId,
     catalogFolderGroups, catalogLoading, catalogError, refreshCatalog, handleDeleteCatalogAsset,
+    // events
     eventSearch, setEventSearch, filteredEventDefs, filteredEventPresets,
     selectedEventId, editingEvent, eventDraftOriginalId: eventDraft?.originalId ?? null,
     selectEvent, createEventDraft, patchEventDraft, saveEventDraft, deleteEventDraft, handleTriggerEvent,
+    // sources
     sourceSearch, setSourceSearch, filteredSourcePresets, selectedSourcePresetId, setSelectedSourcePresetId,
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId: sourcePresetDraft?.originalId ?? null,
     sourceDraftCreatesNewPreset, selectedSourceUsageCount, usageCountByPreset,
     createSourcePresetDraft, patchSourcePresetDraft, saveSourcePresetDraft, deleteSourcePresetDraft,
+    // transitions
     transitionSearch, setTransitionSearch, filteredSystemTransitions, filteredTransitionLibrary,
     selectedTransition, setSelectedTransitionKey,
     handleSave, handleDeleteMediaEntry,
     name, setName, url, setUrl, durStr, setDurStr, pendingTransitionKind, resetForm,
   }
 
-  return <AssetLibraryContext.Provider value={value}>{children}</AssetLibraryContext.Provider>
+  return <MediaLibraryContext.Provider value={value}>{children}</MediaLibraryContext.Provider>
 }

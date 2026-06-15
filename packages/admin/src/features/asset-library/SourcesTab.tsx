@@ -3,6 +3,8 @@ import type { WindowPreset } from '@ieomlabs/shared'
 import { AssetSelectionInput } from './AssetLibrary'
 import { findRendererCatalogEntry, RENDERER_CATALOG, type RendererCatalogEntry as CatalogEntry, type RendererFieldDef as FieldDef } from '@ieomlabs/shared'
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
+import { LibraryItemBtn } from './mediaLibraryUi'
+import { MediaSearchInput } from './AssetLibraryPanel'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
   return (
@@ -271,40 +273,22 @@ export function SourcesTabSidebar({
 }) {
   return (
     <>
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Window Presets</div>
-        <div className="mt-1 text-xs text-zinc-500">Create reusable window configurations here, then attach them from each scene.</div>
-      </div>
-      <input
-        type="text"
-        value={sourceSearch}
-        onChange={(event) => onSourceSearchChange(event.target.value)}
-        placeholder="Search window presets"
-        className="w-full text-sm"
-      />
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+      <MediaSearchInput value={sourceSearch} onChange={onSourceSearchChange} placeholder="Search presets…" />
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
         {filteredSourcePresets.length ? filteredSourcePresets.map((preset) => {
-          const active = preset.id === selectedSourcePresetId
           const meta = findRendererCatalogEntry(preset.rendererType)
           const usageCount = selectedUsageCountByPreset[preset.id] ?? 0
           return (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => onSelectSourcePreset(preset.id)}
-              className={'w-full rounded-lg border px-5 py-4 text-left transition-colors ' + (
-                active
-                  ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
-                  : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
-              )}
-            >
+            <LibraryItemBtn key={preset.id} active={preset.id === selectedSourcePresetId} onClick={() => onSelectSourcePreset(preset.id)}>
               <div className="flex items-center gap-2">
                 <span>{meta?.icon ?? '▣'}</span>
                 <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{preset.label}</span>
               </div>
               <div className="mt-1 truncate text-[10px] text-zinc-500">{meta?.label ?? preset.rendererType}</div>
-              <div className="mt-1 truncate text-[10px] text-zinc-600">{usageCount} scene attachment{usageCount === 1 ? '' : 's'}</div>
-            </button>
+              <div className="mt-1 truncate text-[10px] text-zinc-600">
+                {usageCount} scene attachment{usageCount === 1 ? '' : 's'}
+              </div>
+            </LibraryItemBtn>
           )
         }) : (
           <ConfigNotice tone="info">No window presets match this filter.</ConfigNotice>

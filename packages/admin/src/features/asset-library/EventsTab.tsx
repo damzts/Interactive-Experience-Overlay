@@ -1,6 +1,8 @@
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
 import { EventForm } from './EventForm'
 import { describeEventSetup, type EventDef, type EventPresetId } from './eventPresets'
+import { LibraryItemBtn } from './mediaLibraryUi'
+import { MediaSearchInput } from './AssetLibraryPanel'
 
 export function EventsTabSidebar({
   eventSearch,
@@ -17,44 +19,28 @@ export function EventsTabSidebar({
 }) {
   return (
     <>
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Search</div>
-        <div className="mt-1 text-xs text-zinc-500">Find events by label, description, or id.</div>
-      </div>
-      <input
-        type="text"
-        value={eventSearch}
-        onChange={(event) => onEventSearchChange(event.target.value)}
-        placeholder="Search events"
-        className="w-full text-sm"
-      />
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-        {filteredEventDefs.length ? filteredEventDefs.map((def) => {
-          const active = def.id === selectedEventId
-          return (
-            <button
-              key={def.id}
-              type="button"
-              onClick={() => onSelectEvent(def.id)}
-              className={'w-full rounded-xl border px-3 py-3 text-left transition-colors ' + (
-                active
-                  ? 'border-cyan-400/35 bg-cyan-500/12 text-zinc-100'
-                  : 'border-zinc-800/80 bg-zinc-950/55 text-zinc-400 hover:border-zinc-700/80 hover:text-zinc-200'
+      <MediaSearchInput value={eventSearch} onChange={onEventSearchChange} placeholder="Search events…" />
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+        {filteredEventDefs.length ? filteredEventDefs.map((def) => (
+          <LibraryItemBtn key={def.id} active={def.id === selectedEventId} onClick={() => onSelectEvent(def.id)}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm leading-none">{def.icon}</span>
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{def.label}</span>
+              {def.auto.enabled && (
+                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-300">
+                  Auto
+                </span>
               )}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm leading-none">{def.icon}</span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{def.label}</span>
-                {def.auto.enabled && <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-300">Auto</span>}
-              </div>
-              <div className="mt-1.5 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">{def.desc || describeEventSetup(def)}</div>
-              <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
-                <span>{def.actions?.length ?? 0} actions</span>
-                <span>{def.effects.length} fx</span>
-              </div>
-            </button>
-          )
-        }) : (
+            </div>
+            <div className="mt-1.5 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">
+              {def.desc || describeEventSetup(def)}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+              <span>{def.actions?.length ?? 0} actions</span>
+              <span>{def.effects.length} fx</span>
+            </div>
+          </LibraryItemBtn>
+        )) : (
           <ConfigNotice tone="info">No events match this filter.</ConfigNotice>
         )}
       </div>
@@ -96,18 +82,13 @@ export function EventsTabContent({
           </Btn>
           <div className="grid gap-2 lg:grid-cols-2">
             {filteredEventPresets.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => createEventDraft(preset.id)}
-                className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75"
-              >
+              <LibraryItemBtn key={preset.id} active={false} onClick={() => createEventDraft(preset.id)}>
                 <div className="flex items-center gap-2">
                   <span className="text-sm">{preset.icon}</span>
                   <span className="text-[12px] font-medium text-zinc-100">{preset.label}</span>
                 </div>
                 <div className="mt-1 text-[10px] leading-relaxed text-zinc-500">{preset.description}</div>
-              </button>
+              </LibraryItemBtn>
             ))}
           </div>
         </div>
@@ -125,28 +106,12 @@ export function EventsTabContent({
               <ConfigSectionPanel label="Event Summary" first>
                 <div className="space-y-3">
                   <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Label</span>
-                      <span className="truncate text-right font-semibold text-zinc-100">{editingEvent.label}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Event Id</span>
-                      <span className="truncate text-right font-semibold text-zinc-100">{eventDraftOriginalId ?? 'Draft until saved'}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Setup</span>
-                      <span className="truncate text-right font-semibold text-zinc-100">{describeEventSetup(editingEvent)}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Runtime Actions</span>
-                      <span className="text-right font-semibold text-zinc-100">{editingEvent.actions?.length ?? 0}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Overlay Effects</span>
-                      <span className="text-right font-semibold text-zinc-100">{editingEvent.effects.length}</span>
-                    </div>
+                    <InfoRow label="Label">{editingEvent.label}</InfoRow>
+                    <InfoRow label="Event Id">{eventDraftOriginalId ?? 'Draft until saved'}</InfoRow>
+                    <InfoRow label="Setup">{describeEventSetup(editingEvent)}</InfoRow>
+                    <InfoRow label="Runtime Actions">{editingEvent.actions?.length ?? 0}</InfoRow>
+                    <InfoRow label="Overlay Effects">{editingEvent.effects.length}</InfoRow>
                   </div>
-
                   <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
                     Create or refine event identity, trigger rules, runtime actions, and overlay effects below.
                   </div>
@@ -158,16 +123,9 @@ export function EventsTabContent({
               <ConfigSectionPanel label="Actions" first>
                 <div className="space-y-3">
                   <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Editing</span>
-                      <span className="truncate text-right font-semibold text-zinc-100">{editingEventCreatesNew ? 'New event draft' : editingEvent.label}</span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="text-zinc-500">Save Action</span>
-                      <span className="text-right font-semibold text-zinc-100">{editingEventCreatesNew ? 'Save Event' : 'Update Event'}</span>
-                    </div>
+                    <InfoRow label="Editing">{editingEventCreatesNew ? 'New event draft' : editingEvent.label}</InfoRow>
+                    <InfoRow label="Save Action">{editingEventCreatesNew ? 'Save Event' : 'Update Event'}</InfoRow>
                   </div>
-
                   <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-3">
                     <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
                       {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
@@ -201,6 +159,15 @@ export function EventsTabContent({
           Select an event from the left column or choose an event type above to start a new draft.
         </ConfigNotice>
       )}
+    </div>
+  )
+}
+
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-[11px]">
+      <span className="text-zinc-500">{label}</span>
+      <span className="truncate text-right font-semibold text-zinc-100">{children}</span>
     </div>
   )
 }

@@ -19,7 +19,6 @@ export type SelectedItem =
   | { kind: 'scheduler' }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
-  | { kind: 'asset-library' }
   | { kind: 'asset-catalog' }
   | { kind: 'asset-events' }
   | { kind: 'asset-sources' }

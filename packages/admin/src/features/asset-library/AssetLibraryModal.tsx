@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { ConfigCard } from '../../shared/ui'
 
-type AssetLibraryTab = {
+type ModalTab = {
   id: string
   label: string
   icon: string
@@ -19,7 +19,7 @@ export function AssetLibraryModal({
 }: {
   isOpen: boolean
   onClose: () => void
-  tabs: readonly AssetLibraryTab[]
+  tabs: readonly ModalTab[]
   activeTab: string
   onTabChange: (tabId: string) => void
   sidebarChildren: ReactNode
