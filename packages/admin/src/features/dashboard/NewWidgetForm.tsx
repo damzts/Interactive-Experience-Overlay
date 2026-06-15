@@ -26,6 +26,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   const scenes          = useAdminStore((s) => s.config.scenes)
   const applications    = useAdminStore((s) => s.persistedConfig.applications)
   const saveConfig      = useAdminStore((s) => s.saveConfig)
+  const patchConfig     = useAdminStore((s) => s.patchConfig)
 
   const [widgetComponent, setWidgetComponent] = useState<UserWidgetBaseComponent>('camera')
   const [label,    setLabel]    = useState('')
@@ -40,29 +41,25 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   const previewId = buildUserWidgetId(widgetComponent, nextLabel, existingIds)
   const firstSourceReference = useMemo(() => findFirstSceneSource(scenes), [scenes])
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     setCreating(true)
     setError('')
-    try {
-      const existingZIndices = applications.map((a) => a.zIndexDefault ?? 0)
-      const nextDefaultZIndex = Math.max(-1, ...existingZIndices) + 1
-      const nextWidget: Application = {
-        id: previewId,
-        label: nextLabel,
-        icon: icon.trim() || componentMeta.icon,
-        widgetSource: 'user',
-        widgetComponent: widgetComponent === 'source' ? 'window' : widgetComponent,
-        zIndexDefault: nextDefaultZIndex,
-        ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
-        ...(widgetComponent === 'source' && firstSourceReference ? { windowWidgetSettings: firstSourceReference } : {}),
-      }
-      await saveConfig({ applications: [...applications, nextWidget] })
-      onCreated(previewId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create widget.')
-    } finally {
-      setCreating(false)
+    const existingZIndices = applications.map((a) => a.zIndexDefault ?? 0)
+    const nextDefaultZIndex = Math.max(-1, ...existingZIndices) + 1
+    const nextWidget: Application = {
+      id: previewId,
+      label: nextLabel,
+      icon: icon.trim() || componentMeta.icon,
+      widgetSource: 'user',
+      widgetComponent: widgetComponent === 'source' ? 'window' : widgetComponent,
+      zIndexDefault: nextDefaultZIndex,
+      ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
+      ...(widgetComponent === 'source' && firstSourceReference ? { windowWidgetSettings: firstSourceReference } : {}),
     }
+    const nextApplications = [...applications, nextWidget]
+    patchConfig({ applications: nextApplications })
+    onCreated(previewId)
+    void saveConfig({ applications: nextApplications })
   }
 
   return (
@@ -128,7 +125,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
           )}
           {error && <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{error}</div>}
           <div className="flex justify-end">
-            <Button variant="primary" size="sm" onClick={() => { void handleCreate() }} disabled={creating}>
+            <Button variant="primary" size="sm" onClick={handleCreate} disabled={creating}>
               {creating ? 'Creating...' : 'Create Widget'}
             </Button>
           </div>

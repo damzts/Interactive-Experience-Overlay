@@ -83,6 +83,9 @@ export interface IConfigService {
   readonly cachedConfig: AppConfig | null
   getForUser(userId: string): Promise<AppConfig>
   persistForUser(userId: string, config: AppConfig, updates?: Partial<AppConfig>): Promise<AppConfig>
+  upsertScene(scene: Scene): Promise<void>
+  deleteScene(id: string): Promise<void>
+  upsertApplication(app: Application): Promise<void>
   routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }>
   onConfigUpdate(listener: (config: AppConfig) => void): void
   invalidateCache(): void
@@ -187,6 +190,42 @@ export class DesktopConfigService implements Manager, IConfigService {
       listener(config)
     }
     return config
+  }
+
+  async upsertScene(scene: Scene): Promise<void> {
+    this.sceneRepo.upsert(scene)
+    const current = this._cachedConfig ?? this.loadFromDb()
+    const scenes = { ...current.scenes, [scene.id]: scene }
+    this._cachedConfig = { ...current, scenes }
+    const patch = { scenes }
+    this.io?.emit('config:patch', patch)
+    this.bus?.emit('config:changed', { section: 'scenes' })
+    for (const listener of this.onConfigUpdateListeners) listener(this._cachedConfig)
+  }
+
+  async deleteScene(id: string): Promise<void> {
+    this.sceneRepo.delete(id)
+    const current = this._cachedConfig ?? this.loadFromDb()
+    const { [id]: _removed, ...scenes } = current.scenes
+    this._cachedConfig = { ...current, scenes }
+    const patch = { scenes }
+    this.io?.emit('config:patch', patch)
+    this.bus?.emit('config:changed', { section: 'scenes' })
+    for (const listener of this.onConfigUpdateListeners) listener(this._cachedConfig)
+  }
+
+  async upsertApplication(app: Application): Promise<void> {
+    this.widgetRepo.upsertApplication(app)
+    const current = this._cachedConfig ?? this.loadFromDb()
+    const exists = current.applications.some((a) => a.id === app.id)
+    const applications = exists
+      ? current.applications.map((a) => a.id === app.id ? app : a)
+      : [...current.applications, app]
+    this._cachedConfig = { ...current, applications }
+    const patch = { applications }
+    this.io?.emit('config:patch', patch)
+    this.bus?.emit('config:changed', { section: 'applications' })
+    for (const listener of this.onConfigUpdateListeners) listener(this._cachedConfig)
   }
 
   async persistForUser(_userId: string, next: AppConfig, updates?: Partial<AppConfig>): Promise<AppConfig> {

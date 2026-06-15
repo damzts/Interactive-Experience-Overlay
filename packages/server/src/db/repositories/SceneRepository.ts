@@ -51,4 +51,23 @@ export class SceneRepository {
         scene.musicTrack ?? null, scene.ambientTrack ?? null, boolToInt(scene.showDesktop ?? false))
     }
   }
+
+  upsert(scene: Scene): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO scenes (id, label, background_opaque, windows_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, ambient_track, show_desktop)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      scene.id, scene.label, boolToInt(scene.backgroundOpaque),
+      JSON.stringify(scene.windows ?? []),
+      scene.style ? JSON.stringify(scene.style) : null,
+      scene.lobbyConfig ? JSON.stringify(scene.lobbyConfig) : null,
+      JSON.stringify(scene.onEntry ?? []),
+      JSON.stringify(scene.onExit ?? []),
+      scene.musicTrack ?? null, scene.ambientTrack ?? null, boolToInt(scene.showDesktop ?? false),
+    )
+  }
+
+  delete(id: string): void {
+    this.db.prepare('DELETE FROM scenes WHERE id = ?').run(id)
+  }
 }

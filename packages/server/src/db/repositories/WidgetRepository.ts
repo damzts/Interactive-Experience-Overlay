@@ -33,6 +33,35 @@ export class WidgetRepository {
     })
   }
 
+  private appToRow(app: Application): unknown[] {
+    const settings: Record<string, unknown> = {}
+    if (app.gallerySettings)      settings.gallerySettings      = app.gallerySettings
+    if (app.cameraSettings)       settings.cameraSettings       = app.cameraSettings
+    if (app.windowWidgetSettings) settings.windowWidgetSettings = app.windowWidgetSettings
+    if (app.stickyNotesSettings)  settings.stickyNotesSettings  = app.stickyNotesSettings
+    if (app.theme)                settings.theme                = app.theme
+    if (app.iconSize)             settings.iconSize             = app.iconSize
+    if (app.iconPosition)         settings.iconPosition         = app.iconPosition
+    if (app.recycleBinSettings)   settings.recycleBinSettings   = app.recycleBinSettings
+    if (app.targetSceneId)        settings.targetSceneId        = app.targetSceneId
+    return [
+      app.id, app.label, app.icon ?? '',
+      app.widgetSource ?? null, app.widgetComponent ?? null,
+      app.windowPosition?.x ?? null, app.windowPosition?.y ?? null,
+      app.windowSize?.width ?? null, app.windowSize?.height ?? null,
+      app.zIndexDefault ?? null, app.zIndexCurrent ?? null,
+      Object.keys(settings).length > 0 ? JSON.stringify(settings) : null,
+    ]
+  }
+
+  upsertApplication(app: Application): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO widgets (id, label, icon, widget_source, widget_component,
+        window_x, window_y, window_width, window_height, z_index_default, z_index_current, settings_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(...this.appToRow(app))
+  }
+
   saveApplications(apps: Application[]): void {
     this.db.prepare('DELETE FROM widgets').run()
     const insert = this.db.prepare(`
@@ -40,23 +69,7 @@ export class WidgetRepository {
         window_x, window_y, window_width, window_height, z_index_default, z_index_current, settings_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    for (const app of apps) {
-      const settings: Record<string, unknown> = {}
-      if (app.gallerySettings) settings.gallerySettings = app.gallerySettings
-      if (app.cameraSettings) settings.cameraSettings = app.cameraSettings
-      if (app.windowWidgetSettings) settings.windowWidgetSettings = app.windowWidgetSettings
-      if (app.stickyNotesSettings) settings.stickyNotesSettings = app.stickyNotesSettings
-      if (app.theme) settings.theme = app.theme
-      if (app.iconSize) settings.iconSize = app.iconSize
-      if (app.iconPosition) settings.iconPosition = app.iconPosition
-      if (app.recycleBinSettings) settings.recycleBinSettings = app.recycleBinSettings
-      insert.run(app.id, app.label, app.icon ?? '',
-        app.widgetSource ?? null, app.widgetComponent ?? null,
-        app.windowPosition?.x ?? null, app.windowPosition?.y ?? null,
-        app.windowSize?.width ?? null, app.windowSize?.height ?? null,
-        app.zIndexDefault ?? null, app.zIndexCurrent ?? null,
-        Object.keys(settings).length > 0 ? JSON.stringify(settings) : null)
-    }
+    for (const app of apps) insert.run(...this.appToRow(app))
   }
 
   loadLayouts(): WidgetLayoutDefinition[] {

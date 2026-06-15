@@ -238,8 +238,9 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     actionFn    = () => triggerScene(selected.envState)
   } else if (selected.kind === 'scene') {
     const app   = applications.find((a) => a.targetSceneId === selected.sceneState)
+    const scene = scenes[selected.sceneState]
     headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
-    headerLabel = app?.label ?? selected.sceneState
+    headerLabel = app?.label ?? scene?.label ?? selected.sceneState
     headerMeta  = 'Scene'
     isLive      = currentState === selected.sceneState
     actionLabel = isLive ? '● Live' : '▶ Go Live'

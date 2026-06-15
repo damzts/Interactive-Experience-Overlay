@@ -104,6 +104,7 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
 }) {
   const currentState   = useAdminStore((s) => s.currentState)
   const saveConfig     = useAdminStore((s) => s.saveConfig)
+  const patchConfig    = useAdminStore((s) => s.patchConfig)
   const applications   = useAdminStore((s) => s.config.applications)
   const scenes         = useAdminStore((s) => s.config.scenes)
   const desktopConfig  = withDesktopConfigDefaults(useAdminStore((s) => s.config.desktopConfig))
@@ -114,13 +115,13 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
   const persistedWidgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const userWidgetLayouts      = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
 
-  const addNewLayout = async () => {
+  const addNewLayout = () => {
     if (applications.length === 0) return
     const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${userWidgetLayouts.length + 1}`, applications, desktopConfig, [])
-    await saveConfig({
-      widgetLayouts: [...persistedWidgetLayouts, nextLayout],
-    })
+    const nextLayouts = [...persistedWidgetLayouts, nextLayout]
+    patchConfig({ widgetLayouts: nextLayouts })
     onSelect({ kind: 'widget-layout', layoutId: nextLayout.id })
+    void saveConfig({ widgetLayouts: nextLayouts })
   }
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
@@ -152,13 +153,15 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
                 onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}
                 onDoubleClick={() => onActivate({ kind: 'scene', sceneState: scene.id })} />
             ))}
-          <AddBtn label="New Scene" onClick={async () => {
+          <AddBtn label="New Scene" onClick={() => {
             const sceneId = 'SCENE_' + Date.now()
             const newScene: Scene = {
               id: sceneId, label: 'New Scene', backgroundOpaque: false, windows: [],
             }
-            await saveConfig({ scenes: { ...scenes, [sceneId]: newScene } })
+            const nextScenes = { ...scenes, [sceneId]: newScene }
+            patchConfig({ scenes: nextScenes })
             onSelect({ kind: 'scene', sceneState: sceneId })
+            void saveConfig({ scenes: nextScenes })
           }} />
         </>}
 

@@ -8,6 +8,7 @@ export interface ConfigSlice {
   runtimeConfig: RuntimeConfig
   config: AppConfig
   configLoaded: boolean
+  _pendingSaveUpdates: Partial<AppConfig>[]
 
   setConfig: (c: AppConfig) => void
   patchConfig: (updates: Partial<AppConfig>) => void
@@ -21,13 +22,22 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
   runtimeConfig: {},
   config: DEFAULT_CONFIG,
   configLoaded: false,
+  _pendingSaveUpdates: [],
 
   setConfig: (c) =>
-    set((state) => ({
-      persistedConfig: c,
-      config: applyRuntimeConfig(c, state.runtimeConfig),
-      configLoaded: true,
-    })),
+    set((state) => {
+      // Re-apply any in-flight optimistic saves so a socket config:update broadcast
+      // with a slightly-older server snapshot doesn't wipe them.
+      let persistedConfig: AppConfig = c
+      for (const pending of state._pendingSaveUpdates) {
+        persistedConfig = mergeAppConfig(persistedConfig, pending)
+      }
+      return {
+        persistedConfig,
+        config: applyRuntimeConfig(persistedConfig, state.runtimeConfig),
+        configLoaded: true,
+      }
+    }),
 
   patchConfig: (updates) =>
     set((state) => {
@@ -60,13 +70,19 @@ export const createConfigSlice: StateCreator<ConfigSlice & UiSliceRef, [], [], C
   },
 
   saveConfig: async (updates) => {
+    set((state) => ({ _pendingSaveUpdates: [...state._pendingSaveUpdates, updates] }))
     try {
-      const merged = await patchConfig(get().persistedConfig, updates)
-      set((state) => ({
-        persistedConfig: merged,
-        config: applyRuntimeConfig(merged, state.runtimeConfig),
-      }))
+      await patchConfig(get().persistedConfig, updates)
+      set((state) => {
+        const persistedConfig = mergeAppConfig(state.persistedConfig, updates)
+        return {
+          _pendingSaveUpdates: state._pendingSaveUpdates.filter((u) => u !== updates),
+          persistedConfig,
+          config: applyRuntimeConfig(persistedConfig, state.runtimeConfig),
+        }
+      })
     } catch (e) {
+      set((state) => ({ _pendingSaveUpdates: state._pendingSaveUpdates.filter((u) => u !== updates) }))
       get().setLastError(String(e))
       throw e
     }

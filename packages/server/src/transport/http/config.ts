@@ -7,6 +7,9 @@ import type { AppConfig, Application, Scene } from '@ieomlabs/shared'
 interface ConfigServiceLike {
   getForUser(userId: string): Promise<AppConfig>
   persistForUser(userId: string, config: AppConfig, updates?: Partial<AppConfig>): Promise<AppConfig>
+  upsertScene(scene: Scene): Promise<void>
+  deleteScene(id: string): Promise<void>
+  upsertApplication(app: Application): Promise<void>
   createScene?(app: Application, scene: Scene): AppConfig
 }
 
@@ -62,24 +65,54 @@ export async function configRoute(app: FastifyInstance, opts: ConfigRouteOptions
     }
   })
 
+  app.post<{ Body: Application }>('/api/config/applications', async (req, reply) => {
+    try {
+      await configService.upsertApplication(req.body)
+      return { ok: true }
+    } catch (e) {
+      return reply.code(400).send({ ok: false, error: String(e) })
+    }
+  })
+
   app.patch<{ Params: { appId: string }; Body: Partial<Application> }>(
     '/api/config/applications/:appId',
     async (req, reply) => {
       try {
         const config = await configService.getForUser(req.userId)
-        if (!config.applications.some((a) => a.id === req.params.appId)) {
+        const existing = config.applications.find((a) => a.id === req.params.appId)
+        if (!existing) {
           return reply.code(404).send({ ok: false, error: `Unknown application: ${req.params.appId}` })
         }
-        const applications = config.applications.map((a) =>
-          a.id === req.params.appId ? { ...a, ...req.body } : a,
-        )
-        await configService.persistForUser(req.userId, { ...config, applications }, { applications })
+        await configService.upsertApplication({ ...existing, ...req.body })
         return { ok: true }
       } catch (e) {
         return reply.code(400).send({ ok: false, error: String(e) })
       }
     },
   )
+
+  /** PATCH /api/config/scenes/:id — upsert a single scene without touching others */
+  app.patch<{ Params: { id: string }; Body: Scene }>('/api/config/scenes/:id', async (req, reply) => {
+    try {
+      if (req.params.id !== req.body.id) {
+        return reply.code(400).send({ ok: false, error: 'Scene id mismatch' })
+      }
+      await configService.upsertScene(req.body)
+      return { ok: true }
+    } catch (e) {
+      return reply.code(400).send({ ok: false, error: String(e) })
+    }
+  })
+
+  /** DELETE /api/config/scenes/:id — remove a single user scene */
+  app.delete<{ Params: { id: string } }>('/api/config/scenes/:id', async (req, reply) => {
+    try {
+      await configService.deleteScene(req.params.id)
+      return { ok: true }
+    } catch (e) {
+      return reply.code(400).send({ ok: false, error: String(e) })
+    }
+  })
 
   /** POST /api/config/scenes — atomically create a scene + linked application (Task 9) */
   app.post<{ Body: { app: Application; scene: Scene } }>('/api/config/scenes', async (req, reply) => {

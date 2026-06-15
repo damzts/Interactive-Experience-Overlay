@@ -9,6 +9,7 @@ import { ScenePreview } from './ScenePreview'
 import { TransitionChipPicker } from './TransitionPicker'
 
 type ScenePanelDraft = {
+  label:       string
   onEntry:     TransitionStep[]
   onExit:      TransitionStep[]
   style:       OverlayStyle
@@ -23,6 +24,7 @@ function buildDraft(
 ): ScenePanelDraft {
   const scene = config.scenes[sceneId] as Scene | undefined
   return {
+    label:       scene?.label ?? sceneId,
     onEntry:     structuredClone(scene?.onEntry?.map((id) => ({ id })) ?? []),
     onExit:      structuredClone(scene?.onExit?.map((id) => ({ id })) ?? []),
     style:       structuredClone(withOverlayStyleDefaults(scene?.style)),
@@ -68,6 +70,7 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
     const scene = (config.scenes[sceneId] ?? {}) as Scene
     const nextScene: Scene = {
       ...scene,
+      label:       draft.label.trim() || sceneId,
       windows:     draft.windows,
       showDesktop: draft.showDesktop,
       onEntry:     draft.onEntry.filter((s) => s.id).map((s) => s.id),
@@ -75,7 +78,7 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
       musicTrack:  draft.musicTrack.trim() || undefined,
       ...(isDesktop ? {} : { style: draft.style }),
     }
-    await saveConfig({ scenes: { [sceneId]: nextScene } })
+    await saveConfig({ scenes: { ...config.scenes, [sceneId]: nextScene } })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
@@ -125,6 +128,16 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
       {/* ── Settings tab ─────────────────────────────────── */}
       {tab === 'settings' && (
         <div className="space-y-4 pt-1">
+          {/* Scene Name */}
+          {isUser && (
+            <ConfigPanel title="Scene Name">
+              <input type="text" placeholder="Scene name"
+                value={draft.label}
+                onChange={(e) => update((d) => { d.label = e.target.value })}
+                className="w-full text-xs" />
+            </ConfigPanel>
+          )}
+
           {/* Show Desktop */}
           {!isDesktop && (
             <label className="flex items-center gap-3 cursor-pointer select-none px-1">
