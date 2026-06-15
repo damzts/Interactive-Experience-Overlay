@@ -230,29 +230,6 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   addColumn('scenes', 'ambient_track', 'TEXT')
   addColumn('widget_wires', 'condition_json', 'TEXT')
 
-  // sources → renderer rename: migrate scenes.sources_json → windows_json
-  const sceneColumns = (db.prepare("PRAGMA table_info(scenes)").all() as Array<{ name: string }>).map((c) => c.name)
-  if (sceneColumns.includes('sources_json') && !sceneColumns.includes('windows_json')) {
-    db.exec('ALTER TABLE scenes RENAME COLUMN sources_json TO windows_json')
-  }
-
-  // sources → renderer rename: migrate source_presets table → window_presets
-  const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map((t) => t.name)
-  if (tables.includes('source_presets') && !tables.includes('window_presets')) {
-    db.exec('ALTER TABLE source_presets RENAME TO window_presets')
-    const presetColumns = (db.prepare("PRAGMA table_info(window_presets)").all() as Array<{ name: string }>).map((c) => c.name)
-    if (presetColumns.includes('plugin_type') && !presetColumns.includes('renderer_type')) {
-      db.exec('ALTER TABLE window_presets RENAME COLUMN plugin_type TO renderer_type')
-    }
-  }
-
-  // asset-library → media-library rename: migrate legacy table names
-  const tableNames = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map((t) => t.name)
-  if (tableNames.includes('source_events')     && !tableNames.includes('media_effects'))     db.exec('ALTER TABLE source_events RENAME TO media_effects')
-  if (tableNames.includes('source_media')      && !tableNames.includes('media_gallery'))     db.exec('ALTER TABLE source_media RENAME TO media_gallery')
-  if (tableNames.includes('window_presets')    && !tableNames.includes('media_renders'))     db.exec('ALTER TABLE window_presets RENAME TO media_renders')
-  if (tableNames.includes('source_transitions') && !tableNames.includes('media_transitions')) db.exec('ALTER TABLE source_transitions RENAME TO media_transitions')
-
   // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
   try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }
   return db
