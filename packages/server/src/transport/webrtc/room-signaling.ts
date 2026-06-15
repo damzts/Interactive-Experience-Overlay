@@ -571,6 +571,18 @@ export class RoomSignaling {
     logger.info(`[room-signaling] sent kick for ${userId}`)
   }
 
+  /** Request a participant to send a fresh offer (ice-restart-request) */
+  requestReOffer(userId: string): void {
+    this.send({
+      type: 'ice-restart-request',
+      payload: { userId },
+      senderId: 'self',
+      timestamp: new Date().toISOString(),
+      targetUserId: userId,
+    })
+    logger.info(`[room-signaling] sent ice-restart-request to ${userId} (relay re-offer)`)
+  }
+
   private emitStatus(): void {
     const status = this.getStatus()
     for (const cb of this.statusCallbacks) cb(status)

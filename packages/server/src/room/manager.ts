@@ -637,6 +637,18 @@ export class RoomManager {
     }
   }
 
+  /** Request a participant to re-send their offer (for relay reconnection) */
+  requestReOffer(participantId: string): void {
+    for (const [roomCode, signaling] of this.signalingInstances) {
+      const room = this.rooms.get(roomCode)
+      if (room?.participants.has(participantId)) {
+        signaling.requestReOffer(participantId)
+        return
+      }
+    }
+    logger.warn(`[room] requestReOffer: participant ${participantId} not found in any room`)
+  }
+
   private syncParticipants(room: Room, participantIds: string[], names?: Map<string, string>): void {
     const currentIds = new Set(room.participants.keys())
     const newIds = new Set(participantIds)

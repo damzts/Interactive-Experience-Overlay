@@ -344,14 +344,29 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
       .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
   })
 
-  // Auto-select first participant; relay fresh tracks on re-offer for active camera
+  // When the relay needs a re-offer (overlay reconnected), force a re-offer
+  // from the active participant so the hub gets a fresh track for the relay.
+  // NOTE: roomRelay.onNeedReOffer is set AFTER roomManager is created (see below)
+
+  // Auto-select first participant; feed fresh tracks to relay on offer/re-offer
   roomHub.onTrack((userId, kind) => {
     if (kind !== 'video') return  // Only trigger relay when VIDEO track arrives
     if (!povOrchestrator.activeCameraId) {
       povOrchestrator.switcher.manualSelect(userId)
     } else if (userId === povOrchestrator.activeCameraId) {
-      roomRelay.switchTo(roomHub.getAudioTrack(userId), roomHub.getVideoTrack(userId))
-        .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on re-offer failed'))
+      // Fresh video track arrived for active camera — feed to relay
+      const videoTrack = roomHub.getVideoTrack(userId)
+      const audioTrack = roomHub.getAudioTrack(userId)
+      if (videoTrack) {
+        if (roomRelay.isWaitingForTrack()) {
+          // Relay is waiting for a fresh track after overlay reconnect
+          logger.info(`[pov-relay] feeding fresh track from ${userId} to relay`)
+          roomRelay.negotiateWithFreshTrack(audioTrack, videoTrack)
+        } else {
+          roomRelay.switchTo(audioTrack, videoTrack)
+            .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on re-offer failed'))
+        }
+      }
     }
   })
 
@@ -365,19 +380,16 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
       logger.info('[pov-relay] overlay subscribed')
       roomRelay.createOffer((event, payload) => socket.emit(event, payload))
         .then(() => {
-          // If there's already an active camera, push its tracks to the relay
+          // If there's already an active camera, request a re-offer from the guest
+          // so the hub gets a fresh track that werift can forward to the relay.
           const activeId = povOrchestrator.activeCameraId
-          if (activeId) {
-            const videoTrack = roomHub.getVideoTrack(activeId)
-            const audioTrack = roomHub.getAudioTrack(activeId)
-            if (videoTrack) {
-              logger.info(`[pov-relay] pushing existing active camera ${activeId} to relay`)
-              roomRelay.switchTo(audioTrack, videoTrack)
-                .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo after subscribe failed'))
-            }
+          if (activeId && roomHub.hasParticipant(activeId)) {
+            logger.info(`[pov-relay] active camera ${activeId} exists — requesting re-offer for relay`)
+          } else {
+            logger.info(`[pov-relay] no active camera with track — will wait for next offer`)
           }
         })
-        .catch(e => logger.error('[pov-relay] createOffer failed:', e.message))
+        .catch(e => logger.error({ err: e?.message ?? e, stack: e?.stack }, '[pov-relay] createOffer failed'))
     })
     socket.on('pov-online:relay:answer', async (payload: { sdp: string }) => {
       try {
@@ -403,6 +415,14 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     getToken,
     signalingFactory: () => new RoomSignaling(roomHub, povOrchestrator),
   })
+
+  // Wire relay re-offer — when overlay reconnects, force active guest to re-offer
+  roomRelay.onNeedReOffer = () => {
+    const activeId = povOrchestrator.activeCameraId
+    if (!activeId) return
+    logger.info(`[pov-relay] requesting re-offer from ${activeId} for relay`)
+    roomManager.requestReOffer(activeId)
+  }
   const roomPreviewRelay = new RoomPreviewRelay()
   roomPreviewRelay.bindHub(roomHub)
   registerRoomNamespace(io, roomManager, roomPreviewRelay)
