@@ -8,7 +8,7 @@
 import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload } from '@ieomlabs/shared'
 import { STATE } from '@ieomlabs/shared'
 import type { KernelBus, BusFrame } from '../bus.js'
-import type { SceneMachine } from './scene.js'
+import type { SceneManager } from './scene.js'
 import type { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
 import type { Server as SocketIOServer } from 'socket.io'
 import logger from '../../lib/logger.js'
@@ -24,7 +24,7 @@ export class AutomationManager implements Manager {
     private repo: AutomationRuleRepository,
     private bus: KernelBus,
     private io: SocketIOServer,
-    private machine: SceneMachine,
+    private machine: SceneManager,
   ) {}
 
   init(): void { this._status = 'idle' }

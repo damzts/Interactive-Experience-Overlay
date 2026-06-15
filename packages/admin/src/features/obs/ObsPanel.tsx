@@ -2,14 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigCard, ConfigPageIntro, ConfigSectionPanel, Field } from '../../shared/ui'
 
-function formatCountdown(nextRetryAt: number | null): string {
-  if (!nextRetryAt) return ''
-  const s = Math.max(0, Math.ceil((nextRetryAt - Date.now()) / 1000))
-  if (s === 0) return 'retrying…'
-  if (s < 60) return `retry in ${s}s`
-  return `retry in ${Math.ceil(s / 60)}m`
-}
-
 export function ObsPanel() {
   const obsStatus  = useAdminStore((s) => s.obsStatus)
   const saveConfig = useAdminStore((s) => s.saveConfig)
@@ -18,7 +10,6 @@ export function ObsPanel() {
   const [url,      setUrl]      = useState(savedObs.url)
   const [password, setPassword] = useState(savedObs.password)
   const [dirty,    setDirty]    = useState(false)
-  const [, setTick] = useState(0)
 
   // keep local fields in sync when config reloads from server
   const savedRef = useRef(savedObs)
@@ -29,12 +20,6 @@ export function ObsPanel() {
     setPassword(savedObs.password)
     setDirty(false)
   }, [savedObs])
-
-  // tick every second for retry countdown
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 1000)
-    return () => clearInterval(id)
-  }, [])
 
   const handleSave = () => {
     void saveConfig({ obs: { url, password } })
@@ -55,7 +40,7 @@ export function ObsPanel() {
   const statusLabel = obsStatus.connected
     ? 'Connected'
     : obsStatus.reconnecting
-    ? 'Reconnecting'
+    ? 'Connecting…'
     : 'Disconnected'
 
   return (
@@ -108,9 +93,9 @@ export function ObsPanel() {
             </div>
           )}
 
-          {!obsStatus.connected && obsStatus.nextRetryAt && (
-            <div className="mt-2 text-[10px] text-zinc-500 tabular-nums">
-              Attempt {obsStatus.reconnectAttempt} · {formatCountdown(obsStatus.nextRetryAt)}
+          {!obsStatus.connected && !obsStatus.reconnecting && (
+            <div className="mt-2 text-[10px] text-zinc-500">
+              Update the WebSocket settings below and click <span className="text-zinc-400 font-semibold">Save &amp; reconnect</span>.
             </div>
           )}
 

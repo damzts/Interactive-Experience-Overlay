@@ -12,7 +12,7 @@ import {
   type ObsStatusPayload,
 } from '@ieomlabs/shared'
 import type { IO, HandlerContext, AppSocket } from './types.js'
-import type { SceneMachine } from '../../../kernel/managers/scene.js'
+import type { SceneManager } from '../../../kernel/managers/scene.js'
 import type { EventScheduler } from '../../../kernel/managers/scheduler.js'
 import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
 
@@ -26,7 +26,7 @@ import { registerManagerSignals } from './managers.js'
 
 export function setupSocketHandlers(
   io: IO,
-  machine: SceneMachine,
+  machine: SceneManager,
   scheduler: EventScheduler,
   ambianceManager: AmbianceManager,
   options?: {
@@ -35,7 +35,7 @@ export function setupSocketHandlers(
     bus?: import('../../../kernel/bus.js').KernelBus
     runtimeState?: import('../../../kernel/managers/runtime.js').RuntimeStateStore
     configService?: import('../../../kernel/managers/config.js').IConfigService
-    obsBridge?: import('../../../kernel/managers/obs.js').ObsBridge
+    obsBridge?: import('../../../kernel/managers/obs.js').ObsBridgeManager
   },
 ): { isOverlaySlotTaken: () => boolean } {
   if (options?.runtimeState) {

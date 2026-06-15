@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
-import type { SceneMachine } from '../../kernel/managers/scene.js'
+import type { SceneManager } from '../../kernel/managers/scene.js'
 import logger from '../../lib/logger.js'
 import { mergeAppConfig, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type { AppConfig, Application, Scene } from '@ieomlabs/shared'
@@ -14,7 +14,7 @@ interface ConfigServiceLike {
 }
 
 interface ConfigRouteOptions extends FastifyPluginOptions {
-  machine: SceneMachine
+  machine: SceneManager
   configService: ConfigServiceLike
 }
 

@@ -17,7 +17,6 @@ export type SelectedItem =
   | { kind: 'settings' }
   | { kind: 'ambiance' }
   | { kind: 'scheduler' }
-  | { kind: 'scene-machine' }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
   | { kind: 'asset-library' }

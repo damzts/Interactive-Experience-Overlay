@@ -39,15 +39,7 @@ export function Dashboard() {
   const { isMobile } = useBreakpoint()
   const [activeSection, setActiveSection] = useState('dashboard')
 
-  // ─── Runtime state for TopBar status indicators ───
-  const overlayOwnerSocketId = useAdminStore((s) => s.overlayOwnerSocketId)
-  const obsConnected = useAdminStore((s) => s.obsConnected)
   const { user, isLoginModalOpen, closeLoginModal } = useAuth()
-
-  const overlayStatus: 'connected' | 'disconnected' =
-    overlayOwnerSocketId != null ? 'connected' : 'disconnected'
-  const obsStatus: 'connected' | 'disconnected' =
-    obsConnected ? 'connected' : 'disconnected'
 
   // ─── Provide auth token to server on app load ───
   // Sends the stored user JWT to POST /api/online/auth so the server can
@@ -115,12 +107,6 @@ export function Dashboard() {
     setSidebarCollapsed(!sidebarCollapsed)
   }, [sidebarCollapsed, setSidebarCollapsed])
 
-  // ─── Command palette integration ───
-  const setCommandPaletteOpen = useAdminStore((s) => s.setCommandPaletteOpen)
-  const handleSearchOpen = useCallback(() => {
-    setCommandPaletteOpen(true)
-  }, [setCommandPaletteOpen])
-
   // ─── Determine whether to show the dashboard overview or the existing content ───
   const showDashboard = activeSection === 'dashboard'
 
@@ -143,9 +129,6 @@ export function Dashboard() {
 
       {/* ─── New Design System TopBar (fixed top, offset by sidebar) ─── */}
       <NewTopBar
-        onSearchOpen={handleSearchOpen}
-        overlayStatus={overlayStatus}
-        obsStatus={obsStatus}
         userName={user?.name ?? 'Admin'}
         style={{ left: `${sidebarWidth}px`, transition: 'left 250ms cubic-bezier(0, 0, 0.2, 1)' }}
       />

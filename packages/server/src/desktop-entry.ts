@@ -28,10 +28,10 @@ import type { AppConfig } from '@ieomlabs/shared'
 import { RoomPreviewRelay } from './transport/webrtc/room-preview-relay.js'
 import { Kernel } from './kernel/index.js'
 import { loadDefaultConfig } from './lib/defaults.js'
-import { SceneMachine } from './kernel/managers/scene.js'
+import { SceneManager } from './kernel/managers/scene.js'
 import { RuntimeStateStore } from './kernel/managers/runtime.js'
 import { setupSocketHandlers } from './transport/socket/handlers.js'
-import { ObsBridge } from './kernel/managers/obs.js'
+import { ObsBridgeManager } from './kernel/managers/obs.js'
 import { EventScheduler } from './kernel/managers/scheduler.js'
 import { AmbianceManager } from './kernel/managers/ambiance.js'
 import { registerOverlayNamespace } from './transport/socket/overlayHandlers.js'
@@ -253,12 +253,12 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     },
   }
   const userRepository = new UserRepository(dbQueryAdapter)
-  const machine = new SceneMachine(kernel.bus)
+  const machine = new SceneManager(kernel.bus)
   const runtimeState = new RuntimeStateStore()
 
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
-  const obsBridge = new ObsBridge(io, machine, kernel.bus)
+  const obsBridge = new ObsBridgeManager(io, machine, kernel.bus)
   const roomHub = new RoomHub()
   const povOrchestrator = new POVOrchestrator(roomHub)
   const automationRepo = new AutomationRuleRepository(db)
@@ -272,12 +272,12 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   kernel.register(configService)
   kernel.register(runtimeState)
   kernel.register(machine, { after: ['DesktopConfigService'] })
-  kernel.register(scheduler, { after: ['SceneMachine', 'DesktopConfigService'] })
+  kernel.register(scheduler, { after: ['SceneManager', 'DesktopConfigService'] })
   kernel.register(ambianceManager, { after: ['DesktopConfigService'] })
-  kernel.register(obsBridge, { after: ['SceneMachine'] })
+  kernel.register(obsBridge, { after: ['SceneManager'] })
   kernel.register(povOrchestrator)
-  kernel.register(automationManager, { after: ['DesktopConfigService', 'SceneMachine', 'EventScheduler', 'AmbianceManager'] })
-  kernel.register(showSequencer, { after: ['DesktopConfigService', 'SceneMachine'] })
+  kernel.register(automationManager, { after: ['DesktopConfigService', 'SceneManager', 'EventScheduler', 'AmbianceManager'] })
+  kernel.register(showSequencer, { after: ['DesktopConfigService', 'SceneManager'] })
 
   const twitchChatManager = new TwitchChatManager(
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,

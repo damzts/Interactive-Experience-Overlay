@@ -1,5 +1,5 @@
 /**
- * ObsBridge — conecta a OBS WebSocket y controla virtual cam / RTMP / Browser Source.
+ * ObsBridgeManager — conecta a OBS WebSocket y controla virtual cam / RTMP / Browser Source.
  *
  * USO:
  *   1. Abrir OBS → Tools → WebSocket Server Settings → habilitar, anotar puerto+password
@@ -15,23 +15,17 @@ import OBSWebSocket from 'obs-websocket-js'
 import type { Server } from 'socket.io'
 import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieomlabs/shared'
 import logger from '../../lib/logger.js'
-import type { SceneMachine } from './scene.js'
+import type { SceneManager } from './scene.js'
 import type { KernelBus } from '../bus.js'
 
-const OBS_RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000] as const
-
-export class ObsBridge implements Manager {
-  readonly name = 'ObsBridge'
+export class ObsBridgeManager implements Manager {
+  readonly name = 'ObsBridgeManager'
   private _status: ManagerStatus = 'idle'
   private obs = new OBSWebSocket()
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private connected = false
   private connecting = false
   private currentUrl = 'ws://localhost:4455'
   private currentPassword = ''
-  private reconnectAttempt = 0
-  private retryDelayMs: number | null = null
-  private nextRetryAt: number | null = null
   private lastError: string | null = null
   private _virtualCamActive = false
   private _streaming = false
@@ -42,7 +36,7 @@ export class ObsBridge implements Manager {
 
   constructor(
     private io: Server,
-    private machine: SceneMachine,
+    private machine: SceneManager,
     private bus?: KernelBus,
   ) {
     this.obs.on('ConnectionClosed', () => {
@@ -52,7 +46,6 @@ export class ObsBridge implements Manager {
       }
       this.lastError = 'Connection closed'
       this.emitStatus()
-      if (!this.connecting) this.scheduleReconnect()
     })
 
     // Track virtual cam state via events
@@ -66,10 +59,7 @@ export class ObsBridge implements Manager {
   // ── Manager interface ────────────────────────────────────────
   init(): void { this._status = 'idle' }
   start(): void { this._status = 'running'; this.connect() }
-  stop(): void {
-    this._status = 'stopped'
-    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
-  }
+  stop(): void { this._status = 'stopped' }
   dispose(): void { this.stop(); this.obs.disconnect() }
   status(): ManagerStatus { return this._status }
 
@@ -78,16 +68,8 @@ export class ObsBridge implements Manager {
     this.currentUrl = url
     this.currentPassword = password
 
-    if (!changed && (this.connected || this.connecting || this.reconnectTimer)) return
+    if (!changed && (this.connected || this.connecting)) return
 
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
-    }
-
-    this.reconnectAttempt = 0
-    this.retryDelayMs = null
-    this.nextRetryAt = null
     this.lastError = null
     this.emitStatus()
 
@@ -98,10 +80,7 @@ export class ObsBridge implements Manager {
     return {
       connected: this.connected,
       url: this.currentUrl,
-      reconnecting: this.connecting || this.reconnectTimer !== null,
-      reconnectAttempt: this.reconnectAttempt,
-      retryDelayMs: this.retryDelayMs,
-      nextRetryAt: this.nextRetryAt,
+      reconnecting: this.connecting,
       lastError: this.lastError,
       virtualCamActive: this._virtualCamActive,
       streaming: this._streaming,
@@ -307,28 +286,12 @@ export class ObsBridge implements Manager {
       const message = err instanceof Error ? err.message : String(err)
       this.lastError = message
       this.connected = false
+      logger.warn(`[obs] connection failed (${message}) — configure OBS settings to retry`)
       this.emitStatus()
-      this.scheduleReconnect()
     } finally {
       this.connecting = false
       this.emitStatus()
     }
   }
 
-  private scheduleReconnect() {
-    if (this.reconnectTimer) return
-    const delayMs = OBS_RETRY_DELAYS_MS[Math.min(this.reconnectAttempt, OBS_RETRY_DELAYS_MS.length - 1)]
-    this.reconnectAttempt += 1
-    this.retryDelayMs = delayMs
-    this.nextRetryAt = Date.now() + delayMs
-    logger.info(`[obs] not connected${this.lastError ? ` (${this.lastError})` : ''} — retry ${this.reconnectAttempt} scheduled in ${Math.round(delayMs / 1000)}s`)
-    this.emitStatus()
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null
-      this.retryDelayMs = null
-      this.nextRetryAt = null
-      this.emitStatus()
-      void this.openConnection()
-    }, delayMs)
-  }
 }

@@ -1,5 +1,5 @@
 ﻿import logger from '../../lib/logger.js'
-import type { SceneMachine } from './scene.js'
+import type { SceneManager } from './scene.js'
 import { STATE } from '@ieomlabs/shared'
 import type { AppConfig, EventConfig, Manager, ManagerStatus, SchedulerDiagnosticsPayload } from '@ieomlabs/shared'
 import type { KernelBus } from '../bus.js'
@@ -34,7 +34,7 @@ export class EventScheduler implements Manager {
   private lastTriggeredEventId: string | null = null
   private diagnosticsListener?: (payload: SchedulerDiagnosticsPayload) => void
 
-  constructor(private machine: SceneMachine, private getConfig: () => AppConfig, private bus?: KernelBus) {}
+  constructor(private machine: SceneManager, private getConfig: () => AppConfig, private bus?: KernelBus) {}
 
   // ── Manager interface ────────────────────────────────────────
   init(): void { this._status = 'idle' }

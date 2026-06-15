@@ -14,7 +14,6 @@ import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
 import { SchedulerPanel } from '../scheduler/SchedulerPanel'
-import { SceneMachinePanel } from '../scene-machine/SceneMachinePanel'
 import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { WiresPanel } from '../wires/WiresPanel'
@@ -119,8 +118,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'settings') return <SettingsPanel />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'scheduler') return <SchedulerPanel />
-  if (selected.kind === 'scene-machine') return <SceneMachinePanel />
-  if (selected.kind === 'obs') return <ObsPanel />
+if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'wires')  return <WiresPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
@@ -140,8 +138,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 
 const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
   { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
-  { icon: '🔄', label: 'Scene Machine',      kind: 'scene-machine' },
-  { icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
+{ icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
   { icon: '🌌', label: 'Ambiance',           kind: 'ambiance' },
   { icon: '📁', label: 'Archive',            kind: 'archive' },
@@ -282,8 +279,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   else if (selected.kind === 'asset-transitions') { headerIcon = '✨'; headerLabel = 'Transitions'; headerMeta = 'Asset Library' }
   else if (selected.kind === 'ambiance')      { headerIcon = '🌌'; headerLabel = 'Ambiance';      headerMeta = 'Engine' }
   else if (selected.kind === 'scheduler')     { headerIcon = '⏱';  headerLabel = 'Scheduler';     headerMeta = 'Engine' }
-  else if (selected.kind === 'scene-machine') { headerIcon = '🔄'; headerLabel = 'Scene Machine'; headerMeta = 'Engine' }
-  else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
+else if (selected.kind === 'obs')           { headerIcon = '🎬'; headerLabel = 'OBS';           headerMeta = 'Engine' }
   else if (selected.kind === 'kernel-health') { headerIcon = '⚙';  headerLabel = 'Kernel Health'; headerMeta = 'Engine' }
   else if (selected.kind === 'wires')         { headerIcon = '⚡'; headerLabel = 'Wires';         headerMeta = 'Engine' }
   else if (selected.kind === 'pov-online') { headerIcon = '🌐'; headerLabel = 'Online Rooms'; headerMeta = 'Browser POV' }

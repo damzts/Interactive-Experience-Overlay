@@ -20,8 +20,8 @@ export interface TransitionStartPayload {
   intro: TransitionStep[]
 }
 
-export class SceneMachine extends EventEmitter implements Manager {
-  readonly name = 'SceneMachine'
+export class SceneManager extends EventEmitter implements Manager {
+  readonly name = 'SceneManager'
   private _status: ManagerStatus = 'idle'
   private snap: MachineSnapshot = {
     current: STATE.DESKTOP,

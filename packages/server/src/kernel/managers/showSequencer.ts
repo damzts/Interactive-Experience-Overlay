@@ -12,8 +12,8 @@
 
 import type { Manager, ManagerStatus, AppConfig, ShowDefinition, EventAction } from '@ieomlabs/shared'
 import type { KernelBus } from '../bus.js'
-import type { SceneMachine } from './scene.js'
-import type { ObsBridge } from './obs.js'
+import type { SceneManager } from './scene.js'
+import type { ObsBridgeManager } from './obs.js'
 import logger from '../../lib/logger.js'
 
 export class ShowSequencer implements Manager {
@@ -26,8 +26,8 @@ export class ShowSequencer implements Manager {
   constructor(
     private getConfig: () => AppConfig,
     private bus: KernelBus,
-    private machine: SceneMachine,
-    private obsBridge?: ObsBridge,
+    private machine: SceneManager,
+    private obsBridge?: ObsBridgeManager,
   ) {}
 
   init(): void { this._status = 'idle' }
@@ -86,7 +86,7 @@ export class ShowSequencer implements Manager {
   private executeStep(showId: string, action: EventAction): void {
     if (action.kind === 'obs-stream') {
       if (!this.obsBridge) {
-        logger.warn(`[show:${showId}] obs-stream action skipped — ObsBridge not available`)
+        logger.warn(`[show:${showId}] obs-stream action skipped — ObsBridgeManager not available`)
         return
       }
       if (action.action === 'start') {

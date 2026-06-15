@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify'
 import type { ObsStatusPayload } from '@ieomlabs/shared'
-import type { ObsBridge } from '../../kernel/managers/obs.js'
+import type { ObsBridgeManager } from '../../kernel/managers/obs.js'
 
 interface ArchiveRouteOptions extends FastifyPluginOptions {
   getObsStatus?: () => ObsStatusPayload
-  obsBridge?: ObsBridge
+  obsBridge?: ObsBridgeManager
 }
 
 export async function archiveRoute(app: FastifyInstance, options: ArchiveRouteOptions) {

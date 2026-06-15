@@ -18,7 +18,7 @@ import { EventEmitter } from 'events'
 // add manager-specific events here.
 
 export interface KernelEvents {
-  /** SceneMachine completed a transition */
+  /** SceneManager completed a transition */
   'scene:changed': { from: string; to: string }
   /** Overlay client connected to the slot */
   'overlay:connected': { socketId: string }

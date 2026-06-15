@@ -51,9 +51,6 @@ export interface ObsStatusPayload {
   connected: boolean
   url: string
   reconnecting: boolean
-  reconnectAttempt: number
-  retryDelayMs: number | null
-  nextRetryAt: number | null
   lastError: string | null
   virtualCamActive: boolean
   streaming: boolean
