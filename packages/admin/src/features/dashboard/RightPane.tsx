@@ -20,6 +20,7 @@ import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { WiresPanel } from '../wires/WiresPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
+import { SpotifyPanel } from '../spotify/SpotifyPanel'
 import { AssetLibraryPanel } from '../asset-library/AssetLibraryPanel'
 import type { SelectedItem } from './types'
 import { AppForm } from './AppForm'
@@ -124,6 +125,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'wires')  return <WiresPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
+  if (selected.kind === 'spotify') return <SpotifyPanel />
   if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
   if (selected.kind === 'asset-catalog')     return <AssetLibraryPanel tab="catalog" />
   if (selected.kind === 'asset-events')      return <AssetLibraryPanel tab="events" />
@@ -149,6 +151,7 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
   { icon: '⚡', label: 'Wires',             kind: 'wires' },
   { icon: '🎭', label: 'Show Sequencer',    kind: 'shows' },
   { icon: '💬', label: 'Twitch Chat',       kind: 'twitch' },
+  { icon: '🎵', label: 'Spotify',           kind: 'spotify' },
   { icon: '⚙', label: 'Settings',           kind: 'settings' },
 ]
 

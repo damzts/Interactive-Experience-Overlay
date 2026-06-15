@@ -82,6 +82,13 @@ export interface EventTransitionAction {
   transitionId: string
 }
 
+export interface EventSpotifyControlAction {
+  kind: 'spotify-control'
+  command: 'play-pause' | 'next' | 'prev' | 'stop' | 'volume'
+  /** Volume level 0–100 (only used when command is 'volume') */
+  value?: number
+}
+
 export type EventAction =
   | EventDesktopConfigAction
   | EventWidgetThemesAction
@@ -91,6 +98,7 @@ export type EventAction =
   | EventObsStreamAction
   | EventSceneChangeAction
   | EventTransitionAction
+  | EventSpotifyControlAction
 
 // ── Event entity ─────────────────────────────────────────────────
 

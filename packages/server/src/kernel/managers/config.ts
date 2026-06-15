@@ -86,6 +86,7 @@ export interface IConfigService {
   routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }>
   onConfigUpdate(listener: (config: AppConfig) => void): void
   invalidateCache(): void
+  patchSpotifyConfig(patch: Partial<import('@ieomlabs/shared').SpotifyConfig>): Promise<void>
 }
 
 // ── DesktopConfigService ─────────────────────────────────────────
@@ -144,8 +145,14 @@ export class DesktopConfigService implements Manager, IConfigService {
         target_widget_id TEXT NOT NULL,
         target_action TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE TABLE IF NOT EXISTS spotify_config (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        active_playlist_id TEXT,
+        playlists_json TEXT NOT NULL DEFAULT '[]'
       )
     `)
+
   }
 
   init(): void { this._status = 'idle' }
@@ -239,6 +246,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       shows:            this.loadShows(),
       twitch:           this.loadTwitchConfig(),
       chatReactions:    this.loadChatReactions(),
+      spotify:          this.loadSpotifyConfig(),
     }
     return this.withConfigDefaults(base)
   }
@@ -323,6 +331,7 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'shows':            this.saveShows(cfg.shows ?? []); break
           case 'twitch':           if (cfg.twitch) this.saveTwitchConfig(cfg.twitch); break
           case 'chatReactions':    this.saveChatReactions(cfg.chatReactions ?? []); break
+          case 'spotify':          if (cfg.spotify) this.saveSpotifyConfig(cfg.spotify); break
         }
       }
     })
@@ -450,6 +459,38 @@ export class DesktopConfigService implements Manager, IConfigService {
       effects: row.effects_json ? JSON.parse(row.effects_json) : undefined,
       cooldownMs: row.cooldown_ms || undefined,
     }))
+  }
+
+  private saveSpotifyConfig(cfg: import('@ieomlabs/shared').SpotifyConfig): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO spotify_config (id, active_playlist_id, playlists_json)
+      VALUES (1, ?, ?)
+    `).run(
+      cfg.activePlaylistId ?? null,
+      JSON.stringify(cfg.playlists ?? []),
+    )
+  }
+
+  private loadSpotifyConfig(): import('@ieomlabs/shared').SpotifyConfig | undefined {
+    const row = this.db.prepare('SELECT * FROM spotify_config WHERE id = 1').get() as {
+      active_playlist_id: string | null
+      playlists_json: string
+    } | undefined
+    if (!row) return undefined
+    return {
+      playlists: JSON.parse(row.playlists_json || '[]') as import('@ieomlabs/shared').SpotifyPlaylist[],
+      activePlaylistId: row.active_playlist_id ?? undefined,
+    }
+  }
+
+  /** Persist only the Spotify field without a full config reload/broadcast. */
+  async patchSpotifyConfig(patch: Partial<import('@ieomlabs/shared').SpotifyConfig>): Promise<void> {
+    const current = this.loadSpotifyConfig() ?? { playlists: [] }
+    const merged = { ...current, ...patch }
+    this.saveSpotifyConfig(merged)
+    if (this._cachedConfig) {
+      this._cachedConfig = { ...this._cachedConfig, spotify: merged }
+    }
   }
 
   // ── Private: Config Defaults ─────────────────────────────────

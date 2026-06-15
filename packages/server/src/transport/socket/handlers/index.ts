@@ -140,6 +140,7 @@ export function setupSocketHandlers(
     registerConfigHandlers(ctx, socket)
     registerDiagnosticsHandlers(ctx, socket)
 
+
     socket.on('disconnect', () => {
       logger.info(`[socket] disconnected: ${socket.id}`)
       ctx.socketClientTypes.delete(socket.id)

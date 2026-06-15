@@ -29,6 +29,7 @@ export type SelectedItem =
   | { kind: 'wires' }
   | { kind: 'shows' }
   | { kind: 'twitch' }
+  | { kind: 'spotify' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState

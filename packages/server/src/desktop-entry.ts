@@ -45,6 +45,7 @@ import { AutomationManager } from './kernel/managers/automation.js'
 import { ShowSequencer } from './kernel/managers/showSequencer.js'
 import { TwitchChatManager } from './kernel/managers/twitchChat.js'
 import { ChatReactionManager } from './kernel/managers/chatReactions.js'
+import { spotifyRoute } from './transport/http/spotify.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
 import { showsRoute } from './transport/http/shows.js'
@@ -323,6 +324,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(showsRoute, { sequencer: showSequencer, configService })
   const busRecorder = new BusHistoryRecorder(kernel.bus, { capacity: 500, io })
   await app.register(busHistoryRoute, { recorder: busRecorder })
+  await app.register(spotifyRoute, { configService, io })
   await app.register(wiresRoute, {
     wires: configService.widgetWires,
     getManifests: () => WIDGET_INTENT_MANIFESTS,

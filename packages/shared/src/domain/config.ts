@@ -61,6 +61,20 @@ export interface AppConfig {
   twitch?: TwitchConfig
   /** Chat reaction rules (ChatReactionManager → chat_reactions table) */
   chatReactions?: ChatReactionRule[]
+  /** Spotify embedded playlists */
+  spotify?: SpotifyConfig
+}
+
+// ── Spotify config ───────────────────────────────────────────────
+
+export interface SpotifyPlaylist {
+  id: string
+  name: string
+}
+
+export interface SpotifyConfig {
+  playlists: SpotifyPlaylist[]
+  activePlaylistId?: string
 }
 
 // ── Twitch config ────────────────────────────────────────────────

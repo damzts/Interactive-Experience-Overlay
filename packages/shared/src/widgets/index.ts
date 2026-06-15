@@ -6,7 +6,6 @@ import { archiveDefinition } from './archive/definition.js'
 import { stickyNotesDefinition } from './sticky-notes/definition.js'
 import { chatDefinition } from './chat/definition.js'
 import { cameraDefinition } from './camera/definition.js'
-import { mediaDeckDefinition } from './media-deck/definition.js'
 import { cdRipperDefinition } from './cd-ripper/definition.js'
 import { signalLabDefinition } from './signal-lab/definition.js'
 import { broadcastSchedulerDefinition } from './broadcast-scheduler/definition.js'
@@ -24,7 +23,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   stickyNotesDefinition,
   chatDefinition,
   cameraDefinition,
-  mediaDeckDefinition,
   cdRipperDefinition,
   signalLabDefinition,
   broadcastSchedulerDefinition,

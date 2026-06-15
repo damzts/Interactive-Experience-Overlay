@@ -1,5 +1,5 @@
 import { DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE } from '@ieomlabs/shared'
-import type { DesktopNotificationPayload, DesktopRuntimeStatePayload } from '@ieomlabs/shared'
+import type { DesktopNotificationPayload, DesktopRuntimeStatePayload, SpotifyStatePayload } from '@ieomlabs/shared'
 
 const WINDOW_CLOSE_MS = 180
 const widgetCloseTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -25,7 +25,11 @@ export interface DesktopSlice {
   closingWidgets: Set<string>
   desktopNotifications: DesktopNotificationItem[]
   recycleBinFull: boolean
+  spotifyState: SpotifyStatePayload | null
+  spotifyControl: { command: string; value?: number; seq: number } | null
 
+  setSpotifyState: (state: SpotifyStatePayload | null) => void
+  dispatchSpotifyControl: (payload: { command: string; value?: number }) => void
   openWidget: (id: string) => void
   closeWidget: (id: string) => void
   toggleWidget: (id: string) => void
@@ -44,6 +48,13 @@ export const createDesktopSlice = (set: (fn: (state: any) => Partial<any>) => vo
   closingWidgets: new Set(),
   desktopNotifications: [],
   recycleBinFull: false,
+  spotifyState: null,
+  spotifyControl: null,
+
+  setSpotifyState: (state) => set(() => ({ spotifyState: state })),
+  dispatchSpotifyControl: (payload) => set((s) => ({
+    spotifyControl: { ...payload, seq: ((s.spotifyControl?.seq ?? 0) + 1) },
+  })),
 
   openWidget: (id) => {
     clearWidgetCloseTimer(id)

@@ -204,6 +204,13 @@ export interface RuntimeConfig {
   desktopAmbiance?: Partial<DesktopAmbianceConfig>
 }
 
+// ── Spotify signal payloads ───────────────────────────────────────
+
+export interface SpotifyStatePayload {
+  activePlaylistId?: string
+  activePlaylistName?: string
+}
+
 // ── ServerToClientEvents (signals) ───────────────────────────────
 
 /**
@@ -283,6 +290,10 @@ export interface ServerToClientEvents {
   'obs:virtualcam:changed': (payload: { active: boolean }) => void
   /** Show sequencer executed a step */
   'show:step': (payload: ShowStepPayload) => void
+  /** Spotify active playlist changed */
+  'spotify:state': (payload: SpotifyStatePayload) => void
+  /** Spotify playback control command (broadcast to overlay for embed control) */
+  'spotify:control': (payload: { command: 'play-pause' | 'next' | 'prev' | 'stop' | 'volume'; value?: number }) => void
   /** Bus trace frames batch (for dev tooling subscribers) */
   'bus:trace:frames': (frames: BusFrame[]) => void
   /** POV relay: SDP offer from server to overlay for active participant stream */

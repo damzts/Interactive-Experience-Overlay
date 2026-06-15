@@ -319,6 +319,10 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
     return { kind, transitionId: 'fade' }
   }
 
+  if (kind === 'spotify-control') {
+    return { kind, command: 'play-pause' as const }
+  }
+
   return {
     kind: 'ambiance-patch' as const,
     timeoutSeconds: 30,

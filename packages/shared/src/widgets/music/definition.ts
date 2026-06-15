@@ -10,10 +10,12 @@ export const musicDefinition: WidgetDefinition = {
     { event: 'music:play',          label: 'Track started' },
     { event: 'music:pause',         label: 'Track paused' },
     { event: 'music:track-changed', label: 'Track changed' },
+    { event: 'music:stopped',       label: 'Playback stopped' },
   ],
   accepts: [
     { action: 'music:play-pause', label: 'Play / Pause' },
     { action: 'music:prev',       label: 'Previous track' },
     { action: 'music:next',       label: 'Next track' },
+    { action: 'music:stop',       label: 'Stop playback' },
   ],
 }

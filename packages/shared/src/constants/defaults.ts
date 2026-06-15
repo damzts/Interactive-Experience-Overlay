@@ -244,6 +244,10 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     return { kind: 'transition', transitionId: action.transitionId }
   }
 
+  if (action.kind === 'spotify-control') {
+    return { kind: 'spotify-control', command: action.command, value: action.value }
+  }
+
   return {
     kind: 'ambiance-patch',
     timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
@@ -1001,7 +1005,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'sticky-notes',         label: 'Sticky Notes',         icon: '📝',   widgetSource: 'system' as const, widgetComponent: 'sticky-notes' as const,         stickyNotesSettings: { ...DEFAULT_STICKY_NOTES_SETTINGS } },
     { id: 'chat',                 label: 'CHAT.exe',             icon: '💬',   widgetSource: 'system' as const, widgetComponent: 'chat' as const },
     { id: 'camera',               label: 'CAMERA.exe',           icon: '📷',   widgetSource: 'system' as const, widgetComponent: 'camera' as const },
-    { id: 'media-deck',           label: 'Media Deck',           icon: '📻',   widgetSource: 'system' as const, widgetComponent: 'media-deck' as const },
     { id: 'cd-ripper',            label: 'CD Ripper',            icon: '💽',   widgetSource: 'system' as const, widgetComponent: 'cd-ripper' as const },
     { id: 'signal-lab',           label: 'Signal Lab',           icon: '📼',   widgetSource: 'system' as const, widgetComponent: 'signal-lab' as const },
     { id: 'broadcast-scheduler',  label: 'Broadcast Scheduler',  icon: '🗓️',  widgetSource: 'system' as const, widgetComponent: 'broadcast-scheduler' as const },

@@ -50,6 +50,14 @@ export function useSocket() {
         }
         syncDesktopRuntimeState(snapshot.desktop)
         useAppStore.getState().setConfig(snapshot.config)
+        const sp = snapshot.config.spotify
+        if (sp) {
+          const playlist = sp.playlists?.find((p) => p.id === sp.activePlaylistId)
+          useAppStore.getState().setSpotifyState({
+            activePlaylistId: sp.activePlaylistId,
+            activePlaylistName: playlist?.name,
+          })
+        }
       })
     }
 

@@ -119,6 +119,11 @@ export const signalHandlers: SignalHandlerMap = {
 
   'config:update': (config: AppConfig, store) => {
     store.setConfig(config)
+    const sp = config.spotify
+    if (sp) {
+      const playlist = sp.playlists?.find((p) => p.id === sp.activePlaylistId)
+      store.setSpotifyState({ activePlaylistId: sp.activePlaylistId, activePlaylistName: playlist?.name })
+    }
   },
 
   'config:patch': (updates: Partial<AppConfig>, store) => {
@@ -214,6 +219,16 @@ export const signalHandlers: SignalHandlerMap = {
         steps: payload.steps,
       },
     })
+  },
+
+  // ── Spotify signals ────────────────────────────────────────────
+
+  'spotify:state': (payload, store) => {
+    store.setSpotifyState(payload)
+  },
+
+  'spotify:control': (payload, store) => {
+    store.dispatchSpotifyControl(payload)
   },
 
   // ── Ambiance signals ───────────────────────────────────────────
