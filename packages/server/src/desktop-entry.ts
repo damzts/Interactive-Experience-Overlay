@@ -466,6 +466,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     if (videoProducer || audioProducer) {
       roomRelay.switchTo(audioProducer, videoProducer)
         .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo failed'))
+    } else {
+      // Producer not ready yet (guest hasn't re-offered after restart).
+      // Clear the relay so it doesn't show stale video.
+      // The onTrack handler below will push the Producer when it arrives.
+      logger.info(`[pov-relay] switch → ${next} but no producer yet — will consume when bridge is ready`)
     }
   })
 
@@ -490,7 +495,9 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
       // Notify preview relay about the new producer
       roomPreviewRelay.notifyProducer(userId, kind, bridged.producer.id)
 
-      // If this is video for the active camera, update the relay
+      // If this is the active camera (or there's no active camera), push to relay immediately.
+      // This handles the case where the overlay is already connected but waiting for a Producer
+      // (e.g., after server restart, the guest re-offers and the Producer arrives late).
       if (kind === 'video') {
         if (!povOrchestrator.activeCameraId) {
           povOrchestrator.switcher.manualSelect(userId)
@@ -498,6 +505,13 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
           const audioBridged = bridgedProducers.get(userId)?.audio
           roomRelay.switchTo(audioBridged?.producer ?? null, bridged.producer)
             .catch(e => logger.warn({ err: e }, '[pov-relay] switchTo on new producer failed'))
+        }
+      } else if (kind === 'audio' && userId === povOrchestrator.activeCameraId) {
+        // Audio bridge arrived for active camera — update relay with audio too
+        const videoBridged = bridgedProducers.get(userId)?.video
+        if (videoBridged) {
+          roomRelay.switchTo(bridged.producer, videoBridged.producer)
+            .catch(e => logger.warn({ err: e }, '[pov-relay] audio switchTo failed'))
         }
       }
     } catch (err) {

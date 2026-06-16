@@ -25,6 +25,8 @@ export interface ParticipantMedia {
   iceState: 'new' | 'checking' | 'connected' | 'completed' | 'failed' | 'disconnected' | 'closed'
   lastVideoPacketMs: number
   videoMuted: boolean
+  /** Timestamp of last offer processed — used to suppress false freeze detection */
+  lastOfferMs: number
 }
 
 function markStale(media: ParticipantMedia): void {
@@ -95,6 +97,7 @@ export class RoomHub {
       iceState: 'new',
       lastVideoPacketMs: Date.now(),
       videoMuted: false,
+      lastOfferMs: Date.now(),
     }
     this.participants.set(userId, media)
 
@@ -250,6 +253,9 @@ export class RoomHub {
         if (!media.videoTrack) continue
         if (media.videoMuted) continue
         if (media.iceState === 'failed' || media.iceState === 'disconnected') continue
+        // Don't trigger freeze detection within 5s of a re-offer — the connection
+        // is still establishing and the first keyframe hasn't arrived yet.
+        if (now - media.lastOfferMs < 5_000) continue
 
         if (now - media.lastVideoPacketMs > this.FREEZE_TIMEOUT_MS) {
           logger.info(`[room-hub] ${_userId} video frozen (no packets for ${this.FREEZE_TIMEOUT_MS}ms)`)

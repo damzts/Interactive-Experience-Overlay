@@ -27,7 +27,7 @@ export type RoomStatusCallback = (status: { connected: boolean; participants: st
 export type ParticipantConnectionCallback = (userId: string, connected: boolean) => void
 
 const RECONNECT_BASE_MS = 1000
-const RECONNECT_MAX_MS = 30000
+const RECONNECT_MAX_MS = 5000
 const PING_INTERVAL_MS = 15_000
 const FREEZE_RECOVERY_DELAY_MS = 2_000
 
@@ -383,7 +383,14 @@ export class RoomSignaling {
           const t = setTimeout(() => {
             this.participantLeaveTimers.delete(userId)
             if (!this.knownParticipants.has(userId)) {
-              void this.hub.removeParticipant(userId)
+              // Only remove if the WebRTC connection is actually dead.
+              // If the PC is still connected (cloud bounce), preserve it.
+              const state = this.hub.getParticipantState(userId)
+              if (!state || state.iceState === 'closed' || state.iceState === 'failed') {
+                void this.hub.removeParticipant(userId)
+              } else {
+                logger.info(`[room-signaling] ${userId} left cloud but WebRTC still ${state.iceState} — preserving connection`)
+              }
             }
           }, 3_000)
           this.participantLeaveTimers.set(userId, t)
