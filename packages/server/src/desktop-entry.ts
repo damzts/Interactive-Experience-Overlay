@@ -548,6 +548,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
             if (videoProducer) {
               roomRelay.switchTo(audioProducer, videoProducer)
                 .catch(e => logger.warn({ err: e }, '[pov-relay] initial switchTo failed'))
+              // Request keyframe from guest so video appears faster
+              roomHub.requestKeyFrame(activeId)
             }
           } else {
             logger.info('[pov-relay] no active camera with producer — will wait for next offer')

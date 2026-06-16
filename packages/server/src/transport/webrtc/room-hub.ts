@@ -220,6 +220,25 @@ export class RoomHub {
     return { iceState: m.iceState, videoMuted: m.videoMuted, lastVideoPacketMs: m.lastVideoPacketMs }
   }
 
+  /**
+   * Request a keyframe (PLI) from the guest's video track.
+   * Used when the overlay reconnects and needs the first frame quickly.
+   */
+  async requestKeyFrame(userId: string): Promise<void> {
+    const media = this.participants.get(userId)
+    if (!media?.pc || !media.videoTrack) return
+    try {
+      const receivers = media.pc.getReceivers()
+      const videoReceiver = receivers.find(r => r.track?.kind === 'video')
+      if (videoReceiver && media.videoTrack.ssrc) {
+        await videoReceiver.sendRtcpPLI(media.videoTrack.ssrc)
+        logger.info(`[room-hub] sent PLI to ${userId} for keyframe`)
+      }
+    } catch (err) {
+      logger.warn({ err }, `[room-hub] requestKeyFrame(${userId}) failed`)
+    }
+  }
+
   onTrack(cb: TrackCallback): void {
     this.trackCallbacks.push(cb)
   }
