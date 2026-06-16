@@ -531,41 +531,68 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
   const roomSignaling = new RoomSignaling(roomHub, povOrchestrator)
 
+  // ── P2P Relay: direct overlay↔guest signaling ───────────────────
+  const p2pRelay = new (await import('./transport/webrtc/p2p-relay.js')).P2PRelay()
+
+  // Wire P2P relay to send messages to guests via cloud signaling
+  p2pRelay.setSendToGuest((userId, type, payload) => {
+    roomSignaling.send_raw({ type, payload, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+  })
+
+  // Set P2P relay on signaling so it relays offers to overlay
+  roomSignaling.p2pRelay = p2pRelay
+
+  // Wire POV switch → P2P relay
+  povOrchestrator.onSwitch((_prev, next) => {
+    logger.info(`[pov-relay] switch → ${next}`)
+    p2pRelay.switchTo(next)
+  })
+
   io.on('connection', (socket) => {
     const clientType = (socket.handshake.auth as { clientType?: string } | undefined)?.clientType
     if (clientType !== 'overlay') return
 
     socket.on('pov-online:relay:subscribe', () => {
-      logger.info('[pov-relay] overlay subscribed')
-      roomRelay.createOffer((event, payload) => socket.emit(event, payload))
-        .then(() => {
-          const activeId = povOrchestrator.activeCameraId
-          if (activeId && roomHub.hasParticipant(activeId)) {
-            logger.info(`[pov-relay] active camera ${activeId} exists — consuming producers`)
-            const bridged = bridgedProducers.get(activeId)
-            const videoProducer = bridged?.video?.producer ?? null
-            const audioProducer = bridged?.audio?.producer ?? null
-            if (videoProducer) {
-              roomRelay.switchTo(audioProducer, videoProducer)
-                .catch(e => logger.warn({ err: e }, '[pov-relay] initial switchTo failed'))
-              // Request keyframe from guest so video appears faster
-              roomHub.requestKeyFrame(activeId)
-            }
-          } else {
-            logger.info('[pov-relay] no active camera with producer — will wait for next offer')
-          }
-        })
-        .catch(e => logger.error({ err: e?.message ?? e, stack: e?.stack }, '[pov-relay] createOffer failed'))
-    })
-    socket.on('pov-online:relay:answer', async (payload: { dtlsParameters: any }) => {
-      try {
-        await roomRelay.handleAnswer(payload)
-      } catch (err) {
-        logger.error({ err }, '[pov-relay] handleAnswer error:')
+      logger.info('[pov-relay] overlay subscribed (P2P mode)')
+      p2pRelay.setOverlaySocket(socket)
+
+      // For each existing guest, request a fresh offer so they connect to the overlay
+      for (const userId of roomSignaling.getStatus().participants) {
+        roomSignaling.requestReOffer(userId)
+      }
+
+      // Tell overlay which guest is active
+      const activeId = povOrchestrator.activeCameraId
+      if (activeId) {
+        p2pRelay.switchTo(activeId)
       }
     })
-    socket.on('pov-online:relay:ice', async (_candidate: any) => {
-      // mediasoup handles ICE internally — no-op but kept for protocol compat
+
+    // Relay P2P answer from overlay back to guest
+    socket.on('pov-online:p2p:answer' as any, (payload: { userId: string; sdp: string }) => {
+      logger.info(`[pov-relay] overlay answer for ${payload.userId}`)
+      roomSignaling.send_raw({
+        type: 'answer',
+        payload: { sdp: payload.sdp },
+        senderId: 'self',
+        timestamp: new Date().toISOString(),
+        targetUserId: payload.userId,
+      })
+    })
+
+    // Relay ICE from overlay to guest
+    socket.on('pov-online:p2p:ice' as any, (payload: { userId: string; candidate: any }) => {
+      roomSignaling.send_raw({
+        type: 'ice-candidate',
+        payload: payload.candidate,
+        senderId: 'self',
+        timestamp: new Date().toISOString(),
+        targetUserId: payload.userId,
+      })
+    })
+
+    socket.on('disconnect', () => {
+      p2pRelay.clearOverlaySocket()
     })
   })
 

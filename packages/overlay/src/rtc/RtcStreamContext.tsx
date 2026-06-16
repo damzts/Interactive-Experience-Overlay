@@ -1,20 +1,41 @@
 /**
- * RTC Stream Context — receives media from the server via mediasoup.
+ * RTC Stream Context — P2P direct connections to all guests.
  *
- * Uses mediasoup-client Device to create a recv transport and consume
- * audio/video producers from the server relay.
+ * Each guest connects directly to the overlay via WebRTC P2P.
+ * The server only relays signaling (SDP offers/answers/ICE candidates)
+ * and decides which guest to show (POV switch).
+ *
+ * Switch = instant CSS swap between video elements. No media re-negotiation.
  *
  * Protocol (Socket.IO events):
  *   overlay → server: 'pov-online:relay:subscribe'
- *   server → overlay: 'pov-online:relay:offer' { transportOptions, routerRtpCapabilities }
- *   overlay → server: 'pov-online:relay:answer' { dtlsParameters }
- *   server → overlay: 'pov-online:relay:new-consumer' { consumerId, producerId, kind, rtpParameters }
+ *   server → overlay: 'pov-online:p2p:offer' { userId, sdp }
+ *   overlay → server: 'pov-online:p2p:answer' { userId, sdp }
+ *   server → overlay: 'pov-online:p2p:ice' { userId, candidate }
+ *   overlay → server: 'pov-online:p2p:ice' { userId, candidate }
+ *   server → overlay: 'pov-online:p2p:switch' { userId }
+ *   server → overlay: 'pov-online:p2p:remove' { userId }
  */
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Device } from 'mediasoup-client'
-import type { Transport, Consumer } from 'mediasoup-client/lib/types'
 import { socket } from '../socket/client'
+
+// ── Types ────────────────────────────────────────────────────────
+
+interface PeerStream {
+  userId: string
+  stream: MediaStream
+  pc: RTCPeerConnection
+}
+
+interface RtcStreamState {
+  /** The currently active (visible) stream */
+  activeStream: MediaStream | null
+  /** All connected peer streams (for debugging) */
+  peers: Map<string, PeerStream>
+}
+
+// ── Context ──────────────────────────────────────────────────────
 
 const RtcStreamContext = createContext<MediaStream | null>(null)
 
@@ -22,217 +43,182 @@ export function useRtcStream(): MediaStream | null {
   return useContext(RtcStreamContext)
 }
 
+// ── Provider ─────────────────────────────────────────────────────
+
 export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const deviceRef = useRef<Device | null>(null)
-  const transportRef = useRef<Transport | null>(null)
-  const consumersRef = useRef<Map<string, Consumer>>(new Map())
-  const mediaStreamRef = useRef<MediaStream | null>(null)
-  const pendingConsumersRef = useRef<Array<any>>([])
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null)
+  const peersRef = useRef<Map<string, PeerStream>>(new Map())
+  const activeUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    let reconnectAttempt = 0
-    const RECONNECT_MAX_DELAY = 10000
-
-    const cleanup = (clearStream = true) => {
-      // Close all consumers
-      for (const consumer of consumersRef.current.values()) {
-        consumer.close()
-      }
-      consumersRef.current.clear()
-      pendingConsumersRef.current = []
-
-      // Close transport
-      if (transportRef.current) {
-        try { transportRef.current.close() } catch {}
-        transportRef.current = null
-      }
-
-      mediaStreamRef.current = null
-      if (clearStream && !cancelled) setStream(null)
-    }
 
     const subscribe = () => {
-      cleanup(false)
-      console.info('[rtc-stream] subscribing to relay')
+      console.info('[rtc-p2p] subscribing')
       socket.emit('pov-online:relay:subscribe' as any)
     }
 
-    const handleOffer = async (payload: {
-      transportOptions: {
-        id: string
-        iceParameters: any
-        iceCandidates: any[]
-        dtlsParameters: any
-        sctpParameters?: any
-      }
-      routerRtpCapabilities: any
-    }) => {
+    // ── Handle new P2P offer from a guest (relayed via server) ──
+    const handleOffer = async (payload: { userId: string; sdp: string }) => {
       if (cancelled) return
-      cleanup(false)
-      console.info('[rtc-stream] received relay offer', payload)
+      const { userId, sdp } = payload
+      console.info(`[rtc-p2p] offer from ${userId}`)
+
+      // Close existing PC for this user (re-offer)
+      const existing = peersRef.current.get(userId)
+      if (existing) {
+        existing.pc.close()
+        peersRef.current.delete(userId)
+      }
+
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      })
+
+      const ms = new MediaStream()
+      let streamReady = false
+
+      pc.ontrack = (event) => {
+        ms.addTrack(event.track)
+        if (!streamReady && event.track.kind === 'video') {
+          streamReady = true
+          const peer: PeerStream = { userId, stream: ms, pc }
+          peersRef.current.set(userId, peer)
+          console.info(`[rtc-p2p] ${userId} stream ready (${ms.getTracks().length} tracks)`)
+
+          // If this is the active user or no active user yet, show this stream
+          if (!activeUserIdRef.current || activeUserIdRef.current === userId) {
+            activeUserIdRef.current = userId
+            if (!cancelled) setActiveStream(ms)
+          }
+        }
+      }
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('pov-online:p2p:ice' as any, {
+            userId,
+            candidate: event.candidate.toJSON(),
+          })
+        }
+      }
+
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState
+        console.info(`[rtc-p2p] ${userId} connection: ${state}`)
+        if (state === 'failed' || state === 'closed') {
+          peersRef.current.delete(userId)
+          if (activeUserIdRef.current === userId) {
+            // Switch to another available peer
+            const nextPeer = peersRef.current.values().next().value
+            activeUserIdRef.current = nextPeer?.userId ?? null
+            if (!cancelled) setActiveStream(nextPeer?.stream ?? null)
+          }
+        }
+      }
 
       try {
-        // Create or reuse Device
-        let device = deviceRef.current
-        if (!device || !device.loaded) {
-          device = new Device()
-          console.info('[rtc-stream] loading device with router capabilities')
-          await device.load({ routerRtpCapabilities: payload.routerRtpCapabilities })
-          deviceRef.current = device
-          console.info('[rtc-stream] device loaded successfully')
+        await pc.setRemoteDescription({ type: 'offer', sdp })
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+
+        socket.emit('pov-online:p2p:answer' as any, {
+          userId,
+          sdp: answer.sdp,
+        })
+
+        // Store PC even before tracks arrive (for ICE candidates)
+        if (!peersRef.current.has(userId)) {
+          peersRef.current.set(userId, { userId, stream: ms, pc })
         }
-
-        // Create recv transport
-        console.info('[rtc-stream] creating recv transport with options:', payload.transportOptions.id)
-        const transport = device.createRecvTransport({
-          id: payload.transportOptions.id,
-          iceParameters: payload.transportOptions.iceParameters,
-          iceCandidates: payload.transportOptions.iceCandidates,
-          dtlsParameters: payload.transportOptions.dtlsParameters,
-          sctpParameters: payload.transportOptions.sctpParameters,
-        })
-        transportRef.current = transport
-        console.info('[rtc-stream] recv transport created')
-
-        // When transport needs to connect (DTLS), send params to server
-        transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-          console.info('[rtc-stream] transport connect event — sending dtlsParameters to server')
-          try {
-            socket.emit('pov-online:relay:answer' as any, { dtlsParameters })
-            callback()
-          } catch (err) {
-            errback(err as Error)
-          }
-        })
-
-        transport.on('connectionstatechange', (state: string) => {
-          if (state === 'connected') {
-            reconnectAttempt = 0
-          }
-          if (state === 'failed' && !cancelled) {
-            reconnectAttempt++
-            const delay = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), RECONNECT_MAX_DELAY)
-            setTimeout(() => {
-              if (!cancelled) subscribe()
-            }, delay)
-          }
-        })
-
-        // Prepare MediaStream
-        mediaStreamRef.current = new MediaStream()
-
-        // Flush any consumers that arrived before the transport was ready
-        if (pendingConsumersRef.current.length > 0) {
-          console.info(`[rtc-stream] flushing ${pendingConsumersRef.current.length} pending consumers`)
-          const pending = [...pendingConsumersRef.current]
-          pendingConsumersRef.current = []
-          for (const p of pending) {
-            await consumeOne(p)
-          }
-        }
-
       } catch (e) {
-        console.error('[rtc-stream] mediasoup device/transport error:', e)
+        console.error(`[rtc-p2p] offer handling failed for ${userId}:`, e)
+        pc.close()
       }
     }
 
-    const consumeOne = async (payload: {
-      consumerId: string
-      producerId: string
-      kind: 'audio' | 'video'
-      rtpParameters: any
-    }) => {
-      const transport = transportRef.current
-      if (!transport) return
-
-      try {
-        const consumer = await transport.consume({
-          id: payload.consumerId,
-          producerId: payload.producerId,
-          kind: payload.kind,
-          rtpParameters: payload.rtpParameters,
-        })
-
-        // Close previous consumer of the same kind (replace, don't accumulate)
-        for (const [id, existing] of consumersRef.current) {
-          if (existing.kind === payload.kind) {
-            // Remove old track from MediaStream
-            if (mediaStreamRef.current) {
-              mediaStreamRef.current.removeTrack(existing.track)
-            }
-            existing.close()
-            consumersRef.current.delete(id)
-          }
-        }
-
-        consumersRef.current.set(consumer.id, consumer)
-
-        if (!mediaStreamRef.current) {
-          mediaStreamRef.current = new MediaStream()
-        }
-        mediaStreamRef.current.addTrack(consumer.track)
-
-        if (!cancelled) {
-          // Force React to see a new stream reference
-          setStream(new MediaStream(mediaStreamRef.current.getTracks()))
-        }
-
-        consumer.on('trackended', () => {
-          console.info(`[rtc-stream] consumer ${consumer.id} track ended`)
-        })
-
-        consumer.on('transportclose', () => {
-          consumersRef.current.delete(consumer.id)
-        })
-
-        console.info(`[rtc-stream] consuming ${payload.kind} (consumer=${consumer.id})`)
-      } catch (e) {
-        console.error(`[rtc-stream] consume ${payload.kind} error:`, e)
+    // ── Handle ICE candidate from guest ──
+    const handleIce = (payload: { userId: string; candidate: RTCIceCandidateInit }) => {
+      const peer = peersRef.current.get(payload.userId)
+      if (peer) {
+        peer.pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {})
       }
     }
 
-    const handleNewConsumer = async (payload: {
-      consumerId: string
-      producerId: string
-      kind: 'audio' | 'video'
-      rtpParameters: any
-    }) => {
-      if (cancelled) return
+    // ── Handle switch command from server ──
+    const handleSwitch = (payload: { userId: string }) => {
+      const peer = peersRef.current.get(payload.userId)
+      if (peer) {
+        console.info(`[rtc-p2p] switching to ${payload.userId}`)
+        activeUserIdRef.current = payload.userId
+        if (!cancelled) setActiveStream(peer.stream)
+      } else {
+        console.warn(`[rtc-p2p] switch to ${payload.userId} but no peer found`)
+        activeUserIdRef.current = payload.userId
+      }
+    }
 
-      // If transport isn't ready yet, buffer the consumer for later
-      if (!transportRef.current) {
-        console.info(`[rtc-stream] buffering ${payload.kind} consumer (transport not ready)`)
-        pendingConsumersRef.current.push(payload)
+    // ── Handle participant removal ──
+    const handleRemove = (payload: { userId: string }) => {
+      const peer = peersRef.current.get(payload.userId)
+      if (peer) {
+        peer.pc.close()
+        peersRef.current.delete(payload.userId)
+        console.info(`[rtc-p2p] removed ${payload.userId}`)
+
+        if (activeUserIdRef.current === payload.userId) {
+          const nextPeer = peersRef.current.values().next().value
+          activeUserIdRef.current = nextPeer?.userId ?? null
+          if (!cancelled) setActiveStream(nextPeer?.stream ?? null)
+        }
+      }
+    }
+
+    // ── Legacy support: handle old mediasoup offer format ──
+    // If server sends the old format, ignore it gracefully
+    const handleLegacyOffer = (payload: any) => {
+      if (payload.transportOptions) {
+        console.info('[rtc-p2p] ignoring legacy mediasoup offer')
         return
       }
-
-      await consumeOne(payload)
+      // Not legacy — might be P2P format
+      if (payload.userId && payload.sdp) {
+        handleOffer(payload)
+      }
     }
 
-    // Legacy ICE handler (no-op in mediasoup mode, kept for compat)
-    const handleIce = () => {}
-
-    socket.on('pov-online:relay:offer' as any, handleOffer)
-    socket.on('pov-online:relay:new-consumer' as any, handleNewConsumer)
-    socket.on('pov-online:relay:ice' as any, handleIce)
+    socket.on('pov-online:p2p:offer' as any, handleOffer)
+    socket.on('pov-online:p2p:ice' as any, handleIce)
+    socket.on('pov-online:p2p:switch' as any, handleSwitch)
+    socket.on('pov-online:p2p:remove' as any, handleRemove)
+    // Keep listening to old event for backward compat during transition
+    socket.on('pov-online:relay:offer' as any, handleLegacyOffer)
     socket.on('connect', subscribe)
 
     if (socket.connected) subscribe()
 
     return () => {
       cancelled = true
-      socket.off('pov-online:relay:offer' as any, handleOffer)
-      socket.off('pov-online:relay:new-consumer' as any, handleNewConsumer)
-      socket.off('pov-online:relay:ice' as any, handleIce)
+      socket.off('pov-online:p2p:offer' as any, handleOffer)
+      socket.off('pov-online:p2p:ice' as any, handleIce)
+      socket.off('pov-online:p2p:switch' as any, handleSwitch)
+      socket.off('pov-online:p2p:remove' as any, handleRemove)
+      socket.off('pov-online:relay:offer' as any, handleLegacyOffer)
       socket.off('connect', subscribe)
-      cleanup(true)
+
+      // Close all peer connections
+      for (const peer of peersRef.current.values()) {
+        peer.pc.close()
+      }
+      peersRef.current.clear()
     }
   }, [])
 
   return (
-    <RtcStreamContext.Provider value={stream}>
+    <RtcStreamContext.Provider value={activeStream}>
       {children}
     </RtcStreamContext.Provider>
   )

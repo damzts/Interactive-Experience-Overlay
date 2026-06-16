@@ -201,6 +201,10 @@ export class RoomRelay {
       // Request a keyframe immediately so video appears faster on reconnect
       if (kind === 'video') {
         consumer.requestKeyFrame()
+        // Also request multiple keyframes over 1.5s to ensure one arrives
+        setTimeout(() => { try { consumer.requestKeyFrame() } catch {} }, 500)
+        setTimeout(() => { try { consumer.requestKeyFrame() } catch {} }, 1000)
+        setTimeout(() => { try { consumer.requestKeyFrame() } catch {} }, 1500)
       }
 
       logger.info(`[room-relay] consuming ${kind} (consumer=${consumer.id}, producer=${producerId})`)

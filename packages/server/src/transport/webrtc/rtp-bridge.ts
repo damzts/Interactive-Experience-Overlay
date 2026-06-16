@@ -70,6 +70,8 @@ export async function bridgeTrackToProducer(
 
   // Subscribe to werift track's RTP packets and forward them
   // We need to rewrite the SSRC and payload type to match what mediasoup expects
+  let packetCount = 0
+  let lastLogTime = Date.now()
   const subscription = track.onReceiveRtp.subscribe((rtpPacket) => {
     try {
       const buf = rtpPacket.serialize()
@@ -78,6 +80,49 @@ export async function bridgeTrackToProducer(
       // Rewrite payload type (byte 1, lower 7 bits) to match mediasoup's expected PT
       buf[1] = (buf[1] & 0x80) | (payloadType & 0x7f)
       udpSocket.send(buf, localPort, '127.0.0.1')
+      packetCount++
+      // Log every 5 seconds to confirm RTP is flowing
+      const now = Date.now()
+      if (now - lastLogTime > 5000) {
+        logger.info(`[rtp-bridge] ${kind} flowing: ${packetCount} packets sent to localhost:${localPort}`)
+        packetCount = 0
+        lastLogTime = now
+      }
+    } catch {
+      // Ignore send errors (socket closed, etc.)
+    }
+  })
+
+  const unsubscribe = () => {
+    subscription.unSubscribe()
+  }
+
+  logger.info(`[rtp-bridge] bridged ${kind} track → Producer ${producer.id} (localhost:${localPort}, ssrc=${ssrc}, pt=${payloadType})`)
+
+  // Create a UDP socket to forward RTP from werift → PlainTransport
+  const udpSocket = createSocket('udp4')
+  udpSocket.bind() // Bind to random port
+
+  // Subscribe to werift track's RTP packets and forward them
+  // We need to rewrite the SSRC and payload type to match what mediasoup expects
+  let packetCount = 0
+  let lastLogTime = Date.now()
+  const subscription = track.onReceiveRtp.subscribe((rtpPacket) => {
+    try {
+      const buf = rtpPacket.serialize()
+      // Rewrite SSRC (bytes 8-11) to match our Producer's expected SSRC
+      buf.writeUInt32BE(ssrc, 8)
+      // Rewrite payload type (byte 1, lower 7 bits) to match mediasoup's expected PT
+      buf[1] = (buf[1] & 0x80) | (payloadType & 0x7f)
+      udpSocket.send(buf, localPort, '127.0.0.1')
+      packetCount++
+      // Log every 5 seconds to confirm RTP is flowing
+      const now = Date.now()
+      if (now - lastLogTime > 5000) {
+        logger.info(`[rtp-bridge] ${kind} flowing: ${packetCount} packets sent to localhost:${localPort}`)
+        packetCount = 0
+        lastLogTime = now
+      }
     } catch {
       // Ignore send errors (socket closed, etc.)
     }

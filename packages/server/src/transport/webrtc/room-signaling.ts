@@ -53,6 +53,8 @@ export class RoomSignaling {
   private recoveringActiveParticipant: string | null = null
   /** Set of participant userIds managed by this signaling instance's room */
   private managedParticipants = new Set<string>()
+  /** P2P relay for direct overlay connections (optional) */
+  p2pRelay: import('./p2p-relay.js').P2PRelay | null = null
 
   /** Register a participant as managed by this signaling instance */
   manageParticipant(userId: string): void {
@@ -424,29 +426,38 @@ export class RoomSignaling {
             this.pendingOfferTimers.delete(userId)
             logger.info(`[room-signaling] received offer from ${userId} (re-offer=${this.hub.hasParticipant(userId)})`)
             this.managedParticipants.add(userId)
-            this.pendingCandidates.set(userId, [])
-            this.hub.handleOffer(userId, sdp).then(answerSdp => {
-              if (!answerSdp) {
-                logger.error(`[room-signaling] handleOffer returned empty SDP for ${userId}, requesting re-offer`)
-                this.pendingCandidates.delete(userId)
-                // Buffered candidates are lost; tell participant to restart so they re-offer
-                this.send({ type: 'ice-restart-request', payload: { userId }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-                return
-              }
-              this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-              const buffered = this.pendingCandidates.get(userId) ?? []
-              this.pendingCandidates.delete(userId)
-              for (const candidate of buffered) {
-                this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-              }
+
+            // P2P mode: relay offer directly to overlay (no server-side media processing)
+            if (this.p2pRelay?.hasOverlay()) {
+              this.p2pRelay.relayOfferToOverlay(userId, sdp)
+              // Buffer ICE candidates until overlay answers
+              this.pendingCandidates.set(userId, [])
               this.frozenParticipants.delete(userId)
               this.freezeRecoveryAttempts.delete(userId)
-            }).catch(e => {
-              logger.error({ err: e }, '[room-signaling] offer handling failed')
-              this.pendingCandidates.delete(userId)
-              // Buffered candidates are lost; tell participant to restart so they re-offer
-              this.send({ type: 'ice-restart-request', payload: { userId }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
-            })
+            } else {
+              // Fallback: process with werift hub (for LAN/studio or when overlay not connected)
+              this.pendingCandidates.set(userId, [])
+              this.hub.handleOffer(userId, sdp).then(answerSdp => {
+                if (!answerSdp) {
+                  logger.error(`[room-signaling] handleOffer returned empty SDP for ${userId}, requesting re-offer`)
+                  this.pendingCandidates.delete(userId)
+                  this.send({ type: 'ice-restart-request', payload: { userId }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+                  return
+                }
+                this.send({ type: 'answer', payload: { sdp: answerSdp }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+                const buffered = this.pendingCandidates.get(userId) ?? []
+                this.pendingCandidates.delete(userId)
+                for (const candidate of buffered) {
+                  this.send({ type: 'ice-candidate', payload: candidate, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+                }
+                this.frozenParticipants.delete(userId)
+                this.freezeRecoveryAttempts.delete(userId)
+              }).catch(e => {
+                logger.error({ err: e }, '[room-signaling] offer handling failed')
+                this.pendingCandidates.delete(userId)
+                this.send({ type: 'ice-restart-request', payload: { userId }, senderId: 'self', timestamp: new Date().toISOString(), targetUserId: userId })
+              })
+            }
           }, 80)
           this.pendingOfferTimers.set(userId, t)
         }
@@ -459,7 +470,12 @@ export class RoomSignaling {
         const sdpMid = msg.payload['sdpMid'] as string | undefined
         const sdpMLineIndex = msg.payload['sdpMLineIndex'] as number | undefined
         if (userId && candidate) {
-          this.hub.handleIceCandidate(userId, { candidate, sdpMid, sdpMLineIndex })
+          // P2P mode: relay ICE to overlay
+          if (this.p2pRelay?.hasOverlay()) {
+            this.p2pRelay.relayIceCandidateToOverlay(userId, { candidate, sdpMid, sdpMLineIndex })
+          } else {
+            this.hub.handleIceCandidate(userId, { candidate, sdpMid, sdpMLineIndex })
+          }
         }
         break
       }
@@ -478,6 +494,11 @@ export class RoomSignaling {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg))
     }
+  }
+
+  /** Public send for P2P relay to forward messages to guests */
+  send_raw(msg: { type: string; payload: Record<string, unknown>; senderId: string; timestamp: string; targetUserId?: string }): void {
+    this.send(msg)
   }
 
   private startPingTimer(): void {

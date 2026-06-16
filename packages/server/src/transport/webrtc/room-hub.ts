@@ -222,17 +222,31 @@ export class RoomHub {
 
   /**
    * Request a keyframe (PLI) from the guest's video track.
-   * Used when the overlay reconnects and needs the first frame quickly.
+   * Sends PLI multiple times to ensure the guest encoder produces a keyframe quickly.
    */
   async requestKeyFrame(userId: string): Promise<void> {
     const media = this.participants.get(userId)
-    if (!media?.pc || !media.videoTrack) return
+    if (!media?.pc || !media.videoTrack) {
+      logger.warn(`[room-hub] requestKeyFrame(${userId}): no pc or videoTrack`)
+      return
+    }
     try {
       const receivers = media.pc.getReceivers()
+      logger.info(`[room-hub] requestKeyFrame(${userId}): ${receivers.length} receivers, videoTrack.ssrc=${(media.videoTrack as any).ssrc}`)
       const videoReceiver = receivers.find(r => r.track?.kind === 'video')
-      if (videoReceiver && media.videoTrack.ssrc) {
-        await videoReceiver.sendRtcpPLI(media.videoTrack.ssrc)
-        logger.info(`[room-hub] sent PLI to ${userId} for keyframe`)
+      if (videoReceiver && (media.videoTrack as any).ssrc) {
+        const ssrc = (media.videoTrack as any).ssrc
+        // Send PLI 3 times over 1 second to ensure the guest produces a keyframe
+        await videoReceiver.sendRtcpPLI(ssrc)
+        logger.info(`[room-hub] sent PLI to ${userId} for keyframe (ssrc=${ssrc})`)
+        setTimeout(async () => {
+          try { await videoReceiver.sendRtcpPLI(ssrc) } catch {}
+        }, 300)
+        setTimeout(async () => {
+          try { await videoReceiver.sendRtcpPLI(ssrc) } catch {}
+        }, 700)
+      } else {
+        logger.warn(`[room-hub] requestKeyFrame(${userId}): no videoReceiver or no ssrc (receiver=${!!videoReceiver}, ssrc=${(media.videoTrack as any).ssrc})`)
       }
     } catch (err) {
       logger.warn({ err }, `[room-hub] requestKeyFrame(${userId}) failed`)

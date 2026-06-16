@@ -47,21 +47,25 @@ export function PovStreamRenderer({ config }: import('../registry').RendererProp
       })
     }, 50)
 
-    // Unmute after user interaction
+    // Unmute after REAL user interaction (click only, not keydown from refresh)
     if (!shouldMute) {
       const tryUnmute = () => {
-        if (el && !el.paused) {
+        if (el) {
           el.muted = false
-          console.log('[PovStream] unmuted after user interaction')
+          // If Chrome paused it due to unmute, re-play muted as fallback
+          if (el.paused) {
+            el.muted = true
+            el.play().catch(() => {})
+          } else {
+            console.log('[PovStream] unmuted after user interaction')
+          }
         }
       }
       document.addEventListener('click', tryUnmute, { once: true })
-      document.addEventListener('keydown', tryUnmute, { once: true })
 
       return () => {
         clearTimeout(playTimer)
         document.removeEventListener('click', tryUnmute)
-        document.removeEventListener('keydown', tryUnmute)
       }
     }
 
