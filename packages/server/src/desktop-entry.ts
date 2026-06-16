@@ -421,7 +421,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const roomManager = new RoomManager(roomSignaling, povOrchestrator, {
     cloudUrl,
     getToken,
-    signalingFactory: () => new RoomSignaling(roomHub, povOrchestrator),
+    signalingFactory: () => {
+      const sig = new RoomSignaling(roomHub, povOrchestrator)
+      sig.p2pRelay = p2pRelay // Propagate P2P relay to all per-room signaling instances
+      return sig
+    },
   })
 
   registerRoomNamespace(io, roomManager)
