@@ -472,6 +472,7 @@ export class RoomSignaling {
         if (userId && candidate) {
           // P2P mode: relay ICE to overlay
           if (this.p2pRelay?.hasOverlay()) {
+            logger.info(`[room-signaling] relaying ICE from guest ${userId} to overlay`)
             this.p2pRelay.relayIceCandidateToOverlay(userId, { candidate, sdpMid, sdpMLineIndex })
           } else {
             this.hub.handleIceCandidate(userId, { candidate, sdpMid, sdpMLineIndex })

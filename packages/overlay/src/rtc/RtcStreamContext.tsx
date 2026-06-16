@@ -99,6 +99,7 @@ export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          console.info(`[rtc-p2p] sending ICE candidate for ${userId}`)
           socket.emit('pov-online:p2p:ice' as any, {
             userId,
             candidate: event.candidate.toJSON(),
@@ -106,9 +107,16 @@ export function RtcStreamProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      pc.oniceconnectionstatechange = () => {
+        console.info(`[rtc-p2p] ${userId} ICE: ${pc.iceConnectionState}`)
+      }
+
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState
         console.info(`[rtc-p2p] ${userId} connection: ${state}`)
+        if (state === 'connected') {
+          console.info(`[rtc-p2p] ${userId} P2P CONNECTED!`)
+        }
         if (state === 'failed' || state === 'closed') {
           peersRef.current.delete(userId)
           if (activeUserIdRef.current === userId) {

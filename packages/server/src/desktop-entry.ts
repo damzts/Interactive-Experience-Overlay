@@ -397,6 +397,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
 
     // Relay ICE from overlay to guest
     socket.on('pov-online:p2p:ice' as any, (payload: { userId: string; candidate: any }) => {
+      logger.info(`[pov-relay] ICE from overlay for ${payload.userId}`)
       roomSignaling.send_raw({
         type: 'ice-candidate',
         payload: payload.candidate,
