@@ -1,7 +1,7 @@
 // ── POV Switching Domain Types ────────────────────────────────────
 
-/** Switching mode: automatic (audio-driven) or manual (host-selected) */
-export type SwitchMode = 'automatic' | 'manual'
+/** Switching mode */
+export type SwitchMode = 'automatic' | 'manual' | 'round-robin' | 'random'
 
 /** Transition type for camera switches */
 export interface TransitionConfig {

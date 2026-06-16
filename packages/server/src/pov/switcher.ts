@@ -31,6 +31,10 @@ export class POVSwitcher {
   private lastActiveTimestamps = new Map<string, number>()
   private switchCallbacks: SwitchCallback[] = []
   private modeChangeCallbacks: ModeChangeCallback[] = []
+  private rotationTimer: ReturnType<typeof setInterval> | null = null
+  private rotationIndex = 0
+  /** Interval in ms for round-robin/random modes (default: 15000) */
+  rotationIntervalMs = 15_000
 
   constructor(private registry: RegistryLike, config?: Partial<POVSwitcherConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -48,7 +52,49 @@ export class POVSwitcher {
   setMode(mode: SwitchMode): void {
     if (this._mode === mode) return
     this._mode = mode
+    this.stopRotation()
+    if (mode === 'round-robin' || mode === 'random') {
+      this.startRotation()
+    }
     for (const cb of this.modeChangeCallbacks) { try { cb(mode) } catch {} }
+  }
+
+  setRotationInterval(ms: number): void {
+    this.rotationIntervalMs = Math.max(1000, ms)
+    if (this.rotationTimer) {
+      this.stopRotation()
+      this.startRotation()
+    }
+  }
+
+  private startRotation(): void {
+    this.stopRotation()
+    this.rotationTimer = setInterval(() => {
+      const feeds = this.registry.getConnectedFeeds()
+      if (feeds.length < 2) return
+
+      if (this._mode === 'round-robin') {
+        this.rotationIndex = (this.rotationIndex + 1) % feeds.length
+        const next = feeds[this.rotationIndex]
+        if (next && next.id !== this._activeCameraId) {
+          this.performSwitch(next.id, 'automatic')
+        }
+      } else if (this._mode === 'random') {
+        // Pick a random feed different from current
+        const others = feeds.filter(f => f.id !== this._activeCameraId)
+        if (others.length > 0) {
+          const pick = others[Math.floor(Math.random() * others.length)]
+          this.performSwitch(pick.id, 'automatic')
+        }
+      }
+    }, this.rotationIntervalMs)
+  }
+
+  private stopRotation(): void {
+    if (this.rotationTimer) {
+      clearInterval(this.rotationTimer)
+      this.rotationTimer = null
+    }
   }
 
   manualSelect(feedId: string): { ok: boolean; error?: string } {
@@ -60,7 +106,7 @@ export class POVSwitcher {
   }
 
   evaluateScores(scores: Map<string, number>): void {
-    if (this._mode === 'manual') return
+    if (this._mode === 'manual' || this._mode === 'round-robin' || this._mode === 'random') return
     const connected = this.filterConnected(scores)
     if (connected.size === 0) return
 
@@ -87,7 +133,11 @@ export class POVSwitcher {
 
   handleDisconnect(feedId: string): void {
     if (this._activeCameraId !== feedId) return
-    if (this._mode === 'manual') { this._mode = 'automatic'; for (const cb of this.modeChangeCallbacks) { try { cb('automatic') } catch {} } }
+    if (this._mode !== 'automatic') {
+      this.stopRotation()
+      this._mode = 'automatic'
+      for (const cb of this.modeChangeCallbacks) { try { cb('automatic') } catch {} }
+    }
     const feeds = this.registry.getConnectedFeeds()
     if (feeds.length === 0) { this._activeCameraId = null; return }
     const scores = new Map<string, number>()
