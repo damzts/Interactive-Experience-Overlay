@@ -415,12 +415,18 @@ function RoomCard({
         </button>
 
         <Button
-          variant={room.mode === 'automatic' ? 'primary' : 'ghost'}
+          variant={room.mode === 'manual' ? 'ghost' : 'primary'}
           size="sm"
-          onClick={() => onModeSet(room.roomCode, room.mode === 'automatic' ? 'manual' : 'automatic')}
+          onClick={() => {
+            const modes: Array<'automatic' | 'manual' | 'round-robin' | 'random'> = ['automatic', 'manual', 'round-robin', 'random']
+            const currentIdx = modes.indexOf(room.mode as any)
+            const nextMode = modes[(currentIdx + 1) % modes.length]
+            onModeSet(room.roomCode, nextMode)
+          }}
           className="text-[10px] px-2 py-0.5"
+          title="Click to cycle: Auto → Manual → Round Robin → Random"
         >
-          {room.mode === 'automatic' ? '⚡ Auto' : '✋ Manual'}
+          {room.mode === 'automatic' ? '⚡ Auto' : room.mode === 'manual' ? '✋ Manual' : room.mode === 'round-robin' ? '🔄 Round Robin' : '🎲 Random'}
         </Button>
 
         {!room.hubConnected && (
