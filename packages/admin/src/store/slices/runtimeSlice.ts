@@ -15,6 +15,7 @@ export interface RuntimeSlice {
   runtimeDiagnostics: RuntimeDiagnosticsPayload
   twitchConnected: boolean
   twitchChannel: string | null
+  twitchEventSubConnected: boolean
 
   setCurrentState: (s: STATE) => void
   setObsStatus: (status: ObsStatusPayload) => void
@@ -26,6 +27,7 @@ export interface RuntimeSlice {
   setAmbianceMetrics: (payload: { accepted: number; rejected: number }) => void
   setRuntimeDiagnostics: (payload: RuntimeDiagnosticsPayload) => void
   setTwitchConnected: (connected: boolean, channel?: string) => void
+  setTwitchEventSubConnected: (connected: boolean) => void
 }
 
 export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice> = (set) => ({
@@ -52,6 +54,7 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
   ambianceRejectedCount: 0,
   twitchConnected: false,
   twitchChannel: null,
+  twitchEventSubConnected: false,
   runtimeDiagnostics: {
     scheduler: {
       nextFireAt: null,
@@ -103,4 +106,5 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
   setRuntimeDiagnostics: (payload) => set({ runtimeDiagnostics: payload }),
   setTwitchConnected: (connected, channel) =>
     set((s) => ({ twitchConnected: connected, twitchChannel: channel ?? s.twitchChannel })),
+  setTwitchEventSubConnected: (connected) => set({ twitchEventSubConnected: connected }),
 })

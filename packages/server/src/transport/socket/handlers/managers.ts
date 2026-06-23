@@ -19,6 +19,50 @@ export function registerManagerSignals(ctx: HandlerContext): void {
     io.emit('chat:connected', payload)
   })
 
+  bus.on('twitch:eventsub:connected', (payload) => {
+    io.emit('twitch:eventsub:connected', payload)
+  })
+
+  bus.on('twitch:follow', (payload) => {
+    io.emit('twitch:follow', payload)
+  })
+
+  bus.on('twitch:subscribe', (payload) => {
+    io.emit('twitch:subscribe', payload)
+  })
+
+  bus.on('twitch:gift-sub', (payload) => {
+    io.emit('twitch:gift-sub', payload)
+  })
+
+  bus.on('twitch:cheer', (payload) => {
+    io.emit('twitch:cheer', payload)
+  })
+
+  bus.on('twitch:raid', (payload) => {
+    io.emit('twitch:raid', payload)
+  })
+
+  bus.on('twitch:points:redemption', (payload) => {
+    io.emit('twitch:points:redemption', payload)
+  })
+
+  bus.on('twitch:stream:online', (payload) => {
+    io.emit('twitch:stream:online', payload)
+  })
+
+  bus.on('twitch:stream:offline', (payload) => {
+    io.emit('twitch:stream:offline', payload)
+  })
+
+  bus.on('twitch:hype-train:begin', (payload) => {
+    io.emit('twitch:hype-train:begin', payload)
+  })
+
+  bus.on('twitch:hype-train:end', (payload) => {
+    io.emit('twitch:hype-train:end', payload)
+  })
+
   bus.on('obs:stream:started', (payload) => {
     io.emit('obs:stream:started', payload)
   })

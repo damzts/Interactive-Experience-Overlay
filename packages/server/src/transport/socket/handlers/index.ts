@@ -32,6 +32,7 @@ export function setupSocketHandlers(
   options?: {
     getObsStatus?: () => ObsStatusPayload
     getManagerStatuses?: () => Record<string, import('@ieomlabs/shared').ManagerStatus>
+    getTwitchStatus?: () => { ircConnected: boolean; channel: string; eventSubConnected: boolean }
     bus?: import('../../../kernel/bus.js').KernelBus
     runtimeState?: import('../../../kernel/managers/runtime.js').RuntimeStateStore
     configService?: import('../../../kernel/managers/config.js').IConfigService
@@ -123,6 +124,11 @@ export function setupSocketHandlers(
     })
     if (options?.getObsStatus) {
       socket.emit('obs:status', options.getObsStatus())
+    }
+    if (options?.getTwitchStatus) {
+      const ts = options.getTwitchStatus()
+      if (ts.ircConnected) socket.emit('chat:connected', { channel: ts.channel })
+      if (ts.eventSubConnected) socket.emit('twitch:eventsub:connected', { sessionId: '' })
     }
 
     socket.on('overlay:sync', (callback) => {

@@ -42,7 +42,7 @@ import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
 import { AutomationManager } from './kernel/managers/automation.js'
 import { ShowSequencer } from './kernel/managers/showSequencer.js'
-import { TwitchChatManager } from './kernel/managers/twitchChat.js'
+import { TwitchManager } from './kernel/managers/twitch.js'
 import { ChatReactionManager } from './kernel/managers/chatReactions.js'
 import { spotifyRoute } from './transport/http/spotify.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
@@ -275,21 +275,21 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   kernel.register(automationManager, { after: ['DesktopConfigService', 'SceneManager', 'EventScheduler', 'AmbianceManager'] })
   kernel.register(showSequencer, { after: ['DesktopConfigService', 'SceneManager'] })
 
-  const twitchChatManager = new TwitchChatManager(
+  const twitchManager = new TwitchManager(
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
     kernel.bus,
   )
-  kernel.register(twitchChatManager, { after: ['DesktopConfigService'] })
+  kernel.register(twitchManager, { after: ['DesktopConfigService'] })
   configService.onConfigUpdate((config) => {
     scheduler.onConfigChange()
-    twitchChatManager.onConfigChange(config)
+    twitchManager.onConfigChange(config)
   })
 
   const chatReactionManager = new ChatReactionManager(
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
     kernel.bus,
   )
-  kernel.register(chatReactionManager, { after: ['DesktopConfigService', 'TwitchChatManager'] })
+  kernel.register(chatReactionManager, { after: ['DesktopConfigService', 'TwitchManager'] })
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
   machine.on('state:change', (payload: { state: import('@ieomlabs/shared').STATE }) => {
@@ -302,6 +302,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const { isOverlaySlotTaken } = setupSocketHandlers(io, machine, scheduler, ambianceManager, {
     getObsStatus: () => obsBridge.getStatus(),
     getManagerStatuses: () => kernel.getManagerStatuses(),
+    getTwitchStatus: () => ({
+      ircConnected: twitchManager.isConnected,
+      channel: twitchManager.channel,
+      eventSubConnected: twitchManager.isEventSubConnected,
+    }),
     bus: kernel.bus,
     runtimeState,
     configService,

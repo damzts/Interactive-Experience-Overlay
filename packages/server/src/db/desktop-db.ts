@@ -229,6 +229,8 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   }
   addColumn('scenes', 'ambient_track', 'TEXT')
   addColumn('widget_wires', 'condition_json', 'TEXT')
+  addColumn('twitch_config', 'client_id', 'TEXT')
+  addColumn('twitch_config', 'event_reactions_json', 'TEXT')
 
   // sources → renderer rename: migrate scenes.sources_json → windows_json
   const sceneColumns = (db.prepare("PRAGMA table_info(scenes)").all() as Array<{ name: string }>).map((c) => c.name)

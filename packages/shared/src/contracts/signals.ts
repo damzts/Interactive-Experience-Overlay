@@ -45,6 +45,67 @@ export interface ChatMessagePayload {
   source: 'twitch' | 'simulation'
 }
 
+export interface TwitchFollowPayload {
+  user: string
+  userId: string
+}
+
+export interface TwitchSubscribePayload {
+  user: string
+  userId: string
+  tier: string
+  isGift: boolean
+}
+
+export interface TwitchGiftSubPayload {
+  gifter: string
+  gifterId: string
+  tier: string
+  total: number
+  cumulative?: number
+}
+
+export interface TwitchCheerPayload {
+  user: string
+  userId?: string
+  bits: number
+  message: string
+  isAnonymous: boolean
+}
+
+export interface TwitchRaidPayload {
+  from: string
+  fromId: string
+  viewers: number
+}
+
+export interface TwitchPointsRedemptionPayload {
+  user: string
+  userId: string
+  rewardId: string
+  rewardTitle: string
+  input: string
+}
+
+export interface TwitchStreamOnlinePayload {
+  startedAt: string
+}
+
+export interface TwitchHypeTrainBeginPayload {
+  level: number
+  total: number
+  goal: number
+}
+
+export interface TwitchHypeTrainEndPayload {
+  level: number
+  total: number
+}
+
+export interface TwitchEventSubConnectedPayload {
+  sessionId: string
+}
+
 export interface ShowStepPayload {
   showId: string
   stepIndex: number
@@ -278,6 +339,28 @@ export interface ServerToClientEvents {
   'chat:message': (payload: ChatMessagePayload) => void
   /** Twitch chat connected to a channel */
   'chat:connected': (payload: { channel: string }) => void
+  /** Twitch EventSub WebSocket session established */
+  'twitch:eventsub:connected': (payload: TwitchEventSubConnectedPayload) => void
+  /** Viewer followed the channel */
+  'twitch:follow': (payload: TwitchFollowPayload) => void
+  /** Viewer subscribed to the channel */
+  'twitch:subscribe': (payload: TwitchSubscribePayload) => void
+  /** Gift subscription sent */
+  'twitch:gift-sub': (payload: TwitchGiftSubPayload) => void
+  /** Viewer cheered with Bits */
+  'twitch:cheer': (payload: TwitchCheerPayload) => void
+  /** Channel was raided */
+  'twitch:raid': (payload: TwitchRaidPayload) => void
+  /** Channel Points reward redeemed */
+  'twitch:points:redemption': (payload: TwitchPointsRedemptionPayload) => void
+  /** Stream went live */
+  'twitch:stream:online': (payload: TwitchStreamOnlinePayload) => void
+  /** Stream ended */
+  'twitch:stream:offline': (payload: Record<string, never>) => void
+  /** Hype Train started */
+  'twitch:hype-train:begin': (payload: TwitchHypeTrainBeginPayload) => void
+  /** Hype Train ended */
+  'twitch:hype-train:end': (payload: TwitchHypeTrainEndPayload) => void
   /** OBS stream started */
   'obs:stream:started': (payload: Record<string, never>) => void
   /** OBS stream stopped */
