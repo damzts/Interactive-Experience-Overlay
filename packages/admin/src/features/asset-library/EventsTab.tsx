@@ -1,6 +1,6 @@
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
 import { EventForm } from './EventForm'
-import { describeEventSetup, type EventDef, type EventPresetId } from './eventPresets'
+import { describeEventSetup, type EventDef } from './eventPresets'
 import { LibraryItemBtn } from './mediaLibraryUi'
 import { MediaSearchInput } from './AssetLibraryPanel'
 
@@ -49,7 +49,6 @@ export function EventsTabSidebar({
 }
 
 export function EventsTabContent({
-  filteredEventPresets,
   createEventDraft,
   editingEvent,
   eventDraftOriginalId,
@@ -58,8 +57,7 @@ export function EventsTabContent({
   deleteEventDraft,
   onTriggerEvent,
 }: {
-  filteredEventPresets: Array<{ id: EventPresetId; icon: string; label: string; description: string }>
-  createEventDraft: (presetId?: EventPresetId) => void
+  createEventDraft: () => void
   editingEvent: EventDef | null
   eventDraftOriginalId: string | null
   patchEventDraft: (updated: EventDef) => void
@@ -74,23 +72,12 @@ export function EventsTabContent({
       <ConfigCard className="space-y-4 p-5 sm:p-6">
         <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
           <div className="space-y-1">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Event Type</div>
-            <div className="text-xs text-zinc-500">Pick an event type to open a new event draft below.</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">New Event</div>
+            <div className="text-xs text-zinc-500">Create a blank event, then add effects and actions below.</div>
           </div>
-          <Btn type="button" variant="ghost" onClick={() => createEventDraft('blank')} className="w-full justify-center border-zinc-700/80 py-2 text-sm">
-            Blank Event
+          <Btn type="button" variant="ghost" onClick={() => createEventDraft()} className="w-full justify-center border-zinc-700/80 py-2 text-sm">
+            + New Blank Event
           </Btn>
-          <div className="grid gap-2 lg:grid-cols-2">
-            {filteredEventPresets.map((preset) => (
-              <LibraryItemBtn key={preset.id} active={false} onClick={() => createEventDraft(preset.id)}>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{preset.icon}</span>
-                  <span className="text-[12px] font-medium text-zinc-100">{preset.label}</span>
-                </div>
-                <div className="mt-1 text-[10px] leading-relaxed text-zinc-500">{preset.description}</div>
-              </LibraryItemBtn>
-            ))}
-          </div>
         </div>
       </ConfigCard>
 

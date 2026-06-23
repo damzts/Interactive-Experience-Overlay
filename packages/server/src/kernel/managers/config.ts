@@ -594,7 +594,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       desktopConfig,
       desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance ?? {}),
       widgetLayouts: next.widgetLayouts ?? [],
-      sourceEvents: withEventListDefaults(next.sourceEvents?.length ? next.sourceEvents : structuredClone(DEFAULT_CONFIG.sourceEvents)),
+      sourceEvents: withEventListDefaults(next.sourceEvents ?? []),
       sourceMedia: next.sourceMedia ?? [],
       windowPresets: next.windowPresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],

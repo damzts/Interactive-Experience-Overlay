@@ -18,7 +18,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from '../asset-library/AssetLibrary'
 import { WIDGET_SKINS } from '../../shared/adminDesktopOptions'
 import {
-  LAUNCH_PIPELINE_EFFECT_TYPES,
+  EVENT_EFFECT_TYPES,
   createEffectDraft,
 } from '../asset-library/eventPresets'
 import { getSafeSceneWindows } from '../../shared/windowCatalog'

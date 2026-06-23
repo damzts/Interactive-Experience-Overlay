@@ -120,6 +120,59 @@ export function TransitionLayer() {
 
       {/* Media overlay container — image/video sources (ImageOverlay.ts, VideoOverlay.ts) */}
       <div id="tl-media-container" style={{ position: 'fixed', inset: 0, zIndex: 218, pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* ── New effect containers ─────────────────────────────────── */}
+
+      {/* Achievement unlock — Xbox 360 style toast, bottom-right */}
+      <div id="tl-achievement-unlock" style={{ position: 'fixed', bottom: 32, right: 32, zIndex: 210, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Friend join — Xbox Live / Messenger, offset above achievement */}
+      <div id="tl-friend-join" style={{ position: 'fixed', bottom: 120, right: 32, zIndex: 210, display: 'none', pointerEvents: 'none' }} />
+
+      {/* System alert — Vista UAC center dialog */}
+      <div id="tl-system-alert" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 215, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Error dialog — Win98 error box */}
+      <div id="tl-error-dialog" style={{ position: 'fixed', top: '45%', left: '55%', transform: 'translate(-50%,-50%)', zIndex: 215, display: 'none', pointerEvents: 'none' }} />
+
+      {/* VHS glitch — full-screen RGB displacement */}
+      <div id="tl-vhs-glitch" style={{ position: 'fixed', inset: 0, zIndex: 200, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Scan lines sweep — full-screen CRT scanline */}
+      <div id="tl-scan-lines" style={{ position: 'fixed', inset: 0, zIndex: 201, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Neon glow — screen border pulse */}
+      <div id="tl-neon-glow" style={{ position: 'fixed', inset: 0, zIndex: 195, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Chromatic aberration — RGB channel offset clones */}
+      <div id="tl-chromatic" style={{ position: 'fixed', inset: 0, zIndex: 200, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Film burn — warm overexposure from corner */}
+      <div id="tl-film-burn" style={{ position: 'fixed', inset: 0, zIndex: 196, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* TV off — CRT power-down collapse */}
+      <div id="tl-tv-off" style={{ position: 'fixed', inset: 0, zIndex: 220, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Pixel transition — grid of colored tiles scatter/reform */}
+      <div id="tl-pixel-grid" style={{ position: 'fixed', inset: 0, zIndex: 218, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Dial-up connect — modem handshake terminal window */}
+      <div id="tl-dialup" style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 215, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Confetti burst — full-screen particle rain */}
+      <div id="tl-confetti" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* XP gain — floating text bubbles */}
+      <div id="tl-xp-gain" style={{ position: 'fixed', inset: 0, zIndex: 210, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Fireworks — star particle bursts */}
+      <div id="tl-fireworks" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* DVD bounce — text bounces around screen */}
+      <div id="tl-dvd-bounce" style={{ position: 'fixed', inset: 0, zIndex: 200, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Level up — zoom text + ring shockwave */}
+      <div id="tl-level-up" style={{ position: 'fixed', inset: 0, zIndex: 215, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
     </>
   )
 }

@@ -24,13 +24,11 @@ import {
   WIDGET_THEME_ATMOSPHERES,
 } from '../../shared/adminDesktopOptions'
 import {
-  LAUNCH_PIPELINE_EFFECT_TYPES,
   createEffectDraft,
   createEventActionDraft,
   describeEventSetup,
   EVENT_EFFECT_TYPES,
   COMMON_EVENT_ACTION_KINDS,
-  COMMON_EVENT_EFFECT_TYPES,
   getEventActionLabel,
   normalizeDesktopNotificationEffectConfig,
   type EventDef,
@@ -407,7 +405,7 @@ export function EventForm({
           <ConfigSectionPanel label="Effects">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                {COMMON_EVENT_EFFECT_TYPES.map((type) => (
+                {EVENT_EFFECT_TYPES.slice(0, 6).map((type) => (
                   <button key={type} type="button" onClick={() => addEffect(type)}
                     className="rounded-full border border-zinc-700/70 bg-zinc-950/60 px-3 py-1.5 text-[11px] font-semibold text-zinc-300 transition hover:border-cyan-400/35 hover:text-cyan-200">
                     + {type}

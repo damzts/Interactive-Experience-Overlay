@@ -1,24 +1,43 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, DEFAULT_WIDGET_THEME_PRESETS, STATE, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, DEFAULT_WIDGET_THEME_PRESETS, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type {
+  AchievementUnlockConfig,
+  AudioSfxConfig,
+  BlueScreenConfig,
+  ChromaticAberrationConfig,
+  ConfettiBurstConfig,
   CorruptionBurstConfig,
   DesktopConfig,
   DesktopNotificationEffectConfig,
+  DialUpConnectConfig,
+  DvdBounceConfig,
   EffectType,
+  ErrorDialogConfig,
   EventAction,
   EventDesktopTheme,
   EventWidgetThemePatch,
+  FilmBurnConfig,
+  FireworksConfig,
   FloatiesConfig,
+  FriendJoinConfig,
   ImageOverlayConfig,
+  LevelUpConfig,
+  NeonGlowConfig,
   NetworkGlitchConfig,
   NotificationBoxConfig,
+  PixelTransitionConfig,
+  ScanLinesSweepConfig,
   ScreenShakeConfig,
   StaticBurstConfig,
+  SystemAlertConfig,
   TerminalToastConfig,
+  TvOffConfig,
   TypewriterConfig,
+  VhsGlitchConfig,
   VideoOverlayConfig,
   VignettePulseConfig,
   WidgetThemeConfig,
+  XpGainConfig,
 } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { AssetSelectionInput } from './AssetLibrary'
@@ -36,7 +55,7 @@ import {
   createEffectDraft,
   createEventActionDraft,
   describeEventSetup,
-  EVENT_EFFECT_TYPES,
+  EFFECT_CATEGORIES,
   normalizeDesktopNotificationEffectConfig,
   normalizeEventEffectConfig,
   type EventDef,
@@ -150,24 +169,65 @@ export function EventForm({
     flatGrid ? <div className={`min-w-0 ${className}`.trim()}>{children}</div> : children
   )
 
+  const SFX_PRESET_IDS = ['startup', 'transition', 'death', 'victory', 'revive', 'glitch'] as const
+
+  const renderSfxPicker = (effectIndex: number, currentSfx?: string) => {
+    const isCustom = !!currentSfx && !SFX_PRESET_IDS.includes(currentSfx as typeof SFX_PRESET_IDS[number])
+    const selectValue = isCustom ? '__custom__' : (currentSfx ?? '')
+    return (
+      <div className="mt-4 border-t border-zinc-800/60 pt-4">
+        <div className="mb-1 text-[10px] text-zinc-500">Paired SFX</div>
+        <div className="flex gap-2">
+          <select
+            value={selectValue}
+            onChange={(event) => {
+              const val = event.target.value
+              updateEffect(effectIndex, (draft) => {
+                if (val === '') { draft.sfx = undefined; return }
+                if (val !== '__custom__') { draft.sfx = val }
+              })
+            }}
+            className="flex-1 text-xs"
+          >
+            <option value="">(none)</option>
+            {SFX_PRESET_IDS.map(id => <option key={id} value={id}>{id}</option>)}
+            <option value="__custom__">Custom URL…</option>
+          </select>
+          {(selectValue === '__custom__' || isCustom) && (
+            <input
+              type="text"
+              value={isCustom ? currentSfx : ''}
+              placeholder="https://... or /assets/sfx/..."
+              onChange={(event) => updateEffect(effectIndex, (draft) => { draft.sfx = event.target.value || undefined })}
+              className="flex-1 text-xs font-mono"
+            />
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const renderEffectConfig = (effect: EventDef['effects'][number], index: number) => {
     if (effect.type === 'desktop-notification') {
       const cfg = normalizeDesktopNotificationEffectConfig(effect.cfg)
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div className="col-span-2">
-            <div className="mb-1 text-[10px] text-zinc-500">Title</div>
-            <input type="text" value={cfg.title} onChange={(event) => updateDesktopNotificationEffect(index, (draft) => { draft.title = event.target.value })} className="w-full text-xs" />
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Title</div>
+              <input type="text" value={cfg.title} onChange={(event) => updateDesktopNotificationEffect(index, (draft) => { draft.title = event.target.value })} className="w-full text-xs" />
+            </div>
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Body</div>
+              <textarea value={cfg.body} onChange={(event) => updateDesktopNotificationEffect(index, (draft) => { draft.body = event.target.value })} className="min-h-[72px] w-full text-xs" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Icon</div>
+              <input type="text" value={cfg.icon ?? ''} onChange={(event) => updateDesktopNotificationEffect(index, (draft) => { draft.icon = event.target.value || undefined })} className="w-full text-xs font-mono" />
+            </div>
+            <Slider label="Duration" value={cfg.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS} min={0} max={10000} step={250} unit="ms" onChange={(value) => updateDesktopNotificationEffect(index, (draft) => { draft.durationMs = value || 0 })} />
           </div>
-          <div className="col-span-2">
-            <div className="mb-1 text-[10px] text-zinc-500">Body</div>
-            <textarea value={cfg.body} onChange={(event) => updateDesktopNotificationEffect(index, (draft) => { draft.body = event.target.value })} className="min-h-[72px] w-full text-xs" />
-          </div>
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Icon</div>
-            <input type="text" value={cfg.icon ?? ''} onChange={(event) => updateDesktopNotificationEffect(index, (draft) => { draft.icon = event.target.value || undefined })} className="w-full text-xs font-mono" />
-          </div>
-          <Slider label="Duration" value={cfg.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS} min={0} max={10000} step={250} unit="ms" onChange={(value) => updateDesktopNotificationEffect(index, (draft) => { draft.durationMs = value || 0 })} />
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -175,32 +235,35 @@ export function EventForm({
     if (effect.type === 'notification-box') {
       const cfg = effect.cfg as NotificationBoxConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Title</div>
-            <input type="text" value={cfg.title} onChange={(event) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Title</div>
+              <input type="text" value={cfg.title} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'notification-box') return
+                draft.cfg.title = event.target.value
+              })} className="w-full text-xs" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Icon</div>
+              <input type="text" value={cfg.icon} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'notification-box') return
+                draft.cfg.icon = event.target.value
+              })} className="w-full text-xs font-mono" />
+            </div>
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Body</div>
+              <textarea value={cfg.body} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'notification-box') return
+                draft.cfg.body = event.target.value
+              })} className="min-h-[72px] w-full text-xs" />
+            </div>
+            <Slider label="Dismiss" value={cfg.autoDismiss} min={0} max={15} step={0.5} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'notification-box') return
-              draft.cfg.title = event.target.value
-            })} className="w-full text-xs" />
+              draft.cfg.autoDismiss = value
+            })} />
           </div>
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Icon</div>
-            <input type="text" value={cfg.icon} onChange={(event) => updateEffect(index, (draft) => {
-              if (draft.type !== 'notification-box') return
-              draft.cfg.icon = event.target.value
-            })} className="w-full text-xs font-mono" />
-          </div>
-          <div className="col-span-2">
-            <div className="mb-1 text-[10px] text-zinc-500">Body</div>
-            <textarea value={cfg.body} onChange={(event) => updateEffect(index, (draft) => {
-              if (draft.type !== 'notification-box') return
-              draft.cfg.body = event.target.value
-            })} className="min-h-[72px] w-full text-xs" />
-          </div>
-          <Slider label="Dismiss" value={cfg.autoDismiss} min={0} max={15} step={0.5} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'notification-box') return
-            draft.cfg.autoDismiss = value
-          })} />
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -208,31 +271,34 @@ export function EventForm({
     if (effect.type === 'terminal-toast') {
       const cfg = effect.cfg as TerminalToastConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div className="col-span-2">
-            <div className="mb-1 text-[10px] text-zinc-500">Messages</div>
-            <textarea value={cfg.messages.join('\n')} onChange={(event) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Messages</div>
+              <textarea value={cfg.messages.join('\n')} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'terminal-toast') return
+                draft.cfg.messages = event.target.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+              })} className="min-h-[88px] w-full text-xs font-mono" />
+              <div className="mt-1 text-[10px] text-zinc-600">One line per terminal message.</div>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.25} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'terminal-toast') return
-              draft.cfg.messages = event.target.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-            })} className="min-h-[88px] w-full text-xs font-mono" />
-            <div className="mt-1 text-[10px] text-zinc-600">One line per terminal message.</div>
+              draft.cfg.duration = value
+            })} />
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Position</div>
+              <select value={cfg.position} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'terminal-toast') return
+                draft.cfg.position = event.target.value as TerminalToastConfig['position']
+              })} className="w-full text-xs">
+                <option value="bottom-left">Bottom left</option>
+                <option value="bottom-right">Bottom right</option>
+                <option value="top-left">Top left</option>
+                <option value="top-right">Top right</option>
+              </select>
+            </div>
           </div>
-          <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.25} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'terminal-toast') return
-            draft.cfg.duration = value
-          })} />
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Position</div>
-            <select value={cfg.position} onChange={(event) => updateEffect(index, (draft) => {
-              if (draft.type !== 'terminal-toast') return
-              draft.cfg.position = event.target.value as TerminalToastConfig['position']
-            })} className="w-full text-xs">
-              <option value="bottom-left">Bottom left</option>
-              <option value="bottom-right">Bottom right</option>
-              <option value="top-left">Top left</option>
-              <option value="top-right">Top right</option>
-            </select>
-          </div>
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -240,19 +306,22 @@ export function EventForm({
     if (effect.type === 'floaties') {
       const cfg = effect.cfg as FloatiesConfig
       return (
-        <div className="grid grid-cols-3 gap-4 pl-1">
-          <Slider label="Count" value={cfg.count} min={1} max={100} step={1} onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'floaties') return
-            draft.cfg.count = value
-          })} />
-          <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.25} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'floaties') return
-            draft.cfg.duration = value
-          })} />
-          <Slider label="Speed" value={cfg.speed} min={0.1} max={5} step={0.1} onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'floaties') return
-            draft.cfg.speed = value
-          })} />
+        <div className="pl-1">
+          <div className="grid grid-cols-3 gap-4">
+            <Slider label="Count" value={cfg.count} min={1} max={100} step={1} onChange={(value) => updateEffect(index, (draft) => {
+              if (draft.type !== 'floaties') return
+              draft.cfg.count = value
+            })} />
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.25} unit="s" onChange={(value) => updateEffect(index, (draft) => {
+              if (draft.type !== 'floaties') return
+              draft.cfg.duration = value
+            })} />
+            <Slider label="Speed" value={cfg.speed} min={0.1} max={5} step={0.1} onChange={(value) => updateEffect(index, (draft) => {
+              if (draft.type !== 'floaties') return
+              draft.cfg.speed = value
+            })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -260,22 +329,25 @@ export function EventForm({
     if (effect.type === 'corruption-burst') {
       const cfg = effect.cfg as CorruptionBurstConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
-            <select value={cfg.intensity} onChange={(event) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
+              <select value={cfg.intensity} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'corruption-burst') return
+                draft.cfg.intensity = event.target.value as CorruptionBurstConfig['intensity']
+              })} className="w-full text-xs">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.2} max={5} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'corruption-burst') return
-              draft.cfg.intensity = event.target.value as CorruptionBurstConfig['intensity']
-            })} className="w-full text-xs">
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
+              draft.cfg.duration = value
+            })} />
           </div>
-          <Slider label="Duration" value={cfg.duration} min={0.2} max={5} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'corruption-burst') return
-            draft.cfg.duration = value
-          })} />
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -283,18 +355,21 @@ export function EventForm({
     if (effect.type === 'network-glitch') {
       const cfg = effect.cfg as NetworkGlitchConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div className="col-span-2">
-            <div className="mb-1 text-[10px] text-zinc-500">Message</div>
-            <input type="text" value={cfg.message} onChange={(event) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Message</div>
+              <input type="text" value={cfg.message} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'network-glitch') return
+                draft.cfg.message = event.target.value
+              })} className="w-full text-xs font-mono" />
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.2} max={5} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'network-glitch') return
-              draft.cfg.message = event.target.value
-            })} className="w-full text-xs font-mono" />
+              draft.cfg.duration = value
+            })} />
           </div>
-          <Slider label="Duration" value={cfg.duration} min={0.2} max={5} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'network-glitch') return
-            draft.cfg.duration = value
-          })} />
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -302,29 +377,32 @@ export function EventForm({
     if (effect.type === 'vignette-pulse') {
       const cfg = effect.cfg as VignettePulseConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Color</div>
-            <HexColorInput value={cfg.color} onChange={(value) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color} onChange={(value) => updateEffect(index, (draft) => {
+                if (draft.type !== 'vignette-pulse') return
+                draft.cfg.color = value
+              })} />
+            </div>
+            <Slider label="Opacity" value={cfg.opacity} min={0} max={1} step={0.05} onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'vignette-pulse') return
-              draft.cfg.color = value
+              draft.cfg.opacity = value
             })} />
-          </div>
-          <Slider label="Opacity" value={cfg.opacity} min={0} max={1} step={0.05} onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'vignette-pulse') return
-            draft.cfg.opacity = value
-          })} />
-          <Slider label="Duration" value={cfg.duration} min={0.2} max={5} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'vignette-pulse') return
-            draft.cfg.duration = value
-          })} />
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Center text</div>
-            <input type="text" value={cfg.text} onChange={(event) => updateEffect(index, (draft) => {
+            <Slider label="Duration" value={cfg.duration} min={0.2} max={5} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'vignette-pulse') return
-              draft.cfg.text = event.target.value
-            })} className="w-full text-xs" placeholder="Optional overlay text" />
+              draft.cfg.duration = value
+            })} />
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Center text</div>
+              <input type="text" value={cfg.text} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'vignette-pulse') return
+                draft.cfg.text = event.target.value
+              })} className="w-full text-xs" placeholder="Optional overlay text" />
+            </div>
           </div>
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -332,22 +410,25 @@ export function EventForm({
     if (effect.type === 'screen-shake') {
       const cfg = effect.cfg as ScreenShakeConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
-            <select value={cfg.intensity} onChange={(event) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
+              <select value={cfg.intensity} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'screen-shake') return
+                draft.cfg.intensity = event.target.value as ScreenShakeConfig['intensity']
+              })} className="w-full text-xs">
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="heavy">Heavy</option>
+              </select>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.1} max={3} step={0.05} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'screen-shake') return
-              draft.cfg.intensity = event.target.value as ScreenShakeConfig['intensity']
-            })} className="w-full text-xs">
-              <option value="light">Light</option>
-              <option value="medium">Medium</option>
-              <option value="heavy">Heavy</option>
-            </select>
+              draft.cfg.duration = value
+            })} />
           </div>
-          <Slider label="Duration" value={cfg.duration} min={0.1} max={3} step={0.05} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'screen-shake') return
-            draft.cfg.duration = value
-          })} />
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -355,40 +436,43 @@ export function EventForm({
     if (effect.type === 'typewriter') {
       const cfg = effect.cfg as TypewriterConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <div className="col-span-2">
-            <div className="mb-1 text-[10px] text-zinc-500">Text</div>
-            <textarea value={cfg.text} onChange={(event) => updateEffect(index, (draft) => {
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Text</div>
+              <textarea value={cfg.text} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'typewriter') return
+                draft.cfg.text = event.target.value
+              })} className="min-h-[72px] w-full text-xs font-mono" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Position</div>
+              <select value={cfg.position} onChange={(event) => updateEffect(index, (draft) => {
+                if (draft.type !== 'typewriter') return
+                draft.cfg.position = event.target.value as TypewriterConfig['position']
+              })} className="w-full text-xs">
+                <option value="top">Top</option>
+                <option value="center">Center</option>
+                <option value="bottom">Bottom</option>
+              </select>
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color} onChange={(value) => updateEffect(index, (draft) => {
+                if (draft.type !== 'typewriter') return
+                draft.cfg.color = value
+              })} />
+            </div>
+            <Slider label="Font size" value={cfg.fontSize} min={12} max={128} step={2} unit="px" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'typewriter') return
-              draft.cfg.text = event.target.value
-            })} className="min-h-[72px] w-full text-xs font-mono" />
-          </div>
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Position</div>
-            <select value={cfg.position} onChange={(event) => updateEffect(index, (draft) => {
+              draft.cfg.fontSize = value
+            })} />
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
               if (draft.type !== 'typewriter') return
-              draft.cfg.position = event.target.value as TypewriterConfig['position']
-            })} className="w-full text-xs">
-              <option value="top">Top</option>
-              <option value="center">Center</option>
-              <option value="bottom">Bottom</option>
-            </select>
-          </div>
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Color</div>
-            <HexColorInput value={cfg.color} onChange={(value) => updateEffect(index, (draft) => {
-              if (draft.type !== 'typewriter') return
-              draft.cfg.color = value
+              draft.cfg.duration = value
             })} />
           </div>
-          <Slider label="Font size" value={cfg.fontSize} min={12} max={128} step={2} unit="px" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'typewriter') return
-            draft.cfg.fontSize = value
-          })} />
-          <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.1} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'typewriter') return
-            draft.cfg.duration = value
-          })} />
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -396,15 +480,18 @@ export function EventForm({
     if (effect.type === 'static-burst') {
       const cfg = effect.cfg as StaticBurstConfig
       return (
-        <div className="grid grid-cols-2 gap-4 pl-1">
-          <Slider label="Opacity" value={cfg.opacity} min={0} max={1} step={0.05} onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'static-burst') return
-            draft.cfg.opacity = value
-          })} />
-          <Slider label="Duration" value={cfg.duration} min={0.1} max={3} step={0.05} unit="s" onChange={(value) => updateEffect(index, (draft) => {
-            if (draft.type !== 'static-burst') return
-            draft.cfg.duration = value
-          })} />
+        <div className="pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Opacity" value={cfg.opacity} min={0} max={1} step={0.05} onChange={(value) => updateEffect(index, (draft) => {
+              if (draft.type !== 'static-burst') return
+              draft.cfg.opacity = value
+            })} />
+            <Slider label="Duration" value={cfg.duration} min={0.1} max={3} step={0.05} unit="s" onChange={(value) => updateEffect(index, (draft) => {
+              if (draft.type !== 'static-burst') return
+              draft.cfg.duration = value
+            })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
         </div>
       )
     }
@@ -547,6 +634,380 @@ export function EventForm({
             const nextPercent = Math.min(300, Math.max(10, value || 100))
             draft.cfg = { ...draft.cfg, speed: nextPercent / 100 }
           })} />
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    // ── New effects ──────────────────────────────────────────────────
+
+    if (effect.type === 'achievement-unlock') {
+      const cfg = effect.cfg as AchievementUnlockConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Title</div>
+              <input type="text" value={cfg.title} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'achievement-unlock') return; d.cfg.title = e.target.value })} className="w-full text-xs" />
+            </div>
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Description</div>
+              <input type="text" value={cfg.description} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'achievement-unlock') return; d.cfg.description = e.target.value })} className="w-full text-xs" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Icon</div>
+              <input type="text" value={cfg.icon ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'achievement-unlock') return; d.cfg.icon = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="🏆" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Points</div>
+              <input type="number" value={cfg.points ?? ''} min={0} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'achievement-unlock') return; d.cfg.points = e.target.value === '' ? undefined : Number(e.target.value) })} className="w-full text-xs font-mono" placeholder="10" />
+            </div>
+            <Slider label="Duration" value={cfg.durationMs ?? 4000} min={1000} max={10000} step={250} unit="ms" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'achievement-unlock') return; d.cfg.durationMs = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'system-alert') {
+      const cfg = effect.cfg as SystemAlertConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Title</div>
+              <input type="text" value={cfg.title} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'system-alert') return; d.cfg.title = e.target.value })} className="w-full text-xs" />
+            </div>
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Message</div>
+              <textarea value={cfg.message} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'system-alert') return; d.cfg.message = e.target.value })} className="min-h-[72px] w-full text-xs" />
+            </div>
+            <Slider label="Duration" value={cfg.durationMs ?? 4000} min={1000} max={10000} step={250} unit="ms" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'system-alert') return; d.cfg.durationMs = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'error-dialog') {
+      const cfg = effect.cfg as ErrorDialogConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Title</div>
+              <input type="text" value={cfg.title} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'error-dialog') return; d.cfg.title = e.target.value })} className="w-full text-xs" />
+            </div>
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Message</div>
+              <textarea value={cfg.message} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'error-dialog') return; d.cfg.message = e.target.value })} className="min-h-[72px] w-full text-xs" />
+            </div>
+            <Slider label="Duration" value={cfg.durationMs ?? 3500} min={1000} max={10000} step={250} unit="ms" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'error-dialog') return; d.cfg.durationMs = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'friend-join') {
+      const cfg = effect.cfg as FriendJoinConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Username</div>
+              <input type="text" value={cfg.username} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'friend-join') return; d.cfg.username = e.target.value })} className="w-full text-xs font-mono" />
+            </div>
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Tagline</div>
+              <input type="text" value={cfg.tagline ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'friend-join') return; d.cfg.tagline = e.target.value || undefined })} className="w-full text-xs" placeholder="has joined your session" />
+            </div>
+            <Slider label="Duration" value={cfg.durationMs ?? 3500} min={1000} max={10000} step={250} unit="ms" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'friend-join') return; d.cfg.durationMs = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'vhs-glitch') {
+      const cfg = effect.cfg as VhsGlitchConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
+              <select value={cfg.intensity} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'vhs-glitch') return; d.cfg.intensity = e.target.value as VhsGlitchConfig['intensity'] })} className="w-full text-xs">
+                <option value="subtle">Subtle</option>
+                <option value="moderate">Moderate</option>
+                <option value="extreme">Extreme</option>
+              </select>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={8} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'vhs-glitch') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'scan-lines-sweep') {
+      const cfg = effect.cfg as ScanLinesSweepConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color ?? '#000000'} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'scan-lines-sweep') return; d.cfg.color = v })} />
+            </div>
+            <Slider label="Opacity" value={cfg.opacity ?? 0.15} min={0.05} max={0.6} step={0.05} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'scan-lines-sweep') return; d.cfg.opacity = v })} />
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={6} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'scan-lines-sweep') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'neon-glow') {
+      const cfg = effect.cfg as NeonGlowConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color ?? '#00ccff'} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'neon-glow') return; d.cfg.color = v })} />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
+              <select value={cfg.intensity} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'neon-glow') return; d.cfg.intensity = e.target.value as NeonGlowConfig['intensity'] })} className="w-full text-xs">
+                <option value="soft">Soft</option>
+                <option value="medium">Medium</option>
+                <option value="intense">Intense</option>
+              </select>
+            </div>
+            <Toggle checked={cfg.rainbow ?? false} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'neon-glow') return; d.cfg.rainbow = v })} label="Rainbow cycle" />
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={10} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'neon-glow') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'chromatic-aberration') {
+      const cfg = effect.cfg as ChromaticAberrationConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
+              <select value={cfg.intensity} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'chromatic-aberration') return; d.cfg.intensity = e.target.value as ChromaticAberrationConfig['intensity'] })} className="w-full text-xs">
+                <option value="subtle">Subtle</option>
+                <option value="moderate">Moderate</option>
+                <option value="extreme">Extreme</option>
+              </select>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.3} max={6} step={0.1} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'chromatic-aberration') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'film-burn') {
+      const cfg = effect.cfg as FilmBurnConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Corner origin</div>
+              <select value={cfg.corner} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'film-burn') return; d.cfg.corner = e.target.value as FilmBurnConfig['corner'] })} className="w-full text-xs">
+                <option value="tl">Top left</option>
+                <option value="tr">Top right</option>
+                <option value="bl">Bottom left</option>
+                <option value="br">Bottom right</option>
+              </select>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={6} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'film-burn') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'tv-off') {
+      const cfg = effect.cfg as TvOffConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <Slider label="Duration" value={cfg.duration ?? 1.2} min={0.5} max={4} step={0.1} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'tv-off') return; d.cfg.duration = v })} />
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'blue-screen') {
+      const cfg = effect.cfg as BlueScreenConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Error code</div>
+              <input type="text" value={cfg.errorCode ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'blue-screen') return; d.cfg.errorCode = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="0x0000007E" />
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={1} max={10} step={0.5} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'blue-screen') return; d.cfg.duration = v })} />
+            <div className="col-span-2">
+              <div className="mb-1 text-[10px] text-zinc-500">Error params</div>
+              <input type="text" value={cfg.message ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'blue-screen') return; d.cfg.message = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="(0xC0000005, 0xF741B367, ...)" />
+            </div>
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'pixel-transition') {
+      const cfg = effect.cfg as PixelTransitionConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Pixel size" value={cfg.pixelSize ?? 20} min={5} max={80} step={5} unit="px" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'pixel-transition') return; d.cfg.pixelSize = v })} />
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={5} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'pixel-transition') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'dial-up-connect') {
+      const cfg = effect.cfg as DialUpConnectConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">ISP name</div>
+              <input type="text" value={cfg.isp ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'dial-up-connect') return; d.cfg.isp = e.target.value || undefined })} className="w-full text-xs" placeholder="NetConnect ISP" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Speed</div>
+              <input type="text" value={cfg.speed ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'dial-up-connect') return; d.cfg.speed = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="56k" />
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={3} max={15} step={0.5} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'dial-up-connect') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'confetti-burst') {
+      const cfg = effect.cfg as ConfettiBurstConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Count" value={cfg.count ?? 80} min={10} max={200} step={10} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'confetti-burst') return; d.cfg.count = v })} />
+            <Slider label="Duration" value={cfg.duration} min={1} max={8} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'confetti-burst') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'xp-gain') {
+      const cfg = effect.cfg as XpGainConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Text</div>
+              <input type="text" value={cfg.text} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'xp-gain') return; d.cfg.text = e.target.value })} className="w-full text-xs font-mono" placeholder="+XP" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color ?? '#f5c400'} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'xp-gain') return; d.cfg.color = v })} />
+            </div>
+            <Slider label="Count" value={cfg.count ?? 5} min={1} max={20} step={1} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'xp-gain') return; d.cfg.count = v })} />
+            <Slider label="Font size" value={cfg.fontSize ?? 36} min={16} max={96} step={4} unit="px" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'xp-gain') return; d.cfg.fontSize = v })} />
+            <Slider label="Duration" value={cfg.duration} min={0.5} max={6} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'xp-gain') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'fireworks') {
+      const cfg = effect.cfg as FireworksConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Bursts" value={cfg.count ?? 4} min={1} max={12} step={1} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'fireworks') return; d.cfg.count = v })} />
+            <Slider label="Duration" value={cfg.duration} min={1} max={8} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'fireworks') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'dvd-bounce') {
+      const cfg = effect.cfg as DvdBounceConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Text</div>
+              <input type="text" value={cfg.text ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'dvd-bounce') return; d.cfg.text = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="DVD" />
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={3} max={30} step={1} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'dvd-bounce') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'level-up') {
+      const cfg = effect.cfg as LevelUpConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Text</div>
+              <input type="text" value={cfg.text ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'level-up') return; d.cfg.text = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="LEVEL UP" />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color ?? '#f5c400'} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'level-up') return; d.cfg.color = v })} />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Level number</div>
+              <input type="number" value={cfg.level ?? ''} min={1} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'level-up') return; d.cfg.level = e.target.value === '' ? undefined : Number(e.target.value) })} className="w-full text-xs font-mono" placeholder="optional" />
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={1} max={6} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'level-up') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'audio-sfx') {
+      const cfg = effect.cfg as AudioSfxConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Sound</div>
+              <select value={cfg.sfxId} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'audio-sfx') return; d.cfg.sfxId = e.target.value as AudioSfxConfig['sfxId'] })} className="w-full text-xs">
+                <option value="startup">startup</option>
+                <option value="transition">transition</option>
+                <option value="death">death</option>
+                <option value="victory">victory</option>
+                <option value="revive">revive</option>
+                <option value="glitch">glitch</option>
+                <option value="custom">Custom URL…</option>
+              </select>
+            </div>
+            <Slider label="Volume" value={cfg.volume ?? 1} min={0} max={1} step={0.05} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'audio-sfx') return; d.cfg.volume = v })} />
+            {cfg.sfxId === 'custom' && (
+              <div className="col-span-2">
+                <div className="mb-1 text-[10px] text-zinc-500">Custom URL</div>
+                <input type="text" value={cfg.customUrl ?? ''} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'audio-sfx') return; d.cfg.customUrl = e.target.value || undefined })} className="w-full text-xs font-mono" placeholder="https://... or /assets/sfx/..." />
+              </div>
+            )}
+          </div>
         </div>
       )
     }
@@ -661,57 +1122,6 @@ export function EventForm({
     'xl:col-start-1'
   ) : null
 
-  const triggerSection = wrapGridItem(
-    <ConfigSectionPanel label="Trigger" first>
-            <Toggle checked={def.auto.enabled} onChange={(value) => update((draft) => { draft.auto.enabled = value })} label="Enable auto-trigger" />
-            <div className="mt-3 space-y-3">
-              <div>
-                <div className="mb-1 text-[10px] text-zinc-400">Mode</div>
-                <div className="flex gap-2">
-                  {(['interval', 'idle'] as const).map((mode) => (
-                    <ConfigChoiceButton key={mode} type="button" selected={def.auto.mode === mode} onClick={() => update((draft) => { draft.auto.mode = mode })} className="flex-1 py-2 text-sm">
-                      {mode}
-                    </ConfigChoiceButton>
-                  ))}
-                </div>
-              </div>
-              {def.auto.mode === 'interval' && (
-                <Slider label="Avg every" value={def.auto.intervalMin} min={1} max={60} step={1} unit="min" onChange={(value) => update((draft) => { draft.auto.intervalMin = value })} />
-              )}
-              {def.auto.mode === 'idle' && (
-                <Slider label="After idle" value={def.auto.idleMin} min={1} max={30} step={1} unit="min" onChange={(value) => update((draft) => { draft.auto.idleMin = value })} />
-              )}
-              <Slider label="Chance" value={Math.round(def.auto.chance * 100)} min={0} max={100} step={5} unit="%" onChange={(value) => update((draft) => { draft.auto.chance = value / 100 })} />
-              <Slider label="Cooldown" value={def.auto.cooldownMin} min={0} max={120} step={1} unit="min" onChange={(value) => update((draft) => { draft.auto.cooldownMin = value })} />
-              <div>
-                <div className="mb-1 text-[10px] text-zinc-400">Allowed states</div>
-                <div className="flex gap-2">
-                  {[STATE.DESKTOP, STATE.LOBBY].map((stateId) => {
-                    const selected = (def.auto.allowedStates ?? []).includes(stateId)
-                    return (
-                      <ConfigChoiceButton
-                        key={stateId}
-                        type="button"
-                        selected={selected}
-                        onClick={() => update((draft) => {
-                          const next = new Set(draft.auto.allowedStates ?? [])
-                          if (next.has(stateId)) next.delete(stateId)
-                          else next.add(stateId)
-                          draft.auto.allowedStates = next.size ? [...next] : undefined
-                        })}
-                        className="flex-1 py-2 text-sm"
-                      >
-                        {stateId}
-                      </ConfigChoiceButton>
-                    )
-                  })}
-                </div>
-                <div className="mt-1 text-[10px] text-zinc-500">Leave both off to allow any runtime state.</div>
-              </div>
-            </div>
-              </ConfigSectionPanel>,
-            'xl:col-start-2'
-  )
 
   const runtimeActionsSection = wrapGridItem(
     <ConfigSectionPanel label="Runtime Actions" first>
@@ -965,7 +1375,11 @@ export function EventForm({
                   addEffect(type)
                 }} className="w-full text-sm">
                   <option value="">Select effect type…</option>
-                  {EVENT_EFFECT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  {EFFECT_CATEGORIES.map((cat) => (
+                    <optgroup key={cat.label} label={cat.label}>
+                      {cat.effects.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
               {normalizedEffects.length === 0 && <div className="text-[10px] italic text-zinc-600">No effects configured.</div>}
@@ -1053,7 +1467,6 @@ export function EventForm({
       {flatGrid ? (
         <div className="grid items-start gap-4 xl:grid-cols-2">
           {identitySection ?? <div className="hidden xl:block" aria-hidden="true" />}
-          {triggerSection}
           {runtimeActionsSection}
           {effectsSection}
           {!def.builtIn && showDeleteButton && onDelete && (
@@ -1064,10 +1477,11 @@ export function EventForm({
         </div>
       ) : (
         <div className="space-y-4">
-          <div className={`grid items-start gap-4 ${def.builtIn ? '' : 'xl:grid-cols-2'}`}>
-            {identitySection}
-            {triggerSection}
-          </div>
+          {identitySection && (
+            <div className="grid items-start gap-4">
+              {identitySection}
+            </div>
+          )}
 
           {!def.builtIn && showDeleteButton && onDelete && (
             <div className="pt-1">

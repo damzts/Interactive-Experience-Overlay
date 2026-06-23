@@ -44,6 +44,7 @@ import { AutomationManager } from './kernel/managers/automation.js'
 import { ShowSequencer } from './kernel/managers/showSequencer.js'
 import { TwitchManager } from './kernel/managers/twitch.js'
 import { ChatReactionManager } from './kernel/managers/chatReactions.js'
+import { EffectAmbianceManager } from './kernel/managers/effectAmbiance.js'
 import { spotifyRoute } from './transport/http/spotify.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
@@ -283,6 +284,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   configService.onConfigUpdate((config) => {
     scheduler.onConfigChange()
     twitchManager.onConfigChange(config)
+    effectAmbianceManager.onConfigChange()
   })
 
   const chatReactionManager = new ChatReactionManager(
@@ -290,6 +292,12 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     kernel.bus,
   )
   kernel.register(chatReactionManager, { after: ['DesktopConfigService', 'TwitchManager'] })
+
+  const effectAmbianceManager = new EffectAmbianceManager(
+    () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
+    kernel.bus,
+  )
+  kernel.register(effectAmbianceManager, { after: ['DesktopConfigService'] })
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
   machine.on('state:change', (payload: { state: import('@ieomlabs/shared').STATE }) => {

@@ -65,3 +65,18 @@ export interface AmbianceWidgetSimulationConfig {
 export interface DesktopAmbianceConfig {
   widgetSimulation: AmbianceWidgetSimulationConfig
 }
+
+// ── Effect Ambiance ───────────────────────────────────────────────
+
+/** Fires randomly selected overlay effects on a timer in the background. */
+export interface EffectAmbianceConfig {
+  enabled: boolean
+  /** Pool of preconfigured effects — one or more are chosen at random each tick. */
+  pool: import('../contracts/effects.js').EffectConfig[]
+  /** Average seconds between fires */
+  intervalSeconds: number
+  /** ±jitter as a fraction of the interval. 0.3 = ±30%. Default 0.3. */
+  jitterFactor?: number
+  /** How many effects to pick from the pool per tick. Default 1. */
+  countPerTick?: number
+}

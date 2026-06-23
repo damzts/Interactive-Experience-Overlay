@@ -1,5 +1,5 @@
 import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
-import type { DesktopAmbianceConfig } from './ambiance.js'
+import type { DesktopAmbianceConfig, EffectAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventAction, EventConfig } from './event.js'
 import type { MediaEntry, Scene, WindowPreset } from './scene.js'
@@ -59,6 +59,8 @@ export interface AppConfig {
   shows?: ShowDefinition[]
   /** Twitch connection config (TwitchManager → twitch_config table) */
   twitch?: TwitchConfig
+  /** Ambient random effect loop config (EffectAmbianceManager) */
+  effectAmbiance?: EffectAmbianceConfig
   /** Chat reaction rules (ChatReactionManager → chat_reactions table) */
   chatReactions?: ChatReactionRule[]
   /** Spotify embedded playlists */

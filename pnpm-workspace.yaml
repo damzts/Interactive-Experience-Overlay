@@ -1,13 +1,14 @@
+packages:
+  - packages/shared
+  - packages/server
+  - packages/admin
+  - packages/overlay
+  - packages/desktop
 allowBuilds:
   better-sqlite3: true
   electron: true
   esbuild: true
-packages:
-- packages/shared
-- packages/server
-- packages/admin
-- packages/overlay
-- packages/desktop
+  mediasoup: false
 
 # pnpm v9+ reads these from pnpm-workspace.yaml
 onlyBuiltDependencies:
@@ -25,15 +26,15 @@ onlyBuiltDependencies:
 # Upgrade blocked until Fase 2: migrate vite 5→6 + vitest 2→4 together.
 # GHSA-5xrq-8626-4rwp (CRITICAL) waiver pending Fase 2.
 overrides:
-  node-abi: '>=4.31.0'
+  brace-expansion: '>=2.0.2'
+  esbuild: '>=0.24.3'
+  fast-uri: '>=3.1.0'
   fastify: '>=5.7.2'
   lodash: '>=4.17.21'
-  ws: '>=8.17.0'
-  uuid: '>=9.0.0'
-  tar: '>=7.5.7'
-  esbuild: '>=0.24.3'
-  react-router: '>=6.30.4'
-  fast-uri: '>=3.1.0'
-  brace-expansion: '>=2.0.2'
+  node-abi: '>=4.31.0'
   protocol-buffers-schema: '>=3.5.1'
+  react-router: '>=6.30.4'
   socket.io-parser: '>=4.2.1'
+  tar: '>=7.5.7'
+  uuid: '>=9.0.0'
+  ws: '>=8.17.0'

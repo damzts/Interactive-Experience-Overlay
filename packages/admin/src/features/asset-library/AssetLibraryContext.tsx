@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_EVENT_DEFS, EVENT_PRESET_OPTIONS, createEventPreset, type EventDef, type EventPresetId } from './eventPresets'
+import { DEFAULT_EVENT_DEFS, createBlankEventDef, type EventDef } from './eventPresets'
 import { deleteAssetFile, inferAssetKindFromUrl, mediaEntryToAsset, useAssetCatalog, type AssetKind, type AssetRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -30,12 +30,11 @@ export interface EventsTabState {
   eventSearch: string
   setEventSearch: (v: string) => void
   filteredEventDefs: EventDef[]
-  filteredEventPresets: typeof EVENT_PRESET_OPTIONS
   selectedEventId: string | null
   editingEvent: EventDef | null
   eventDraftOriginalId: string | null
   selectEvent: (id: string) => void
-  createEventDraft: (presetId?: EventPresetId) => void
+  createEventDraft: () => void
   patchEventDraft: (updated: EventDef) => void
   saveEventDraft: () => void
   deleteEventDraft: () => void
@@ -108,8 +107,6 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const config        = useAdminStore((s) => s.config)
   const sourceMedia   = useAdminStore((s) => s.config.sourceMedia ?? [])
   const eventDefs     = useAdminStore((s) => (s.config.sourceEvents ?? DEFAULT_EVENT_DEFS) as EventDef[])
-  const widgetIds     = useAdminStore((s) => s.config.applications.map((a) => a.id))
-  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useAssetCatalog()
 
@@ -145,13 +142,6 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     if (!q) return eventDefs
     return eventDefs.filter((d) => [d.label, d.desc, d.id].some((v) => v.toLowerCase().includes(q)))
   }, [eventDefs, eventSearch])
-
-  const filteredEventPresets = useMemo(() => {
-    const q = eventSearch.trim().toLowerCase()
-    return EVENT_PRESET_OPTIONS.filter(
-      (p) => p.id !== 'blank' && (!q || [p.label, p.description, p.id].some((v) => v.toLowerCase().includes(q)))
-    )
-  }, [eventSearch])
 
   // ── Derived: Catalog ─────────────────────────────────────────────
 
@@ -413,8 +403,8 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     if (asset.source === 'filesystem') { await deleteAssetFile(asset.url); await refreshCatalog() }
   }
 
-  const createEventDraft = (presetId: EventPresetId = 'blank') => {
-    const def = createEventPreset(presetId, { widgetIds, layoutId: widgetLayouts[0]?.id })
+  const createEventDraft = () => {
+    const def = createBlankEventDef()
     setTab('events')
     setEventDraft({ event: def, originalId: null })
     setSelectedEventId(null)
@@ -477,7 +467,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     selectedCatalogAsset, setSelectedCatalogAssetId,
     catalogFolderGroups, catalogLoading, catalogError, refreshCatalog, handleDeleteCatalogAsset,
     // events
-    eventSearch, setEventSearch, filteredEventDefs, filteredEventPresets,
+    eventSearch, setEventSearch, filteredEventDefs,
     selectedEventId, editingEvent, eventDraftOriginalId: eventDraft?.originalId ?? null,
     selectEvent, createEventDraft, patchEventDraft, saveEventDraft, deleteEventDraft, handleTriggerEvent,
     // sources
