@@ -450,20 +450,36 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private saveTwitchConfig(cfg: NonNullable<AppConfig['twitch']>): void {
+    // Ensure new columns exist (idempotent — no-op if already present)
+    try { this.db.exec('ALTER TABLE twitch_config ADD COLUMN client_id TEXT') } catch {}
+    try { this.db.exec('ALTER TABLE twitch_config ADD COLUMN event_reactions_json TEXT') } catch {}
+
     this.db.prepare(
-      'INSERT OR REPLACE INTO twitch_config (id, channel, access_token, enabled) VALUES (1, ?, ?, ?)'
-    ).run(cfg.channel, cfg.accessToken ?? null, cfg.enabled ? 1 : 0)
+      'INSERT OR REPLACE INTO twitch_config (id, channel, access_token, enabled, client_id, event_reactions_json) VALUES (1, ?, ?, ?, ?, ?)'
+    ).run(
+      cfg.channel,
+      cfg.accessToken ?? null,
+      cfg.enabled ? 1 : 0,
+      cfg.clientId ?? null,
+      cfg.eventReactions?.length ? JSON.stringify(cfg.eventReactions) : null,
+    )
   }
 
   private loadTwitchConfig(): AppConfig['twitch'] {
+    const columns = (this.db.prepare('PRAGMA table_info(twitch_config)').all() as Array<{ name: string }>).map((c) => c.name)
     const row = this.db.prepare('SELECT * FROM twitch_config WHERE id = 1').get() as {
-      channel: string; access_token: string | null; enabled: number
+      channel: string; access_token: string | null; enabled: number;
+      client_id?: string | null; event_reactions_json?: string | null
     } | undefined
     if (!row) return undefined
     return {
       channel: row.channel,
       enabled: row.enabled === 1,
       accessToken: row.access_token ?? undefined,
+      clientId: columns.includes('client_id') ? (row.client_id ?? undefined) : undefined,
+      eventReactions: columns.includes('event_reactions_json') && row.event_reactions_json
+        ? JSON.parse(row.event_reactions_json)
+        : undefined,
     }
   }
 
@@ -578,7 +594,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       desktopConfig,
       desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance ?? {}),
       widgetLayouts: next.widgetLayouts ?? [],
-      sourceEvents: withEventListDefaults(next.sourceEvents?.length ? next.sourceEvents : structuredClone(DEFAULT_CONFIG.sourceEvents)),
+      sourceEvents: withEventListDefaults(next.sourceEvents ?? []),
       sourceMedia: next.sourceMedia ?? [],
       windowPresets: next.windowPresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],

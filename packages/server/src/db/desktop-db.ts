@@ -229,6 +229,8 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   }
   addColumn('scenes', 'ambient_track', 'TEXT')
   addColumn('widget_wires', 'condition_json', 'TEXT')
+  addColumn('twitch_config', 'client_id', 'TEXT')
+  addColumn('twitch_config', 'event_reactions_json', 'TEXT')
 
   // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
   try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }

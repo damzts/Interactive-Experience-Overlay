@@ -1,5 +1,5 @@
-﻿import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
-import type { DesktopAmbianceConfig } from './ambiance.js'
+import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
+import type { DesktopAmbianceConfig, EffectAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventAction, EventConfig } from './event.js'
 import type { MediaEntry, Scene, WindowPreset } from './scene.js'
@@ -57,8 +57,10 @@ export interface AppConfig {
   widgetWires?: WidgetWire[]
   /** Scripted show sequences (Show Sequencer → shows table) */
   shows?: ShowDefinition[]
-  /** Twitch chat connection (TwitchChatManager → twitch_config table) */
+  /** Twitch connection config (TwitchManager → twitch_config table) */
   twitch?: TwitchConfig
+  /** Ambient random effect loop config (EffectAmbianceManager) */
+  effectAmbiance?: EffectAmbianceConfig
   /** Chat reaction rules (ChatReactionManager → chat_reactions table) */
   chatReactions?: ChatReactionRule[]
   /** Spotify embedded playlists */
@@ -79,6 +81,25 @@ export interface SpotifyConfig {
 
 // ── Twitch config ────────────────────────────────────────────────
 
+export type TwitchEventKind =
+  | 'follow'
+  | 'subscribe'
+  | 'gift-sub'
+  | 'cheer'
+  | 'raid'
+  | 'points-redemption'
+  | 'stream-online'
+  | 'stream-offline'
+  | 'hype-train-begin'
+  | 'hype-train-end'
+
+export interface TwitchEventReaction {
+  event: TwitchEventKind
+  enabled: boolean
+  actions?: EventAction[]
+  effects?: import('../contracts/effects.js').EffectConfig[]
+}
+
 export interface TwitchConfig {
   /** Twitch channel name (without #) */
   channel: string
@@ -86,6 +107,10 @@ export interface TwitchConfig {
   enabled: boolean
   /** OAuth access token — stored server-side only, never forwarded to overlay clients */
   accessToken?: string
+  /** Twitch application Client-ID (required for EventSub subscriptions) */
+  clientId?: string
+  /** Per-event reactions fired when an EventSub notification arrives */
+  eventReactions?: TwitchEventReaction[]
 }
 
 // ── Chat reaction types ──────────────────────────────────────────

@@ -61,4 +61,8 @@ export const adminSignalHandlers: AdminSignalHandlerMap = {
   'chat:connected': ({ channel }: { channel: string }, store) => {
     store.setTwitchConnected(true, channel)
   },
+
+  'twitch:eventsub:connected': (_payload: { sessionId: string }, store) => {
+    store.setTwitchEventSubConnected(true)
+  },
 }

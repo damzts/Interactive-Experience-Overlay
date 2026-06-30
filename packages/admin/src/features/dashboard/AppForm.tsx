@@ -18,7 +18,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { MediaSelectionInput } from '../media-library/MediaLibrary'
 import { WIDGET_SKINS } from '../../shared/adminDesktopOptions'
 import {
-  LAUNCH_PIPELINE_EFFECT_TYPES,
+  EVENT_EFFECT_TYPES,
   createEffectDraft,
 } from '../media-library/eventPresets'
 import { getSafeSceneWindows } from '../../shared/windowCatalog'

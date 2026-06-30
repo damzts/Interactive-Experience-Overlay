@@ -174,7 +174,7 @@ export function MediaLibraryContent() {
   const {
     tab,
     selectedCatalogAsset, refreshCatalog, handleDeleteCatalogAsset,
-    filteredEventPresets, editingEvent, eventDraftOriginalId, createEventDraft, patchEventDraft,
+    editingEvent, eventDraftOriginalId, createEventDraft, patchEventDraft,
     saveEventDraft, deleteEventDraft, handleTriggerEvent,
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId, sourceDraftCreatesNewPreset,
     selectedSourceUsageCount, createSourcePresetDraft, patchSourcePresetDraft,
@@ -242,7 +242,6 @@ export function MediaLibraryContent() {
       {/* ── Events ── */}
       {tab === 'events' && (
         <EventsTabContent
-          filteredEventPresets={filteredEventPresets}
           createEventDraft={createEventDraft}
           editingEvent={editingEvent}
           eventDraftOriginalId={eventDraftOriginalId}

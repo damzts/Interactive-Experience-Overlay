@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { STATE } from '@ieomlabs/shared'
-import type { EventConfig, AutoTrigger } from '@ieomlabs/shared'
+import type { EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import {
   ConfigCard, ConfigPageIntro, ConfigSectionPanel,
   Toggle, Slider, ConfigChoiceButton,
 } from '../../shared/ui'
+import { EFFECT_CATEGORIES, createEffectDraft } from '../asset-library/eventPresets'
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -29,6 +30,13 @@ function formatAgo(ts: number | null): string {
 }
 
 const ALL_STATES: STATE[] = [STATE.LOBBY, STATE.DESKTOP]
+
+const DEFAULT_EFFECT_AMBIANCE: EffectAmbianceConfig = {
+  enabled: false,
+  pool: [],
+  intervalSeconds: 30,
+  jitterFactor: 0.3,
+}
 
 // ── EventRow ───────────────────────────────────────────────────────
 
@@ -95,10 +103,10 @@ function EventRow({
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Mode</div>
             <div className="flex gap-1.5">
-              <ConfigChoiceButton active={auto.mode === 'interval'} onClick={() => onChange({ mode: 'interval' })}>
+              <ConfigChoiceButton selected={auto.mode === 'interval'} onClick={() => onChange({ mode: 'interval' })}>
                 Interval
               </ConfigChoiceButton>
-              <ConfigChoiceButton active={auto.mode === 'idle'} onClick={() => onChange({ mode: 'idle' })}>
+              <ConfigChoiceButton selected={auto.mode === 'idle'} onClick={() => onChange({ mode: 'idle' })}>
                 Idle
               </ConfigChoiceButton>
             </div>
@@ -106,18 +114,20 @@ function EventRow({
 
           {auto.mode === 'interval' && (
             <Slider label="Interval (min)" value={auto.intervalMin} min={1} max={120} step={1}
+              unit=" min"
               onChange={(v) => onChange({ intervalMin: v })} />
           )}
           {auto.mode === 'idle' && (
-            <Slider label="Idle threshold (min)" value={auto.idleMin} min={1} max={120} step={1}
+            <Slider label="Idle threshold" value={auto.idleMin} min={1} max={120} step={1}
+              unit=" min"
               onChange={(v) => onChange({ idleMin: v })} />
           )}
 
           <Slider label="Chance" value={auto.chance} min={0} max={1} step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
             onChange={(v) => onChange({ chance: v })} />
 
-          <Slider label="Cooldown (min)" value={auto.cooldownMin} min={0} max={60} step={1}
+          <Slider label="Cooldown" value={auto.cooldownMin} min={0} max={60} step={1}
+            unit=" min"
             onChange={(v) => onChange({ cooldownMin: v })} />
 
           {/* Allowed states */}
@@ -129,7 +139,7 @@ function EventRow({
               {ALL_STATES.map((s) => {
                 const active = (auto.allowedStates ?? []).includes(s)
                 return (
-                  <ConfigChoiceButton key={s} active={active} onClick={() => {
+                  <ConfigChoiceButton key={s} selected={active} onClick={() => {
                     const cur = auto.allowedStates ?? []
                     onChange({ allowedStates: active ? cur.filter((x) => x !== s) : [...cur, s] })
                   }}>
@@ -165,12 +175,154 @@ function EventRow({
   )
 }
 
+// ── EffectAmbianceSection ──────────────────────────────────────────
+
+function EffectAmbianceSection({
+  config,
+  onChange,
+}: {
+  config: EffectAmbianceConfig
+  onChange: (patch: Partial<EffectAmbianceConfig>) => void
+}) {
+  const [selectedType, setSelectedType] = useState<EffectType>('screen-shake')
+
+  const addToPool = () => {
+    const draft = createEffectDraft(selectedType)
+    onChange({ pool: [...config.pool, draft] })
+  }
+
+  const removeFromPool = (index: number) => {
+    onChange({ pool: config.pool.filter((_, i) => i !== index) })
+  }
+
+  const firePreview = () => {
+    if (!config.pool.length) return
+    const effect = config.pool[Math.floor(Math.random() * config.pool.length)]
+    socket.emit('event:preview', {
+      id: 'ambiance-preview',
+      label: 'Ambiance Preview',
+      icon: '✨',
+      color: 'text-violet-400',
+      desc: '',
+      effects: [effect],
+      auto: { enabled: false, mode: 'interval' as const, intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 },
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-semibold text-zinc-200">Effect Ambiance</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">Randomly fires overlay effects on a timer in the background.</div>
+        </div>
+        <Toggle checked={config.enabled} onChange={(v) => onChange({ enabled: v })} />
+      </div>
+
+      <Slider
+        label="Interval"
+        value={config.intervalSeconds}
+        min={1}
+        max={300}
+        step={1}
+        unit="s"
+        onChange={(v) => onChange({ intervalSeconds: v })}
+      />
+
+      <Slider
+        label="Jitter"
+        value={config.jitterFactor ?? 0.3}
+        min={0}
+        max={0.8}
+        step={0.05}
+        onChange={(v) => onChange({ jitterFactor: v })}
+      />
+
+      <Slider
+        label="Effects per tick"
+        value={config.countPerTick ?? 1}
+        min={1}
+        max={Math.max(1, config.pool.length) || 10}
+        step={1}
+        unit=""
+        onChange={(v) => onChange({ countPerTick: v })}
+      />
+
+      {/* Pool editor */}
+      <div>
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          Effect Pool <span className="font-normal text-zinc-600">({config.pool.length} effect{config.pool.length !== 1 ? 's' : ''})</span>
+        </div>
+
+        {/* Add picker */}
+        <div className="flex gap-2 mb-3">
+          <select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value as EffectType)}
+            className="flex-1 rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-[11px] text-zinc-200 focus:border-violet-500/50 focus:outline-none"
+          >
+            {EFFECT_CATEGORIES.filter(c => c.label !== 'Audio').map((cat) => (
+              <optgroup key={cat.label} label={cat.label}>
+                {cat.effects.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={addToPool}
+            className="rounded-md border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold text-violet-300 hover:border-violet-400/60 hover:bg-violet-500/20 hover:text-violet-100 transition"
+          >
+            + Add
+          </button>
+        </div>
+
+        {/* Pool list */}
+        {config.pool.length === 0 ? (
+          <div className="text-[10px] text-zinc-600 italic">No effects in pool. Add effects above to enable ambiance mode.</div>
+        ) : (
+          <div className="space-y-1.5">
+            {config.pool.map((eff: EffectConfig, i: number) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2">
+                <span className="text-[10px] font-mono text-violet-300 truncate">{eff.type}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFromPool(i)}
+                  className="text-zinc-600 hover:text-rose-400 transition text-xs ml-2 shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Preview button */}
+      {config.pool.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={firePreview}
+            className="rounded-md border border-violet-500/35 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold text-violet-300 transition hover:border-violet-400/60 hover:bg-violet-500/20 hover:text-violet-100"
+          >
+            ▶ Preview Random
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── SchedulerPanel ─────────────────────────────────────────────────
 
 export function SchedulerPanel() {
-  const events    = useAdminStore((s) => s.config.sourceEvents ?? [])
-  const saveConfig = useAdminStore((s) => s.saveConfig)
-  const diag      = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
+  const events         = useAdminStore((s) => s.config.sourceEvents ?? [])
+  const rawAmbiance    = useAdminStore((s) => s.config.effectAmbiance)
+  const effectAmbiance: EffectAmbianceConfig = rawAmbiance ?? DEFAULT_EFFECT_AMBIANCE
+  const saveConfig     = useAdminStore((s) => s.saveConfig)
+  const diag           = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
 
   // tick every second so countdowns refresh
   const [, setTick] = useState(0)
@@ -189,13 +341,15 @@ export function SchedulerPanel() {
     void saveConfig({ sourceEvents: next })
   }
 
+  const handleAmbianceChange = (patch: Partial<EffectAmbianceConfig>) => {
+    void saveConfig({ effectAmbiance: { ...effectAmbiance, ...patch } })
+  }
+
   return (
     <div className="space-y-5">
-      <ConfigPageIntro
-        icon="⏱"
-        title="Scheduler"
-        description="Automatic event triggers. Each event fires based on its mode, timing, and chance roll."
-      />
+      <ConfigPageIntro title="Scheduler">
+        Automatic event triggers. Each event fires based on its mode, timing, and chance roll.
+      </ConfigPageIntro>
 
       <ConfigSectionPanel label="Engine status">
         <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -238,6 +392,10 @@ export function SchedulerPanel() {
           </div>
         </ConfigSectionPanel>
       )}
+
+      <ConfigSectionPanel label="Effect ambiance">
+        <EffectAmbianceSection config={effectAmbiance} onChange={handleAmbianceChange} />
+      </ConfigSectionPanel>
     </div>
   )
 }

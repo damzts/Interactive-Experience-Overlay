@@ -46,12 +46,21 @@ export type SignalHandlerMap = {
 // ── SFX map for effects ───────────────────────────────────────────
 
 const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngine.play>[0]>> = {
-  'death-overlay':    'death',
-  'victory-overlay':  'victory',
-  'revive-overlay':   'revive',
-  'network-glitch':   'glitch',
-  'corruption-burst': 'glitch',
-  'static-burst':     'transition',
+  'death-overlay':       'death',
+  'victory-overlay':     'victory',
+  'revive-overlay':      'revive',
+  'network-glitch':      'glitch',
+  'corruption-burst':    'glitch',
+  'static-burst':        'transition',
+  'achievement-unlock':  'victory',
+  'level-up':            'victory',
+  'confetti-burst':      'victory',
+  'fireworks':           'victory',
+  'friend-join':         'startup',
+  'dial-up-connect':     'startup',
+  'blue-screen':         'glitch',
+  'tv-off':              'transition',
+  'vhs-glitch':          'glitch',
 }
 
 // ── Cursor mirror helpers (need ref state, exposed via module-level vars) ─────
@@ -85,6 +94,17 @@ export const signalHandlers: SignalHandlerMap = {
     if (!effects.length) return
     effects.forEach((eff) => {
       const fire = () => {
+        // audio-sfx: play sound from cfg, no visual dispatch
+        if (eff.type === 'audio-sfx') {
+          const audioCfg = eff.cfg as import('@ieomlabs/shared').AudioSfxConfig
+          if (audioCfg.sfxId === 'custom' && audioCfg.customUrl) {
+            void audioEngine.playUrl(audioCfg.customUrl)
+          } else if (audioCfg.sfxId !== 'custom') {
+            audioEngine.play(audioCfg.sfxId as Parameters<typeof audioEngine.play>[0])
+          }
+          return
+        }
+
         dispatchEffect(eff.type, eff.cfg)
         if (eff.sfx) {
           // Custom sfx: URL path gets playUrl(), bare ID gets play()
