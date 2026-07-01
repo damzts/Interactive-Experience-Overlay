@@ -5,6 +5,19 @@
  */
 
 export type EffectType =
+  // ── Stream personality effects ────────────────────────────────
+  | 'cinema-moment'     // Letterbox bars + vignette + dramatic text
+  | 'chapter-reveal'    // Full-screen elegant title card
+  | 'clip-that'         // "✂ CLIP IT" badge pulses in corner
+  | 'persona-shift'     // Color wash + bold mode-change text
+  | 'moment-marker'     // "★ MOMENT" badge stamps corner then fades
+  | 'crowd-roar'        // Screen shake + vignette flash + "CROWD GOES WILD"
+  | 'intermission'      // Full-screen BRB card with animated background
+  | 'shockwave'         // Expanding ring from screen center
+  | 'hype-pulse'        // Rainbow border cycling for duration
+  | 'countdown-burst'   // 3 → 2 → 1 number slams to screen
+  | 'spotlight'         // Dark radial mask with moving light circle
+  | 'chat-bubble'       // Pinned speech bubble with text
   // ── Original effects ──────────────────────────────────────────
   | 'desktop-notification' // Desktop taskbar/toast notification
   | 'notification-box'    // Win98 dialog window(s), cascade via flex stack
@@ -48,6 +61,22 @@ export type EffectType =
   | 'level-up'            // "LEVEL UP" zoom + expanding ring shockwave
   // ── Audio-only ────────────────────────────────────────────────
   | 'audio-sfx'           // No visual — plays a built-in or custom sound
+  // ── 2000s Internet Nostalgia ──────────────────────────────────
+  | 'aim-message'         // AOL Instant Messenger window slides in
+  | 'msn-nudge'           // Windows Live Messenger NUDGE + screen shake
+  | 'xp-balloon'          // Windows XP system tray balloon notification
+  | 'geocities-alert'     // Browser JS alert() dialog with blinking border
+  | 'buffering'           // Early YouTube buffering progress bar
+  | 'winamp-skip'         // Winamp media player track skip widget
+  | 'email-alert'         // Hotmail/AOL new-message notification card
+  // ── Anime ─────────────────────────────────────────────────────
+  | 'speed-lines'         // Canvas radial speed lines from/to center
+  | 'impact-frame'        // Flash + ink speed lines + bold impact text
+  | 'power-up-aura'       // DBZ-style expanding golden rings + aura column
+  | 'to-be-continued'     // JoJo sepia wipe + "→ To Be Continued..." text
+  | 'screentone-wipe'     // Manga halftone dot pattern wipes across screen
+  | 'sweat-drop'          // Giant anime sweat drop slides, wobbles, splashes
+  | 'dramatic-zoom'       // Slow camera zoom in + speed lines, tension build
 
 // ── Per-type configs ────────────────────────────────────────────
 
@@ -346,6 +375,205 @@ export type EffectConfig =
   | { type: 'dvd-bounce';       cfg: DvdBounceConfig;       delay?: number; sfx?: string }
   | { type: 'level-up';         cfg: LevelUpConfig;         delay?: number; sfx?: string }
   | { type: 'audio-sfx';        cfg: AudioSfxConfig;        delay?: number; sfx?: string }
+  // ── Stream personality ──────────────────────────────────────────
+  | { type: 'cinema-moment';    cfg: CinemaMomentConfig;    delay?: number; sfx?: string }
+  | { type: 'chapter-reveal';   cfg: ChapterRevealConfig;   delay?: number; sfx?: string }
+  | { type: 'clip-that';        cfg: ClipThatConfig;        delay?: number; sfx?: string }
+  | { type: 'persona-shift';    cfg: PersonaShiftConfig;    delay?: number; sfx?: string }
+  | { type: 'moment-marker';    cfg: MomentMarkerConfig;    delay?: number; sfx?: string }
+  | { type: 'crowd-roar';       cfg: CrowdRoarConfig;       delay?: number; sfx?: string }
+  | { type: 'intermission';     cfg: IntermissionConfig;    delay?: number; sfx?: string }
+  | { type: 'shockwave';        cfg: ShockwaveConfig;       delay?: number; sfx?: string }
+  | { type: 'hype-pulse';       cfg: HypePulseConfig;       delay?: number; sfx?: string }
+  | { type: 'countdown-burst';  cfg: CountdownBurstConfig;  delay?: number; sfx?: string }
+  | { type: 'spotlight';        cfg: SpotlightConfig;       delay?: number; sfx?: string }
+  | { type: 'chat-bubble';      cfg: ChatBubbleConfig;      delay?: number; sfx?: string }
+  // ── 2000s Internet Nostalgia ──────────────────────────────────
+  | { type: 'aim-message';      cfg: AimMessageConfig;      delay?: number; sfx?: string }
+  | { type: 'msn-nudge';        cfg: MsnNudgeConfig;        delay?: number; sfx?: string }
+  | { type: 'xp-balloon';       cfg: XpBalloonConfig;       delay?: number; sfx?: string }
+  | { type: 'geocities-alert';  cfg: GeoAimAlertConfig;     delay?: number; sfx?: string }
+  | { type: 'buffering';        cfg: BufferingConfig;       delay?: number; sfx?: string }
+  | { type: 'winamp-skip';      cfg: WinampSkipConfig;      delay?: number; sfx?: string }
+  | { type: 'email-alert';      cfg: EmailAlertConfig;      delay?: number; sfx?: string }
+  // ── Anime ─────────────────────────────────────────────────────
+  | { type: 'speed-lines';      cfg: SpeedLinesConfig;      delay?: number; sfx?: string }
+  | { type: 'impact-frame';     cfg: ImpactFrameConfig;     delay?: number; sfx?: string }
+  | { type: 'power-up-aura';    cfg: PowerUpAuraConfig;     delay?: number; sfx?: string }
+  | { type: 'to-be-continued';  cfg: ToBeContinuedConfig;   delay?: number; sfx?: string }
+  | { type: 'screentone-wipe';  cfg: ScreentoneWipeConfig;  delay?: number; sfx?: string }
+  | { type: 'sweat-drop';       cfg: SweatDropConfig;       delay?: number; sfx?: string }
+  | { type: 'dramatic-zoom';    cfg: DramaticZoomConfig;    delay?: number; sfx?: string }
+
+// ── Stream personality effect configs ───────────────────────────
+
+export interface CinemaMomentConfig {
+  text?: string
+  color?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ChapterRevealConfig {
+  title: string
+  number?: string | number
+  subtitle?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ClipThatConfig {
+  durationMs?: number
+  color?: string
+}
+
+export interface PersonaShiftConfig {
+  label: string
+  color?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface MomentMarkerConfig {
+  label?: string
+  color?: string
+  durationMs?: number
+}
+
+export interface CrowdRoarConfig {
+  text?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface IntermissionConfig {
+  message?: string
+  showTimer?: boolean
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ShockwaveConfig {
+  color?: string
+  thickness?: number
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface HypePulseConfig {
+  /** Duration in seconds */
+  duration: number
+  speed?: 'slow' | 'normal' | 'fast'
+}
+
+export interface CountdownBurstConfig {
+  from?: number
+  color?: string
+}
+
+export interface SpotlightConfig {
+  /** Duration in seconds */
+  duration: number
+  radius?: number
+  color?: string
+}
+
+export interface ChatBubbleConfig {
+  text: string
+  author?: string
+  /** Duration in seconds */
+  duration: number
+  position?: 'top' | 'center' | 'bottom'
+}
+
+// ── 2000s Internet Nostalgia configs ────────────────────────────
+
+export interface AimMessageConfig {
+  username?: string
+  message?: string
+  durationMs?: number
+}
+
+export interface MsnNudgeConfig {
+  username?: string
+  durationMs?: number
+}
+
+export interface XpBalloonConfig {
+  title?: string
+  body?: string
+  durationMs?: number
+}
+
+export interface GeoAimAlertConfig {
+  message?: string
+  durationMs?: number
+}
+
+export interface BufferingConfig {
+  quality?: '240p' | '360p' | '480p'
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface WinampSkipConfig {
+  track?: string
+  artist?: string
+  durationMs?: number
+}
+
+export interface EmailAlertConfig {
+  subject?: string
+  sender?: string
+  durationMs?: number
+}
+
+// ── Anime effect configs ─────────────────────────────────────────
+
+export interface SpeedLinesConfig {
+  direction?: 'out' | 'in'
+  color?: string
+  density?: number
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ImpactFrameConfig {
+  text?: string
+  color?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface PowerUpAuraConfig {
+  color?: string
+  text?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ToBeContinuedConfig {
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ScreentoneWipeConfig {
+  /** Duration in seconds */
+  duration: number
+  opacity?: number
+}
+
+export interface SweatDropConfig {
+  durationMs?: number
+  size?: 'sm' | 'md' | 'lg'
+}
+
+export interface DramaticZoomConfig {
+  zoomTo?: number
+  /** Duration in seconds */
+  duration: number
+  color?: string
+}
 
 // ── Overlay trigger payload (admin → server → overlay) ──────────
 

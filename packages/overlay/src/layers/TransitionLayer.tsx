@@ -173,6 +173,90 @@ export function TransitionLayer() {
 
       {/* Level up — zoom text + ring shockwave */}
       <div id="tl-level-up" style={{ position: 'fixed', inset: 0, zIndex: 215, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* ── Stream personality containers ─────────────────────── */}
+
+      {/* Cinema moment — letterbox bars + vignette + dramatic text */}
+      <div id="tl-cinema-moment" style={{ position: 'fixed', inset: 0, zIndex: 220, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Chapter reveal — full-screen title card */}
+      <div id="tl-chapter-reveal" style={{ position: 'fixed', inset: 0, zIndex: 222, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Clip that — corner badge */}
+      <div id="tl-clip-that" style={{ position: 'fixed', top: 32, right: 32, zIndex: 230, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Persona shift — full-screen color wash + text */}
+      <div id="tl-persona-shift" style={{ position: 'fixed', inset: 0, zIndex: 225, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Moment marker — corner stamp */}
+      <div id="tl-moment-marker" style={{ position: 'fixed', bottom: 32, left: 32, zIndex: 212, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Crowd roar — shake + vignette + text (reuses overlay-root + containers) */}
+      <div id="tl-crowd-roar" style={{ position: 'fixed', inset: 0, zIndex: 220, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Intermission — full BRB card */}
+      <div id="tl-intermission" style={{ position: 'fixed', inset: 0, zIndex: 230, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Shockwave — expanding ring */}
+      <div id="tl-shockwave" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Hype pulse — rainbow border */}
+      <div id="tl-hype-pulse" style={{ position: 'fixed', inset: 0, zIndex: 195, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Countdown burst — 3-2-1 full-screen */}
+      <div id="tl-countdown-burst" style={{ position: 'fixed', inset: 0, zIndex: 225, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Spotlight — dark radial mask with bright circle */}
+      <div id="tl-spotlight" style={{ position: 'fixed', inset: 0, zIndex: 215, pointerEvents: 'none', display: 'none' }} />
+
+      {/* Chat bubble — pinned speech bubble */}
+      <div id="tl-chat-bubble" style={{ position: 'fixed', inset: 0, zIndex: 212, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* ── 2000s Internet Nostalgia ──────────────────────────── */}
+
+      {/* AIM message — AOL Instant Messenger window, bottom-right */}
+      <div id="tl-aim-message" style={{ position: 'fixed', bottom: 80, right: 32, zIndex: 220, display: 'none', pointerEvents: 'none' }} />
+
+      {/* MSN nudge — balloon + shake, bottom-right */}
+      <div id="tl-msn-nudge" style={{ position: 'fixed', bottom: 32, right: 32, zIndex: 221, display: 'none', pointerEvents: 'none' }} />
+
+      {/* XP balloon — system tray notification, very bottom-right */}
+      <div id="tl-xp-balloon" style={{ position: 'fixed', bottom: 56, right: 48, zIndex: 222, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Geocities alert — JS alert() centered on screen */}
+      <div id="tl-geocities-alert" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 230, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Buffering — early YouTube full-screen overlay */}
+      <div id="tl-buffering" style={{ position: 'fixed', inset: 0, zIndex: 225, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Winamp skip — media player widget, top-right */}
+      <div id="tl-winamp-skip" style={{ position: 'fixed', top: 32, right: 32, zIndex: 218, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Email alert — Hotmail/AOL card, bottom-right */}
+      <div id="tl-email-alert" style={{ position: 'fixed', bottom: 32, right: 140, zIndex: 219, display: 'none', pointerEvents: 'none' }} />
+
+      {/* ── Anime effects ──────────────────────────────────────── */}
+
+      {/* Speed lines — canvas radial lines, full-screen */}
+      <div id="tl-speed-lines" style={{ position: 'fixed', inset: 0, zIndex: 215, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Impact frame — flash + ink lines + bold text, full-screen */}
+      <div id="tl-impact-frame" style={{ position: 'fixed', inset: 0, zIndex: 228, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Power-up aura — expanding rings + glow column, full-screen */}
+      <div id="tl-power-up-aura" style={{ position: 'fixed', inset: 0, zIndex: 220, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* To Be Continued — sepia wash + slide text, full-screen */}
+      <div id="tl-to-be-continued" style={{ position: 'fixed', inset: 0, zIndex: 226, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Screentone wipe — halftone dot pattern wipe, full-screen */}
+      <div id="tl-screentone-wipe" style={{ position: 'fixed', inset: 0, zIndex: 224, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Sweat drop — anime teardrop shape, top-right corner */}
+      <div id="tl-sweat-drop" style={{ position: 'fixed', top: 0, right: 80, zIndex: 223, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Dramatic zoom — full-screen scale container */}
+      <div id="tl-dramatic-zoom" style={{ position: 'fixed', inset: 0, zIndex: 216, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
     </>
   )
 }

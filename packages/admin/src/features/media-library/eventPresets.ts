@@ -89,6 +89,52 @@ export const EFFECT_CATEGORIES: { label: string; effects: EffectType[] }[] = [
     label: 'Audio',
     effects: ['audio-sfx'],
   },
+  {
+    label: 'Stream Personality',
+    effects: [
+      'cinema-moment',
+      'chapter-reveal',
+      'clip-that',
+      'persona-shift',
+      'moment-marker',
+      'crowd-roar',
+      'intermission',
+    ],
+  },
+  {
+    label: 'Cinematic',
+    effects: [
+      'shockwave',
+      'hype-pulse',
+      'countdown-burst',
+      'spotlight',
+      'chat-bubble',
+    ],
+  },
+  {
+    label: '2000s Internet',
+    effects: [
+      'aim-message',
+      'msn-nudge',
+      'xp-balloon',
+      'geocities-alert',
+      'buffering',
+      'winamp-skip',
+      'email-alert',
+    ],
+  },
+  {
+    label: 'Anime',
+    effects: [
+      'speed-lines',
+      'impact-frame',
+      'power-up-aura',
+      'to-be-continued',
+      'screentone-wipe',
+      'sweat-drop',
+      'dramatic-zoom',
+    ],
+  },
 ]
 
 export const EVENT_EFFECT_TYPES: EffectType[] = EFFECT_CATEGORIES.flatMap(c => c.effects)
@@ -384,6 +430,220 @@ export function createEffectDraft(type: EffectType): EffectConfig {
     return {
       type,
       cfg: { sfxId: 'transition', volume: 1 },
+      delay: 0,
+    }
+  }
+
+  // ── Stream personality effects ───────────────────────────────────
+
+  if (type === 'cinema-moment') {
+    return {
+      type,
+      cfg: { text: 'THE CLUTCH', color: '#ffffff', duration: 4 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'chapter-reveal') {
+    return {
+      type,
+      cfg: { number: 'I', title: 'THE BEGINNING', subtitle: '', duration: 4 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'clip-that') {
+    return {
+      type,
+      cfg: { color: '#ff4444', durationMs: 3000 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'persona-shift') {
+    return {
+      type,
+      cfg: { label: 'GRIND MODE: ON', color: '#00ff41', duration: 3 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'moment-marker') {
+    return {
+      type,
+      cfg: { label: '★ MOMENT', color: '#f5c400', durationMs: 3500 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'crowd-roar') {
+    return {
+      type,
+      cfg: { text: 'CROWD GOES WILD', duration: 3 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'intermission') {
+    return {
+      type,
+      cfg: { message: 'Be Right Back', showTimer: true, duration: 30 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'shockwave') {
+    return {
+      type,
+      cfg: { color: '#ffffff', thickness: 4, duration: 1.2 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'hype-pulse') {
+    return {
+      type,
+      cfg: { duration: 4, speed: 'normal' },
+      delay: 0,
+    }
+  }
+
+  if (type === 'countdown-burst') {
+    return {
+      type,
+      cfg: { from: 3, color: '#ffffff' },
+      delay: 0,
+    }
+  }
+
+  if (type === 'spotlight') {
+    return {
+      type,
+      cfg: { duration: 5, radius: 280, color: 'rgba(255,255,220,0.15)' },
+      delay: 0,
+    }
+  }
+
+  if (type === 'chat-bubble') {
+    return {
+      type,
+      cfg: { text: 'Hello chat!', author: '', duration: 4, position: 'bottom' },
+      delay: 0,
+    }
+  }
+
+  // ── 2000s Internet Nostalgia ──────────────────────────────────
+
+  if (type === 'aim-message') {
+    return {
+      type,
+      cfg: { username: 'NetBuddy420', message: 'yo that was insane lmaooo', durationMs: 4500 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'msn-nudge') {
+    return {
+      type,
+      cfg: { username: 'xX_LiveBuddy_Xx', durationMs: 3500 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'xp-balloon') {
+    return {
+      type,
+      cfg: { title: 'Windows has found new hardware', body: 'Click here to install the drivers for this device.', durationMs: 4000 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'geocities-alert') {
+    return {
+      type,
+      cfg: { message: 'Welcome to MY STREAM!! Please sign my GUESTBOOK!! ⭐🌟⭐ This site is best viewed in 800x600!!', durationMs: 5000 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'buffering') {
+    return {
+      type,
+      cfg: { quality: '360p', duration: 5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'winamp-skip') {
+    return {
+      type,
+      cfg: { track: 'In The End', artist: 'Linkin Park', durationMs: 4000 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'email-alert') {
+    return {
+      type,
+      cfg: { subject: 'You have won a FREE iPod!!', sender: 'noreply@hotmail.com', durationMs: 4000 },
+      delay: 0,
+    }
+  }
+
+  // ── Anime ─────────────────────────────────────────────────────
+
+  if (type === 'speed-lines') {
+    return {
+      type,
+      cfg: { direction: 'out', color: '#ffffff', density: 48, duration: 1.5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'impact-frame') {
+    return {
+      type,
+      cfg: { text: '衝撃', color: '#ffffff', duration: 1.8 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'power-up-aura') {
+    return {
+      type,
+      cfg: { color: '#f5c400', text: 'POWER LEVEL RISING', duration: 3.5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'to-be-continued') {
+    return {
+      type,
+      cfg: { duration: 4 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'screentone-wipe') {
+    return {
+      type,
+      cfg: { duration: 2.5, opacity: 0.88 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'sweat-drop') {
+    return {
+      type,
+      cfg: { durationMs: 3000, size: 'md' },
+      delay: 0,
+    }
+  }
+
+  if (type === 'dramatic-zoom') {
+    return {
+      type,
+      cfg: { zoomTo: 1.08, duration: 3, color: 'rgba(0,0,0,0.15)' },
       delay: 0,
     }
   }

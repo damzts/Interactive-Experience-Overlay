@@ -1,8 +1,8 @@
 // ── Overlay visual style domain ─────────────────────────────────
 
 export type BackgroundType = 'none' | 'color' | 'gradient' | 'image-url' | 'video-url' | 'pattern'
-export type PatternPreset  = 'none' | 'grid' | 'dots' | 'diagonal' | 'honeycomb' | 'circuit' | 'topography'
-export type ParticlePreset = 'none' | 'stars' | 'snow' | 'matrix' | 'fireflies' | 'ash'
+export type PatternPreset  = 'none' | 'grid' | 'dots' | 'diagonal' | 'honeycomb' | 'circuit' | 'topography' | 'screentone' | 'anime-lines' | 'sakura-scatter' | 'stars-myspace' | 'vaporwave-grid' | 'film-strip' | 'static-noise'
+export type ParticlePreset = 'none' | 'stars' | 'snow' | 'matrix' | 'fireflies' | 'ash' | 'rain' | 'embers' | 'sakura' | 'hearts' | 'hex' | 'bubbles' | 'kanji' | 'aura' | 'sparkle' | 'dandelion' | 'code-rain'
 
 export interface OverlayBackground {
   type: BackgroundType

@@ -9,6 +9,32 @@
 import { registerEffect } from './registry'
 
 import {
+  type AimMessageConfig,
+  type MsnNudgeConfig,
+  type XpBalloonConfig,
+  type GeoAimAlertConfig,
+  type BufferingConfig,
+  type WinampSkipConfig,
+  type EmailAlertConfig,
+  type SpeedLinesConfig,
+  type ImpactFrameConfig,
+  type PowerUpAuraConfig,
+  type ToBeContinuedConfig,
+  type ScreentoneWipeConfig,
+  type SweatDropConfig,
+  type DramaticZoomConfig,
+  type CinemaMomentConfig,
+  type ChapterRevealConfig,
+  type ClipThatConfig,
+  type PersonaShiftConfig,
+  type MomentMarkerConfig,
+  type CrowdRoarConfig,
+  type IntermissionConfig,
+  type ShockwaveConfig,
+  type HypePulseConfig,
+  type CountdownBurstConfig,
+  type SpotlightConfig,
+  type ChatBubbleConfig,
   type DeathOverlayConfig,
   type DesktopNotificationEffectConfig,
   type NotificationBoxConfig,
@@ -45,6 +71,32 @@ import {
   type AudioSfxConfig,
 } from '@ieomlabs/shared'
 
+import { runAimMessage }            from '../transitions/AimMessage'
+import { runMsnNudge }              from '../transitions/MsnNudge'
+import { runXpBalloon }             from '../transitions/XpBalloon'
+import { runGeoAimAlert }           from '../transitions/GeoAimAlert'
+import { runBuffering }             from '../transitions/Buffering'
+import { runWinampSkip }            from '../transitions/WinampSkip'
+import { runEmailAlert }            from '../transitions/EmailAlert'
+import { runSpeedLines }            from '../transitions/SpeedLines'
+import { runImpactFrame }           from '../transitions/ImpactFrame'
+import { runPowerUpAura }           from '../transitions/PowerUpAura'
+import { runToBeContinued }         from '../transitions/ToBeContinued'
+import { runScreentoneWipe }        from '../transitions/ScreentoneWipe'
+import { runSweatDrop }             from '../transitions/SweatDrop'
+import { runDramaticZoom }          from '../transitions/DramaticZoom'
+import { runCinemaMoment }          from '../transitions/CinemaMoment'
+import { runChapterReveal }         from '../transitions/ChapterReveal'
+import { runClipThat }              from '../transitions/ClipThat'
+import { runPersonaShift }          from '../transitions/PersonaShift'
+import { runMomentMarker }          from '../transitions/MomentMarker'
+import { runCrowdRoar }             from '../transitions/CrowdRoar'
+import { runIntermission }          from '../transitions/Intermission'
+import { runShockwave }             from '../transitions/Shockwave'
+import { runHypePulse }             from '../transitions/HypePulse'
+import { runCountdownBurst }        from '../transitions/CountdownBurst'
+import { runSpotlight }             from '../transitions/Spotlight'
+import { runChatBubble }            from '../transitions/ChatBubble'
 import { runDeathOverlay }          from '../transitions/DeathOverlay'
 import { runDesktopNotification }   from '../transitions/DesktopNotification'
 import { runVictoryOverlay }        from '../transitions/VictoryOverlay'
@@ -117,3 +169,35 @@ registerEffect('fireworks',            (cfg) => runFireworks(cfg as FireworksCon
 registerEffect('dvd-bounce',           (cfg) => runDvdBounce(cfg as DvdBounceConfig))
 registerEffect('level-up',             (cfg) => runLevelUp(cfg as LevelUpConfig))
 registerEffect('audio-sfx',            (cfg) => runAudioSfx(cfg as AudioSfxConfig))
+
+// ── 2000s Internet Nostalgia effects ─────────────────────────────
+registerEffect('aim-message',      (cfg) => runAimMessage(cfg as AimMessageConfig))
+registerEffect('msn-nudge',        (cfg) => runMsnNudge(cfg as MsnNudgeConfig))
+registerEffect('xp-balloon',       (cfg) => runXpBalloon(cfg as XpBalloonConfig))
+registerEffect('geocities-alert',  (cfg) => runGeoAimAlert(cfg as GeoAimAlertConfig))
+registerEffect('buffering',        (cfg) => runBuffering(cfg as BufferingConfig))
+registerEffect('winamp-skip',      (cfg) => runWinampSkip(cfg as WinampSkipConfig))
+registerEffect('email-alert',      (cfg) => runEmailAlert(cfg as EmailAlertConfig))
+
+// ── Anime effects ─────────────────────────────────────────────────
+registerEffect('speed-lines',      (cfg) => runSpeedLines(cfg as SpeedLinesConfig))
+registerEffect('impact-frame',     (cfg) => runImpactFrame(cfg as ImpactFrameConfig))
+registerEffect('power-up-aura',    (cfg) => runPowerUpAura(cfg as PowerUpAuraConfig))
+registerEffect('to-be-continued',  (cfg) => runToBeContinued(cfg as ToBeContinuedConfig))
+registerEffect('screentone-wipe',  (cfg) => runScreentoneWipe(cfg as ScreentoneWipeConfig))
+registerEffect('sweat-drop',       (cfg) => runSweatDrop(cfg as SweatDropConfig))
+registerEffect('dramatic-zoom',    (cfg) => runDramaticZoom(cfg as DramaticZoomConfig))
+
+// ── Stream personality effects ────────────────────────────────────
+registerEffect('cinema-moment',    (cfg) => runCinemaMoment(cfg as CinemaMomentConfig))
+registerEffect('chapter-reveal',   (cfg) => runChapterReveal(cfg as ChapterRevealConfig))
+registerEffect('clip-that',        (cfg) => runClipThat(cfg as ClipThatConfig))
+registerEffect('persona-shift',    (cfg) => runPersonaShift(cfg as PersonaShiftConfig))
+registerEffect('moment-marker',    (cfg) => runMomentMarker(cfg as MomentMarkerConfig))
+registerEffect('crowd-roar',       (cfg) => runCrowdRoar(cfg as CrowdRoarConfig))
+registerEffect('intermission',     (cfg) => runIntermission(cfg as IntermissionConfig))
+registerEffect('shockwave',        (cfg) => runShockwave(cfg as ShockwaveConfig))
+registerEffect('hype-pulse',       (cfg) => runHypePulse(cfg as HypePulseConfig))
+registerEffect('countdown-burst',  (cfg) => runCountdownBurst(cfg as CountdownBurstConfig))
+registerEffect('spotlight',        (cfg) => runSpotlight(cfg as SpotlightConfig))
+registerEffect('chat-bubble',      (cfg) => runChatBubble(cfg as ChatBubbleConfig))

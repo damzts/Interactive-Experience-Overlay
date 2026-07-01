@@ -45,6 +45,22 @@ export const rendererManifest: RendererManifest = {
   'builtin:background': () => import('./builtins/Background').then((m) => ({ component: m.BuiltinBackgroundRenderer })),
   'builtin:particles':  () => import('./builtins/Particles').then((m) => ({ component: m.BuiltinParticlesRenderer })),
   'builtin:effects':    () => import('./builtins/Effects').then((m) => ({ component: m.BuiltinEffectsRenderer })),
+  // ── Stream personality renderers ───────────────────────────────
+  'letterbox':       () => import('./LetterboxRenderer').then((m) => ({ component: m.LetterboxRenderer })),
+  'ticker':          () => import('./TickerRenderer').then((m) => ({ component: m.TickerRenderer })),
+  'chapter':         () => import('./ChapterRenderer').then((m) => ({ component: m.ChapterRenderer })),
+  'status-badge':    () => import('./StatusBadgeRenderer').then((m) => ({ component: m.StatusBadgeRenderer })),
+  'session-goal':    () => import('./SessionGoalRenderer').then((m) => ({ component: m.SessionGoalRenderer })),
+  'session-timer':   () => import('./SessionTimerRenderer').then((m) => ({ component: m.SessionTimerRenderer })),
+  'countdown':       () => import('./CountdownRenderer').then((m) => ({ component: m.CountdownRenderer })),
+  'now-playing':     () => import('./NowPlayingRenderer').then((m) => ({ component: m.NowPlayingRenderer })),
+  // ── Auto-run / self-narrating renderers ───────────────────────
+  'chat-simulator':       () => import('./ChatSimulatorRenderer').then((m) => ({ component: m.ChatSimulatorRenderer })),
+  'anime-quote':          () => import('./AnimeQuoteRenderer').then((m) => ({ component: m.AnimeQuoteRenderer })),
+  'mood-meter':           () => import('./MoodMeterRenderer').then((m) => ({ component: m.MoodMeterRenderer })),
+  'personality-rotator':  () => import('./PersonalityRotatorRenderer').then((m) => ({ component: m.PersonalityRotatorRenderer })),
+  // ── Aesthetic CSS overlay ──────────────────────────────────────
+  'aesthetic-overlay':    () => import('./AestheticOverlayRenderer').then((m) => ({ component: m.AestheticOverlayRenderer })),
 }
 
 /** Cache: resolved definitions keyed by renderer id */
