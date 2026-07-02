@@ -44,6 +44,10 @@ const THEME_CLASSNAME: Record<DesktopTheme, string> = {
   'sunset boulevard': 'desktop--theme-sunset-boulevard',
   'coastal glass': 'desktop--theme-coastal-glass',
   'amber terminal': 'desktop--theme-amber-terminal',
+  diablo: 'desktop--theme-diablo',
+  matrix: 'desktop--theme-matrix',
+  cyberpunk: 'desktop--theme-cyberpunk',
+  runescape: 'desktop--theme-runescape',
   custom: 'desktop--theme-custom',
 }
 

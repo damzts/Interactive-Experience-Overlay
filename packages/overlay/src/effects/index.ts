@@ -69,6 +69,13 @@ import {
   type DvdBounceConfig,
   type LevelUpConfig,
   type AudioSfxConfig,
+  type ItemPickupConfig,
+  type QuestCompleteConfig,
+  type CriticalHitConfig,
+  type BossWarningConfig,
+  type ComboMultiplierConfig,
+  type GameOverEffectConfig,
+  type MatrixGlitchConfig,
 } from '@ieomlabs/shared'
 
 import { runAimMessage }            from '../transitions/AimMessage'
@@ -131,6 +138,13 @@ import { runFireworks }             from '../transitions/Fireworks'
 import { runDvdBounce }             from '../transitions/DvdBounce'
 import { runLevelUp }               from '../transitions/LevelUp'
 import { runAudioSfx }              from '../transitions/AudioSfx'
+import { runItemPickup }            from '../transitions/ItemPickup'
+import { runQuestComplete }         from '../transitions/QuestComplete'
+import { runCriticalHit }           from '../transitions/CriticalHit'
+import { runBossWarning }           from '../transitions/BossWarning'
+import { runComboMultiplier }       from '../transitions/ComboMultiplier'
+import { runGameOverEffect }        from '../transitions/GameOverEffect'
+import { runMatrixGlitch }          from '../transitions/MatrixGlitch'
 
 // ── Original effects ──────────────────────────────────────────────
 registerEffect('death-overlay',    (cfg) => runDeathOverlay(cfg as DeathOverlayConfig))
@@ -201,3 +215,12 @@ registerEffect('hype-pulse',       (cfg) => runHypePulse(cfg as HypePulseConfig)
 registerEffect('countdown-burst',  (cfg) => runCountdownBurst(cfg as CountdownBurstConfig))
 registerEffect('spotlight',        (cfg) => runSpotlight(cfg as SpotlightConfig))
 registerEffect('chat-bubble',      (cfg) => runChatBubble(cfg as ChatBubbleConfig))
+
+// ── MMORPG / Retro-Futurist effects ────────────────────────────────
+registerEffect('item-pickup',      (cfg) => runItemPickup(cfg as ItemPickupConfig))
+registerEffect('quest-complete',   (cfg) => runQuestComplete(cfg as QuestCompleteConfig))
+registerEffect('critical-hit',     (cfg) => runCriticalHit(cfg as CriticalHitConfig))
+registerEffect('boss-warning',     (cfg) => runBossWarning(cfg as BossWarningConfig))
+registerEffect('combo-multiplier', (cfg) => runComboMultiplier(cfg as ComboMultiplierConfig))
+registerEffect('game-over-effect', (cfg) => runGameOverEffect(cfg as GameOverEffectConfig))
+registerEffect('matrix-glitch',    (cfg) => runMatrixGlitch(cfg as MatrixGlitchConfig))

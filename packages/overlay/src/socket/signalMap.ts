@@ -53,14 +53,23 @@ const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngin
   'corruption-burst':    'glitch',
   'static-burst':        'transition',
   'achievement-unlock':  'victory',
-  'level-up':            'victory',
+  'level-up':            'level-up-chime',
   'confetti-burst':      'victory',
   'fireworks':           'victory',
   'friend-join':         'startup',
-  'dial-up-connect':     'startup',
+  'dial-up-connect':     'dial-up-connect',
   'blue-screen':         'glitch',
   'tv-off':              'transition',
   'vhs-glitch':          'glitch',
+  'error-dialog':        'win98-error',
+  // ── MMORPG / Retro-Futurist ──────────────────────────────────────
+  'item-pickup':         'loot',
+  'quest-complete':      'mmorpg-ding',
+  'critical-hit':        'glitch',
+  'boss-warning':        'glitch',
+  'combo-multiplier':    'mmorpg-ding',
+  'game-over-effect':    'death',
+  'matrix-glitch':       'glitch',
 }
 
 // ── Cursor mirror helpers (need ref state, exposed via module-level vars) ─────

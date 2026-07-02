@@ -28,6 +28,7 @@ import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout 
 const RANDOMIZABLE_DESKTOP_THEMES: DesktopTheme[] = [
   'win98', 'frutiger aero', 'y2k candy', 'midnight chrome',
   'sunset boulevard', 'coastal glass', 'amber terminal',
+  'diablo', 'matrix', 'cyberpunk', 'runescape',
 ]
 const RANDOMIZABLE_WIDGET_SKINS = Object.keys(DEFAULT_WIDGET_THEME_PRESETS) as WidgetSkinTheme[]
 

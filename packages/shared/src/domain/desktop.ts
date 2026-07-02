@@ -16,6 +16,7 @@ import type { WidgetThemeConfig } from './application.js'
 export type DesktopTheme =
   | 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome'
   | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
+  | 'diablo' | 'matrix' | 'cyberpunk' | 'runescape'
 
 export type DesktopIconAnimation =
   | 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'

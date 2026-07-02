@@ -7,7 +7,11 @@
  *  Music and ambient tracks are routed through masterGain via MediaElementAudioSourceNode,
  *  so master volume and the analyser apply to all audio uniformly. */
 
-type SoundId = 'transition' | 'death' | 'victory' | 'revive' | 'glitch' | 'startup'
+type SoundId =
+  | 'transition' | 'death' | 'victory' | 'revive' | 'glitch' | 'startup'
+  | 'dial-up-connect' | 'win98-error' | 'mmorpg-ding' | 'loot' | 'level-up-chime'
+
+type SyntheticAmbientKind = 'server-hum' | 'keyboard-clicks' | 'crt-buzz' | 'rain'
 
 const URL_CACHE_MAX = 20
 
@@ -31,6 +35,11 @@ class AudioEngine {
 
   // LRU cache for playUrl()
   private _urlCache = new Map<string, AudioBuffer>()
+
+  // Synthetic ambient layer (procedural noise — no audio asset required)
+  private _synthAmbientNodes: AudioNode[] = []
+  private _synthAmbientGain: GainNode | null = null
+  private _synthAmbientTimer: ReturnType<typeof setInterval> | null = null
 
   init() {
     // AudioContext creation is deferred until first use to comply with browser autoplay policies
@@ -69,7 +78,10 @@ class AudioEngine {
   }
 
   private async preloadAll() {
-    const sounds: SoundId[] = ['transition', 'death', 'victory', 'revive', 'glitch', 'startup']
+    const sounds: SoundId[] = [
+      'transition', 'death', 'victory', 'revive', 'glitch', 'startup',
+      'dial-up-connect', 'win98-error', 'mmorpg-ding', 'loot', 'level-up-chime',
+    ]
     await Promise.allSettled(sounds.map((id) => this.load(id)))
   }
 
@@ -175,6 +187,43 @@ class AudioEngine {
         } catch {
           sweep(200, 1200, 'sawtooth', 0, 0.2, 0.3)
         }
+        break
+
+      case 'dial-up-connect':
+        // Modem handshake: a chattering series of alternating tone pairs
+        for (let i = 0; i < 6; i++) {
+          const t0 = i * 0.14
+          osc(1200 + (i % 2) * 600, 'square', t0, t0 + 0.1, 0.18)
+          osc(600 + (i % 3) * 300, 'sawtooth', t0 + 0.02, t0 + 0.12, 0.12)
+        }
+        sweep(400, 2400, 'sine', 0.85, 1.3, 0.2)
+        break
+
+      case 'win98-error':
+        // Classic descending two-tone chime
+        osc(370, 'sine', 0,    0.28, 0.3)
+        osc(311, 'sine', 0.05, 0.4,  0.28)
+        break
+
+      case 'mmorpg-ding':
+        // Bright bell-like ding, two harmonics
+        osc(1568, 'sine', 0, 0.5, 0.3)
+        osc(2093, 'sine', 0, 0.35, 0.15)
+        break
+
+      case 'loot':
+        // Quick ascending sparkle arpeggio
+        osc(880, 'triangle', 0,    0.1, 0.25)
+        osc(1108, 'triangle', 0.05, 0.16, 0.22)
+        osc(1568, 'triangle', 0.1, 0.3, 0.28)
+        break
+
+      case 'level-up-chime':
+        // Triumphant rising major triad
+        osc(523, 'square', 0,    0.18, 0.28)
+        osc(659, 'square', 0.1,  0.3,  0.28)
+        osc(784, 'square', 0.2,  0.45, 0.3)
+        osc(1047, 'square', 0.32, 0.7, 0.35)
         break
     }
   }
@@ -352,6 +401,111 @@ class AudioEngine {
   setAmbientVolume(v: number) {
     this._ambientVolume = Math.max(0, Math.min(1, v))
     if (this._ambientGain) this._ambientGain.gain.value = this._ambientVolume
+  }
+
+  // ── Synthetic ambient layer (procedural — no audio asset required) ─
+
+  /** Loop a procedurally generated ambient bed (no file needed). Pass null to stop. */
+  playSyntheticAmbient(kind: SyntheticAmbientKind | null, volume = 0.15) {
+    this.initContext()
+    const ctx = this.ctx
+    const out = this.masterGain
+    if (!ctx || !out) return
+    this.unlockContext()
+
+    this.stopSyntheticAmbient()
+    if (!kind) return
+
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0, ctx.currentTime)
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 1.5)
+    gain.connect(out)
+    this._synthAmbientGain = gain
+    this._synthAmbientNodes.push(gain)
+
+    const makeNoiseSource = (): AudioBufferSourceNode => {
+      const bufSize = ctx.sampleRate * 2
+      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.loop = true
+      return src
+    }
+
+    if (kind === 'server-hum') {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = 60
+      const osc2 = ctx.createOscillator()
+      osc2.type = 'sine'
+      osc2.frequency.value = 120
+      const g2 = ctx.createGain()
+      g2.gain.value = 0.3
+      osc.connect(gain)
+      osc2.connect(g2)
+      g2.connect(gain)
+      osc.start()
+      osc2.start()
+      this._synthAmbientNodes.push(osc, osc2, g2)
+    } else if (kind === 'crt-buzz') {
+      const osc = ctx.createOscillator()
+      osc.type = 'sawtooth'
+      osc.frequency.value = 15625 / 100 // scaled-down flyback whine, kept audible
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'bandpass'
+      filter.frequency.value = 156
+      filter.Q.value = 8
+      osc.connect(filter)
+      filter.connect(gain)
+      osc.start()
+      this._synthAmbientNodes.push(osc, filter)
+    } else if (kind === 'rain') {
+      const noise = makeNoiseSource()
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'highpass'
+      filter.frequency.value = 2200
+      noise.connect(filter)
+      filter.connect(gain)
+      noise.start()
+      this._synthAmbientNodes.push(noise, filter)
+    } else if (kind === 'keyboard-clicks') {
+      const scheduleClick = () => {
+        if (this._synthAmbientGain !== gain) return
+        const t = ctx.currentTime
+        const clickBuf = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate)
+        const data = clickBuf.getChannelData(0)
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length)
+        const src = ctx.createBufferSource()
+        src.buffer = clickBuf
+        const g = ctx.createGain()
+        g.gain.value = 0.6
+        src.connect(g)
+        g.connect(gain)
+        src.start(t)
+        this._synthAmbientTimer = setTimeout(scheduleClick, 120 + Math.random() * 500) as unknown as ReturnType<typeof setInterval>
+      }
+      scheduleClick()
+    }
+  }
+
+  stopSyntheticAmbient() {
+    if (this._synthAmbientTimer) { clearTimeout(this._synthAmbientTimer as unknown as number); this._synthAmbientTimer = null }
+    if (this._synthAmbientGain) {
+      const gain = this._synthAmbientGain
+      const ctx = this.ctx
+      if (ctx) {
+        gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime)
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4)
+      }
+      const nodes = this._synthAmbientNodes
+      setTimeout(() => {
+        nodes.forEach((n) => { try { (n as OscillatorNode | AudioBufferSourceNode).stop?.() } catch {} try { n.disconnect() } catch {} })
+      }, 450)
+    }
+    this._synthAmbientNodes = []
+    this._synthAmbientGain = null
   }
 }
 

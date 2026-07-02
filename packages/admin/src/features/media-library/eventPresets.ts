@@ -135,6 +135,18 @@ export const EFFECT_CATEGORIES: { label: string; effects: EffectType[] }[] = [
       'dramatic-zoom',
     ],
   },
+  {
+    label: 'MMORPG / Retro-Futurist',
+    effects: [
+      'item-pickup',
+      'quest-complete',
+      'critical-hit',
+      'boss-warning',
+      'combo-multiplier',
+      'game-over-effect',
+      'matrix-glitch',
+    ],
+  },
 ]
 
 export const EVENT_EFFECT_TYPES: EffectType[] = EFFECT_CATEGORIES.flatMap(c => c.effects)
@@ -644,6 +656,62 @@ export function createEffectDraft(type: EffectType): EffectConfig {
     return {
       type,
       cfg: { zoomTo: 1.08, duration: 3, color: 'rgba(0,0,0,0.15)' },
+      delay: 0,
+    }
+  }
+
+  if (type === 'item-pickup') {
+    return {
+      type,
+      cfg: { itemName: 'Mystery Item', rarity: 'rare', durationMs: 2600 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'quest-complete') {
+    return {
+      type,
+      cfg: { title: 'Quest Complete!', reward: '', duration: 3.5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'critical-hit') {
+    return {
+      type,
+      cfg: { text: 'CRITICAL HIT!', color: '#ff2222', durationMs: 900 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'boss-warning') {
+    return {
+      type,
+      cfg: { text: 'WARNING', duration: 3 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'combo-multiplier') {
+    return {
+      type,
+      cfg: { count: 8, durationMs: 2200 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'game-over-effect') {
+    return {
+      type,
+      cfg: { text: 'GAME OVER', duration: 3.5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'matrix-glitch') {
+    return {
+      type,
+      cfg: { color: '#00ff41', duration: 2.5 },
       delay: 0,
     }
   }

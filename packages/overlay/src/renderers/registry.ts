@@ -61,6 +61,13 @@ export const rendererManifest: RendererManifest = {
   'personality-rotator':  () => import('./PersonalityRotatorRenderer').then((m) => ({ component: m.PersonalityRotatorRenderer })),
   // ── Aesthetic CSS overlay ──────────────────────────────────────
   'aesthetic-overlay':    () => import('./AestheticOverlayRenderer').then((m) => ({ component: m.AestheticOverlayRenderer })),
+  // ── Retro-futurist / MMORPG renderers ───────────────────────────
+  'rpg-hud':         () => import('./RpgHudRenderer').then((m) => ({ component: m.RpgHudRenderer })),
+  'winamp-viz':      () => import('./WinampVizRenderer').then((m) => ({ component: m.WinampVizRenderer })),
+  'matrix-rain':     () => import('./MatrixRainRenderer').then((m) => ({ component: m.MatrixRainRenderer })),
+  'neon-border':     () => import('./NeonBorderRenderer').then((m) => ({ component: m.NeonBorderRenderer })),
+  'combat-log':      () => import('./CombatLogRenderer').then((m) => ({ component: m.CombatLogRenderer })),
+  'retro-hud':       () => import('./RetroHudRenderer').then((m) => ({ component: m.RetroHudRenderer })),
 }
 
 /** Cache: resolved definitions keyed by renderer id */

@@ -32,6 +32,10 @@ export const DESKTOP_THEMES: Array<{
   { id: 'sunset boulevard', label: 'Sunset Boulevard', description: 'Warm nightlife tones, hot highlights, and showtime desktop energy.' },
   { id: 'coastal glass', label: 'Coastal Glass', description: 'Airy glass chrome with sea-light softness and open, bright framing.' },
   { id: 'amber terminal', label: 'Amber Terminal', description: 'CRT utility warmth, terminal glow, and focused monochrome control-room mood.' },
+  { id: 'diablo', label: 'Diablo', description: 'Dark fantasy dungeon tones — bone, blood red, and aged gold trim.' },
+  { id: 'matrix', label: 'Matrix', description: 'Green phosphor terminal glow on near-black, digital-rain mood.' },
+  { id: 'cyberpunk', label: 'Cyberpunk', description: 'Neon magenta and cyan on near-black, high-contrast night-city energy.' },
+  { id: 'runescape', label: 'RuneScape', description: 'Classic MMORPG parchment brown, steel blue, and gold-leaf accents.' },
   { id: 'custom', label: 'Custom', description: 'Use your current font and color overrides as a hand-tuned desktop shell profile.' },
 ]
 

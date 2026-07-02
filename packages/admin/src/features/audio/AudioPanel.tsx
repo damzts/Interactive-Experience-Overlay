@@ -109,7 +109,7 @@ export function AudioPanel() {
               Place <span className="admin-inline-code">.wav</span> or <span className="admin-inline-code">.mp3</span> files in <span className="admin-inline-code">assets/sfx/</span> to make them available to the runtime.
             </Notice>
             <div className="space-y-2">
-              {['startup', 'transition', 'death', 'victory', 'revive', 'glitch'].map((id) => (
+              {['startup', 'transition', 'death', 'victory', 'revive', 'glitch', 'dial-up-connect', 'win98-error', 'mmorpg-ding', 'loot', 'level-up-chime'].map((id) => (
                 <Card key={id} variant="default" padding="sm" className="flex items-center gap-3">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-base)] text-sm text-[var(--color-primary-200)]">

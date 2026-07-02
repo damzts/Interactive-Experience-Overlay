@@ -14,6 +14,10 @@ import { clockTowerDefinition } from './clock-tower/definition.js'
 import { newswireDeskDefinition } from './newswire-desk/definition.js'
 import { cityNavDefinition } from './city-nav/definition.js'
 import { lcdDolphinsDefinition } from './lcd-dolphins/definition.js'
+import { rpgStatsDefinition } from './rpg-stats/definition.js'
+import { streamQuestDefinition } from './stream-quest/definition.js'
+import { combatLogWidgetDefinition } from './combat-log-widget/definition.js'
+import { retroMessengerDefinition } from './retro-messenger/definition.js'
 export type { WidgetDefinition }
 
 export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
@@ -31,4 +35,8 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   newswireDeskDefinition,
   cityNavDefinition,
   lcdDolphinsDefinition,
+  rpgStatsDefinition,
+  streamQuestDefinition,
+  combatLogWidgetDefinition,
+  retroMessengerDefinition,
 ]

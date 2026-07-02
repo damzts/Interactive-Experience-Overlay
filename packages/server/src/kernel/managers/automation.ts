@@ -72,9 +72,11 @@ export class AutomationManager implements Manager {
     const { kind, params } = rule.action
     try {
       switch (kind) {
-        case 'widget:toggle':
-          this.io.emit('widget:toggle', params)
+        case 'widget:toggle': {
+          const widgetId = params['widgetId']
+          if (typeof widgetId === 'string') this.io.emit('widget:toggle', widgetId)
           break
+        }
         case 'scene:change': {
           const sceneId = params['sceneId']
           if (typeof sceneId === 'string' && Object.values(STATE).includes(sceneId as STATE)) {

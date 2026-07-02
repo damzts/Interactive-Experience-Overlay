@@ -257,6 +257,29 @@ export function TransitionLayer() {
 
       {/* Dramatic zoom — full-screen scale container */}
       <div id="tl-dramatic-zoom" style={{ position: 'fixed', inset: 0, zIndex: 216, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* ── MMORPG / Retro-Futurist ────────────────────────────── */}
+
+      {/* Item pickup — loot burst + name banner, center */}
+      <div id="tl-item-pickup" style={{ position: 'fixed', inset: 0, zIndex: 219, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Quest complete — banner slides from top */}
+      <div id="tl-quest-complete" style={{ position: 'fixed', inset: 0, zIndex: 227, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Critical hit — flash + impact text, full-screen */}
+      <div id="tl-critical-hit" style={{ position: 'fixed', inset: 0, zIndex: 229, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Boss warning — Metal Gear "!" alert, full-screen */}
+      <div id="tl-boss-warning" style={{ position: 'fixed', inset: 0, zIndex: 231, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Combo multiplier — fighting-game combo counter, center */}
+      <div id="tl-combo-multiplier" style={{ position: 'fixed', inset: 0, zIndex: 219, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Game over — retro pixel wipe, full-screen */}
+      <div id="tl-game-over" style={{ position: 'fixed', inset: 0, zIndex: 232, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Matrix glitch — matrix-rain dissolve, full-screen */}
+      <div id="tl-matrix-glitch" style={{ position: 'fixed', inset: 0, zIndex: 233, display: 'none', pointerEvents: 'none', overflow: 'hidden', opacity: 0 }} />
     </>
   )
 }

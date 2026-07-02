@@ -113,6 +113,42 @@ export function buildDesktopThemeVars(
       '--desktop-icon-label': '#ffd77a', '--desktop-icon-shadow': '0 0 10px rgba(0, 0, 0, 0.9)',
       '--desktop-tray-glow': 'rgba(255, 186, 74, 0.45)',
     })
+  } else if (theme === 'diablo') {
+    Object.assign(vars, {
+      '--desktop-panel': '#2a1810', '--desktop-panel-light': '#5c3620', '--desktop-panel-dark': '#0e0806',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#3a0a0a', '--desktop-title-end': '#8f1b1b',
+      '--desktop-title-text': '#e8c98a', '--desktop-ui-font': 'Cinzel, Times New Roman, serif',
+      '--desktop-menu-hover': '#8f1b1b', '--desktop-menu-danger': '#c9a24b',
+      '--desktop-icon-label': '#e8c98a', '--desktop-icon-shadow': '0 0 8px rgba(0, 0, 0, 0.95)',
+      '--desktop-tray-glow': 'rgba(200, 40, 40, 0.5)',
+    })
+  } else if (theme === 'matrix') {
+    Object.assign(vars, {
+      '--desktop-panel': '#020a02', '--desktop-panel-light': '#0f3d0f', '--desktop-panel-dark': '#010401',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#001a00', '--desktop-title-end': '#00aa33',
+      '--desktop-title-text': '#00ff41', '--desktop-ui-font': 'VT323, Lucida Console, monospace',
+      '--desktop-menu-hover': '#00aa33', '--desktop-menu-danger': '#ff2222',
+      '--desktop-icon-label': '#00ff41', '--desktop-icon-shadow': '0 0 10px rgba(0, 255, 65, 0.8)',
+      '--desktop-tray-glow': 'rgba(0, 255, 65, 0.5)',
+    })
+  } else if (theme === 'cyberpunk') {
+    Object.assign(vars, {
+      '--desktop-panel': '#0d0716', '--desktop-panel-light': '#3d1f5c', '--desktop-panel-dark': '#05030a',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#ff00e5', '--desktop-title-end': '#00f6ff',
+      '--desktop-title-text': '#0a0014', '--desktop-ui-font': 'Orbitron, Segoe UI, Arial, sans-serif',
+      '--desktop-menu-hover': '#ff00e5', '--desktop-menu-danger': '#ff2266',
+      '--desktop-icon-label': '#00f6ff', '--desktop-icon-shadow': '0 0 10px rgba(255, 0, 229, 0.8)',
+      '--desktop-tray-glow': 'rgba(0, 246, 255, 0.55)',
+    })
+  } else if (theme === 'runescape') {
+    Object.assign(vars, {
+      '--desktop-panel': '#3e3624', '--desktop-panel-light': '#8a7a4d', '--desktop-panel-dark': '#1c1810',
+      '--desktop-panel-shadow': '#0a0805', '--desktop-title-start': '#1a2f4d', '--desktop-title-end': '#4a7ab0',
+      '--desktop-title-text': '#ffcc33', '--desktop-ui-font': 'Cambria, Georgia, serif',
+      '--desktop-menu-hover': '#4a7ab0', '--desktop-menu-danger': '#8c2a2a',
+      '--desktop-icon-label': '#ffcc33', '--desktop-icon-shadow': '1px 1px 2px #000, -1px -1px 2px #000',
+      '--desktop-tray-glow': 'rgba(255, 204, 51, 0.4)',
+    })
   } else if (theme === 'custom') {
     Object.assign(vars, {
       '--desktop-panel': adjustHexColor(customAccent, 110), '--desktop-panel-light': '#ffffff',

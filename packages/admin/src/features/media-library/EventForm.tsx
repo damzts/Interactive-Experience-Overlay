@@ -169,7 +169,7 @@ export function EventForm({
     flatGrid ? <div className={`min-w-0 ${className}`.trim()}>{children}</div> : children
   )
 
-  const SFX_PRESET_IDS = ['startup', 'transition', 'death', 'victory', 'revive', 'glitch'] as const
+  const SFX_PRESET_IDS = ['startup', 'transition', 'death', 'victory', 'revive', 'glitch', 'dial-up-connect', 'win98-error', 'mmorpg-ding', 'loot', 'level-up-chime'] as const
 
   const renderSfxPicker = (effectIndex: number, currentSfx?: string) => {
     const isCustom = !!currentSfx && !SFX_PRESET_IDS.includes(currentSfx as typeof SFX_PRESET_IDS[number])
@@ -997,6 +997,11 @@ export function EventForm({
                 <option value="victory">victory</option>
                 <option value="revive">revive</option>
                 <option value="glitch">glitch</option>
+                <option value="dial-up-connect">dial-up-connect</option>
+                <option value="win98-error">win98-error</option>
+                <option value="mmorpg-ding">mmorpg-ding</option>
+                <option value="loot">loot</option>
+                <option value="level-up-chime">level-up-chime</option>
                 <option value="custom">Custom URL…</option>
               </select>
             </div>

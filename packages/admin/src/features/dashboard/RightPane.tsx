@@ -17,6 +17,7 @@ import { SchedulerPanel } from '../scheduler/SchedulerPanel'
 import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { WiresPanel } from '../wires/WiresPanel'
+import { AutomationPanel } from '../automation/AutomationPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
 import { SpotifyPanel } from '../spotify/SpotifyPanel'
@@ -122,6 +123,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'wires')  return <WiresPanel />
+  if (selected.kind === 'automation') return <AutomationPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'spotify') return <SpotifyPanel />
@@ -155,6 +157,7 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
   { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
   { icon: '⚙', label: 'Kernel Health',      kind: 'kernel-health' },
   { icon: '⚡', label: 'Wires',             kind: 'wires' },
+  { icon: '🤖', label: 'Automation',        kind: 'automation' },
   { icon: '🎭', label: 'Show Sequencer',    kind: 'shows' },
   { icon: '💬', label: 'Twitch Chat',       kind: 'twitch' },
   { icon: '🎵', label: 'Spotify',           kind: 'spotify' },
@@ -237,6 +240,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Engine' }
     else if (selected.kind === 'kernel-health')     { headerIcon = '⚙';  headerLabel = 'Kernel Health';  headerMeta = 'Engine' }
     else if (selected.kind === 'wires')             { headerIcon = '⚡'; headerLabel = 'Wires';          headerMeta = 'Engine' }
+    else if (selected.kind === 'automation')        { headerIcon = '🤖'; headerLabel = 'Automation';     headerMeta = 'Engine' }
     else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
     else if (selected.kind === 'shows')             { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Chat';    headerMeta = 'Engine' }

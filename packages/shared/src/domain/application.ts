@@ -9,7 +9,9 @@ export type WidgetComponentType =
   | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
   | 'playlist-deck' | 'net-meter' | 'cd-ripper' | 'signal-lab'
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
-  | 'city-navigator' | 'lcd-dolphins' | 'generic'
+  | 'city-navigator' | 'lcd-dolphins'
+  | 'rpg-stats' | 'stream-quest' | 'combat-log-widget' | 'retro-messenger'
+  | 'generic'
 
 // ── Widget theme types ────────────────────────────────────────────
 
@@ -85,6 +87,12 @@ export interface StickyNotesSettings {
   color: string
 }
 
+export interface StreamQuestSettings {
+  title: string
+  current: number
+  target: number
+}
+
 // ── Transition asset ──────────────────────────────────────────────
 
 export interface TransitionDefinition {
@@ -129,6 +137,8 @@ export interface Application {
   windowWidgetSettings?: WindowWidgetSettings
   /** Optional persisted content for the Sticky Notes system widget. */
   stickyNotesSettings?: StickyNotesSettings
+  /** Optional persisted goal state for the Stream Quest system widget. */
+  streamQuestSettings?: StreamQuestSettings
   /** Persisted widget chrome theme for this specific widget. */
   theme?: WidgetThemeConfig
 

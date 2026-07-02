@@ -67,6 +67,10 @@ function normalizeDesktopTheme(theme?: DesktopTheme | 'win vista'): DesktopTheme
     || theme === 'coastal glass'
     || theme === 'amber terminal'
     || theme === 'custom'
+    || theme === 'diablo'
+    || theme === 'matrix'
+    || theme === 'cyberpunk'
+    || theme === 'runescape'
   ) {
     return theme
   }
@@ -1013,6 +1017,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
     { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
+    { id: 'rpg-stats',            label: 'Character Sheet',      icon: '🛡️',  widgetSource: 'system' as const, widgetComponent: 'rpg-stats' as const },
+    { id: 'stream-quest',         label: 'Quest Log',            icon: '📜',   widgetSource: 'system' as const, widgetComponent: 'stream-quest' as const },
+    { id: 'combat-log-widget',    label: 'Combat Log',           icon: '⚔️',  widgetSource: 'system' as const, widgetComponent: 'combat-log-widget' as const },
+    { id: 'retro-messenger',      label: 'Buddy List',           icon: '💬',   widgetSource: 'system' as const, widgetComponent: 'retro-messenger' as const },
   ],
 
   keybinds: {

@@ -77,6 +77,14 @@ export type EffectType =
   | 'screentone-wipe'     // Manga halftone dot pattern wipes across screen
   | 'sweat-drop'          // Giant anime sweat drop slides, wobbles, splashes
   | 'dramatic-zoom'       // Slow camera zoom in + speed lines, tension build
+  // ── MMORPG / Retro-Futurist ─────────────────────────────────────
+  | 'item-pickup'         // Loot explosion with rarity-colored burst + item name
+  | 'quest-complete'      // Quest banner fanfare slides in, holds, slides out
+  | 'critical-hit'        // Screen flash + big impact damage text
+  | 'boss-warning'        // Metal Gear "!" alert — red flash + warning banner
+  | 'combo-multiplier'    // Fighting-game combo counter increments and slams
+  | 'game-over-effect'    // Retro pixel-art GAME OVER wipe
+  | 'matrix-glitch'       // Matrix-rain dissolve transition
 
 // ── Per-type configs ────────────────────────────────────────────
 
@@ -330,7 +338,9 @@ export interface LevelUpConfig {
 }
 
 export interface AudioSfxConfig {
-  sfxId: 'startup' | 'transition' | 'death' | 'victory' | 'revive' | 'glitch' | 'custom'
+  sfxId: 'startup' | 'transition' | 'death' | 'victory' | 'revive' | 'glitch'
+    | 'dial-up-connect' | 'win98-error' | 'mmorpg-ding' | 'loot' | 'level-up-chime'
+    | 'custom'
   /** Required when sfxId is 'custom' */
   customUrl?: string
   /** 0–1 volume multiplier, default 1 */
@@ -404,6 +414,14 @@ export type EffectConfig =
   | { type: 'screentone-wipe';  cfg: ScreentoneWipeConfig;  delay?: number; sfx?: string }
   | { type: 'sweat-drop';       cfg: SweatDropConfig;       delay?: number; sfx?: string }
   | { type: 'dramatic-zoom';    cfg: DramaticZoomConfig;    delay?: number; sfx?: string }
+  // ── MMORPG / Retro-Futurist ──────────────────────────────────────
+  | { type: 'item-pickup';      cfg: ItemPickupConfig;      delay?: number; sfx?: string }
+  | { type: 'quest-complete';   cfg: QuestCompleteConfig;   delay?: number; sfx?: string }
+  | { type: 'critical-hit';     cfg: CriticalHitConfig;     delay?: number; sfx?: string }
+  | { type: 'boss-warning';     cfg: BossWarningConfig;     delay?: number; sfx?: string }
+  | { type: 'combo-multiplier'; cfg: ComboMultiplierConfig; delay?: number; sfx?: string }
+  | { type: 'game-over-effect'; cfg: GameOverEffectConfig;  delay?: number; sfx?: string }
+  | { type: 'matrix-glitch';    cfg: MatrixGlitchConfig;    delay?: number; sfx?: string }
 
 // ── Stream personality effect configs ───────────────────────────
 
@@ -573,6 +591,50 @@ export interface DramaticZoomConfig {
   /** Duration in seconds */
   duration: number
   color?: string
+}
+
+// ── MMORPG / Retro-Futurist configs ──────────────────────────────
+
+export interface ItemPickupConfig {
+  itemName?: string
+  rarity?: 'common' | 'rare' | 'epic' | 'legendary'
+  durationMs?: number
+}
+
+export interface QuestCompleteConfig {
+  title?: string
+  reward?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface CriticalHitConfig {
+  text?: string
+  color?: string
+  durationMs?: number
+}
+
+export interface BossWarningConfig {
+  text?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ComboMultiplierConfig {
+  count?: number
+  durationMs?: number
+}
+
+export interface GameOverEffectConfig {
+  text?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface MatrixGlitchConfig {
+  color?: string
+  /** Duration in seconds */
+  duration: number
 }
 
 // ── Overlay trigger payload (admin → server → overlay) ──────────
