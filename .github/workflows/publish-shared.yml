@@ -36,10 +36,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared
-        run: pnpm --filter @ieom/shared build
+        run: pnpm --filter @ieomlabs/shared build
 
       - name: Type check
-        run: pnpm --filter @ieom/shared typecheck
+        run: pnpm --filter @ieomlabs/shared typecheck
 
       - name: Bump version (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
@@ -52,7 +52,7 @@ jobs:
           git commit -m "chore(shared): bump version to $(node -p "require('./package.json').version")"
 
       - name: Publish to GitHub Packages
-        run: pnpm --filter @ieom/shared publish
+        run: pnpm --filter @ieomlabs/shared publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

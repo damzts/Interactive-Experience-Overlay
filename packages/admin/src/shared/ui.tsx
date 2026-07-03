@@ -317,19 +317,23 @@ const CONFIG_NOTICE_TONES: Record<ConfigNoticeTone, string> = {
 export function ConfigPageIntro({
   title,
   children,
+  description,
+  icon,
   eyebrow = 'Control Surface',
   className = '',
 }: {
   title: string
-  children: ReactNode
+  children?: ReactNode
+  description?: string
+  icon?: string
   eyebrow?: string
   className?: string
 }) {
   return (
     <div className={`mb-4 rounded-2xl border border-cyan-500/18 bg-[linear-gradient(180deg,rgba(10,10,12,0.88),rgba(16,16,20,0.72))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.28)] backdrop-blur ${className}`.trim()}>
       <div className="admin-text-kicker font-semibold uppercase tracking-[0.22em] text-cyan-300/80">{eyebrow}</div>
-      <div className="admin-text-display mt-1 font-semibold text-zinc-100">{title}</div>
-      <div className="admin-text-body mt-1 max-w-prose text-zinc-400">{children}</div>
+      <div className="admin-text-display mt-1 font-semibold text-zinc-100">{icon ? `${icon} ` : null}{title}</div>
+      <div className="admin-text-body mt-1 max-w-prose text-zinc-400">{description ?? children}</div>
     </div>
   )
 }

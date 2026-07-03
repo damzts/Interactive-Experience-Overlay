@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Slider, ConfigPageIntro, ConfigTable } from '../../shared/ui'
 import { Button } from '../../components/atoms'
-import { Card } from '../../components/molecules'
 import { ConfigPanel } from '../../components/organisms'
 
 /** Notice component for informational/warning messages within config panels */
@@ -100,40 +99,6 @@ export function AudioPanel() {
                 </tbody>
               </table>
             </ConfigTable>
-          </div>
-        </ConfigPanel>
-
-        <ConfigPanel title="SFX Library" collapsible>
-          <div className="space-y-4">
-            <Notice>
-              Place <span className="admin-inline-code">.wav</span> or <span className="admin-inline-code">.mp3</span> files in <span className="admin-inline-code">assets/sfx/</span> to make them available to the runtime.
-            </Notice>
-            <div className="space-y-2">
-              {['startup', 'transition', 'death', 'victory', 'revive', 'glitch', 'dial-up-connect', 'win98-error', 'mmorpg-ding', 'loot', 'level-up-chime'].map((id) => (
-                <Card key={id} variant="default" padding="sm" className="flex items-center gap-3">
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-bg-base)] text-sm text-[var(--color-primary-200)]">
-                      ♪
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-semibold text-[var(--color-text-primary)]">{id}.wav</div>
-                      <div className="text-[11px] text-[var(--color-text-muted)]">Preview the current effect asset.</div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      const audio = new Audio(`/assets/sfx/${id}.wav`)
-                      audio.volume = 0.5
-                      audio.play().catch(() => {})
-                    }}
-                  >
-                    Test
-                  </Button>
-                </Card>
-              ))}
-            </div>
           </div>
         </ConfigPanel>
       </div>

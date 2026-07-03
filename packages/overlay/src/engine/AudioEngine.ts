@@ -27,7 +27,7 @@ class AudioEngine {
   private _musicGain: GainNode | null = null
   private _musicVolume: number = 0.5
 
-  // Ambient track (persists across scene musicTrack changes)
+  // Ambient track (persists across scene changes)
   private _ambientEl: HTMLAudioElement | null = null
   private _ambientSource: MediaElementAudioSourceNode | null = null
   private _ambientGain: GainNode | null = null
@@ -347,7 +347,7 @@ class AudioEngine {
   // ── Ambient track ────────────────────────────────────────────────
 
   /** Play an independent looping ambient layer (crowd noise, room tone, rain, etc.).
-   *  Persists across scene musicTrack changes — only changes when ambientTrack changes.
+   *  Persists across scene changes — only changes when ambientTrack changes.
    *  Pass null to fade out and stop. */
   playAmbient(url: string | null, crossfadeMs = 2000) {
     this.initContext()

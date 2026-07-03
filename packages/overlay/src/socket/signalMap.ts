@@ -72,6 +72,44 @@ const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngin
   'matrix-glitch':       'glitch',
 }
 
+// ── Effect firing (with delay + chained-effect support) ───────────
+
+function fireEffect(eff: EffectConfig): void {
+  // audio-sfx: play sound from cfg, no visual dispatch
+  if (eff.type === 'audio-sfx') {
+    const audioCfg = eff.cfg as import('@ieomlabs/shared').AudioSfxConfig
+    if (audioCfg.sfxId === 'custom' && audioCfg.customUrl) {
+      void audioEngine.playUrl(audioCfg.customUrl)
+    } else if (audioCfg.sfxId !== 'custom') {
+      audioEngine.play(audioCfg.sfxId as Parameters<typeof audioEngine.play>[0])
+    }
+  } else {
+    dispatchEffect(eff.type, eff.cfg)
+    if (eff.sfx) {
+      // Custom sfx: URL path gets playUrl(), bare ID gets play()
+      if (eff.sfx.includes('/')) {
+        void audioEngine.playUrl(eff.sfx)
+      } else {
+        audioEngine.play(eff.sfx as Parameters<typeof audioEngine.play>[0])
+      }
+    } else {
+      const sfxId = SFX_MAP[eff.type]
+      if (sfxId) audioEngine.play(sfxId)
+    }
+  }
+
+  if (eff.chain && Math.random() < eff.chain.chance) {
+    scheduleEffect(eff.chain.effect)
+  }
+}
+
+/** Schedule an effect to fire after its `delay` (seconds), then evaluate its chain. */
+function scheduleEffect(eff: EffectConfig): void {
+  const delay = eff.delay ?? 0
+  if (delay > 0) setTimeout(() => fireEffect(eff), delay * 1000)
+  else fireEffect(eff)
+}
+
 // ── Cursor mirror helpers (need ref state, exposed via module-level vars) ─────
 
 let menuTimelineLockUntil = 0
@@ -101,36 +139,7 @@ export const signalHandlers: SignalHandlerMap = {
   'overlay:show': (payload: OverlayTriggerPayload, _store) => {
     const { effects } = payload
     if (!effects.length) return
-    effects.forEach((eff) => {
-      const fire = () => {
-        // audio-sfx: play sound from cfg, no visual dispatch
-        if (eff.type === 'audio-sfx') {
-          const audioCfg = eff.cfg as import('@ieomlabs/shared').AudioSfxConfig
-          if (audioCfg.sfxId === 'custom' && audioCfg.customUrl) {
-            void audioEngine.playUrl(audioCfg.customUrl)
-          } else if (audioCfg.sfxId !== 'custom') {
-            audioEngine.play(audioCfg.sfxId as Parameters<typeof audioEngine.play>[0])
-          }
-          return
-        }
-
-        dispatchEffect(eff.type, eff.cfg)
-        if (eff.sfx) {
-          // Custom sfx: URL path gets playUrl(), bare ID gets play()
-          if (eff.sfx.includes('/')) {
-            void audioEngine.playUrl(eff.sfx)
-          } else {
-            audioEngine.play(eff.sfx as Parameters<typeof audioEngine.play>[0])
-          }
-        } else {
-          const sfxId = SFX_MAP[eff.type]
-          if (sfxId) audioEngine.play(sfxId)
-        }
-      }
-      const delay = eff.delay ?? 0
-      if (delay > 0) setTimeout(fire, delay * 1000)
-      else fire()
-    })
+    effects.forEach((eff) => scheduleEffect(eff))
   },
 
   'overlay:resync': (_payload, _store) => {
@@ -148,11 +157,6 @@ export const signalHandlers: SignalHandlerMap = {
 
   'config:update': (config: AppConfig, store) => {
     store.setConfig(config)
-    const sp = config.spotify
-    if (sp) {
-      const playlist = sp.playlists?.find((p) => p.id === sp.activePlaylistId)
-      store.setSpotifyState({ activePlaylistId: sp.activePlaylistId, activePlaylistName: playlist?.name })
-    }
   },
 
   'config:patch': (updates: Partial<AppConfig>, store) => {
@@ -248,16 +252,6 @@ export const signalHandlers: SignalHandlerMap = {
         steps: payload.steps,
       },
     })
-  },
-
-  // ── Spotify signals ────────────────────────────────────────────
-
-  'spotify:state': (payload, store) => {
-    store.setSpotifyState(payload)
-  },
-
-  'spotify:control': (payload, store) => {
-    store.dispatchSpotifyControl(payload)
   },
 
   // ── Ambiance signals ───────────────────────────────────────────

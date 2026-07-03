@@ -56,6 +56,7 @@ import {
   createEventActionDraft,
   describeEventSetup,
   EFFECT_CATEGORIES,
+  EVENT_EFFECT_TYPES,
   normalizeDesktopNotificationEffectConfig,
   normalizeEventEffectConfig,
   type EventDef,
@@ -201,6 +202,48 @@ export function EventForm({
               onChange={(event) => updateEffect(effectIndex, (draft) => { draft.sfx = event.target.value || undefined })}
               className="flex-1 text-xs font-mono"
             />
+          )}
+        </div>
+        {renderChainPicker(effectIndex)}
+      </div>
+    )
+  }
+
+  const renderChainPicker = (effectIndex: number) => {
+    const effect = def.effects[effectIndex]
+    const chain = effect?.chain
+    return (
+      <div className="mt-3 border-t border-zinc-800/60 pt-3">
+        <div className="mb-1 text-[10px] text-zinc-500">Chain another effect</div>
+        <div className="flex items-center gap-2">
+          <select
+            value={chain?.effect.type ?? ''}
+            onChange={(event) => {
+              const type = event.target.value as EffectType | ''
+              updateEffect(effectIndex, (draft) => {
+                if (!type) { draft.chain = undefined; return }
+                draft.chain = { chance: draft.chain?.chance ?? 0.5, effect: createEffectDraft(type) }
+              })
+            }}
+            className="flex-1 text-xs"
+          >
+            <option value="">(none)</option>
+            {EVENT_EFFECT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+          {chain && (
+            <>
+              <input
+                type="number" min={0} max={100} step={5}
+                value={Math.round(chain.chance * 100)}
+                onChange={(event) => updateEffect(effectIndex, (draft) => {
+                  if (!draft.chain) return
+                  draft.chain = { ...draft.chain, chance: Math.max(0, Math.min(100, Number(event.target.value))) / 100 }
+                })}
+                className="w-16 text-xs font-mono"
+                title="Chance the chained effect fires"
+              />
+              <span className="text-[10px] text-zinc-600">%</span>
+            </>
           )}
         </div>
       </div>

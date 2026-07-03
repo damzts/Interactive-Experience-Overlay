@@ -1,20 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import type { WindowInstance, WindowPreset } from '@ieomlabs/shared'
 import { resolveWindowInstance } from '@ieomlabs/shared'
 import { RENDERER_CATALOG } from '@ieomlabs/shared'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import type { TierName } from '@ieomlabs/shared'
-
-// ── Notice ─────────────────────────────────────────────────────────────
-
-function Notice({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-sm rounded-xl border border-[var(--color-primary-500)]/25 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-100)] px-3 py-2.5">
-      {children}
-    </div>
-  )
-}
 
 // ── WindowsEditor ──────────────────────────────────────────────────────
 
@@ -29,8 +19,6 @@ export function SourcesEditor({
   windowPresets: WindowPreset[]
   onChange: (next: WindowInstance[]) => void
 }) {
-  const [addMode, setAddMode] = useState<'catalog' | 'preset'>('catalog')
-
   const normalizeOrder = useCallback((ordered: WindowInstance[]) =>
     ordered.map((w, index) => ({ ...w, zIndex: index })), [])
 
@@ -161,40 +149,32 @@ export function SourcesEditor({
         )
       })}
 
-      {/* Add controls */}
-      <div className="flex gap-1 pt-1">
-        <Button
-          variant="ghost" size="sm"
-          onClick={() => { setAddMode('catalog'); addFromCatalog('solid-color') }}
-          className="flex-1 border-dashed border-[var(--color-border-strong)] py-2 text-xs justify-center"
-        >
-          + From catalog
-        </Button>
+      {/* Add window: pick a type directly from the catalog */}
+      <div className="space-y-1.5 pt-1">
+        <div className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">Add window</div>
+        <div className="grid grid-cols-4 gap-1">
+          {RENDERER_CATALOG.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              title={entry.desc}
+              onClick={() => addFromCatalog(entry.id)}
+              className="flex flex-col items-center gap-0.5 rounded-lg border border-[var(--color-border-strong)] bg-white/[0.02] px-1 py-2 text-center hover:bg-white/[0.06] transition-colors"
+            >
+              <span className="text-lg leading-none">{entry.icon}</span>
+              <span className="text-[9px] text-[var(--color-text-muted)] leading-tight">{entry.label}</span>
+            </button>
+          ))}
+        </div>
         {windowPresets.length > 0 && (
           <Button
             variant="ghost" size="sm"
-            onClick={() => { setAddMode('preset'); addFromPreset() }}
-            className="flex-1 border-dashed border-[var(--color-border-strong)] py-2 text-xs justify-center"
+            onClick={addFromPreset}
+            className="w-full border-dashed border-[var(--color-border-strong)] py-2 text-xs justify-center"
           >
-            + From preset
+            + From saved preset
           </Button>
         )}
-      </div>
-
-      {/* Quick-add catalog grid */}
-      <div className="grid grid-cols-4 gap-1">
-        {RENDERER_CATALOG.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            title={entry.desc}
-            onClick={() => addFromCatalog(entry.id)}
-            className="flex flex-col items-center gap-0.5 rounded-lg border border-[var(--color-border-strong)] bg-white/[0.02] px-1 py-2 text-center hover:bg-white/[0.06] transition-colors"
-          >
-            <span className="text-lg leading-none">{entry.icon}</span>
-            <span className="text-[9px] text-[var(--color-text-muted)] leading-tight">{entry.label}</span>
-          </button>
-        ))}
       </div>
     </div>
   )

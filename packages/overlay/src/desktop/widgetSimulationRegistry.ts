@@ -58,21 +58,6 @@ const RECIPES: Partial<Record<string, Partial<WidgetSimulationRecipe>>> = {
     ],
     interactionChance: 0.8,
   },
-  archive: {
-    menuPath: (app) => ['Programs', app.label],
-    interactionPlan: [
-      {
-        selectors: ['[data-sim-action="archive-log"]'],
-        intentKind: undefined,
-        weight: 1,
-        moveMinMs: 520,
-        moveMaxMs: 980,
-        postDelayMinMs: 280,
-        postDelayMaxMs: 640,
-      },
-    ],
-    interactionChance: 0.55,
-  },
   chat: {
     menuPath: (app) => ['Programs', app.label],
     interactionPlan: [

@@ -16,9 +16,15 @@
  * ```
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { SidebarSection } from '../components/organisms';
 import type { SearchIndexItem, SearchResult } from '../utils/searchIndex';
 import { search } from '../utils/searchIndex';
+
+/** Navigation section shape accepted by the search index builder. */
+export interface NavSection {
+  id: string;
+  label: string;
+  children?: { id: string; label: string }[];
+}
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -40,7 +46,7 @@ const SECTION_CATEGORY_MAP: Record<string, SearchIndexItem['category']> = {
  * @param sections - The sidebar navigation sections to index
  * @returns Search state and actions: query, results, recentSearches, performSearch, addRecentSearch
  */
-export function useSearch(sections: SidebarSection[]) {
+export function useSearch(sections: NavSection[]) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);

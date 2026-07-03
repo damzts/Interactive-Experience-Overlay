@@ -36,6 +36,7 @@ export function LobbyRuntimePanel() {
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
   const apply = useCallback(async () => {
+    if (!scene) return
     setSaving(true)
     await saveConfig({ scenes: { [STATE.LOBBY]: { ...scene, windows } } })
     setSaving(false)

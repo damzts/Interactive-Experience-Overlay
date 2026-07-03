@@ -189,11 +189,6 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
-    if (action.kind === 'spotify-control') {
-      ctx.io.emit('spotify:control', { command: action.command, value: action.value })
-      continue
-    }
-
     applyRuntimeConfig(ctx, {
       desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
     })

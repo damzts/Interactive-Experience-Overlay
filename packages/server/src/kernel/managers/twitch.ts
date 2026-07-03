@@ -1,5 +1,5 @@
 /**
- * TwitchManager — unified Twitch integration: IRC chat + EventSub.
+ * TwitchIntegrationManager — unified Twitch integration: IRC chat + EventSub.
  *
  * Maintains two WebSocket connections sharing the same config:
  *   • IRC (wss://irc-ws.chat.twitch.tv) — PRIVMSG → chat:message bus events
@@ -37,8 +37,8 @@ const SUB_TYPE_TO_KIND: Record<string, TwitchEventKind> = {
   'channel.hype_train.end':                               'hype-train-end',
 }
 
-export class TwitchManager implements Manager {
-  readonly name = 'TwitchManager'
+export class TwitchIntegrationManager implements Manager {
+  readonly name = 'TwitchIntegrationManager'
   readonly bootPriority = 30
 
   private _status: ManagerStatus = 'idle'

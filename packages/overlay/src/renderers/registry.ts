@@ -53,7 +53,6 @@ export const rendererManifest: RendererManifest = {
   'session-goal':    () => import('./SessionGoalRenderer').then((m) => ({ component: m.SessionGoalRenderer })),
   'session-timer':   () => import('./SessionTimerRenderer').then((m) => ({ component: m.SessionTimerRenderer })),
   'countdown':       () => import('./CountdownRenderer').then((m) => ({ component: m.CountdownRenderer })),
-  'now-playing':     () => import('./NowPlayingRenderer').then((m) => ({ component: m.NowPlayingRenderer })),
   // ── Auto-run / self-narrating renderers ───────────────────────
   'chat-simulator':       () => import('./ChatSimulatorRenderer').then((m) => ({ component: m.ChatSimulatorRenderer })),
   'anime-quote':          () => import('./AnimeQuoteRenderer').then((m) => ({ component: m.AnimeQuoteRenderer })),

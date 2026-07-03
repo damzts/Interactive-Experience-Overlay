@@ -27,6 +27,9 @@ export class ObsBridgeManager implements Manager {
   private currentUrl = 'ws://localhost:4455'
   private currentPassword = ''
   private lastError: string | null = null
+  private reconnectAttempt = 0
+  private retryDelayMs: number | null = null
+  private nextRetryAt: number | null = null
   private _virtualCamActive = false
   private _streaming = false
   private _recording = false
@@ -86,6 +89,8 @@ export class ObsBridgeManager implements Manager {
       streaming: this._streaming,
       recording: this._recording,
       overlaySourceAdded: this._overlaySourceAdded,
+      retryDelayMs: this.retryDelayMs,
+      nextRetryAt: this.nextRetryAt,
     }
   }
 

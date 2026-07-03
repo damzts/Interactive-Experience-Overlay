@@ -1742,8 +1742,7 @@
   color: var(--widget-input-text);
 }
 
-.desktop-window--music .widget-panel--music-display::after,
-.desktop-window--archive .widget-panel--archive-hero::after {
+.desktop-window--music .widget-panel--music-display::after {
   content: '';
   position: absolute;
   inset: auto -12% -34% 40%;

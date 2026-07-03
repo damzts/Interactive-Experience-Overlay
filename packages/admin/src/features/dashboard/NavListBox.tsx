@@ -6,7 +6,7 @@ import { IconGlyph } from '../../shared/ui'
 import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
-import type { AssetRecord } from '../../shared/catalog'
+import type { MediaRecord } from '../../shared/catalog'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -65,9 +65,9 @@ function SidebarAppIcon({ app }: { app: Application }) {
 
 export function MediaSection({ title, items, selectedId, onSelect }: {
   title: string
-  items: AssetRecord[]
+  items: MediaRecord[]
   selectedId?: string | null
-  onSelect: (asset: AssetRecord) => void
+  onSelect: (asset: MediaRecord) => void
 }) {
   if (items.length === 0) return null
   const kindIcon: Record<string, string> = { image: '🖼', video: '🎬', audio: '🎵' }

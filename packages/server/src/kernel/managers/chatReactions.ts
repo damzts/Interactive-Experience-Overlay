@@ -1,7 +1,7 @@
 /**
  * ChatReactionManager — evaluates chat messages against configured rules and fires engine actions.
  *
- * Subscribes to the 'chat:message' custom bus event (emitted by TwitchManager and simulation paths).
+ * Subscribes to the 'chat:message' custom bus event (emitted by TwitchIntegrationManager and simulation paths).
  * Matches each message against ChatReactionRule entries from AppConfig.chatReactions.
  * Fires matching rules via the 'scheduler:fired' bus event, which the scene handler's
  * registerMachineListeners already processes via executeConfiguredEvent.

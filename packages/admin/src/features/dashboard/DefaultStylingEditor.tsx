@@ -43,14 +43,14 @@ export function RecycleBinConfigSection({
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div>
           <div className="text-[10px] text-zinc-500 mb-1">Empty icon</div>
-          <MediaSelectionInput value={settings.emptyIcon}
+          <MediaSelectionInput value={settings.emptyIcon ?? ''}
             onChange={(nextValue) => onSettingsChange((draft) => { draft.emptyIcon = nextValue })}
             kinds={['image']} modalTitle="Recycle Bin Empty Icon"
             placeholder="Emoji or /assets/icons/recycle-empty.png" buttonLabel="Choose Image" previewKind="image" />
         </div>
         <div>
           <div className="text-[10px] text-zinc-500 mb-1">Full icon</div>
-          <MediaSelectionInput value={settings.fullIcon}
+          <MediaSelectionInput value={settings.fullIcon ?? ''}
             onChange={(nextValue) => onSettingsChange((draft) => { draft.fullIcon = nextValue })}
             kinds={['image']} modalTitle="Recycle Bin Full Icon"
             placeholder="Emoji or /assets/icons/recycle-full.png" buttonLabel="Choose Image" previewKind="image" />

@@ -14,7 +14,6 @@ type ScenePanelDraft = {
   onExit:      TransitionStep[]
   style:       OverlayStyle
   windows:     WindowInstance[]
-  musicTrack:  string
   showDesktop: boolean
 }
 
@@ -29,7 +28,6 @@ function buildDraft(
     onExit:      structuredClone(scene?.onExit?.map((id) => ({ id })) ?? []),
     style:       structuredClone(withOverlayStyleDefaults(scene?.style)),
     windows:     structuredClone(scene?.windows ?? []),
-    musicTrack:  scene?.musicTrack ?? '',
     showDesktop: scene?.showDesktop ?? false,
   }
 }
@@ -75,7 +73,6 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
       showDesktop: draft.showDesktop,
       onEntry:     draft.onEntry.filter((s) => s.id).map((s) => s.id),
       onExit:      draft.onExit.filter((s) => s.id).map((s) => s.id),
-      musicTrack:  draft.musicTrack.trim() || undefined,
       ...(isDesktop ? {} : { style: draft.style }),
     }
     await saveConfig({ scenes: { ...config.scenes, [sceneId]: nextScene } })
@@ -157,17 +154,6 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
                 onChange={(steps) => update((d) => { d.onExit = steps })} />
             </div>
           </ConfigPanel>
-
-          {/* Background Music */}
-          {isUser && (
-            <ConfigPanel title="Background Music">
-              <input type="text" placeholder="/assets/audio/music/ambient/track.mp3"
-                value={draft.musicTrack}
-                onChange={(e) => update((d) => { d.musicTrack = e.target.value })}
-                className="w-full font-mono text-xs" />
-              <div className="text-[10px] text-[var(--color-text-muted)] mt-1">Crossfade: 1.5 s — leave blank for silence</div>
-            </ConfigPanel>
-          )}
 
         </div>
       )}

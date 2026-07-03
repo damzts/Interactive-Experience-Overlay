@@ -2,7 +2,9 @@
  * AutomationManager — evaluates persisted "when event X → do Y" rules
  * against every KernelBus event using field-match conditions.
  *
- * Rules are loaded from SQLite via AutomationRuleRepository.
+ * Rules are loaded from SQLite via AutomationRuleRepository once on start
+ * and cached in memory; the cache refreshes on `automation:rules:changed`
+ * (emitted by the HTTP CRUD route) so evaluation never touches disk.
  * Boot after all other managers (bootPriority: 100).
  */
 import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload } from '@ieomlabs/shared'
@@ -12,6 +14,7 @@ import type { SceneManager } from './scene.js'
 import type { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
 import type { Server as SocketIOServer } from 'socket.io'
 import logger from '../../lib/logger.js'
+import './automation.signals.js'
 
 export class AutomationManager implements Manager {
   readonly name = 'AutomationManager'
@@ -19,6 +22,9 @@ export class AutomationManager implements Manager {
 
   private _status: ManagerStatus = 'idle'
   private _unsubscribe: (() => void) | null = null
+  private _unsubRulesChanged: (() => void) | null = null
+  private _unsubConfigChanged: (() => void) | null = null
+  private rules: AutomationRule[] = []
 
   constructor(
     private repo: AutomationRuleRepository,
@@ -30,6 +36,11 @@ export class AutomationManager implements Manager {
   init(): void { this._status = 'idle' }
 
   start(): void {
+    this.reloadRules()
+    this._unsubRulesChanged = this.bus.on('automation:rules:changed', () => this.reloadRules())
+    this._unsubConfigChanged = this.bus.on('config:changed', ({ section }) => {
+      if (section === 'all') this.reloadRules()
+    })
     this._unsubscribe = this.bus.onAny((frame: BusFrame) => {
       this.evaluate(frame.event, frame.payload)
     })
@@ -39,21 +50,27 @@ export class AutomationManager implements Manager {
   stop(): void {
     this._unsubscribe?.()
     this._unsubscribe = null
+    this._unsubRulesChanged?.()
+    this._unsubRulesChanged = null
+    this._unsubConfigChanged?.()
+    this._unsubConfigChanged = null
     this._status = 'stopped'
   }
 
   dispose(): void { this._status = 'stopped' }
   status(): ManagerStatus { return this._status }
 
-  private evaluate(event: string, payload: unknown): void {
-    let rules: AutomationRule[]
+  /** Refresh the in-memory rule cache from SQLite. Keeps the old cache on failure. */
+  reloadRules(): void {
     try {
-      rules = this.repo.list()
+      this.rules = this.repo.list()
     } catch (err) {
-      logger.warn({ err }, '[automation] failed to load rules')
-      return
+      logger.warn({ err }, '[automation] failed to reload rules — keeping previous cache')
     }
-    for (const rule of rules) {
+  }
+
+  private evaluate(event: string, payload: unknown): void {
+    for (const rule of this.rules) {
       if (!rule.enabled) continue
       if (rule.condition.event !== event) continue
       if (!this.matches(rule.condition.match, payload)) continue

@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 import type { Application, WidgetComponentType } from '@ieomlabs/shared'
 
 export interface DesktopWidgetProps {
-  appId?: string
+  appId: string
   defaultCameraLabel?: string
   defaultMirror?: boolean
   onClose: () => void
@@ -23,7 +23,6 @@ type WidgetManifestEntry = {
 
 /** Lazy import manifest — each entry dynamically imports the module and carries the widget's default position and size. */
 const widgetManifest: Record<RegisteredWidgetComponentType, WidgetManifestEntry> = {
-  'archive':             { load: () => import('./ArchiveWidget').then((m) => m.ArchiveWidget),                       defaultPosition: { x: 900,  y: 120 }, defaultSize: { width: 300              } },
   'broadcast-scheduler': { load: () => import('./BroadcastSchedulerWidget').then((m) => m.BroadcastSchedulerWidget), defaultPosition: { x: 314,  y: 124 }, defaultSize: { width: 430              } },
   'cd-ripper':           { load: () => import('./CDRipperWidget').then((m) => m.CDRipperWidget),                     defaultPosition: { x: 230,  y: 118 }, defaultSize: { width: 420              } },
   'camera':              { load: () => import('./CameraWidget').then((m) => m.CameraWidget),                         defaultPosition: { x: 260,  y: 80  }, defaultSize: { width: 400, height: 300 } },
@@ -111,7 +110,7 @@ export function warnMissingDesktopWidgetRegistration(
 /** Pre-warm the registry for a set of widget types. Call this after config loads. */
 export function preloadWidgets(componentTypes: WidgetComponentType[]): void {
   for (const type of componentTypes) {
-    if (type !== 'generic' && widgetManifest[type as RegisteredWidgetComponentType]?.load && !resolvedCache.has(type as RegisteredWidgetComponentType)) {
+    if (type !== 'generic' && type in widgetManifest && !resolvedCache.has(type as RegisteredWidgetComponentType)) {
       void loadDesktopWidget(type)
     }
   }

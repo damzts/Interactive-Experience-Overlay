@@ -21,6 +21,8 @@ export interface RoomConfig {
   maxPlayersPerRoom: number
   /** Maximum simultaneously active rooms. Default 5, range 1-10 */
   maxActiveRooms: number
+  /** Delay after the last participant leaves before the room is flagged idle (ms). Default 300000 */
+  idleTimeoutMs: number
   /** Interval at which scores are emitted to admin (ms). Default 500 */
   scoreEmitIntervalMs: number
   /** Weight of motion vs audio score (0-1). Default 0.3, higher = motion-driven */
@@ -92,6 +94,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   silenceThreshold: 0.05,
   maxPlayersPerRoom: 10,
   maxActiveRooms: 5,
+  idleTimeoutMs: 300_000,
   scoreEmitIntervalMs: 500,
   motionWeight: 0.3,
   defaultFirstCamera: 'auto',
@@ -113,6 +116,7 @@ export const ROOM_CONFIG_BOUNDS: Record<string, RoomConfigBounds> = {
   silenceThreshold: { min: 0.0, max: 1.0 },
   maxPlayersPerRoom: { min: 2, max: 20 },
   maxActiveRooms: { min: 1, max: 10 },
+  idleTimeoutMs: { min: 10_000, max: 3_600_000 },
 }
 
 // ── Backward-compat aliases ───────────────────────────────────────

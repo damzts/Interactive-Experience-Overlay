@@ -8,7 +8,6 @@ import {
   Btn, ConfigCard, ConfigNotice,
   IconGlyph,
 } from '../../shared/ui'
-import { ArchivePanel } from '../archive/ArchivePanel'
 import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { AmbiancePanel } from '../ambiance/AmbiancePanel'
@@ -20,7 +19,6 @@ import { WiresPanel } from '../wires/WiresPanel'
 import { AutomationPanel } from '../automation/AutomationPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
-import { SpotifyPanel } from '../spotify/SpotifyPanel'
 import { MediaLibraryPanel } from '../media-library/MediaLibraryPanel'
 import { MediaLibraryProvider } from '../media-library/MediaLibraryContext'
 import type { SelectedItem } from './types'
@@ -116,7 +114,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 
   if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
-  if (selected.kind === 'archive')  return <ArchivePanel />
   if (selected.kind === 'settings') return <SettingsPanel />
   if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'scheduler') return <SchedulerPanel />
@@ -126,7 +123,6 @@ if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'automation') return <AutomationPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
-  if (selected.kind === 'spotify') return <SpotifyPanel />
   if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
   if (selected.kind === 'media-gallery')     return <MediaLibraryPanel tab="catalog" />
   if (selected.kind === 'media-effects')     return <MediaLibraryPanel tab="events" />
@@ -152,15 +148,13 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
 { icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
   { icon: '🌌', label: 'Ambiance',           kind: 'ambiance' },
-  { icon: '📁', label: 'Archive',            kind: 'archive' },
   { icon: '🔊', label: 'Audio Engine',       kind: 'audio' },
   { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
   { icon: '⚙', label: 'Kernel Health',      kind: 'kernel-health' },
   { icon: '⚡', label: 'Wires',             kind: 'wires' },
   { icon: '🤖', label: 'Automation',        kind: 'automation' },
   { icon: '🎭', label: 'Show Sequencer',    kind: 'shows' },
-  { icon: '💬', label: 'Twitch Chat',       kind: 'twitch' },
-  { icon: '🎵', label: 'Spotify',           kind: 'spotify' },
+  { icon: '💬', label: 'Twitch Integration', kind: 'twitch' },
   { icon: '⚙', label: 'Settings',           kind: 'settings' },
 ]
 
@@ -233,7 +227,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'desktop-theme')     { headerIcon = '🎨'; headerLabel = 'Desktop Theme';  headerMeta = 'Utility' }
     else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
-    else if (selected.kind === 'archive')           { headerIcon = '📁'; headerLabel = 'Archive';        headerMeta = 'Utility' }
     else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
     else if (selected.kind === 'ambiance')          { headerIcon = '🌌'; headerLabel = 'Ambiance';       headerMeta = 'Engine' }
     else if (selected.kind === 'scheduler')         { headerIcon = '⏱';  headerLabel = 'Scheduler';      headerMeta = 'Engine' }
@@ -243,7 +236,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'automation')        { headerIcon = '🤖'; headerLabel = 'Automation';     headerMeta = 'Engine' }
     else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
     else if (selected.kind === 'shows')             { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
-    else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Chat';    headerMeta = 'Engine' }
+    else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Integration'; headerMeta = 'Engine' }
     else {
       const mediaTab = MEDIA_TABS.find((t) => t.kind === selected.kind)
       if (mediaTab) { headerIcon = mediaTab.icon; headerLabel = mediaTab.label; headerMeta = 'Media Library' }
@@ -253,7 +246,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   // ── Shared section sidebars ───────────────────────────────────────
   const systemSidebar = activeSection === 'system' ? (
     <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
-      <SectionLabel first>System</SectionLabel>
+      <SectionLabel first>Manager</SectionLabel>
       {SYSTEM_ITEMS.map(({ icon, label, kind }) => (
         <SidebarBtn key={kind} icon={icon} label={label}
           active={selected?.kind === kind}

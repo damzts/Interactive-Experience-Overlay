@@ -71,7 +71,6 @@ const PROTECTED_PREFIXES = [
   '/api/config',
   '/api/assets',
   '/api/upload',
-  '/api/archive',
   '/api/pov',
   '/api/online',
 ]

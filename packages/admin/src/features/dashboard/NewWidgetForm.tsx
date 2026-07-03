@@ -119,7 +119,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
           {widgetComponent === 'source' && (
             <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
               {firstSourceReference
-                ? `Initial binding will use ${firstSourceReference.sceneId} / ${firstSourceReference.sourceId}. You can change this immediately after creation.`
+                ? `Initial binding will use ${firstSourceReference.sceneId} / ${firstSourceReference.windowId}. You can change this immediately after creation.`
                 : 'No scene sources are available yet. The widget will still be created, but you will need to bind it to a source from the widget editor later.'}
             </div>
           )}

@@ -347,81 +347,91 @@ export interface AudioSfxConfig {
   volume?: number
 }
 
+// ── Effect chaining ──────────────────────────────────────────────
+
+export interface EffectChain {
+  /** Probability 0–1 that the chained effect fires once this effect fires. */
+  chance: number
+  /** The effect to conditionally trigger. */
+  effect: EffectConfig
+}
+
 // ── Discriminated union ─────────────────────────────────────────
 // delay?: seconds before this effect fires within the stack (default 0)
+// chain?: on fire, roll against chain.chance to also trigger chain.effect
 
 export type EffectConfig =
-  | { type: 'desktop-notification'; cfg: DesktopNotificationEffectConfig; delay?: number; sfx?: string }
-  | { type: 'notification-box'; cfg: NotificationBoxConfig; delay?: number; sfx?: string }
-  | { type: 'terminal-toast';   cfg: TerminalToastConfig;   delay?: number; sfx?: string }
-  | { type: 'floaties';         cfg: FloatiesConfig;        delay?: number; sfx?: string }
-  | { type: 'corruption-burst'; cfg: CorruptionBurstConfig; delay?: number; sfx?: string }
-  | { type: 'network-glitch';   cfg: NetworkGlitchConfig;   delay?: number; sfx?: string }
-  | { type: 'vignette-pulse';   cfg: VignettePulseConfig;   delay?: number; sfx?: string }
-  | { type: 'screen-shake';     cfg: ScreenShakeConfig;     delay?: number; sfx?: string }
-  | { type: 'typewriter';       cfg: TypewriterConfig;      delay?: number; sfx?: string }
-  | { type: 'static-burst';     cfg: StaticBurstConfig;     delay?: number; sfx?: string }
-  | { type: 'image-overlay';    cfg: ImageOverlayConfig;    delay?: number; sfx?: string }
-  | { type: 'video-overlay';    cfg: VideoOverlayConfig;    delay?: number; sfx?: string }
-  | { type: 'death-overlay';    cfg: DeathOverlayConfig;    delay?: number; sfx?: string }
-  | { type: 'victory-overlay';  cfg: VictoryOverlayConfig;  delay?: number; sfx?: string }
-  | { type: 'revive-overlay';   cfg: ReviveOverlayConfig;   delay?: number; sfx?: string }
-  | { type: 'achievement-unlock'; cfg: AchievementUnlockConfig; delay?: number; sfx?: string }
-  | { type: 'system-alert';     cfg: SystemAlertConfig;     delay?: number; sfx?: string }
-  | { type: 'error-dialog';     cfg: ErrorDialogConfig;     delay?: number; sfx?: string }
-  | { type: 'friend-join';      cfg: FriendJoinConfig;      delay?: number; sfx?: string }
-  | { type: 'vhs-glitch';       cfg: VhsGlitchConfig;       delay?: number; sfx?: string }
-  | { type: 'scan-lines-sweep'; cfg: ScanLinesSweepConfig;  delay?: number; sfx?: string }
-  | { type: 'neon-glow';        cfg: NeonGlowConfig;        delay?: number; sfx?: string }
-  | { type: 'chromatic-aberration'; cfg: ChromaticAberrationConfig; delay?: number; sfx?: string }
-  | { type: 'film-burn';        cfg: FilmBurnConfig;        delay?: number; sfx?: string }
-  | { type: 'tv-off';           cfg: TvOffConfig;           delay?: number; sfx?: string }
-  | { type: 'blue-screen';      cfg: BlueScreenConfig;      delay?: number; sfx?: string }
-  | { type: 'pixel-transition'; cfg: PixelTransitionConfig; delay?: number; sfx?: string }
-  | { type: 'dial-up-connect';  cfg: DialUpConnectConfig;   delay?: number; sfx?: string }
-  | { type: 'confetti-burst';   cfg: ConfettiBurstConfig;   delay?: number; sfx?: string }
-  | { type: 'xp-gain';          cfg: XpGainConfig;          delay?: number; sfx?: string }
-  | { type: 'fireworks';        cfg: FireworksConfig;       delay?: number; sfx?: string }
-  | { type: 'dvd-bounce';       cfg: DvdBounceConfig;       delay?: number; sfx?: string }
-  | { type: 'level-up';         cfg: LevelUpConfig;         delay?: number; sfx?: string }
-  | { type: 'audio-sfx';        cfg: AudioSfxConfig;        delay?: number; sfx?: string }
+  | { type: 'desktop-notification'; cfg: DesktopNotificationEffectConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'notification-box'; cfg: NotificationBoxConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'terminal-toast';   cfg: TerminalToastConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'floaties';         cfg: FloatiesConfig;        delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'corruption-burst'; cfg: CorruptionBurstConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'network-glitch';   cfg: NetworkGlitchConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'vignette-pulse';   cfg: VignettePulseConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'screen-shake';     cfg: ScreenShakeConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'typewriter';       cfg: TypewriterConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'static-burst';     cfg: StaticBurstConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'image-overlay';    cfg: ImageOverlayConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'video-overlay';    cfg: VideoOverlayConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'death-overlay';    cfg: DeathOverlayConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'victory-overlay';  cfg: VictoryOverlayConfig;  delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'revive-overlay';   cfg: ReviveOverlayConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'achievement-unlock'; cfg: AchievementUnlockConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'system-alert';     cfg: SystemAlertConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'error-dialog';     cfg: ErrorDialogConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'friend-join';      cfg: FriendJoinConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'vhs-glitch';       cfg: VhsGlitchConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'scan-lines-sweep'; cfg: ScanLinesSweepConfig;  delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'neon-glow';        cfg: NeonGlowConfig;        delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'chromatic-aberration'; cfg: ChromaticAberrationConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'film-burn';        cfg: FilmBurnConfig;        delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'tv-off';           cfg: TvOffConfig;           delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'blue-screen';      cfg: BlueScreenConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'pixel-transition'; cfg: PixelTransitionConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'dial-up-connect';  cfg: DialUpConnectConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'confetti-burst';   cfg: ConfettiBurstConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'xp-gain';          cfg: XpGainConfig;          delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'fireworks';        cfg: FireworksConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'dvd-bounce';       cfg: DvdBounceConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'level-up';         cfg: LevelUpConfig;         delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'audio-sfx';        cfg: AudioSfxConfig;        delay?: number; sfx?: string; chain?: EffectChain }
   // ── Stream personality ──────────────────────────────────────────
-  | { type: 'cinema-moment';    cfg: CinemaMomentConfig;    delay?: number; sfx?: string }
-  | { type: 'chapter-reveal';   cfg: ChapterRevealConfig;   delay?: number; sfx?: string }
-  | { type: 'clip-that';        cfg: ClipThatConfig;        delay?: number; sfx?: string }
-  | { type: 'persona-shift';    cfg: PersonaShiftConfig;    delay?: number; sfx?: string }
-  | { type: 'moment-marker';    cfg: MomentMarkerConfig;    delay?: number; sfx?: string }
-  | { type: 'crowd-roar';       cfg: CrowdRoarConfig;       delay?: number; sfx?: string }
-  | { type: 'intermission';     cfg: IntermissionConfig;    delay?: number; sfx?: string }
-  | { type: 'shockwave';        cfg: ShockwaveConfig;       delay?: number; sfx?: string }
-  | { type: 'hype-pulse';       cfg: HypePulseConfig;       delay?: number; sfx?: string }
-  | { type: 'countdown-burst';  cfg: CountdownBurstConfig;  delay?: number; sfx?: string }
-  | { type: 'spotlight';        cfg: SpotlightConfig;       delay?: number; sfx?: string }
-  | { type: 'chat-bubble';      cfg: ChatBubbleConfig;      delay?: number; sfx?: string }
+  | { type: 'cinema-moment';    cfg: CinemaMomentConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'chapter-reveal';   cfg: ChapterRevealConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'clip-that';        cfg: ClipThatConfig;        delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'persona-shift';    cfg: PersonaShiftConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'moment-marker';    cfg: MomentMarkerConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'crowd-roar';       cfg: CrowdRoarConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'intermission';     cfg: IntermissionConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'shockwave';        cfg: ShockwaveConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'hype-pulse';       cfg: HypePulseConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'countdown-burst';  cfg: CountdownBurstConfig;  delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'spotlight';        cfg: SpotlightConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'chat-bubble';      cfg: ChatBubbleConfig;      delay?: number; sfx?: string; chain?: EffectChain }
   // ── 2000s Internet Nostalgia ──────────────────────────────────
-  | { type: 'aim-message';      cfg: AimMessageConfig;      delay?: number; sfx?: string }
-  | { type: 'msn-nudge';        cfg: MsnNudgeConfig;        delay?: number; sfx?: string }
-  | { type: 'xp-balloon';       cfg: XpBalloonConfig;       delay?: number; sfx?: string }
-  | { type: 'geocities-alert';  cfg: GeoAimAlertConfig;     delay?: number; sfx?: string }
-  | { type: 'buffering';        cfg: BufferingConfig;       delay?: number; sfx?: string }
-  | { type: 'winamp-skip';      cfg: WinampSkipConfig;      delay?: number; sfx?: string }
-  | { type: 'email-alert';      cfg: EmailAlertConfig;      delay?: number; sfx?: string }
+  | { type: 'aim-message';      cfg: AimMessageConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'msn-nudge';        cfg: MsnNudgeConfig;        delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'xp-balloon';       cfg: XpBalloonConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'geocities-alert';  cfg: GeoAimAlertConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'buffering';        cfg: BufferingConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'winamp-skip';      cfg: WinampSkipConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'email-alert';      cfg: EmailAlertConfig;      delay?: number; sfx?: string; chain?: EffectChain }
   // ── Anime ─────────────────────────────────────────────────────
-  | { type: 'speed-lines';      cfg: SpeedLinesConfig;      delay?: number; sfx?: string }
-  | { type: 'impact-frame';     cfg: ImpactFrameConfig;     delay?: number; sfx?: string }
-  | { type: 'power-up-aura';    cfg: PowerUpAuraConfig;     delay?: number; sfx?: string }
-  | { type: 'to-be-continued';  cfg: ToBeContinuedConfig;   delay?: number; sfx?: string }
-  | { type: 'screentone-wipe';  cfg: ScreentoneWipeConfig;  delay?: number; sfx?: string }
-  | { type: 'sweat-drop';       cfg: SweatDropConfig;       delay?: number; sfx?: string }
-  | { type: 'dramatic-zoom';    cfg: DramaticZoomConfig;    delay?: number; sfx?: string }
+  | { type: 'speed-lines';      cfg: SpeedLinesConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'impact-frame';     cfg: ImpactFrameConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'power-up-aura';    cfg: PowerUpAuraConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'to-be-continued';  cfg: ToBeContinuedConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'screentone-wipe';  cfg: ScreentoneWipeConfig;  delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'sweat-drop';       cfg: SweatDropConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'dramatic-zoom';    cfg: DramaticZoomConfig;    delay?: number; sfx?: string; chain?: EffectChain }
   // ── MMORPG / Retro-Futurist ──────────────────────────────────────
-  | { type: 'item-pickup';      cfg: ItemPickupConfig;      delay?: number; sfx?: string }
-  | { type: 'quest-complete';   cfg: QuestCompleteConfig;   delay?: number; sfx?: string }
-  | { type: 'critical-hit';     cfg: CriticalHitConfig;     delay?: number; sfx?: string }
-  | { type: 'boss-warning';     cfg: BossWarningConfig;     delay?: number; sfx?: string }
-  | { type: 'combo-multiplier'; cfg: ComboMultiplierConfig; delay?: number; sfx?: string }
-  | { type: 'game-over-effect'; cfg: GameOverEffectConfig;  delay?: number; sfx?: string }
-  | { type: 'matrix-glitch';    cfg: MatrixGlitchConfig;    delay?: number; sfx?: string }
+  | { type: 'item-pickup';      cfg: ItemPickupConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'quest-complete';   cfg: QuestCompleteConfig;   delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'critical-hit';     cfg: CriticalHitConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'boss-warning';     cfg: BossWarningConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'combo-multiplier'; cfg: ComboMultiplierConfig; delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'game-over-effect'; cfg: GameOverEffectConfig;  delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'matrix-glitch';    cfg: MatrixGlitchConfig;    delay?: number; sfx?: string; chain?: EffectChain }
 
 // ── Stream personality effect configs ───────────────────────────
 

@@ -5,8 +5,8 @@ import { Button } from '../../components/atoms';
 /**
  * WelcomeTour — Multi-step onboarding overlay for first-time admin users.
  *
- * Displays a 4-step guided tour highlighting the main UI areas:
- * Sidebar Navigation, Content Area, Top Bar, and Quick Actions.
+ * Displays a 3-step guided tour highlighting the main UI areas:
+ * Top Bar Navigation, Content Area, and Quick Actions.
  * Each step shows a tooltip card with title, description, step indicator,
  * and navigation buttons. A semi-transparent backdrop with a pulsing
  * spotlight outline draws attention to the described region.
@@ -36,11 +36,11 @@ interface TourStep {
 
 const TOUR_STEPS: TourStep[] = [
   {
-    title: 'Sidebar Navigation',
+    title: 'Top Bar Navigation',
     description:
-      'Browse all sections from here. Collapse it for more space or expand for full labels.',
-    target: '[data-tour="sidebar"]',
-    position: 'right',
+      'Browse all sections from the top bar — Dashboard, Scenes, Widgets, Media, and Manager.',
+    target: '[data-tour="topbar"]',
+    position: 'bottom',
   },
   {
     title: 'Content Area',
@@ -48,13 +48,6 @@ const TOUR_STEPS: TourStep[] = [
       'This is where your configurations and panels are displayed. Each section opens here.',
     target: '[data-tour="content"]',
     position: 'center',
-  },
-  {
-    title: 'Top Bar',
-    description:
-      'Access search, breadcrumbs, and global controls from the top bar.',
-    target: '[data-tour="topbar"]',
-    position: 'bottom',
   },
   {
     title: 'Quick Actions',

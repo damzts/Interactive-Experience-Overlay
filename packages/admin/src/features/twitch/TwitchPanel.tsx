@@ -88,7 +88,6 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
     let blank: EventAction
     if (kind === 'widget-command') blank = { kind, widgetId: applications[0]?.id ?? '', action: 'toggle' }
     else if (kind === 'scene-change') blank = { kind, target: userScenes[0]?.id ?? '' }
-    else if (kind === 'spotify-control') blank = { kind, command: 'play-pause' }
     else blank = { kind: 'transition', transitionId: 'fade' }
     onChange({ actions: [...actions, blank] })
   }
@@ -165,19 +164,6 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
               <button type="button" onClick={() => removeAction(i)} className="text-zinc-600 hover:text-red-400 transition-colors text-xs">✕</button>
             </div>
           )}
-          {action.kind === 'spotify-control' && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-zinc-500 shrink-0">Spotify</span>
-              <select value={action.command} onChange={(e) => updateAction(i, { command: e.target.value as typeof action.command } as Partial<EventAction>)}
-                className="flex-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
-                <option value="play-pause">Play / Pause</option>
-                <option value="next">Next track</option>
-                <option value="prev">Previous track</option>
-                <option value="stop">Stop</option>
-              </select>
-              <button type="button" onClick={() => removeAction(i)} className="text-zinc-600 hover:text-red-400 transition-colors text-xs">✕</button>
-            </div>
-          )}
         </div>
       ))}
 
@@ -202,10 +188,6 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
         <button type="button" onClick={() => addAction('transition')}
           className="rounded-full border border-zinc-700/60 bg-zinc-900/60 px-2.5 py-1 text-[10px] font-semibold text-zinc-400 transition hover:border-cyan-400/40 hover:text-cyan-200">
           + Transition
-        </button>
-        <button type="button" onClick={() => addAction('spotify-control')}
-          className="rounded-full border border-zinc-700/60 bg-zinc-900/60 px-2.5 py-1 text-[10px] font-semibold text-zinc-400 transition hover:border-emerald-400/40 hover:text-emerald-300">
-          + Spotify
         </button>
       </div>
     </div>

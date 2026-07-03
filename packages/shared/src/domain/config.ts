@@ -57,26 +57,12 @@ export interface AppConfig {
   widgetWires?: WidgetWire[]
   /** Scripted show sequences (Show Sequencer → shows table) */
   shows?: ShowDefinition[]
-  /** Twitch connection config (TwitchManager → twitch_config table) */
+  /** Twitch connection config (TwitchIntegrationManager → twitch_config table) */
   twitch?: TwitchConfig
   /** Ambient random effect loop config (EffectAmbianceManager) */
   effectAmbiance?: EffectAmbianceConfig
   /** Chat reaction rules (ChatReactionManager → chat_reactions table) */
   chatReactions?: ChatReactionRule[]
-  /** Spotify embedded playlists */
-  spotify?: SpotifyConfig
-}
-
-// ── Spotify config ───────────────────────────────────────────────
-
-export interface SpotifyPlaylist {
-  id: string
-  name: string
-}
-
-export interface SpotifyConfig {
-  playlists: SpotifyPlaylist[]
-  activePlaylistId?: string
 }
 
 // ── Twitch config ────────────────────────────────────────────────

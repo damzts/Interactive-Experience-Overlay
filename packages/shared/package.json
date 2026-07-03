@@ -25,6 +25,8 @@
     "dev": "tsc --watch",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "vitest --run",
+    "test:watch": "vitest",
     "prepublishOnly": "pnpm build"
   },
   "keywords": [
@@ -47,6 +49,7 @@
     "url": "https://github.com/damzts/Interactive-Experience-Overlay/issues"
   },
   "devDependencies": {
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.2",
+    "vitest": "^2.1.9"
   }
 }

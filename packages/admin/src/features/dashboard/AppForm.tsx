@@ -11,6 +11,7 @@ import type {
   Application,
   AppConfig,
   DesktopConfig,
+  WidgetSkinTheme,
   WidgetThemeConfig,
 } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
@@ -490,7 +491,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
               <select
                 value={widgetTheme.skin}
                 onChange={(e) => {
-                  setWidgetTheme(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[e.target.value]))
+                  setWidgetTheme(structuredClone(DEFAULT_WIDGET_THEME_PRESETS[e.target.value as WidgetSkinTheme]))
                   setSaved(false)
                 }}
                 className="w-full text-xs"

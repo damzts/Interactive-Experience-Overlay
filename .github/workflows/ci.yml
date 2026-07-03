@@ -45,9 +45,11 @@ jobs:
           pnpm --filter @ieomlabs/shared typecheck
           pnpm --filter @ieom/server typecheck
           pnpm --filter @ieom/overlay typecheck
+          pnpm --filter @ieom/admin typecheck
           pnpm --filter @ieom/desktop typecheck
 
-      - name: Run tests (server + desktop)
+      - name: Run tests (shared + server + desktop)
         run: |
+          pnpm --filter @ieomlabs/shared test
           pnpm --filter @ieom/server test run
           pnpm --filter @ieom/desktop test

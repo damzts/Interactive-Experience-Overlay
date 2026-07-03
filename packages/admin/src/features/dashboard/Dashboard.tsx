@@ -6,23 +6,21 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { useAuth } from '../../auth/AuthContext'
 import { provideAuthToken } from '../../api/roomApi'
 import { LoginModal } from '../../auth/LoginModal'
-import { Sidebar as LeftSidebar, TopBar as NewTopBar } from '../../components/organisms'
-import type { SidebarSection } from '../../components/organisms'
+import { TopBar as NewTopBar } from '../../components/organisms'
+import type { TopBarNavSection } from '../../components/organisms'
 import { DashboardContainer } from './DashboardContainer'
-import { useSidebarPersistence } from '../../hooks/useSidebarPersistence'
-import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { RightPane } from './RightPane'
 import type { SelectedItem } from './types'
 import { itemKey } from './types'
 
-// ── Navigation sections for the new Sidebar ────────────────────────────────
+// ── Navigation sections for the TopBar ──────────────────────────────────────
 
-const NAV_SECTIONS: SidebarSection[] = [
+const NAV_SECTIONS: TopBarNavSection[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'scenes', label: 'Scenes', icon: Monitor },
   { id: 'widgets', label: 'Widgets', icon: Layers },
   { id: 'media', label: 'Media', icon: Image },
-  { id: 'system', label: 'System', icon: Settings },
+  { id: 'system', label: 'Manager', icon: Settings },
 ]
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -35,8 +33,6 @@ export function Dashboard() {
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
 
   // ─── New layout state ───
-  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarPersistence()
-  const { isMobile } = useBreakpoint()
   const [activeSection, setActiveSection] = useState('dashboard')
 
   const { user, isLoginModalOpen, closeLoginModal } = useAuth()
@@ -47,16 +43,6 @@ export function Dashboard() {
   useEffect(() => {
     provideAuthToken().catch(() => {})
   }, [])
-
-  // ─── Auto-collapse sidebar on mobile ───
-  useEffect(() => {
-    if (isMobile && !sidebarCollapsed) {
-      setSidebarCollapsed(true)
-    }
-  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Sidebar width for layout ───
-  const sidebarWidth = sidebarCollapsed ? 48 : 240
 
   // ─── Existing handlers (preserved) ───
 
@@ -96,16 +82,12 @@ export function Dashboard() {
     }
   }
 
-  // ─── New sidebar navigation handler ───
+  // ─── Top bar navigation handler ───
 
   const handleNavigate = useCallback((section: string) => {
     setActiveSection(section)
     setSelected(section === 'media' ? { kind: 'media-gallery' } : null)
   }, [])
-
-  const handleSidebarToggle = useCallback(() => {
-    setSidebarCollapsed(!sidebarCollapsed)
-  }, [sidebarCollapsed, setSidebarCollapsed])
 
   // ─── Determine whether to show the dashboard overview or the existing content ───
   const showDashboard = activeSection === 'dashboard'
@@ -115,28 +97,20 @@ export function Dashboard() {
       className="h-screen overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)]"
       data-tour="dashboard-root"
     >
-      {/* ─── New Design System Sidebar (fixed left) ─── */}
-      <LeftSidebar
-        collapsed={sidebarCollapsed}
-        onToggle={handleSidebarToggle}
-        activeSection={activeSection}
-        onNavigate={handleNavigate}
-        sections={NAV_SECTIONS}
-      />
-
       {/* ─── Login modal overlay (not a navigation) ─── */}
       <LoginModal open={isLoginModalOpen} onClose={closeLoginModal} />
 
-      {/* ─── New Design System TopBar (fixed top, offset by sidebar) ─── */}
+      {/* ─── TopBar: logo + horizontal nav + status/search/avatar ─── */}
       <NewTopBar
         userName={user?.name ?? 'Admin'}
-        style={{ left: `${sidebarWidth}px`, transition: 'left 250ms cubic-bezier(0, 0, 0.2, 1)' }}
+        sections={NAV_SECTIONS}
+        activeSection={activeSection}
+        onNavigate={handleNavigate}
       />
 
-      {/* ─── Main content area (offset by sidebar + topbar) ─── */}
+      {/* ─── Main content area (offset by topbar only) ─── */}
       <div
-        className="absolute top-14 bottom-0 right-0 overflow-hidden"
-        style={{ left: `${sidebarWidth}px`, transition: 'left 250ms cubic-bezier(0, 0, 0.2, 1)' }}
+        className="absolute top-14 bottom-0 left-0 right-0 overflow-hidden"
         data-tour="main-content"
       >
         {showDashboard ? (

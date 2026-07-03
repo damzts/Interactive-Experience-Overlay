@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { SidebarSection } from '../components/organisms';
+import type { NavSection } from './useSearch';
 import { useSearch } from './useSearch';
 
 /**
@@ -36,7 +36,7 @@ import { useSearch } from './useSearch';
  * ```
  */
 export function useCommandPalette(params: {
-  sections: SidebarSection[];
+  sections: NavSection[];
   onNavigate: (id: string) => void;
 }) {
   const { sections, onNavigate } = params;

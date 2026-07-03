@@ -135,7 +135,6 @@ export interface SceneDefaultSnapshot {
   lobbyConfig?: LobbyConfig
   onEntry?: string[]
   onExit?: string[]
-  musicTrack?: string
   ambientTrack?: string
 }
 
@@ -167,10 +166,8 @@ export interface Scene {
   onEntry?: string[]
   /** Ordered list of named transition IDs to play when leaving this scene. */
   onExit?: string[]
-  /** Background music track URL to play when this scene is active. */
-  musicTrack?: string
   /** Independent ambient audio track URL (crowd noise, room tone, etc.).
-   *  Persists across scene musicTrack changes — only replaced when ambientTrack itself changes. */
+   *  Persists across scene changes — only replaced when ambientTrack itself changes. */
   ambientTrack?: string
   /** Show the Win98 desktop layer while this scene is active. Default: false */
   showDesktop?: boolean

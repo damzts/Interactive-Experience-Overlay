@@ -11,8 +11,9 @@ import { socket } from '../../socket/client'
 import { encodeMediaTransitionValue, strToStep } from '../../shared/transitionLibrary'
 import { useMediaLibrary } from './MediaLibraryContext'
 import type { MediaLibraryTab } from './MediaLibraryContext'
-import { SidebarBtn, SectionLabel, MediaSection } from '../dashboard/NavListBox'
+import { SidebarBtn, SectionLabel } from '../dashboard/NavListBox'
 import { ConfigNotice } from '../../shared/ui'
+import type { MediaRecord } from '../../shared/catalog'
 
 // ── Library tab metadata ───────────────────────────────────────────
 
@@ -46,50 +47,130 @@ export function MediaSearchInput({
   )
 }
 
-// ── Catalog tab sidebar ────────────────────────────────────────────
+// ── Catalog tab: thumbnail grid ─────────────────────────────────────
+// The Gallery tab gets its own full-width grid layout (instead of the
+// narrow list + big-detail-card pattern the other tabs use) so assets
+// are visually scannable at a glance.
 
-function CatalogTabSidebar() {
+function CatalogThumb({ asset, selected, onSelect }: { asset: MediaRecord; selected: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      title={asset.name}
+      className={
+        'group relative flex aspect-square flex-col overflow-hidden rounded-lg border transition-colors ' +
+        (selected ? 'border-cyan-400/60 ring-1 ring-cyan-400/40' : 'border-zinc-800/70 hover:border-zinc-600')
+      }
+    >
+      <div className="flex flex-1 items-center justify-center overflow-hidden bg-zinc-950">
+        {asset.kind === 'image' && (
+          <img src={asset.url} alt={asset.name} className="h-full w-full object-cover" loading="lazy" />
+        )}
+        {asset.kind === 'video' && (
+          <video src={asset.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+        )}
+        {asset.kind === 'audio' && (
+          <span
+            role="button"
+            tabIndex={0}
+            title="Preview sound"
+            onClick={(event) => {
+              event.stopPropagation()
+              const audio = new Audio(asset.url)
+              audio.volume = 0.5
+              audio.play().catch(() => {})
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.stopPropagation()
+              const audio = new Audio(asset.url)
+              audio.volume = 0.5
+              audio.play().catch(() => {})
+            }}
+            className="text-2xl text-zinc-400 transition-colors hover:text-cyan-300"
+          >
+            ▶
+          </span>
+        )}
+      </div>
+      <div className="truncate bg-black/60 px-1.5 py-1 text-left text-[10px] text-zinc-300">{asset.name}</div>
+    </button>
+  )
+}
+
+function CatalogGridView() {
   const {
     catalogSearch, setCatalogSearch,
     catalogKindFilter, setCatalogKindFilter,
     catalogFolderGroups, catalogLoading, catalogError,
     selectedCatalogAsset, setSelectedCatalogAssetId,
+    refreshCatalog, handleDeleteCatalogAsset,
   } = useMediaLibrary()
 
+  const allAssets = catalogFolderGroups.flatMap((group) => group.items)
+
   return (
-    <>
-      <MediaSearchInput value={catalogSearch} onChange={setCatalogSearch} placeholder="Search assets…" />
-      <div className="flex flex-wrap gap-1">
-        {(['all', 'image', 'video', 'audio'] as const).map((kind) => (
-          <Button
-            key={kind}
-            type="button"
-            variant={catalogKindFilter === kind ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setCatalogKindFilter(kind)}
-            className="px-2 py-0.5 text-[10px] uppercase tracking-wide"
-          >
-            {kind}
-          </Button>
-        ))}
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="min-w-[200px] flex-1">
+          <MediaSearchInput value={catalogSearch} onChange={setCatalogSearch} placeholder="Search assets…" />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(['all', 'image', 'video', 'audio'] as const).map((kind) => (
+            <Button
+              key={kind}
+              type="button"
+              variant={catalogKindFilter === kind ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setCatalogKindFilter(kind)}
+              className="px-2 py-0.5 text-[10px] uppercase tracking-wide"
+            >
+              {kind}
+            </Button>
+          ))}
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => void refreshCatalog()}>Refresh</Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {catalogError && <div className="px-1 text-[10px] text-red-400">{catalogError}</div>}
+
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        {catalogError && <div className="px-1 pb-2 text-[10px] text-red-400">{catalogError}</div>}
         {catalogLoading && <div className="px-1 text-[10px] text-zinc-500">Loading…</div>}
-        {!catalogLoading && catalogFolderGroups.length === 0 && (
-          <div className="px-1 text-[10px] text-zinc-600">No assets match this filter.</div>
+        {!catalogLoading && allAssets.length === 0 && (
+          <ConfigNotice tone="info" className="py-8 text-center">No assets match this filter.</ConfigNotice>
         )}
-        {catalogFolderGroups.map((group) => (
-          <MediaSection
-            key={group.folder}
-            title={group.folder}
-            items={group.items}
-            selectedId={selectedCatalogAsset?.id}
-            onSelect={(asset) => setSelectedCatalogAssetId(asset.id)}
-          />
-        ))}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2">
+          {allAssets.map((asset) => (
+            <CatalogThumb
+              key={asset.id}
+              asset={asset}
+              selected={selectedCatalogAsset?.id === asset.id}
+              onSelect={() => setSelectedCatalogAssetId(selectedCatalogAsset?.id === asset.id ? null : asset.id)}
+            />
+          ))}
+        </div>
       </div>
-    </>
+
+      {selectedCatalogAsset && (
+        <Card variant="elevated" padding="sm" className="flex shrink-0 flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{selectedCatalogAsset.name}</div>
+            <div className="truncate text-[10px] text-[var(--color-text-muted)]">
+              {selectedCatalogAsset.folder} · {selectedCatalogAsset.kind} · {selectedCatalogAsset.source}
+            </div>
+          </div>
+          {selectedCatalogAsset.kind === 'audio' && (
+            <audio src={selectedCatalogAsset.url} controls className="h-8 max-w-[220px]" preload="metadata" />
+          )}
+          {(selectedCatalogAsset.source === 'saved' || selectedCatalogAsset.source === 'filesystem') && (
+            <Button type="button" variant="danger" size="sm" onClick={() => { void handleDeleteCatalogAsset(selectedCatalogAsset) }}>
+              Delete
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedCatalogAssetId(null)}>✕</Button>
+        </Card>
+      )}
+    </div>
   )
 }
 
@@ -143,7 +224,6 @@ function MediaLibrarySidebar() {
 
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-      {tab === 'catalog'     && <CatalogTabSidebar />}
       {tab === 'events'      && (
         <EventsTabSidebar
           eventSearch={eventSearch}
@@ -173,7 +253,6 @@ function MediaLibrarySidebar() {
 export function MediaLibraryContent() {
   const {
     tab,
-    selectedCatalogAsset, refreshCatalog, handleDeleteCatalogAsset,
     editingEvent, eventDraftOriginalId, createEventDraft, patchEventDraft,
     saveEventDraft, deleteEventDraft, handleTriggerEvent,
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId, sourceDraftCreatesNewPreset,
@@ -185,59 +264,6 @@ export function MediaLibraryContent() {
 
   return (
     <div className="min-w-0 min-h-0 overflow-y-auto pr-1">
-
-      {/* ── Catalog ── */}
-      {tab === 'catalog' && (
-        <div className="space-y-4">
-          {selectedCatalogAsset ? (
-            <Card variant="elevated" padding="lg" className="space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="text-lg font-semibold text-[var(--color-text-primary)]">{selectedCatalogAsset.name}</div>
-                  <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">
-                    {selectedCatalogAsset.relativePath || selectedCatalogAsset.url}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="secondary" size="sm" onClick={() => void refreshCatalog()}>Refresh</Button>
-                  {(selectedCatalogAsset.source === 'saved' || selectedCatalogAsset.source === 'filesystem') && (
-                    <Button type="button" variant="danger" size="sm" onClick={() => { void handleDeleteCatalogAsset(selectedCatalogAsset) }}>
-                      Delete
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_320px]">
-                <div className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/70 p-4">
-                  {selectedCatalogAsset.kind === 'image' && (
-                    <img src={selectedCatalogAsset.url} alt={selectedCatalogAsset.name} className="max-h-[70vh] w-full object-contain" />
-                  )}
-                  {selectedCatalogAsset.kind === 'video' && (
-                    <video src={selectedCatalogAsset.url} className="max-h-[70vh] w-full rounded-xl bg-black object-contain" controls muted playsInline preload="metadata" />
-                  )}
-                  {selectedCatalogAsset.kind === 'audio' && (
-                    <div className="w-full max-w-xl space-y-5 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)]/70 p-6 text-center">
-                      <div className="text-5xl">🎵</div>
-                      <div className="text-sm text-[var(--color-text-secondary)]">Audio preview</div>
-                      <audio src={selectedCatalogAsset.url} controls className="w-full" preload="metadata" />
-                    </div>
-                  )}
-                </div>
-                <Card variant="default" padding="md" className="space-y-3">
-                  <MetaRow label="Folder">{selectedCatalogAsset.folder}</MetaRow>
-                  <MetaRow label="Source">{selectedCatalogAsset.source}</MetaRow>
-                  <MetaRow label="Kind">{selectedCatalogAsset.kind}</MetaRow>
-                  <MetaRow label="URL">
-                    <span className="break-all font-mono text-xs text-[var(--color-text-secondary)]">{selectedCatalogAsset.url}</span>
-                  </MetaRow>
-                </Card>
-              </div>
-            </Card>
-          ) : (
-            <ConfigNotice tone="info" className="py-8 text-center">Select an asset from the left column to preview it.</ConfigNotice>
-          )}
-        </div>
-      )}
 
       {/* ── Events ── */}
       {tab === 'events' && (
@@ -405,10 +431,16 @@ function MediaLibraryPanelInner({ tab }: { tab: MediaLibraryTab }) {
           </button>
         ))}
       </div>
-      <div className="grid flex-1 min-h-0 gap-5 grid-cols-[220px_minmax(0,1fr)] pt-4">
-        <MediaLibrarySidebar />
-        <MediaLibraryContent />
-      </div>
+      {activeTab === 'catalog' ? (
+        <div className="flex-1 min-h-0 pt-4">
+          <CatalogGridView />
+        </div>
+      ) : (
+        <div className="grid flex-1 min-h-0 gap-5 grid-cols-[220px_minmax(0,1fr)] pt-4">
+          <MediaLibrarySidebar />
+          <MediaLibraryContent />
+        </div>
+      )}
     </div>
   )
 }

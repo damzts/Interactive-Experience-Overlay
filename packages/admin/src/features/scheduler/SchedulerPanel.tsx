@@ -7,7 +7,7 @@ import {
   ConfigCard, ConfigPageIntro, ConfigSectionPanel,
   Toggle, Slider, ConfigChoiceButton,
 } from '../../shared/ui'
-import { EFFECT_CATEGORIES, createEffectDraft } from '../asset-library/eventPresets'
+import { EFFECT_CATEGORIES, createEffectDraft } from '../media-library/eventPresets'
 
 // ── Helpers ────────────────────────────────────────────────────────
 

@@ -33,5 +33,7 @@ export const socket = io('/', {
 // calls socket.connect() once at boot), silently breaking all server events.
 // Any change to this file triggers a full page reload instead.
 if (import.meta.hot) {
-  import.meta.hot.decline()
+  import.meta.hot.accept(() => {
+    import.meta.hot?.invalidate()
+  })
 }

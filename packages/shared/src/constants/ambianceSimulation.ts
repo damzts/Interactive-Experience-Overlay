@@ -11,7 +11,6 @@ const MUSIC_ACTIONS = ['music:prev', 'music:play-pause', 'music:next'] as const
 const GALLERY_ACTIONS = ['gallery:previous', 'gallery:next', 'gallery:next'] as const
 
 export function getAmbianceInteractMirrorPolicy(widgetId: string): AmbianceMirrorPolicy {
-  if (widgetId === 'archive') return 'leader-only'
   if (widgetId === 'browser' || widgetId === 'gallery' || widgetId === 'music' || widgetId === 'chat' || widgetId === 'sticky-notes') {
     return 'shared-safe'
   }

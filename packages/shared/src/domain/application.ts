@@ -5,7 +5,7 @@ import type { Rect } from './geometry.js'
 export type WidgetLayoutSource = 'system' | 'user'
 
 export type WidgetComponentType =
-  | 'archive' | 'camera' | 'chat' | 'gallery' | 'music' | 'window'
+  | 'camera' | 'chat' | 'gallery' | 'music' | 'window'
   | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
   | 'playlist-deck' | 'net-meter' | 'cd-ripper' | 'signal-lab'
   | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'

@@ -41,7 +41,7 @@ export interface AmbianceHistoryEntry {
   message: string
   actionId?: string
   widgetId?: string
-  action?: 'open' | 'close' | 'interact'
+  action?: 'open' | 'close' | 'interact' | 'select'
   leaderSocketId?: string | null
 }
 
@@ -56,6 +56,10 @@ export interface ObsStatusPayload {
   streaming: boolean
   recording?: boolean
   overlaySourceAdded: boolean
+  /** Milliseconds between reconnect attempts; null when connected */
+  retryDelayMs?: number | null
+  /** Epoch ms of the next scheduled reconnect attempt; null when connected */
+  nextRetryAt?: number | null
 }
 
 // ── Scheduler diagnostics ─────────────────────────────────────────

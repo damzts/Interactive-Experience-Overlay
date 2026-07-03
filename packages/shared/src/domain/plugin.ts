@@ -267,19 +267,6 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
     ],
   },
   {
-    id: 'now-playing', label: 'Now Playing', icon: '🎵', category: 'overlay', defaultTier: 'content',
-    desc: 'Shows the current Spotify track from a runtime config signal',
-    defaultConfig: { showArtist: true, textColor: '#ffffff', accent: '#1db954', layout: 'compact', fontSize: 18, position: 'bottom-left' },
-    fields: [
-      { key: 'showArtist', label: 'Show Artist', type: 'boolean' },
-      { key: 'textColor', label: 'Text Color', type: 'color' },
-      { key: 'accent', label: 'Accent Color', type: 'color' },
-      { key: 'layout', label: 'Layout', type: 'select', options: ['compact', 'full'] },
-      { key: 'fontSize', label: 'Size', type: 'number', min: 8, max: 60, step: 1 },
-      { key: 'position', label: 'Position', type: 'select', options: ['top-left', 'top-right', 'bottom-left', 'bottom-right'] },
-    ],
-  },
-  {
     id: 'chat-simulator', label: 'Chat Simulator', icon: '💬', category: 'text', defaultTier: 'content',
     desc: 'Fake auto-scrolling chat feed for ambiance / vods',
     defaultConfig: { usernames: ['xX_Pro_Xx', 'gamer123', 'lurker99', 'StreamFan', 'NightOwl', 'Kappa', 'weirdChamp'], intervalMs: 2800, maxVisible: 8, bgColor: 'rgba(0,0,0,0.65)', fontSize: 14 },

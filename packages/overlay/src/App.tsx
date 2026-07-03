@@ -37,10 +37,6 @@ export default function App() {
   const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
 
   useEffect(() => {
-    audioEngine.playMusic(scene?.musicTrack ?? null)
-  }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
     audioEngine.playAmbient(scene?.ambientTrack ?? null)
   }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
 

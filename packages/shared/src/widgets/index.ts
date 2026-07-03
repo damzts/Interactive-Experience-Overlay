@@ -2,7 +2,6 @@ import type { WidgetDefinition } from '../contracts/widget.js'
 
 import { galleryDefinition } from './gallery/definition.js'
 import { musicDefinition } from './music/definition.js'
-import { archiveDefinition } from './archive/definition.js'
 import { stickyNotesDefinition } from './sticky-notes/definition.js'
 import { chatDefinition } from './chat/definition.js'
 import { cameraDefinition } from './camera/definition.js'
@@ -23,7 +22,6 @@ export type { WidgetDefinition }
 export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   galleryDefinition,
   musicDefinition,
-  archiveDefinition,
   stickyNotesDefinition,
   chatDefinition,
   cameraDefinition,

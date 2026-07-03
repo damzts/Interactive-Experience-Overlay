@@ -13,7 +13,6 @@ export type SelectedItem =
   | { kind: 'desktop-theme' }
   | { kind: 'audio' }
   | { kind: 'keybinds' }
-  | { kind: 'archive' }
   | { kind: 'settings' }
   | { kind: 'ambiance' }
   | { kind: 'scheduler' }
@@ -28,7 +27,6 @@ export type SelectedItem =
   | { kind: 'automation' }
   | { kind: 'shows' }
   | { kind: 'twitch' }
-  | { kind: 'spotify' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState

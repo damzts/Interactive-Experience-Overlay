@@ -50,7 +50,21 @@ function AssetPreview({ asset }: { asset: MediaRecord }) {
       {asset.kind === 'video' && (
         <video src={asset.url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
       )}
-      {asset.kind === 'audio' && <span className="text-lg">🎵</span>}
+      {asset.kind === 'audio' && (
+        <button
+          type="button"
+          title="Preview sound"
+          onClick={(event) => {
+            event.stopPropagation()
+            const audio = new Audio(asset.url)
+            audio.volume = 0.5
+            audio.play().catch(() => {})
+          }}
+          className="flex h-full w-full items-center justify-center text-lg text-zinc-300 transition-colors hover:text-cyan-300"
+        >
+          ▶
+        </button>
+      )}
     </div>
   )
 }
@@ -71,7 +85,15 @@ function AssetRow({
   return (
     <ConfigCard className={selected ? 'border-cyan-400/35 bg-cyan-500/10' : interactive ? 'hover:border-zinc-700/80 hover:bg-zinc-900/70' : ''}>
       {interactive ? (
-        <button type="button" onClick={() => onSelect?.(asset)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect?.(asset)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect?.(asset) }
+          }}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left cursor-pointer"
+        >
           <AssetPreview asset={asset} />
           <div className="min-w-0 flex-1">
             <div className="text-xs font-medium text-zinc-100 truncate">{asset.name}</div>
@@ -85,7 +107,7 @@ function AssetRow({
             </div>
           </div>
           <span className="shrink-0 text-[10px] text-cyan-400">Use</span>
-        </button>
+        </div>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <AssetPreview asset={asset} />

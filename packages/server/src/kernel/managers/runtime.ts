@@ -1,11 +1,11 @@
 import { STATE } from '@ieomlabs/shared'
-import type { Manager, ManagerStatus } from '@ieomlabs/shared'
+import type { Manager, ManagerStatus, DesktopStartMenuRoot } from '@ieomlabs/shared'
 
 export interface WidgetRuntimeState {
   openWidgetIds: ReadonlySet<string>
   recycleBinFull: boolean
   startMenuOpen: boolean
-  startMenuActiveRoot: 'programs' | 'widget-layouts' | null
+  startMenuActiveRoot: DesktopStartMenuRoot
 }
 
 export interface OverlayRuntimeState {
@@ -39,7 +39,7 @@ export class RuntimeStateStore implements Manager {
   private _openWidgetIds = new Set<string>()
   private _recycleBinFull = false
   private _startMenuOpen = false
-  private _startMenuActiveRoot: 'programs' | 'widget-layouts' | null = null
+  private _startMenuActiveRoot: DesktopStartMenuRoot = null
   private _acceptedSimulatedToggles = 0
   private _rejectedSimulatedToggles = 0
 
@@ -81,12 +81,12 @@ export class RuntimeStateStore implements Manager {
   setRecycleBinFull(v: boolean): void { this._recycleBinFull = v }
 
   get startMenuOpen(): boolean { return this._startMenuOpen }
-  get startMenuActiveRoot(): 'programs' | 'widget-layouts' | null { return this._startMenuActiveRoot }
+  get startMenuActiveRoot(): DesktopStartMenuRoot { return this._startMenuActiveRoot }
 
-  get startMenuState(): { open: boolean; activeRoot: 'programs' | 'widget-layouts' | null } {
+  get startMenuState(): { open: boolean; activeRoot: DesktopStartMenuRoot } {
     return { open: this._startMenuOpen, activeRoot: this._startMenuActiveRoot }
   }
-  setStartMenuState(open: boolean, activeRoot: 'programs' | 'widget-layouts' | null): void {
+  setStartMenuState(open: boolean, activeRoot: DesktopStartMenuRoot): void {
     this._startMenuOpen = open
     this._startMenuActiveRoot = open ? activeRoot : null
   }
