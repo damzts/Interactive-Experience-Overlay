@@ -328,6 +328,8 @@ export interface ServerToClientEvents {
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   /** Widget wire triggered a widget action */
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }) => void
+  /** Server-produced widget-style signal (signal:emit automation action) — overlay re-enters it on the DOM bus */
+  'widget:signal': (payload: { source: string; event: string; payload: unknown }) => void
   /** Twitch chat message received */
   'chat:message': (payload: ChatMessagePayload) => void
   /** Twitch chat connected to a channel */

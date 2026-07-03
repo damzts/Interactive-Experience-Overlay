@@ -35,7 +35,7 @@ import { SceneRepository } from '../../db/repositories/SceneRepository.js'
 import { WidgetRepository } from '../../db/repositories/WidgetRepository.js'
 import { EventRepository } from '../../db/repositories/EventRepository.js'
 import { ThemeRepository } from '../../db/repositories/ThemeRepository.js'
-import { WidgetWireRepository } from '../../db/repositories/WidgetWireRepository.js'
+import { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
 
 type DesktopDatabase = Database.Database
 
@@ -85,7 +85,6 @@ export interface IConfigService {
   upsertScene(scene: Scene): Promise<void>
   deleteScene(id: string): Promise<void>
   upsertApplication(app: Application): Promise<void>
-  routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }>
   onConfigUpdate(listener: (config: AppConfig) => void): void
   invalidateCache(): void
 }
@@ -105,7 +104,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   private readonly widgetRepo: WidgetRepository
   private readonly eventRepo: EventRepository
   private readonly themeRepo: ThemeRepository
-  readonly widgetWires: WidgetWireRepository
+  readonly automationRules: AutomationRuleRepository
 
   constructor(
     private db: DesktopDatabase,
@@ -116,7 +115,7 @@ export class DesktopConfigService implements Manager, IConfigService {
     this.widgetRepo = new WidgetRepository(db)
     this.eventRepo = new EventRepository(db)
     this.themeRepo = new ThemeRepository(db)
-    this.widgetWires = new WidgetWireRepository(db)
+    this.automationRules = new AutomationRuleRepository(db)
 
     // Ensure required tables exist
     this.db.exec(`
@@ -138,14 +137,6 @@ export class DesktopConfigService implements Manager, IConfigService {
         height REAL NOT NULL DEFAULT 300,
         focus_priority INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (layout_id, widget_id)
-      );
-      CREATE TABLE IF NOT EXISTS widget_wires (
-        id TEXT PRIMARY KEY,
-        trigger_widget_id TEXT NOT NULL,
-        trigger_event TEXT NOT NULL,
-        target_widget_id TEXT NOT NULL,
-        target_action TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 1
       )
     `)
 
@@ -163,16 +154,6 @@ export class DesktopConfigService implements Manager, IConfigService {
 
   invalidateCache(): void {
     this._cachedConfig = null
-  }
-
-  /**
-   * Route an incoming widget signal through the widget_wires table.
-   * Returns the list of target actions that were triggered.
-   */
-  routeWidgetSignal(source: string, event: string): Array<{ targetWidgetId: string; targetAction: string }> {
-    return this.widgetWires.list()
-      .filter((w) => w.enabled && w.triggerWidgetId === source && w.triggerEvent === event)
-      .map((w) => ({ targetWidgetId: w.targetWidgetId, targetAction: w.targetAction }))
   }
 
   async getForUser(_userId: string): Promise<AppConfig> {
@@ -278,7 +259,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       sourceMedia:      this.loadSourceMedia(),
       windowPresets:    this.loadWindowPresets(),
       sourceTransitions: this.loadSourceTransitions(),
-      widgetWires:      this.widgetWires.list(),
+      automationRules:  this.automationRules.list(),
       shows:            this.loadShows(),
       twitch:           this.loadTwitchConfig(),
       chatReactions:    this.loadChatReactions(),
@@ -310,10 +291,16 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private loadAudioConfig(): AppConfig['audio'] {
-    const row = this.db.prepare('SELECT * FROM audio_config WHERE id = 1').get() as { master_volume: number; sfx_volume: number; music_volume: number } | undefined
+    const row = this.db.prepare('SELECT * FROM audio_config WHERE id = 1').get() as {
+      master_volume: number; sfx_volume: number; music_volume: number;
+      ambient_track: string | null; ambient_volume: number | null;
+    } | undefined
     return row
-      ? { masterVolume: row.master_volume, sfxVolume: row.sfx_volume, musicVolume: row.music_volume }
-      : { masterVolume: 1, sfxVolume: 1, musicVolume: 0.7 }
+      ? {
+          masterVolume: row.master_volume, sfxVolume: row.sfx_volume, musicVolume: row.music_volume,
+          ambientTrack: row.ambient_track ?? '', ambientVolume: row.ambient_volume ?? 0.6,
+        }
+      : { masterVolume: 1, sfxVolume: 1, musicVolume: 0.7, ambientTrack: '', ambientVolume: 0.6 }
   }
 
   private loadSourceMedia() {
@@ -391,8 +378,8 @@ export class DesktopConfigService implements Manager, IConfigService {
   }
 
   private saveAudioConfig(audio: AppConfig['audio']): void {
-    this.db.prepare('INSERT OR REPLACE INTO audio_config (id, master_volume, sfx_volume, music_volume) VALUES (1, ?, ?, ?)')
-      .run(audio.masterVolume, audio.sfxVolume, audio.musicVolume)
+    this.db.prepare('INSERT OR REPLACE INTO audio_config (id, master_volume, sfx_volume, music_volume, ambient_track, ambient_volume) VALUES (1, ?, ?, ?, ?, ?)')
+      .run(audio.masterVolume, audio.sfxVolume, audio.musicVolume, audio.ambientTrack ?? null, audio.ambientVolume ?? null)
   }
 
   private saveSourceMedia(entries: NonNullable<AppConfig['sourceMedia']>): void {
@@ -561,7 +548,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       sourceMedia: next.sourceMedia ?? [],
       windowPresets: next.windowPresets ?? [],
       sourceTransitions: next.sourceTransitions ?? [],
-      widgetWires: next.widgetWires ?? [],
+      automationRules: next.automationRules ?? [],
       shows: next.shows ?? [],
     }
   }

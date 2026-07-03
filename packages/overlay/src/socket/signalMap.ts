@@ -28,7 +28,7 @@ import type {
 import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
-import { dispatchWidgetSimulationIntent, dispatchWidgetChainAction } from '../desktop/widgetSimulationEvents'
+import { dispatchWidgetSimulationIntent, dispatchWidgetChainAction, dispatchWidgetSignal } from '../desktop/widgetSimulationEvents'
 import { runWidgetCursorSimulation } from '../desktop/cursorSimUtils'
 import { socket } from './client'
 import type { AppStore } from '../store/useAppStore'
@@ -179,6 +179,13 @@ export const signalHandlers: SignalHandlerMap = {
 
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }, _store) => {
     dispatchWidgetChainAction({ targetWidgetId: payload.targetWidgetId, action: payload.action, sourceSignal: payload.sourceSignal })
+  },
+
+  // Server-minted signal (signal:emit automation action) — re-enter it on the DOM
+  // bus so widgets, renderers, and widget-source rules can react. The useSocket
+  // forwarder skips synthetic payloads, so this cannot ping-pong back to the server.
+  'widget:signal': (payload: { source: string; event: string; payload: unknown }, _store) => {
+    dispatchWidgetSignal({ source: payload.source, event: payload.event, payload: payload.payload })
   },
 
   'desktop:notify': (payload: DesktopNotificationPayload, store) => {

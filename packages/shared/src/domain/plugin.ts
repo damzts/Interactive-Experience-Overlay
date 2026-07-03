@@ -26,6 +26,10 @@ export type RendererCatalogEntry = {
   fields: RendererFieldDef[]
   defaultPosition?: { x: number; y: number; width: number; height: number }
   defaultTier?: TierName
+  /** Signals this renderer emits into the automation pipeline (rule triggers) */
+  emits?: Array<{ event: string; label: string }>
+  /** Actions this renderer accepts from automation rules */
+  accepts?: Array<{ action: string; label: string }>
 }
 
 export const RENDERER_CATALOG: RendererCatalogEntry[] = [
@@ -323,6 +327,7 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
   {
     id: 'rpg-hud', label: 'RPG HUD', icon: '🛡', category: 'overlay', defaultTier: 'content',
     desc: 'RPG-style HP/MP/XP bars, level, name, hotbar, and minimap',
+    accepts: [{ action: 'rpg:level-up', label: 'Level up' }],
     defaultConfig: { hp: 82, mp: 54, xp: 30, level: 12, name: 'STREAMER', hotbarSlots: 8, showMinimap: true },
     fields: [
       { key: 'hp', label: 'HP', type: 'number', min: 0, max: 100, step: 1 },
@@ -372,6 +377,7 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
   {
     id: 'combat-log', label: 'Combat Log', icon: '⚔', category: 'text', defaultTier: 'content',
     desc: 'MMO-style scrolling combat log of simulated chat/events',
+    accepts: [{ action: 'combat-log:append', label: 'Append line' }],
     defaultConfig: { usernames: ['xX_Pro_Xx', 'gamer123', 'lurker99', 'StreamFan', 'NightOwl'], intervalMs: 3200, maxLines: 10, fontSize: 15 },
     fields: [
       { key: 'intervalMs', label: 'Interval (ms)', type: 'number', min: 500, max: 10000, step: 100 },
@@ -424,6 +430,35 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
       { key: 'rainbow', label: 'Rainbow Mode', type: 'boolean' },
       { key: 'density', label: 'Density', type: 'number', min: 0.1, max: 1, step: 0.05 },
       { key: 'speed', label: 'Warp Speed', type: 'number', min: 0.1, max: 5, step: 0.1 },
+    ],
+  },
+  {
+    id: 'stream-quest', label: 'Stream Quest', icon: '📜', category: 'overlay', defaultTier: 'content',
+    desc: 'Stream goal framed as an MMORPG quest with a filling progress bar',
+    emits: [{ event: 'quest:complete', label: 'Quest completed' }],
+    accepts: [
+      { action: 'quest:advance', label: 'Advance progress' },
+      { action: 'quest:reset', label: 'Reset quest' },
+    ],
+    defaultConfig: { title: 'Reach 100 Followers', current: 0, target: 100, autoProgress: true, color: '#e2c23a' },
+    defaultPosition: { x: 60, y: 640, width: 300, height: 150 },
+    fields: [
+      { key: 'title', label: 'Quest Title', type: 'text' },
+      { key: 'current', label: 'Current', type: 'number', min: 0, max: 1000000, step: 1 },
+      { key: 'target', label: 'Target', type: 'number', min: 1, max: 1000000, step: 1 },
+      { key: 'autoProgress', label: 'Auto Progress', type: 'boolean' },
+      { key: 'color', label: 'Bar Color', type: 'color' },
+    ],
+  },
+  {
+    id: 'retro-messenger', label: 'Retro Messenger', icon: '💬', category: 'overlay', defaultTier: 'content',
+    desc: 'AIM/MSN-style buddy list with fake contacts and idle chatter',
+    emits: [{ event: 'messenger:nudge', label: 'Buddy nudged' }],
+    accepts: [{ action: 'messenger:say', label: 'Show message' }],
+    defaultConfig: { intervalMs: 9000 },
+    defaultPosition: { x: 1560, y: 420, width: 260, height: 320 },
+    fields: [
+      { key: 'intervalMs', label: 'Chatter Interval (ms)', type: 'number', min: 2000, max: 60000, step: 500 },
     ],
   },
   {

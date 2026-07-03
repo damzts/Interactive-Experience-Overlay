@@ -1012,10 +1012,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
     { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
-    { id: 'rpg-stats',            label: 'Character Sheet',      icon: '🛡️',  widgetSource: 'system' as const, widgetComponent: 'rpg-stats' as const },
-    { id: 'stream-quest',         label: 'Quest Log',            icon: '📜',   widgetSource: 'system' as const, widgetComponent: 'stream-quest' as const },
-    { id: 'combat-log-widget',    label: 'Combat Log',           icon: '⚔️',  widgetSource: 'system' as const, widgetComponent: 'combat-log-widget' as const },
-    { id: 'retro-messenger',      label: 'Buddy List',           icon: '💬',   widgetSource: 'system' as const, widgetComponent: 'retro-messenger' as const },
   ],
 
   keybinds: {
@@ -1044,6 +1040,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     masterVolume: 0.8,
     sfxVolume: 0.7,
     musicVolume: 0.4,
+    ambientTrack: '',
+    ambientVolume: 0.6,
   },
 
   desktopConfig: DEFAULT_DESKTOP_CONFIG,

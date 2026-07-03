@@ -7,12 +7,12 @@ import logger from '../../../lib/logger.js';
 
 // ── Core widget runtime helpers (used by scene.ts too) ───────────
 
-export function toggleWidgetRuntime(ctx: HandlerContext, widgetId: string): void {
+export function toggleWidgetRuntime(ctx: Pick<HandlerContext, 'runtimeState' | 'io'>, widgetId: string): void {
   ctx.runtimeState.toggleWidget(widgetId)
   ctx.io.emit('widget:toggle', widgetId)
 }
 
-export function setWidgetRuntimeOpenState(ctx: HandlerContext, widgetId: string, shouldOpen: boolean): void {
+export function setWidgetRuntimeOpenState(ctx: Pick<HandlerContext, 'runtimeState' | 'io'>, widgetId: string, shouldOpen: boolean): void {
   const isOpen = ctx.runtimeState.openWidgetIds.has(widgetId)
   if (shouldOpen === isOpen) return
   if (shouldOpen) ctx.runtimeState.openWidget(widgetId)
@@ -182,20 +182,12 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     ctx.io.emit('widget:simulate:intent', payload)
   })
 
-  // Widget wire routing — only open/close/toggle go through kernel
-  // (they mutate authoritative open state). Custom actions are evaluated
-  // locally in the overlay via the DOM bus without a server round-trip.
+  // Forward widget/renderer signals onto the KernelBus — AutomationManager
+  // evaluates widget-trigger rules there (authoritative open/close/toggle
+  // plus every server-side action kind). Custom widget:action rules are
+  // still executed synchronously in the overlay's DOM-bus evaluator.
   socket.on('widget:signal', (payload: { source: string; event: string; payload: unknown }) => {
-    if (!ctx.configService?.routeWidgetSignal) return
-    const chains = ctx.configService.routeWidgetSignal(payload.source, payload.event)
-    for (const chain of chains) {
-      if (chain.targetAction === 'open' || chain.targetAction === 'close') {
-        setWidgetRuntimeOpenState(ctx, chain.targetWidgetId, chain.targetAction === 'open')
-      } else if (chain.targetAction === 'toggle') {
-        toggleWidgetRuntime(ctx, chain.targetWidgetId)
-      }
-      // custom actions intentionally not handled here — overlay evaluates them locally
-    }
+    ctx.bus.emit('widget:signal', payload)
   })
 }
 

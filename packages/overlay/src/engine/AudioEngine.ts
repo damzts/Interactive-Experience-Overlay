@@ -32,6 +32,7 @@ class AudioEngine {
   private _ambientSource: MediaElementAudioSourceNode | null = null
   private _ambientGain: GainNode | null = null
   private _ambientVolume: number = 0.4
+  private _ambientUrl: string | null = null
 
   // LRU cache for playUrl()
   private _urlCache = new Map<string, AudioBuffer>()
@@ -350,6 +351,9 @@ class AudioEngine {
    *  Persists across scene changes — only changes when ambientTrack changes.
    *  Pass null to fade out and stop. */
   playAmbient(url: string | null, crossfadeMs = 2000) {
+    const normalized = url || null
+    if (normalized === this._ambientUrl) return
+    this._ambientUrl = normalized
     this.initContext()
     if (!this.ctx || !this.masterGain) return
     this.unlockContext()

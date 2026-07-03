@@ -5,10 +5,16 @@ import { findRendererCatalogEntry } from '@ieomlabs/shared'
 export interface RendererProps {
   config: Record<string, unknown>
   bounds: { x: number; y: number; width: number; height: number }
-  /** Fire a DOM-bus event for inter-window IPC */
+  /** Fire a DOM-bus event for inter-window IPC.
+   *  emit('signal', { source: instanceId, event, payload }) enters the widget-signal
+   *  pipeline and can trigger automation rules — see rendererSignals.ts. */
   emit: (event: string, data: unknown) => void
-  /** Subscribe to a DOM-bus event; returns unsubscribe fn */
+  /** Subscribe to a DOM-bus event; returns unsubscribe fn.
+   *  onSignal('action', handler) receives automation widget:action payloads
+   *  ({ targetWidgetId, action }) — filter by instanceId. */
   onSignal: (event: string, handler: (data: unknown) => void) => () => void
+  /** The WindowInstance id hosting this renderer — automation rules target it. */
+  instanceId?: string
 }
 
 export interface RendererDefinition {
@@ -67,6 +73,8 @@ export const rendererManifest: RendererManifest = {
   'neon-border':     () => import('./NeonBorderRenderer').then((m) => ({ component: m.NeonBorderRenderer })),
   'combat-log':      () => import('./CombatLogRenderer').then((m) => ({ component: m.CombatLogRenderer })),
   'retro-hud':       () => import('./RetroHudRenderer').then((m) => ({ component: m.RetroHudRenderer })),
+  'stream-quest':    () => import('./StreamQuestRenderer').then((m) => ({ component: m.StreamQuestRenderer })),
+  'retro-messenger': () => import('./RetroMessengerRenderer').then((m) => ({ component: m.RetroMessengerRenderer })),
   // ── Colorful animated backgrounds ───────────────────────────────
   'synthwave-grid':  () => import('./SynthwaveGridRenderer').then((m) => ({ component: m.SynthwaveGridRenderer })),
   'aurora-flow':     () => import('./AuroraFlowRenderer').then((m) => ({ component: m.AuroraFlowRenderer })),

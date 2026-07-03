@@ -164,24 +164,3 @@ export interface WidgetSignal {
   payload: unknown
 }
 
-/** Optional firing condition for a WidgetWire */
-export interface WidgetWireCondition {
-  /** Wire only fires when the current visual state matches one of these */
-  sceneIs?: STATE[]
-}
-
-/**
- * WidgetWire — defines an automatic trigger from one widget to another.
- * Stored in SQLite and evaluated by the overlay when a matching signal arrives.
- */
-export interface WidgetWire {
-  id: string
-  triggerWidgetId: string
-  triggerEvent: string
-  targetWidgetId: string
-  /** Action to invoke on the target widget */
-  targetAction: string
-  enabled: boolean
-  /** Optional condition that gates whether the wire fires */
-  condition?: WidgetWireCondition
-}

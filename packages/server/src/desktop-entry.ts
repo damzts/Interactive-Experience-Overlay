@@ -28,16 +28,15 @@ import { loadDefaultConfig } from './lib/defaults.js'
 import { SceneManager } from './kernel/managers/scene.js'
 import { RuntimeStateStore } from './kernel/managers/runtime.js'
 import { setupSocketHandlers } from './transport/socket/handlers.js'
+import { setWidgetRuntimeOpenState, toggleWidgetRuntime } from './transport/socket/handlers/widget.js'
 import { ObsBridgeManager } from './kernel/managers/obs.js'
 import { EventScheduler } from './kernel/managers/scheduler.js'
 import { AmbianceManager } from './kernel/managers/ambiance.js'
-import { registerOverlayNamespace } from './transport/socket/overlayHandlers.js'
 import { clearMediaCaches } from './services/MediaService.js'
 import { configRoute } from './transport/http/config.js'
 import { mediaRoute } from './transport/http/media.js'
 import { archiveRoute } from './transport/http/archive.js'
 import { roomRoute as roomHttpRoute } from './transport/http/room.js'
-import { wiresRoute } from './transport/http/wires.js'
 import { initDesktopDatabase, closeDesktopDatabase } from './db/desktop-db.js'
 import { DesktopConfigService } from './kernel/managers/config.js'
 import { AutomationManager } from './kernel/managers/automation.js'
@@ -322,7 +321,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     obsBridge,
   })
 
-  registerOverlayNamespace(io)
+  // Authoritative widget open-state mutations for automation rules
+  automationManager.setWidgetRuntime({
+    setOpen: (widgetId, open) => setWidgetRuntimeOpenState({ runtimeState, io }, widgetId, open),
+    toggle: (widgetId) => toggleWidgetRuntime({ runtimeState, io }, widgetId),
+  })
 
   // ── REST routes ───────────────────────────────────────────────
   app.get('/api/health', async () => ({ ok: true }))
@@ -332,18 +335,18 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   await app.register(configRoute, { machine, configService })
   await app.register(mediaRoute)
   await app.register(archiveRoute, { getObsStatus: () => obsBridge.getStatus(), obsBridge })
-  await app.register(automationRoute, { automationRepo, bus: kernel.bus })
+  await app.register(automationRoute, {
+    automationRepo,
+    bus: kernel.bus,
+    getManifests: () => WIDGET_INTENT_MANIFESTS,
+    broadcastRules: () => {
+      configService.invalidateCache()
+      io.emit('config:patch', { automationRules: automationRepo.list() })
+    },
+  })
   await app.register(showsRoute, { sequencer: showSequencer, configService })
   const busRecorder = new BusHistoryRecorder(kernel.bus, { capacity: 500, io })
   await app.register(busHistoryRoute, { recorder: busRecorder })
-  await app.register(wiresRoute, {
-    wires: configService.widgetWires,
-    getManifests: () => WIDGET_INTENT_MANIFESTS,
-    broadcastWires: (wires) => {
-      configService.invalidateCache()
-      io.emit('config:patch', { widgetWires: wires })
-    },
-  })
 
   // ── Room system ───────────────────────────────────────────────
   // P2P mode: server only relays signaling, overlay connects directly to guests

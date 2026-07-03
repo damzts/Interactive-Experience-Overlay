@@ -103,7 +103,9 @@ const SCHEMA = `
     id INTEGER PRIMARY KEY DEFAULT 1,
     master_volume REAL NOT NULL DEFAULT 1,
     sfx_volume REAL NOT NULL DEFAULT 1,
-    music_volume REAL NOT NULL DEFAULT 0.7
+    music_volume REAL NOT NULL DEFAULT 0.7,
+    ambient_track TEXT,
+    ambient_volume REAL
   );
 
   CREATE TABLE IF NOT EXISTS desktop_ambiance (
@@ -125,16 +127,6 @@ const SCHEMA = `
     type TEXT NOT NULL,
     url TEXT NOT NULL,
     duration REAL
-  );
-
-  CREATE TABLE IF NOT EXISTS widget_wires (
-    id TEXT PRIMARY KEY,
-    trigger_widget_id TEXT NOT NULL,
-    trigger_event TEXT NOT NULL,
-    target_widget_id TEXT NOT NULL,
-    target_action TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    condition_json TEXT
   );
 
   CREATE TABLE IF NOT EXISTS media_transitions (
@@ -184,9 +176,12 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS automation_rules (
     id TEXT PRIMARY KEY,
     enabled INTEGER NOT NULL DEFAULT 1,
-    condition_event TEXT NOT NULL,
-    condition_match_json TEXT,
-    action_kind TEXT NOT NULL CHECK(action_kind IN ('widget:toggle','scene:change','overlay:show','desktop:notify')),
+    trigger_source TEXT NOT NULL DEFAULT 'kernel',
+    trigger_widget_id TEXT,
+    trigger_event TEXT NOT NULL,
+    trigger_match_json TEXT,
+    scene_is_json TEXT,
+    action_kind TEXT NOT NULL,
     action_params_json TEXT NOT NULL DEFAULT '{}'
   );
 
@@ -228,13 +223,86 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
     try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`) } catch { /* already exists */ }
   }
   addColumn('scenes', 'ambient_track', 'TEXT')
-  addColumn('widget_wires', 'condition_json', 'TEXT')
+  addColumn('audio_config', 'ambient_track', 'TEXT')
+  addColumn('audio_config', 'ambient_volume', 'REAL')
   addColumn('twitch_config', 'client_id', 'TEXT')
   addColumn('twitch_config', 'event_reactions_json', 'TEXT')
 
+  migrateAutomationRules(db)
+
   // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
   try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }
+
+  // Purge widget rows for component types converted to scene renderers (2026-07)
+  try {
+    db.exec("DELETE FROM widgets WHERE widget_component IN ('rpg-stats', 'stream-quest', 'combat-log-widget', 'retro-messenger')")
+  } catch { /* table may not exist yet */ }
   return db
+}
+
+/** One-time unification of automation_rules + widget_wires into the trigger/action rule shape.
+ *  Old-shape automation_rules rows become kernel-trigger rules; widget_wires rows become
+ *  widget-trigger rules with a widget:action action, then the widget_wires table is dropped.
+ *  Exported for tests. */
+export function migrateAutomationRules(db: DesktopDatabase): void {
+  const tableExists = (table: string): boolean =>
+    db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table) !== undefined
+  const columnExists = (table: string, column: string): boolean =>
+    (db.pragma(`table_info(${table})`) as Array<{ name: string }>).some((c) => c.name === column)
+
+  // Rebuild old-shape automation_rules (its action_kind CHECK constraint can't be altered in place)
+  if (tableExists('automation_rules') && !columnExists('automation_rules', 'trigger_source')) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE automation_rules_new (
+          id TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          trigger_source TEXT NOT NULL DEFAULT 'kernel',
+          trigger_widget_id TEXT,
+          trigger_event TEXT NOT NULL,
+          trigger_match_json TEXT,
+          scene_is_json TEXT,
+          action_kind TEXT NOT NULL,
+          action_params_json TEXT NOT NULL DEFAULT '{}'
+        );
+      `)
+      db.exec(`
+        INSERT INTO automation_rules_new (id, enabled, trigger_source, trigger_event, trigger_match_json, action_kind, action_params_json)
+        SELECT id, enabled, 'kernel', condition_event, condition_match_json, action_kind, action_params_json FROM automation_rules;
+      `)
+      db.exec('DROP TABLE automation_rules;')
+      db.exec('ALTER TABLE automation_rules_new RENAME TO automation_rules;')
+    })()
+  }
+
+  // Import operator-created widget wires as widget-trigger rules, then retire the table
+  if (tableExists('widget_wires')) {
+    db.transaction(() => {
+      const wires = db.prepare('SELECT * FROM widget_wires').all() as Array<{
+        id: string; trigger_widget_id: string; trigger_event: string;
+        target_widget_id: string; target_action: string; enabled: number;
+        condition_json?: string | null;
+      }>
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO automation_rules
+          (id, enabled, trigger_source, trigger_widget_id, trigger_event, trigger_match_json, scene_is_json, action_kind, action_params_json)
+        VALUES (?, ?, 'widget', ?, ?, NULL, ?, 'widget:action', ?)
+      `)
+      for (const w of wires) {
+        let sceneIs: string | null = null
+        try {
+          const condition = w.condition_json ? JSON.parse(w.condition_json) as { sceneIs?: string[] } : null
+          if (condition?.sceneIs?.length) sceneIs = JSON.stringify(condition.sceneIs)
+        } catch { /* malformed condition — import without a scene gate */ }
+        insert.run(
+          `wire-${w.id}`, w.enabled, w.trigger_widget_id, w.trigger_event, sceneIs,
+          JSON.stringify({ targetWidgetId: w.target_widget_id, action: w.target_action }),
+        )
+      }
+      db.exec('DROP TABLE widget_wires;')
+    })()
+    console.log('[desktop-db] imported widget_wires into automation_rules')
+  }
 }
 
 export function closeDesktopDatabase(db: DesktopDatabase): void {

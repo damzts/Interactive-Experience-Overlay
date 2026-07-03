@@ -46,7 +46,7 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `desktop:icon:drag` | `DesktopIconDragPayload` | Ambiance drags an icon | Animate icon to new position |
 | `desktop:widget:drag` | `DesktopWidgetDragPayload` | Ambiance drags a window | Move widget to new position |
 | `desktop:widget:resize` | `DesktopWidgetResizePayload` | Ambiance resizes a window | Resize widget |
-| `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Widget wire fires a non-toggle action | Widget receives custom wire action |
+| `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Automation rule fires a custom widget action | Widget receives the action |
 | `chat:message` | `ChatMessagePayload` | TwitchChatManager (via explicit bridge) | Every Twitch PRIVMSG received |
 | `chat:connected` | `{ channel: string }` | TwitchChatManager (via explicit bridge) | IRC JOIN confirmed |
 | `obs:stream:started` | `{}` | ObsBridge (via explicit bridge) | OBS starts streaming |
@@ -85,7 +85,7 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `ambiance:simulate:accepted` | `AmbianceSimulationAcceptedPayload` | Overlay leader accepts | Kernel records accept, clears pending timeout |
 | `ambiance:simulate:done` | `AmbianceSimulationDonePayload` | Overlay finishes simulation | Kernel records outcome, updates metrics |
 | `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Widget interaction | Kernel broadcasts to all clients |
-| `widget:signal` | `{ source, event, payload }` | Widget emits a signal | Overlay routes through widget wires |
+| `widget:signal` | `{ source, event, payload }` | Widget/renderer emits a signal | Forwarded to the kernel; both sides evaluate automation rules |
 | `desktop:notify` | `DesktopNotificationPayload` | Admin send notification | Broadcast notification to overlay |
 | `desktop:recycle-bin` | `{ full }` | Overlay state change | Update runtime state |
 | `desktop:start-menu:state` | `DesktopStartMenuStatePayload` | Overlay start menu toggle | Update runtime state |

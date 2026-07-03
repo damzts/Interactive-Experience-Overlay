@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
-import { STATE } from '@ieomlabs/shared'
+import { STATE, isSyntheticSignalPayload } from '@ieomlabs/shared'
 import type { OverlaySyncSnapshot } from '@ieomlabs/shared'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
 import { useSignalReceiver } from './useSignalReceiver'
 import { addWidgetSignalListener, dispatchWidgetChainAction } from '../desktop/widgetSimulationEvents'
+import { evaluateWidgetRules } from './widgetRuleEvaluator'
+import { initRendererSignalBridge } from '../renderers/rendererSignals'
 
 /** Connects all socket events to the app store. Mount once — inside App. */
 export function useSocket() {
@@ -15,31 +17,27 @@ export function useSocket() {
   // Mount all signal handlers from signalMap
   useSignalReceiver()
 
-  // Evaluate widget wires locally on the DOM bus — no kernel round-trip needed.
-  // open/close/toggle still go to the kernel (they mutate authoritative open state).
+  // Evaluate widget-source automation rules locally on the DOM bus (widget:action
+  // stays synchronous, zero round-trip) and forward the signal to the kernel,
+  // where AutomationManager executes every other action kind. Synthetic signals
+  // (minted server-side by signal:emit) are not re-forwarded — loop guard.
   useEffect(() => {
     return addWidgetSignalListener((detail) => {
       const store = useAppStore.getState()
-      const wires = store.config.widgetWires ?? []
-      const currentState = store.visualState
-      const matches = wires.filter((w) => {
-        if (!w.enabled) return false
-        if (w.triggerWidgetId !== detail.source || w.triggerEvent !== detail.event) return false
-        // Enforce scene condition if set
-        if (w.condition?.sceneIs?.length) {
-          return w.condition.sceneIs.includes(currentState as STATE)
-        }
-        return true
-      })
-      for (const wire of matches) {
-        if (wire.targetAction === 'open' || wire.targetAction === 'close' || wire.targetAction === 'toggle') {
-          socket.emit('widget:signal', { source: detail.source, event: detail.event, payload: detail.payload })
-          return
-        }
-        dispatchWidgetChainAction({ targetWidgetId: wire.targetWidgetId, action: wire.targetAction, sourceSignal: detail })
+      const rules = store.config.automationRules ?? []
+      const localActions = evaluateWidgetRules(rules, detail, store.visualState as STATE)
+      for (const { targetWidgetId, action } of localActions) {
+        dispatchWidgetChainAction({ targetWidgetId, action, sourceSignal: detail })
+      }
+      if (!isSyntheticSignalPayload(detail.payload)) {
+        socket.emit('widget:signal', { source: detail.source, event: detail.event, payload: detail.payload })
       }
     })
   }, [])
+
+  // Bridge scene renderers into the same signal pipeline (rule actions in,
+  // renderer emissions out).
+  useEffect(() => initRendererSignalBridge(), [])
 
   // On connect: atomic initial sync via overlay:sync (replaces three separate channels)
   useEffect(() => {

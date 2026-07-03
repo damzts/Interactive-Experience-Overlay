@@ -128,26 +128,27 @@ Each manager declares its own KernelBus events in a co-located `*.signals.ts` fi
 | `WidgetRepository` | `widgets`, `widget_layouts`, `widget_layout_items` |
 | `EventRepository` | `source_events` |
 | `ThemeRepository` | `desktop_config`, `desktop_ambiance` |
-| `WidgetWireRepository` | `widget_wires` |
 | `AutomationRuleRepository` | `automation_rules` |
 
 Config service remains as thin coordinator: cache invalidation, socket broadcast, defaults injection.
 
-### Widget Wires
+### Automation Rules
 
-The `widget_wires` SQLite table enables automatic widget-to-widget reactions. **`DesktopConfigService`** owns and loads wires into `AppConfig`. The overlay evaluates them in-process — no kernel round-trip is needed for custom actions.
+The `automation_rules` SQLite table holds the unified any-signal → any-action rule engine (it absorbed the former `widget_wires`). Kernel-event triggers and widget-signal triggers share one shape; evaluation is split deterministically by action kind:
 
 ```
-widget emits DOM signal (dispatchWidgetSignal)
-  → useSocket addWidgetSignalListener (overlay-local)
-  → looks up config.widgetWires in Zustand store
-  → for custom actions:
-       dispatchWidgetChainAction({ targetWidgetId, action })  ← DOM bus, zero latency
-  → for open/close/toggle:
-       socket.emit('widget:signal')  → kernel mutates open state → widget:toggle back
+widget/renderer emits DOM signal (dispatchWidgetSignal)
+  → useSocket (overlay-local):
+       evaluateWidgetRules(config.automationRules)
+       → custom widget:action → dispatchWidgetChainAction  ← DOM bus, zero latency
+       → forwards the signal to the kernel (unless synthetic)
+  → AutomationManager (server, on the KernelBus):
+       kernel-source rules match bus events; widget-source rules match forwarded signals
+       → open/close/toggle, widget:toggle, scene:change, overlay:show,
+         desktop:notify, signal:emit (single-hop synthetic signals)
 ```
 
-Wires are managed via `GET/POST/PATCH/DELETE /api/wires`. After any mutation, the server emits `config:patch { widgetWires }` so the overlay updates live without a restart.
+Rules are managed via `GET/POST/PATCH/DELETE /api/automation/rules`. After any mutation, the server emits `config:patch { automationRules }` so the overlay updates live without a restart. See [automation-rules.md](docs/automation-rules.md).
 
 ### Kernel Rules
 
@@ -194,7 +195,7 @@ Kernel action                          Signal emitted
 SceneMachine transitions            →  state:update
 Admin triggers a scene event        →  overlay:show (effects, SFX)
 Widget toggled                      →  widget:toggle
-Config changed                      →  config:update, config:patch
+Config changed                      →  config:patch (delta) or config:update (full save)
 Runtime override applied            →  runtime:config:override
 Ambiance picks a widget             →  simulation:intent (to leader)
 Transition fired                    →  transition:play
@@ -261,7 +262,7 @@ Widgets are:
 - **Kernel-unaware** — they never import the socket directly; they receive events through the DOM CustomEvent bus
 - **Composable** — a widget can be as simple as a static React component or as complex as a full app with its own API connections
 
-Widgets can implement behaviors and freely communicate with any other system mechanism — emitting signals through the DOM bus (picked up by other widgets or the kernel), subscribing to first-class Socket.IO signals from managers, triggering widget wires, or calling external APIs. A widget built by one collaborator can react to events produced by a widget or manager built by another, with no coordination required beyond the shared signal contract.
+Widgets can implement behaviors and freely communicate with any other system mechanism — emitting signals through the DOM bus (picked up by other widgets or the kernel), subscribing to first-class Socket.IO signals from managers, triggering automation rules, or calling external APIs. A widget built by one collaborator can react to events produced by a widget or manager built by another, with no coordination required beyond the shared signal contract.
 
 **To add a new widget:**
 1. Create `packages/shared/src/widgets/{id}/definition.ts` (ID, component type, size, z-index, intent manifest)
@@ -310,7 +311,7 @@ Widgets talk to each other via two channels:
 | Channel | How | When to use |
 |---------|-----|-------------|
 | **DOM intent bus** | `CustomEvent` on `window` | Widget-to-widget, in-process, hardcoded by developer. Fast, ephemeral. |
-| **Widget Wires** | `dispatchWidgetChainAction` on `window` | Operator-configured, persistent wires. Evaluated in-process from `config.widgetWires`. Zero latency for custom actions; kernel only for open/close/toggle. |
+| **Automation Rules** | `dispatchWidgetChainAction` on `window` | Operator-configured, persistent rules. Custom widget actions evaluated in-process from `config.automationRules`; every other action kind runs in the kernel. |
 | **Server-mediated** | Widget → kernel → broadcast → DOM bus | When the interaction must change authoritative open state or be visible to all connected clients. |
 
 Widgets never import each other directly. The bus is fire-and-forget — if the target widget isn't mounted, the event is silently dropped.
@@ -324,16 +325,16 @@ Widget A emits → dispatchWidgetSignal (DOM)
 Widget B listens → addWidgetSignalListener (DOM)   ← zero kernel involvement
 ```
 
-**Widget Wires** extend this: the overlay evaluates operator-configured wires from `config.widgetWires` on every DOM signal. Custom actions dispatch via `dispatchWidgetChainAction` — still in-process, zero latency. Only `open/close/toggle` actions go to the kernel (they mutate authoritative open state):
+**Automation Rules** extend this: the overlay evaluates operator-configured widget-source rules from `config.automationRules` on every DOM signal. Custom widget actions dispatch via `dispatchWidgetChainAction` — still in-process, zero latency. The signal is also forwarded to the kernel, where every other action kind executes (open/close/toggle, scene changes, overlay effects, notifications, signal:emit):
 
 ```
-dispatchWidgetSignal                          ← widget emits
-  → useSocket: look up config.reactiveChains
-      custom action → dispatchWidgetChainAction → addWidgetChainActionListener in target widget
-      open/close/toggle → socket.emit('widget:signal') → kernel → widget:toggle
+dispatchWidgetSignal                          ← widget/renderer emits
+  → useSocket: evaluateWidgetRules(config.automationRules)
+      custom widget:action → dispatchWidgetChainAction → addWidgetChainActionListener in target widget
+      all signals → socket.emit('widget:signal') → kernel AutomationManager → server-side actions
 ```
 
-Each widget type declares its pub/sub vocabulary as a `WidgetIntentManifest` in `packages/shared/src/constants/widgetIntentManifests.ts` (static data, importable by both overlay and server). The Admin **Wires** panel fetches manifests from `GET /api/wires/manifests` and persists connections to `widget_wires`.
+Each widget type declares its pub/sub vocabulary as a `WidgetIntentManifest` in `packages/shared/src/constants/widgetIntentManifests.ts` (static data, importable by both overlay and server). The Admin **Automation** panel fetches manifests from `GET /api/automation/manifests` and persists rules to `automation_rules`.
 
 ---
 
@@ -462,7 +463,7 @@ Like a real computer, the system has two kinds of memory:
 
 | Store | What lives here | Persists? |
 |-------|----------------|-----------|
-| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`), widget wires (`widget_wires`), automation rules (`automation_rules`) | ✅ Yes |
+| `DesktopConfigService` (SQLite) | Scenes (`scenes`), widgets (`widgets`), events (`source_events`), media (`source_media`), source presets (`source_presets`), transitions (`source_transitions`), themes (`desktop_config`), keybinds (`keybinds`), widget layouts (`widget_layouts`), automation rules (`automation_rules`) | ✅ Yes |
 | `RuntimeStateStore` (in-memory) | Current scene, open widgets, overlay socket ID, overlay connected, ambiance leader | ❌ No |
 | `HandlerContext` (socket closure) | Runtime config overrides, socket client type map | ❌ No |
 

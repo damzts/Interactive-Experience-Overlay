@@ -23,7 +23,6 @@ export type SelectedItem =
   | { kind: 'media-renders' }
   | { kind: 'media-transitions' }
   | { kind: 'kernel-health' }
-  | { kind: 'wires' }
   | { kind: 'automation' }
   | { kind: 'shows' }
   | { kind: 'twitch' }

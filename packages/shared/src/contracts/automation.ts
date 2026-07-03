@@ -1,21 +1,46 @@
 /**
- * Automation rules — "when KernelEvent X fires → do Y".
- * Persisted in the automation_rules SQLite table.
- * No scripting, no loops, field-match conditions only.
+ * Automation rules — the unified "any signal → any action" system.
+ *
+ * Absorbs the former WidgetWire model: one rule shape covers both
+ * kernel-event triggers (evaluated in the server) and widget/renderer
+ * signal triggers (widget:action executed synchronously in the overlay;
+ * every other kind executed in the server).
+ *
+ * Persisted in the automation_rules SQLite table; legacy widget_wires
+ * rows are imported on first boot. No scripting, no loops —
+ * field-match conditions plus a single-hop signal:emit chain.
  */
+import type { STATE } from './state.js'
 
-export type AutomationActionKind = 'widget:toggle' | 'scene:change' | 'overlay:show' | 'desktop:notify'
+export type AutomationTriggerSource = 'kernel' | 'widget'
 
-export interface AutomationRuleCondition {
-  /** KernelEvent name to listen for, e.g. 'scene:changed' */
+export interface AutomationTrigger {
+  /** kernel = KernelBus event; widget = overlay DOM-bus signal (widgets and renderers) */
+  source: AutomationTriggerSource
+  /** Kernel event name (e.g. 'scene:changed') or widget signal event (e.g. 'quest:complete') */
   event: string
+  /** source='widget' only: the emitting widget/renderer instance id. Empty/omitted = any source. */
+  widgetId?: string
   /**
    * Optional field-match filter on the event payload.
    * Rule fires only when all keys in match equal the corresponding payload fields.
    * Omit or leave empty to fire on every occurrence of the event.
    */
   match?: Record<string, unknown>
+  /** Rule only fires while the current visual state is in this list. Omit = any scene. */
+  sceneIs?: STATE[]
 }
+
+export type AutomationActionKind =
+  /** Invoke a widget/renderer action, params: { targetWidgetId, action } — absorbed from WidgetWire */
+  | 'widget:action'
+  | 'widget:toggle'
+  | 'scene:change'
+  | 'overlay:show'
+  | 'desktop:notify'
+  /** Re-emit as a widget-style signal, params: { event, payload? }. Synthetic signals
+   *  cannot trigger another signal:emit (single-hop guard against loops). */
+  | 'signal:emit'
 
 export interface AutomationRuleAction {
   kind: AutomationActionKind
@@ -25,6 +50,14 @@ export interface AutomationRuleAction {
 export interface AutomationRule {
   id: string
   enabled: boolean
-  condition: AutomationRuleCondition
+  trigger: AutomationTrigger
   action: AutomationRuleAction
+}
+
+/** Marker key set on payloads produced by signal:emit actions (loop guard). */
+export const SYNTHETIC_SIGNAL_KEY = '__synthetic'
+
+export function isSyntheticSignalPayload(payload: unknown): boolean {
+  return typeof payload === 'object' && payload !== null
+    && (payload as Record<string, unknown>)[SYNTHETIC_SIGNAL_KEY] === true
 }

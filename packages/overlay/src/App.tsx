@@ -32,13 +32,16 @@ export default function App() {
   useEffect(() => {
     audioEngine.setMasterVolume(config.audio.masterVolume)
     audioEngine.setMusicVolume(config.audio.musicVolume)
-  }, [config.audio.masterVolume, config.audio.musicVolume])
+    audioEngine.setAmbientVolume(config.audio.ambientVolume ?? 0.6)
+  }, [config.audio.masterVolume, config.audio.musicVolume, config.audio.ambientVolume])
 
   const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
 
+  // Scene-level track overrides the global one; playAmbient no-ops when the URL is unchanged.
+  const ambientTrack = scene?.ambientTrack || config.audio.ambientTrack || null
   useEffect(() => {
-    audioEngine.playAmbient(scene?.ambientTrack ?? null)
-  }, [visualState]) // eslint-disable-line react-hooks/exhaustive-deps
+    audioEngine.playAmbient(ambientTrack)
+  }, [visualState, ambientTrack]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <RtcStreamProvider>

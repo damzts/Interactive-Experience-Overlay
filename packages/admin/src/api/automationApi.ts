@@ -1,8 +1,12 @@
-import type { AutomationRule } from '@ieomlabs/shared'
+import type { AutomationRule, WidgetIntentManifest } from '@ieomlabs/shared'
 import { apiFetch } from './client.js'
 
 export async function fetchAutomationRules(): Promise<AutomationRule[]> {
   return apiFetch<AutomationRule[]>('/api/automation/rules')
+}
+
+export async function fetchAutomationManifests(): Promise<WidgetIntentManifest[]> {
+  return apiFetch<WidgetIntentManifest[]>('/api/automation/manifests')
 }
 
 export async function createAutomationRule(rule: Omit<AutomationRule, 'id'>): Promise<AutomationRule> {

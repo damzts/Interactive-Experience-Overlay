@@ -1,6 +1,12 @@
 /**
- * AutomationManager — evaluates persisted "when event X → do Y" rules
- * against every KernelBus event using field-match conditions.
+ * AutomationManager — evaluates persisted automation rules against every
+ * KernelBus event using field-match conditions.
+ *
+ * Unified model: kernel-trigger rules match bus events directly; widget-trigger
+ * rules match `widget:signal` frames forwarded from the overlay. The overlay
+ * executes `widget:action` rules synchronously on its DOM bus, EXCEPT
+ * open/close/toggle, which mutate authoritative open state and are executed
+ * here. All other action kinds always execute here.
  *
  * Rules are loaded from SQLite via AutomationRuleRepository once on start
  * and cached in memory; the cache refreshes on `automation:rules:changed`
@@ -8,13 +14,21 @@
  * Boot after all other managers (bootPriority: 100).
  */
 import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload } from '@ieomlabs/shared'
-import { STATE } from '@ieomlabs/shared'
+import { STATE, SYNTHETIC_SIGNAL_KEY, isSyntheticSignalPayload } from '@ieomlabs/shared'
 import type { KernelBus, BusFrame } from '../bus.js'
 import type { SceneManager } from './scene.js'
 import type { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
 import type { Server as SocketIOServer } from 'socket.io'
 import logger from '../../lib/logger.js'
 import './automation.signals.js'
+
+type WidgetSignalFrame = { source: string; event: string; payload: unknown }
+
+/** Authoritative widget open-state mutators (bound to the socket runtime in desktop-entry). */
+export interface WidgetRuntimeDelegate {
+  setOpen(widgetId: string, open: boolean): void
+  toggle(widgetId: string): void
+}
 
 export class AutomationManager implements Manager {
   readonly name = 'AutomationManager'
@@ -25,6 +39,7 @@ export class AutomationManager implements Manager {
   private _unsubRulesChanged: (() => void) | null = null
   private _unsubConfigChanged: (() => void) | null = null
   private rules: AutomationRule[] = []
+  private widgetRuntime: WidgetRuntimeDelegate | null = null
 
   constructor(
     private repo: AutomationRuleRepository,
@@ -32,6 +47,11 @@ export class AutomationManager implements Manager {
     private io: SocketIOServer,
     private machine: SceneManager,
   ) {}
+
+  /** Bind the authoritative widget open-state mutators (called from desktop-entry once sockets exist). */
+  setWidgetRuntime(delegate: WidgetRuntimeDelegate): void {
+    this.widgetRuntime = delegate
+  }
 
   init(): void { this._status = 'idle' }
 
@@ -70,11 +90,21 @@ export class AutomationManager implements Manager {
   }
 
   private evaluate(event: string, payload: unknown): void {
+    const signal = event === 'widget:signal' ? payload as WidgetSignalFrame : null
     for (const rule of this.rules) {
       if (!rule.enabled) continue
-      if (rule.condition.event !== event) continue
-      if (!this.matches(rule.condition.match, payload)) continue
-      this.execute(rule)
+      const t = rule.trigger
+      if (t.source === 'widget') {
+        if (!signal) continue
+        if (t.event !== signal.event) continue
+        if (t.widgetId && t.widgetId !== signal.source) continue
+        if (!this.matches(t.match, signal.payload)) continue
+      } else {
+        if (t.event !== event) continue
+        if (!this.matches(t.match, payload)) continue
+      }
+      if (t.sceneIs?.length && !t.sceneIs.includes(this.machine.currentState as STATE)) continue
+      this.execute(rule, signal)
     }
   }
 
@@ -85,13 +115,28 @@ export class AutomationManager implements Manager {
     return Object.entries(match).every(([k, v]) => p[k] === v)
   }
 
-  private execute(rule: AutomationRule): void {
+  private execute(rule: AutomationRule, signal: WidgetSignalFrame | null): void {
     const { kind, params } = rule.action
     try {
       switch (kind) {
+        case 'widget:action': {
+          // Only authoritative open-state actions execute here; custom actions
+          // run synchronously in the overlay's DOM-bus evaluator.
+          const targetWidgetId = params['targetWidgetId']
+          const action = params['action']
+          if (typeof targetWidgetId !== 'string' || typeof action !== 'string') break
+          if (action === 'open' || action === 'close') {
+            this.widgetRuntime?.setOpen(targetWidgetId, action === 'open')
+          } else if (action === 'toggle') {
+            this.widgetRuntime?.toggle(targetWidgetId)
+          }
+          break
+        }
         case 'widget:toggle': {
           const widgetId = params['widgetId']
-          if (typeof widgetId === 'string') this.io.emit('widget:toggle', widgetId)
+          if (typeof widgetId !== 'string') break
+          if (this.widgetRuntime) this.widgetRuntime.toggle(widgetId)
+          else this.io.emit('widget:toggle', widgetId)
           break
         }
         case 'scene:change': {
@@ -107,6 +152,20 @@ export class AutomationManager implements Manager {
         case 'desktop:notify':
           this.io.emit('desktop:notify', params as unknown as DesktopNotificationPayload)
           break
+        case 'signal:emit': {
+          const event = params['event']
+          if (typeof event !== 'string' || !event) break
+          // Single-hop guard: a synthetic signal may not mint another one.
+          if (signal && isSyntheticSignalPayload(signal.payload)) break
+          const payload = {
+            ...(typeof params['payload'] === 'object' && params['payload'] !== null ? params['payload'] as Record<string, unknown> : {}),
+            [SYNTHETIC_SIGNAL_KEY]: true,
+          }
+          const synthetic: WidgetSignalFrame = { source: 'automation', event, payload }
+          this.bus.emit('widget:signal', synthetic) // other server rules can react
+          this.io.emit('widget:signal', synthetic)  // overlay widgets/renderers can react
+          break
+        }
       }
     } catch (err) {
       logger.warn({ err, rule }, '[automation] rule execution failed')

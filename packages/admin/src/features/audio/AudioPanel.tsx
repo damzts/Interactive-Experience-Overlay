@@ -3,6 +3,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { Slider, ConfigPageIntro, ConfigTable } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
+import { MediaSelectionInput } from '../media-library/MediaLibrary'
 
 /** Notice component for informational/warning messages within config panels */
 function Notice({ tone = 'info', children }: { tone?: 'info' | 'warning' | 'danger' | 'success'; children: React.ReactNode }) {
@@ -59,10 +60,39 @@ export function AudioPanel() {
                 onChange={(v) => setAudio((a) => ({ ...a, musicVolume: v }))} />
               <Slider label="SFX Volume" value={audio.sfxVolume}
                 onChange={(v) => setAudio((a) => ({ ...a, sfxVolume: v }))} />
+              <Slider label="Ambient Volume" value={audio.ambientVolume ?? 0.6}
+                onChange={(v) => setAudio((a) => ({ ...a, ambientVolume: v }))} />
             </div>
             <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>
               {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}
             </Button>
+          </div>
+        </ConfigPanel>
+
+        <ConfigPanel title="Ambient Track" collapsible>
+          <div className="space-y-4">
+            <Notice>
+              A global looping ambient layer (room tone, rain, crowd noise) that plays across every scene.
+              A scene with its own ambient track overrides this while active.
+            </Notice>
+            <MediaSelectionInput
+              value={audio.ambientTrack ?? ''}
+              onChange={(url) => setAudio((a) => ({ ...a, ambientTrack: url }))}
+              kinds={['audio']}
+              modalTitle="Choose Ambient Track"
+              placeholder="/assets/audio/room-tone.mp3 or https://…"
+              hint="Loops continuously at the Ambient Volume level. Leave empty for silence."
+            />
+            <div className="flex items-center gap-3">
+              <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>
+                {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}
+              </Button>
+              {(audio.ambientTrack ?? '') !== '' && (
+                <Button variant="ghost" size="md" onClick={() => setAudio((a) => ({ ...a, ambientTrack: '' }))}>
+                  Clear Track
+                </Button>
+              )}
+            </div>
           </div>
         </ConfigPanel>
 

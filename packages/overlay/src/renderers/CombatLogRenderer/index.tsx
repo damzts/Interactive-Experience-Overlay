@@ -14,8 +14,9 @@ const TEMPLATES: Array<[string, string]> = [
   ['{u} triggered a Boss Warning event!', '#ff4444'],
 ]
 
-/** COMBAT-LOG — scrolling MMORPG-style combat log driven by (simulated) stream events. */
-export function CombatLogRenderer({ config }: RendererProps) {
+/** COMBAT-LOG — scrolling MMORPG-style combat log driven by (simulated) stream events.
+ *  Accepts the `combat-log:append` automation action (payload.text) for real events. */
+export function CombatLogRenderer({ config, onSignal, instanceId }: RendererProps) {
   const usernames  = (config.usernames as string[] | undefined) ?? ['Xx_Raider_xX', 'Lootgoblin', 'ChampMain', 'ShadowByte', 'PixelKnight']
   const intervalMs = Number(config.intervalMs ?? 3200)
   const maxLines   = Number(config.maxLines ?? 10)
@@ -23,6 +24,17 @@ export function CombatLogRenderer({ config }: RendererProps) {
 
   const [lines, setLines] = useState<LogLine[]>([])
   const idRef = useRef(0)
+
+  useEffect(() => {
+    return onSignal('action', (data) => {
+      const detail = data as { targetWidgetId: string; action: string; sourceSignal?: { payload?: unknown } }
+      if (detail.targetWidgetId !== instanceId || detail.action !== 'combat-log:append') return
+      const text = (detail.sourceSignal?.payload as { text?: unknown } | undefined)?.text
+      const line = typeof text === 'string' && text ? text : '[System] Something happened!'
+      setLines((prev) => [...prev, { id: ++idRef.current, text: line, color: '#ffd94a' }].slice(-maxLines))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instanceId, maxLines])
 
   useEffect(() => {
     const jitter = () => intervalMs * (0.5 + Math.random())

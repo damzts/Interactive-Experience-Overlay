@@ -104,9 +104,9 @@ describe('mergeAppConfig', () => {
   })
 
   it('preserves unknown/passthrough sections from base via spread', () => {
-    const base = { ...mergeAppConfig(clone(DEFAULT_CONFIG), {}), widgetWires: [{ id: 'w1' }] } as AppConfig
+    const base = { ...mergeAppConfig(clone(DEFAULT_CONFIG), {}), automationRules: [{ id: 'r1' }] } as AppConfig
     const merged = mergeAppConfig(base, {})
-    expect((merged as Record<string, unknown>).widgetWires).toEqual([{ id: 'w1' }])
+    expect((merged as Record<string, unknown>).automationRules).toEqual([{ id: 'r1' }])
   })
 })
 

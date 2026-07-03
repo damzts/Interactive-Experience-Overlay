@@ -3,7 +3,7 @@ import type { DesktopAmbianceConfig, EffectAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { EventAction, EventConfig } from './event.js'
 import type { MediaEntry, Scene, WindowPreset } from './scene.js'
-import type { WidgetWire } from '../contracts/widget.js'
+import type { AutomationRule } from '../contracts/automation.js'
 
 // ── Show Sequencer types ─────────────────────────────────────────
 
@@ -40,6 +40,10 @@ export interface AppConfig {
     masterVolume: number
     sfxVolume: number
     musicVolume: number
+    /** Global looping ambient track URL. Scene.ambientTrack overrides when set. */
+    ambientTrack?: string
+    /** 0–1 gain for the ambient layer, default 0.6 */
+    ambientVolume?: number
   }
   desktopConfig?: DesktopConfig
   desktopAmbiance?: DesktopAmbianceConfig
@@ -53,8 +57,9 @@ export interface AppConfig {
   windowPresets?: WindowPreset[]
   /** Named transition definitions (Media Library → Transitions tab → media_transitions table) */
   sourceTransitions?: TransitionDefinition[]
-  /** Operator-configured widget wires (Wires panel → widget_wires table) */
-  widgetWires?: WidgetWire[]
+  /** Operator-configured automation rules (Automation panel → automation_rules table).
+   *  Widget-source rules are evaluated in the overlay; kernel-source rules in the server. */
+  automationRules?: AutomationRule[]
   /** Scripted show sequences (Show Sequencer → shows table) */
   shows?: ShowDefinition[]
   /** Twitch connection config (TwitchIntegrationManager → twitch_config table) */

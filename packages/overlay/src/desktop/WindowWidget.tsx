@@ -5,9 +5,16 @@ import { resolveRenderer, type RendererDefinition } from '../renderers/registry'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
 
-// Stable no-ops for the desktop preview context
-const NOOP_EMIT = () => {}
-const NOOP_SIGNAL = () => () => {}
+// Same renderer:* DOM bus WindowHost provides, so desktop-hosted renderers
+// participate in signals/actions like scene-hosted ones.
+const BUS_EMIT = (event: string, data: unknown) => {
+  window.dispatchEvent(new CustomEvent(`renderer:${event}`, { detail: data }))
+}
+const BUS_SIGNAL = (event: string, handler: (data: unknown) => void) => {
+  const listener = (e: Event) => handler((e as CustomEvent).detail)
+  window.addEventListener(`renderer:${event}`, listener)
+  return () => window.removeEventListener(`renderer:${event}`, listener)
+}
 
 interface DesktopWidgetProps {
   appId?: string
@@ -109,7 +116,7 @@ export function WindowWidget({ appId, onClose, onMinimize, onFocus, windowState 
         />
       ) : (
         <div className="widget-panel widget-source-canvas">
-          <Renderer config={instance.config ?? {}} bounds={bounds} emit={NOOP_EMIT} onSignal={NOOP_SIGNAL} />
+          <Renderer config={instance.config ?? {}} bounds={bounds} emit={BUS_EMIT} onSignal={BUS_SIGNAL} instanceId={instance.id} />
         </div>
       )}
     </DesktopWindow>

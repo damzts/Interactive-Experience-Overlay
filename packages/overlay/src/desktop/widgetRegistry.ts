@@ -42,10 +42,6 @@ const widgetManifest: Record<RegisteredWidgetComponentType, WidgetManifestEntry>
   'sticky-notes':        { load: () => import('./StickyNotesWidget').then((m) => m.StickyNotesWidget),               defaultPosition: { x: 280,  y: 110 }, defaultSize: { width: 260              } },
   'wave-scope':          { load: () => import('./WaveScopeWidget').then((m) => m.WaveScopeWidget),                   defaultPosition: { x: 248,  y: 192 }, defaultSize: { width: 320              } },
   'weather-console':     { load: () => import('./WeatherConsoleWidget').then((m) => m.WeatherConsoleWidget),         defaultPosition: { x: 346,  y: 140 }, defaultSize: { width: 500              } },
-  'rpg-stats':           { load: () => import('./RpgStatsWidget').then((m) => m.RpgStatsWidget),                     defaultPosition: { x: 60,   y: 400 }, defaultSize: { width: 260, height: 220 } },
-  'stream-quest':        { load: () => import('./StreamQuestWidget').then((m) => m.StreamQuestWidget),               defaultPosition: { x: 60,   y: 640 }, defaultSize: { width: 300, height: 190 } },
-  'combat-log-widget':   { load: () => import('./CombatLogWidget').then((m) => m.CombatLogWidget),                   defaultPosition: { x: 1200, y: 420 }, defaultSize: { width: 320, height: 240 } },
-  'retro-messenger':     { load: () => import('./RetroMessengerWidget').then((m) => m.RetroMessengerWidget),         defaultPosition: { x: 1560, y: 420 }, defaultSize: { width: 260, height: 320 } },
 }
 
 /** Cache of resolved components, populated on first use. */

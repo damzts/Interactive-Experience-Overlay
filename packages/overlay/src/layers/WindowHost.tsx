@@ -84,6 +84,7 @@ export function WindowHost({ instance, sceneAge = 0, openWidgets = [], activeOve
         bounds={{ x, y, width, height }}
         emit={emit}
         onSignal={onSignal}
+        instanceId={instance.id}
       />
     </div>
   )

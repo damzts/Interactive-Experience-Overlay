@@ -84,7 +84,7 @@ Admin simulate button
 
 Both paths produce identical `Message` objects in the widget. `source` field lets you distinguish real from simulated if needed.
 
-After `setMessages`, the widget also calls `dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message } })` — so widget wires can react to incoming chat.
+After `setMessages`, the widget also calls `dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message } })` — so automation rules can react to incoming chat.
 
 ---
 

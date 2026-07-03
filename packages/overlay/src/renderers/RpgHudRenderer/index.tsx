@@ -3,12 +3,13 @@ import type { RendererProps } from '../registry'
 
 interface Bar { pct: number; regenTo: number }
 
-/** RPG-HUD — MMORPG-style HP/MP/XP bars + hotbar + minimap, always alive with slow idle regen. */
-export function RpgHudRenderer({ config }: RendererProps) {
+/** RPG-HUD — MMORPG-style HP/MP/XP bars + hotbar + minimap, always alive with slow idle regen.
+ *  Accepts the `rpg:level-up` automation action: bumps the level and refills the bars. */
+export function RpgHudRenderer({ config, onSignal, instanceId }: RendererProps) {
   const hp0    = Number(config.hp ?? 82)
   const mp0    = Number(config.mp ?? 54)
   const xp0    = Number(config.xp ?? 30)
-  const level  = Number(config.level ?? 12)
+  const level0 = Number(config.level ?? 12)
   const name   = String(config.name ?? 'STREAMER')
   const slots  = Number(config.hotbarSlots ?? 8)
   const showMinimap = config.showMinimap !== false
@@ -16,6 +17,20 @@ export function RpgHudRenderer({ config }: RendererProps) {
   const [hp, setHp] = useState<Bar>({ pct: hp0, regenTo: hp0 })
   const [mp, setMp] = useState<Bar>({ pct: mp0, regenTo: mp0 })
   const [xp, setXp] = useState(xp0)
+  const [levelBoost, setLevelBoost] = useState(0)
+  const level = level0 + levelBoost
+
+  useEffect(() => {
+    return onSignal('action', (data) => {
+      const detail = data as { targetWidgetId: string; action: string }
+      if (detail.targetWidgetId !== instanceId || detail.action !== 'rpg:level-up') return
+      setLevelBoost((b) => b + 1)
+      setHp({ pct: 100, regenTo: 100 })
+      setMp({ pct: 100, regenTo: 100 })
+      setXp(0)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instanceId])
 
   useEffect(() => {
     const id = setInterval(() => {

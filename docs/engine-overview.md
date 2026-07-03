@@ -115,7 +115,7 @@ packages/server/src/
 │       ├── ambiance.signals.ts      # KernelEvents augmentation for ambiance:tick
 │       ├── scheduler.ts    # EventScheduler — time/idle triggers
 │       ├── scheduler.signals.ts     # KernelEvents augmentation for scheduler:fired
-│       ├── config.ts       # DesktopConfigService — SQLite persistence + widget wires
+│       ├── config.ts       # DesktopConfigService — SQLite persistence
 │       ├── config.signals.ts        # KernelEvents augmentation for config:changed
 │       ├── automation.ts   # AutomationManager — persisted "when event X → do Y" rules
 │       ├── runtime.ts      # RuntimeStateStore — in-memory session state (incl. overlaySocketId)
@@ -128,7 +128,7 @@ packages/server/src/
 │       ├── chatReactions.ts         # ChatReactionManager — keyword/command/regex → effects/actions
 │       └── pov.ts          # POVOrchestrator — video switching
 ├── transport/
-│   ├── http/               # Fastify routes (config, media, archive, room, automation, shows, wires)
+│   ├── http/               # Fastify routes (config, media, archive, room, automation, shows)
 │   ├── socket/             # Socket.IO handlers (all domain modules)
 │   │   └── roomNamespace.ts  # /studio LAN namespace (registerStudioNamespace)
 │   └── webrtc/             # werift hub + overlay relay + signaling
@@ -140,7 +140,7 @@ packages/server/src/
 │   ├── desktop-db.ts       # SQLite init + migrations (addColumn helper, all table schemas)
 │   └── repositories/       # Focused CRUD: SceneRepository, WidgetRepository,
 │                           #   EventRepository, ThemeRepository, UserRepository,
-│                           #   AutomationRuleRepository, WidgetWireRepository
+│                           #   AutomationRuleRepository
 ├── lib/
 │   ├── defaults.ts         # loadDefaultConfig() — returns bootstrapConfig()
 │   └── bootstrapConfig.ts  # bootstrapConfig() — assembles AppConfig from WIDGET_DEFINITIONS
