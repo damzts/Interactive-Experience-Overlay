@@ -4,93 +4,100 @@
  *  All events are uniform: no "built-in" vs custom distinction.
  */
 
-export type EffectType =
+/** Maps each effect type name to its config shape. This is the single
+ *  source of truth for effect types: `EffectType` and the `EffectConfig`
+ *  discriminated union are derived from it, so adding an effect means
+ *  adding one entry here plus its config interface below. */
+export interface EffectConfigMap {
   // ── Stream personality effects ────────────────────────────────
-  | 'cinema-moment'     // Letterbox bars + vignette + dramatic text
-  | 'chapter-reveal'    // Full-screen elegant title card
-  | 'clip-that'         // "✂ CLIP IT" badge pulses in corner
-  | 'persona-shift'     // Color wash + bold mode-change text
-  | 'moment-marker'     // "★ MOMENT" badge stamps corner then fades
-  | 'crowd-roar'        // Screen shake + vignette flash + "CROWD GOES WILD"
-  | 'intermission'      // Full-screen BRB card with animated background
-  | 'shockwave'         // Expanding ring from screen center
-  | 'hype-pulse'        // Rainbow border cycling for duration
-  | 'countdown-burst'   // 3 → 2 → 1 number slams to screen
-  | 'spotlight'         // Dark radial mask with moving light circle
-  | 'chat-bubble'       // Pinned speech bubble with text
+  'cinema-moment': CinemaMomentConfig         // Letterbox bars + vignette + dramatic text
+  'chapter-reveal': ChapterRevealConfig       // Full-screen elegant title card
+  'clip-that': ClipThatConfig                 // "✂ CLIP IT" badge pulses in corner
+  'persona-shift': PersonaShiftConfig         // Color wash + bold mode-change text
+  'moment-marker': MomentMarkerConfig         // "★ MOMENT" badge stamps corner then fades
+  'crowd-roar': CrowdRoarConfig               // Screen shake + vignette flash + "CROWD GOES WILD"
+  'intermission': IntermissionConfig          // Full-screen BRB card with animated background
+  'shockwave': ShockwaveConfig                // Expanding ring from screen center
+  'hype-pulse': HypePulseConfig               // Rainbow border cycling for duration
+  'countdown-burst': CountdownBurstConfig     // 3 → 2 → 1 number slams to screen
+  'spotlight': SpotlightConfig                // Dark radial mask with moving light circle
+  'chat-bubble': ChatBubbleConfig             // Pinned speech bubble with text
   // ── Original effects ──────────────────────────────────────────
-  | 'desktop-notification' // Desktop taskbar/toast notification
-  | 'notification-box'    // Win98 dialog window(s), cascade via flex stack
-  | 'terminal-toast'      // [SERVER]: message prints at chosen corner
-  | 'floaties'            // Glowing terminal symbols drift across screen
-  | 'corruption-burst'    // Glitch rect burst + scanline sweep
-  | 'network-glitch'      // Screen shake + interruption banner
-  | 'vignette-pulse'      // Color vignette floods screen, optional text
-  | 'screen-shake'        // Camera shake only, no overlay
-  | 'typewriter'          // Text types itself on screen
-  | 'static-burst'        // TV static noise flash
+  'desktop-notification': DesktopNotificationEffectConfig // Desktop taskbar/toast notification
+  'notification-box': NotificationBoxConfig   // Win98 dialog window(s), cascade via flex stack
+  'terminal-toast': TerminalToastConfig       // [SERVER]: message prints at chosen corner
+  'floaties': FloatiesConfig                  // Glowing terminal symbols drift across screen
+  'corruption-burst': CorruptionBurstConfig   // Glitch rect burst + scanline sweep
+  'network-glitch': NetworkGlitchConfig       // Screen shake + interruption banner
+  'vignette-pulse': VignettePulseConfig       // Color vignette floods screen, optional text
+  'screen-shake': ScreenShakeConfig           // Camera shake only, no overlay
+  'typewriter': TypewriterConfig              // Text types itself on screen
+  'static-burst': StaticBurstConfig           // TV static noise flash
   // ── Media overlays ────────────────────────────────────────────
-  | 'image-overlay'       // Transparent image/PNG/APNG on screen (alert graphics etc.)
-  | 'video-overlay'       // Transparent video/WebM on screen
+  'image-overlay': ImageOverlayConfig         // Transparent image/PNG/APNG on screen (alert graphics etc.)
+  'video-overlay': VideoOverlayConfig         // Transparent video/WebM on screen
   // ── Built-in animation wrappers ───────────────────────────────
-  | 'death-overlay'       // Original YOU DIED red vignette animation
-  | 'victory-overlay'     // Original Win98 MISSION.LOG dialog
-  | 'revive-overlay'      // Original Restarting process terminal animation
+  'death-overlay': DeathOverlayConfig         // Original YOU DIED red vignette animation
+  'victory-overlay': VictoryOverlayConfig     // Original Win98 MISSION.LOG dialog
+  'revive-overlay': ReviveOverlayConfig       // Original Restarting process terminal animation
   // ── Notifications ─────────────────────────────────────────────
-  | 'achievement-unlock'  // Xbox 360 toast from bottom-right
-  | 'system-alert'        // Vista UAC-style center dialog
-  | 'error-dialog'        // Win98/XP error box with phantom OK button
-  | 'friend-join'         // Xbox Live / Messenger friend-joined slide-in
+  'achievement-unlock': AchievementUnlockConfig // Xbox 360 toast from bottom-right
+  'system-alert': SystemAlertConfig           // Vista UAC-style center dialog
+  'error-dialog': ErrorDialogConfig           // Win98/XP error box with phantom OK button
+  'friend-join': FriendJoinConfig             // Xbox Live / Messenger friend-joined slide-in
   // ── Screen distortion ─────────────────────────────────────────
-  | 'vhs-glitch'          // VHS tape tracking artifacts + RGB displacement
-  | 'scan-lines-sweep'    // CRT scanline gradient sweeps top-to-bottom
-  | 'neon-glow'           // Neon border pulse around screen edges
-  | 'chromatic-aberration'// RGB channel offset on overlapping clones
-  | 'film-burn'           // Warm overexposure wash from screen corner
+  'vhs-glitch': VhsGlitchConfig               // VHS tape tracking artifacts + RGB displacement
+  'scan-lines-sweep': ScanLinesSweepConfig    // CRT scanline gradient sweeps top-to-bottom
+  'neon-glow': NeonGlowConfig                 // Neon border pulse around screen edges
+  'chromatic-aberration': ChromaticAberrationConfig // RGB channel offset on overlapping clones
+  'film-burn': FilmBurnConfig                 // Warm overexposure wash from screen corner
   // ── Transitions ───────────────────────────────────────────────
-  | 'tv-off'              // CRT shutdown: scaleY collapse → dot → black
-  | 'blue-screen'         // BSOD blue flash with scrolling error text
-  | 'pixel-transition'    // Grid of pixels scatter then reassemble
-  | 'dial-up-connect'     // Modem handshake terminal animation
+  'tv-off': TvOffConfig                       // CRT shutdown: scaleY collapse → dot → black
+  'blue-screen': BlueScreenConfig             // BSOD blue flash with scrolling error text
+  'pixel-transition': PixelTransitionConfig   // Grid of pixels scatter then reassemble
+  'dial-up-connect': DialUpConnectConfig      // Modem handshake terminal animation
   // ── Particles & Ambient ───────────────────────────────────────
-  | 'confetti-burst'      // Colored paper confetti rains from top
-  | 'xp-gain'             // Floating "+XP" text bubbles drift upward
-  | 'fireworks'           // Star particles arc outward from center
+  'confetti-burst': ConfettiBurstConfig       // Colored paper confetti rains from top
+  'xp-gain': XpGainConfig                     // Floating "+XP" text bubbles drift upward
+  'fireworks': FireworksConfig                // Star particles arc outward from center
   // ── Animations ────────────────────────────────────────────────
-  | 'dvd-bounce'          // Text bounces around screen like DVD screensaver
-  | 'level-up'            // "LEVEL UP" zoom + expanding ring shockwave
+  'dvd-bounce': DvdBounceConfig               // Text bounces around screen like DVD screensaver
+  'level-up': LevelUpConfig                   // "LEVEL UP" zoom + expanding ring shockwave
   // ── Audio-only ────────────────────────────────────────────────
-  | 'audio-sfx'           // No visual — plays a built-in or custom sound
+  'audio-sfx': AudioSfxConfig                 // No visual — plays a built-in or custom sound
   // ── 2000s Internet Nostalgia ──────────────────────────────────
-  | 'aim-message'         // AOL Instant Messenger window slides in
-  | 'msn-nudge'           // Windows Live Messenger NUDGE + screen shake
-  | 'xp-balloon'          // Windows XP system tray balloon notification
-  | 'geocities-alert'     // Browser JS alert() dialog with blinking border
-  | 'buffering'           // Early YouTube buffering progress bar
-  | 'winamp-skip'         // Winamp media player track skip widget
-  | 'email-alert'         // Hotmail/AOL new-message notification card
+  'aim-message': AimMessageConfig             // AOL Instant Messenger window slides in
+  'msn-nudge': MsnNudgeConfig                 // Windows Live Messenger NUDGE + screen shake
+  'xp-balloon': XpBalloonConfig               // Windows XP system tray balloon notification
+  'geocities-alert': GeoAimAlertConfig        // Browser JS alert() dialog with blinking border
+  'buffering': BufferingConfig                // Early YouTube buffering progress bar
+  'winamp-skip': WinampSkipConfig             // Winamp media player track skip widget
+  'email-alert': EmailAlertConfig             // Hotmail/AOL new-message notification card
   // ── Anime ─────────────────────────────────────────────────────
-  | 'speed-lines'         // Canvas radial speed lines from/to center
-  | 'impact-frame'        // Flash + ink speed lines + bold impact text
-  | 'power-up-aura'       // DBZ-style expanding golden rings + aura column
-  | 'to-be-continued'     // JoJo sepia wipe + "→ To Be Continued..." text
-  | 'screentone-wipe'     // Manga halftone dot pattern wipes across screen
-  | 'sweat-drop'          // Giant anime sweat drop slides, wobbles, splashes
-  | 'dramatic-zoom'       // Slow camera zoom in + speed lines, tension build
+  'speed-lines': SpeedLinesConfig             // Canvas radial speed lines from/to center
+  'impact-frame': ImpactFrameConfig           // Flash + ink speed lines + bold impact text
+  'power-up-aura': PowerUpAuraConfig          // DBZ-style expanding golden rings + aura column
+  'to-be-continued': ToBeContinuedConfig      // JoJo sepia wipe + "→ To Be Continued..." text
+  'screentone-wipe': ScreentoneWipeConfig     // Manga halftone dot pattern wipes across screen
+  'sweat-drop': SweatDropConfig               // Giant anime sweat drop slides, wobbles, splashes
+  'dramatic-zoom': DramaticZoomConfig         // Slow camera zoom in + speed lines, tension build
   // ── MMORPG / Retro-Futurist ─────────────────────────────────────
-  | 'item-pickup'         // Loot explosion with rarity-colored burst + item name
-  | 'quest-complete'      // Quest banner fanfare slides in, holds, slides out
-  | 'critical-hit'        // Screen flash + big impact damage text
-  | 'boss-warning'        // Metal Gear "!" alert — red flash + warning banner
-  | 'combo-multiplier'    // Fighting-game combo counter increments and slams
-  | 'game-over-effect'    // Retro pixel-art GAME OVER wipe
-  | 'matrix-glitch'       // Matrix-rain dissolve transition
+  'item-pickup': ItemPickupConfig             // Loot explosion with rarity-colored burst + item name
+  'quest-complete': QuestCompleteConfig       // Quest banner fanfare slides in, holds, slides out
+  'critical-hit': CriticalHitConfig           // Screen flash + big impact damage text
+  'boss-warning': BossWarningConfig           // Metal Gear "!" alert — red flash + warning banner
+  'combo-multiplier': ComboMultiplierConfig   // Fighting-game combo counter increments and slams
+  'game-over-effect': GameOverEffectConfig    // Retro pixel-art GAME OVER wipe
+  'matrix-glitch': MatrixGlitchConfig         // Matrix-rain dissolve transition
   // ── Colorful particles & light ──────────────────────────────────
-  | 'aurora-wave'         // Flowing aurora ribbons undulate across the screen
-  | 'starfall'            // Shooting stars streak down with glowing trails
-  | 'bubble-pop'          // Glossy iridescent bubbles rise, wobble, and pop
-  | 'glitter-bomb'        // Twinkling glitter explosion from screen center
-  | 'laser-sweep'         // Synthwave laser beams sweep across the screen
+  'aurora-wave': AuroraWaveConfig             // Flowing aurora ribbons undulate across the screen
+  'starfall': StarfallConfig                  // Shooting stars streak down with glowing trails
+  'bubble-pop': BubblePopConfig               // Glossy iridescent bubbles rise, wobble, and pop
+  'glitter-bomb': GlitterBombConfig           // Twinkling glitter explosion from screen center
+  'laser-sweep': LaserSweepConfig             // Synthwave laser beams sweep across the screen
+}
+
+export type EffectType = keyof EffectConfigMap
 
 // ── Per-type configs ────────────────────────────────────────────
 
@@ -362,88 +369,20 @@ export interface EffectChain {
   effect: EffectConfig
 }
 
-// ── Discriminated union ─────────────────────────────────────────
+// ── Discriminated union ───────────────────────────────────────
+// Derived from EffectConfigMap so each effect type appears exactly once.
 // delay?: seconds before this effect fires within the stack (default 0)
 // chain?: on fire, roll against chain.chance to also trigger chain.effect
 
-export type EffectConfig =
-  | { type: 'desktop-notification'; cfg: DesktopNotificationEffectConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'notification-box'; cfg: NotificationBoxConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'terminal-toast';   cfg: TerminalToastConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'floaties';         cfg: FloatiesConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'corruption-burst'; cfg: CorruptionBurstConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'network-glitch';   cfg: NetworkGlitchConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'vignette-pulse';   cfg: VignettePulseConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'screen-shake';     cfg: ScreenShakeConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'typewriter';       cfg: TypewriterConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'static-burst';     cfg: StaticBurstConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'image-overlay';    cfg: ImageOverlayConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'video-overlay';    cfg: VideoOverlayConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'death-overlay';    cfg: DeathOverlayConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'victory-overlay';  cfg: VictoryOverlayConfig;  delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'revive-overlay';   cfg: ReviveOverlayConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'achievement-unlock'; cfg: AchievementUnlockConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'system-alert';     cfg: SystemAlertConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'error-dialog';     cfg: ErrorDialogConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'friend-join';      cfg: FriendJoinConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'vhs-glitch';       cfg: VhsGlitchConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'scan-lines-sweep'; cfg: ScanLinesSweepConfig;  delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'neon-glow';        cfg: NeonGlowConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'chromatic-aberration'; cfg: ChromaticAberrationConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'film-burn';        cfg: FilmBurnConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'tv-off';           cfg: TvOffConfig;           delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'blue-screen';      cfg: BlueScreenConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'pixel-transition'; cfg: PixelTransitionConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'dial-up-connect';  cfg: DialUpConnectConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'confetti-burst';   cfg: ConfettiBurstConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'xp-gain';          cfg: XpGainConfig;          delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'fireworks';        cfg: FireworksConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'dvd-bounce';       cfg: DvdBounceConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'level-up';         cfg: LevelUpConfig;         delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'audio-sfx';        cfg: AudioSfxConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  // ── Stream personality ──────────────────────────────────────────
-  | { type: 'cinema-moment';    cfg: CinemaMomentConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'chapter-reveal';   cfg: ChapterRevealConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'clip-that';        cfg: ClipThatConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'persona-shift';    cfg: PersonaShiftConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'moment-marker';    cfg: MomentMarkerConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'crowd-roar';       cfg: CrowdRoarConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'intermission';     cfg: IntermissionConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'shockwave';        cfg: ShockwaveConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'hype-pulse';       cfg: HypePulseConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'countdown-burst';  cfg: CountdownBurstConfig;  delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'spotlight';        cfg: SpotlightConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'chat-bubble';      cfg: ChatBubbleConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  // ── 2000s Internet Nostalgia ──────────────────────────────────
-  | { type: 'aim-message';      cfg: AimMessageConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'msn-nudge';        cfg: MsnNudgeConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'xp-balloon';       cfg: XpBalloonConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'geocities-alert';  cfg: GeoAimAlertConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'buffering';        cfg: BufferingConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'winamp-skip';      cfg: WinampSkipConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'email-alert';      cfg: EmailAlertConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  // ── Anime ─────────────────────────────────────────────────────
-  | { type: 'speed-lines';      cfg: SpeedLinesConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'impact-frame';     cfg: ImpactFrameConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'power-up-aura';    cfg: PowerUpAuraConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'to-be-continued';  cfg: ToBeContinuedConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'screentone-wipe';  cfg: ScreentoneWipeConfig;  delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'sweat-drop';       cfg: SweatDropConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'dramatic-zoom';    cfg: DramaticZoomConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  // ── MMORPG / Retro-Futurist ──────────────────────────────────────
-  | { type: 'item-pickup';      cfg: ItemPickupConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'quest-complete';   cfg: QuestCompleteConfig;   delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'critical-hit';     cfg: CriticalHitConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'boss-warning';     cfg: BossWarningConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'combo-multiplier'; cfg: ComboMultiplierConfig; delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'game-over-effect'; cfg: GameOverEffectConfig;  delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'matrix-glitch';    cfg: MatrixGlitchConfig;    delay?: number; sfx?: string; chain?: EffectChain }
-  // ── Colorful particles & light ──────────────────────────────────
-  | { type: 'aurora-wave';      cfg: AuroraWaveConfig;      delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'starfall';         cfg: StarfallConfig;        delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'bubble-pop';       cfg: BubblePopConfig;       delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'glitter-bomb';     cfg: GlitterBombConfig;     delay?: number; sfx?: string; chain?: EffectChain }
-  | { type: 'laser-sweep';      cfg: LaserSweepConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+export type EffectConfig = {
+  [K in EffectType]: {
+    type: K
+    cfg: EffectConfigMap[K]
+    delay?: number
+    sfx?: string
+    chain?: EffectChain
+  }
+}[EffectType]
 
 // ── Stream personality effect configs ───────────────────────────
 
