@@ -76,6 +76,11 @@ import {
   type ComboMultiplierConfig,
   type GameOverEffectConfig,
   type MatrixGlitchConfig,
+  type AuroraWaveConfig,
+  type StarfallConfig,
+  type BubblePopConfig,
+  type GlitterBombConfig,
+  type LaserSweepConfig,
 } from '@ieomlabs/shared'
 
 import { runAimMessage }            from '../transitions/AimMessage'
@@ -145,6 +150,11 @@ import { runBossWarning }           from '../transitions/BossWarning'
 import { runComboMultiplier }       from '../transitions/ComboMultiplier'
 import { runGameOverEffect }        from '../transitions/GameOverEffect'
 import { runMatrixGlitch }          from '../transitions/MatrixGlitch'
+import { runAuroraWave }            from '../transitions/AuroraWave'
+import { runStarfall }              from '../transitions/Starfall'
+import { runBubblePop }             from '../transitions/BubblePop'
+import { runGlitterBomb }           from '../transitions/GlitterBomb'
+import { runLaserSweep }            from '../transitions/LaserSweep'
 
 // ── Original effects ──────────────────────────────────────────────
 registerEffect('death-overlay',    (cfg) => runDeathOverlay(cfg as DeathOverlayConfig))
@@ -224,3 +234,10 @@ registerEffect('boss-warning',     (cfg) => runBossWarning(cfg as BossWarningCon
 registerEffect('combo-multiplier', (cfg) => runComboMultiplier(cfg as ComboMultiplierConfig))
 registerEffect('game-over-effect', (cfg) => runGameOverEffect(cfg as GameOverEffectConfig))
 registerEffect('matrix-glitch',    (cfg) => runMatrixGlitch(cfg as MatrixGlitchConfig))
+
+// ── Colorful particles & light effects ────────────────────────────
+registerEffect('aurora-wave',      (cfg) => runAuroraWave(cfg as AuroraWaveConfig))
+registerEffect('starfall',         (cfg) => runStarfall(cfg as StarfallConfig))
+registerEffect('bubble-pop',       (cfg) => runBubblePop(cfg as BubblePopConfig))
+registerEffect('glitter-bomb',     (cfg) => runGlitterBomb(cfg as GlitterBombConfig))
+registerEffect('laser-sweep',      (cfg) => runLaserSweep(cfg as LaserSweepConfig))

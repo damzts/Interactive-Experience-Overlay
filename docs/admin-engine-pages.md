@@ -93,7 +93,7 @@ All panels follow the same pattern:
 1. Read from `useAdminStore(s => s.config.<key>)`
 2. Local form state tracks unsaved changes (dirty flag)
 3. Save bar calls `saveConfig({ <key>: value })` with exactly one top-level key
-4. `saveConfig` → `PATCH /api/config` → `DesktopConfigService.persistForUser` → writes one table → emits `config:update`
+4. `saveConfig` → `PATCH /api/config` → `DesktopConfigService.persistForUser` → writes one table → emits `config:patch` with just the changed section (full `config:update` is reserved for full non-patch saves)
 
 **Single-key constraint:** `configApi.patchConfig` sends `{ <key>: value }`. The server's `writeSections` switches on the key and writes exactly the table it maps to. Multi-key payloads are only allowed for the atomic `POST /api/config/scenes` endpoint (creates both a `scenes` row and an `applications` row in one server-side transaction).
 

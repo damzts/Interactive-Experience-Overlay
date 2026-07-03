@@ -174,6 +174,23 @@ export function TransitionLayer() {
       {/* Level up — zoom text + ring shockwave */}
       <div id="tl-level-up" style={{ position: 'fixed', inset: 0, zIndex: 215, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
 
+      {/* ── Colorful particles & light containers ──────────────── */}
+
+      {/* Aurora wave — flowing aurora ribbons */}
+      <div id="tl-aurora-wave" style={{ position: 'fixed', inset: 0, zIndex: 198, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Starfall — shooting stars with glowing trails */}
+      <div id="tl-starfall" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Bubble pop — glossy bubbles rise and pop */}
+      <div id="tl-bubble-pop" style={{ position: 'fixed', inset: 0, zIndex: 205, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Glitter bomb — twinkling glitter explosion */}
+      <div id="tl-glitter-bomb" style={{ position: 'fixed', inset: 0, zIndex: 208, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
+      {/* Laser sweep — synthwave beams cross the screen */}
+      <div id="tl-laser-sweep" style={{ position: 'fixed', inset: 0, zIndex: 202, pointerEvents: 'none', display: 'none', overflow: 'hidden' }} />
+
       {/* ── Stream personality containers ─────────────────────── */}
 
       {/* Cinema moment — letterbox bars + vignette + dramatic text */}

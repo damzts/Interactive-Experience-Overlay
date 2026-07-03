@@ -85,6 +85,12 @@ export type EffectType =
   | 'combo-multiplier'    // Fighting-game combo counter increments and slams
   | 'game-over-effect'    // Retro pixel-art GAME OVER wipe
   | 'matrix-glitch'       // Matrix-rain dissolve transition
+  // ── Colorful particles & light ──────────────────────────────────
+  | 'aurora-wave'         // Flowing aurora ribbons undulate across the screen
+  | 'starfall'            // Shooting stars streak down with glowing trails
+  | 'bubble-pop'          // Glossy iridescent bubbles rise, wobble, and pop
+  | 'glitter-bomb'        // Twinkling glitter explosion from screen center
+  | 'laser-sweep'         // Synthwave laser beams sweep across the screen
 
 // ── Per-type configs ────────────────────────────────────────────
 
@@ -432,6 +438,12 @@ export type EffectConfig =
   | { type: 'combo-multiplier'; cfg: ComboMultiplierConfig; delay?: number; sfx?: string; chain?: EffectChain }
   | { type: 'game-over-effect'; cfg: GameOverEffectConfig;  delay?: number; sfx?: string; chain?: EffectChain }
   | { type: 'matrix-glitch';    cfg: MatrixGlitchConfig;    delay?: number; sfx?: string; chain?: EffectChain }
+  // ── Colorful particles & light ──────────────────────────────────
+  | { type: 'aurora-wave';      cfg: AuroraWaveConfig;      delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'starfall';         cfg: StarfallConfig;        delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'bubble-pop';       cfg: BubblePopConfig;       delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'glitter-bomb';     cfg: GlitterBombConfig;     delay?: number; sfx?: string; chain?: EffectChain }
+  | { type: 'laser-sweep';      cfg: LaserSweepConfig;      delay?: number; sfx?: string; chain?: EffectChain }
 
 // ── Stream personality effect configs ───────────────────────────
 
@@ -643,6 +655,46 @@ export interface GameOverEffectConfig {
 
 export interface MatrixGlitchConfig {
   color?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+// ── Colorful particles & light configs ───────────────────────────
+
+export interface AuroraWaveConfig {
+  colors?: string[]
+  intensity?: 'soft' | 'medium' | 'intense'
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface StarfallConfig {
+  count?: number
+  colors?: string[]
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface BubblePopConfig {
+  count?: number
+  colors?: string[]
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface GlitterBombConfig {
+  count?: number
+  colors?: string[]
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface LaserSweepConfig {
+  color?: string
+  /** Cycle beam hue over time instead of a fixed color */
+  rainbow?: boolean
+  /** Number of beams, default 5 */
+  beams?: number
   /** Duration in seconds */
   duration: number
 }

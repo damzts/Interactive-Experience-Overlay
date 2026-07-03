@@ -24,8 +24,8 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `state:update` | `{ state, previousState }` | SceneMachine transitions | Update visual state; pulse reactive icon |
 | `transition:play` | `TransitionPlayPayload` | Before scene swap | Play exit pipeline, swap, play intro pipeline |
 | `overlay:show` | `OverlayTriggerPayload` | Admin trigger, event fire | Run effects + SFX |
-| `config:update` | `AppConfig` | Admin saves config | Replace full config in store |
-| `config:patch` | `Partial<AppConfig>` | Partial config save | Merge patch into config |
+| `config:update` | `AppConfig` | Full (non-patch) config save | Replace full config in store |
+| `config:patch` | `Partial<AppConfig>` | Partial config save (the common path) | Merge patch into config |
 | `runtime:config:override` | `RuntimeConfigOverridePayload` | Admin preview / runtime tweak | Apply scoped override without persisting |
 | `obs:status` | `ObsStatusPayload` | OBS connection state changes | Update OBS indicator in admin/overlay |
 | `ambiance:metrics` | `{ accepted, rejected }` | After each simulation cycle | Update diagnostics display |

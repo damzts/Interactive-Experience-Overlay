@@ -380,6 +380,53 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
     ],
   },
   {
+    id: 'synthwave-grid', label: 'Synthwave Grid', icon: '🌅', category: 'background', defaultTier: 'background',
+    desc: 'Retro-futurist perspective grid scrolling toward a horizon sun',
+    defaultConfig: { gridColor: '#ff00cc', sunColor: '#ff6ec7', skyTop: '#0b0033', showSun: true, speed: 1 },
+    fields: [
+      { key: 'gridColor', label: 'Grid Color', type: 'color' },
+      { key: 'sunColor', label: 'Sun Color', type: 'color' },
+      { key: 'skyTop', label: 'Sky Color', type: 'color' },
+      { key: 'showSun', label: 'Show Sun', type: 'boolean' },
+      { key: 'speed', label: 'Scroll Speed', type: 'number', min: 0, max: 5, step: 0.25 },
+    ],
+  },
+  {
+    id: 'aurora-flow', label: 'Aurora Flow', icon: '🌌', category: 'background', defaultTier: 'background',
+    desc: 'Slowly drifting northern-lights gradient ribbons',
+    defaultConfig: { color1: '#00ffc8', color2: '#4488ff', color3: '#cc44ff', speed: 1, opacity: 0.5 },
+    fields: [
+      { key: 'color1', label: 'Color 1', type: 'color' },
+      { key: 'color2', label: 'Color 2', type: 'color' },
+      { key: 'color3', label: 'Color 3', type: 'color' },
+      { key: 'speed', label: 'Drift Speed', type: 'number', min: 0, max: 5, step: 0.25 },
+      { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    id: 'lava-lamp', label: 'Lava Lamp', icon: '🫧', category: 'background', defaultTier: 'background',
+    desc: 'Soft glowing blobs drift and merge like a lava lamp',
+    defaultConfig: { color1: '#ff4488', color2: '#8844ff', bgColor: '#0a0018', blobCount: 6, speed: 1 },
+    fields: [
+      { key: 'color1', label: 'Blob Color 1', type: 'color' },
+      { key: 'color2', label: 'Blob Color 2', type: 'color' },
+      { key: 'bgColor', label: 'Background', type: 'color' },
+      { key: 'blobCount', label: 'Blob Count', type: 'number', min: 2, max: 12, step: 1 },
+      { key: 'speed', label: 'Drift Speed', type: 'number', min: 0, max: 5, step: 0.25 },
+    ],
+  },
+  {
+    id: 'starfield-warp', label: 'Starfield Warp', icon: '🚀', category: 'background', defaultTier: 'background',
+    desc: 'Hyperspace star streaks radiating from screen center',
+    defaultConfig: { color: '#ffffff', rainbow: false, density: 0.5, speed: 1 },
+    fields: [
+      { key: 'color', label: 'Star Color', type: 'color' },
+      { key: 'rainbow', label: 'Rainbow Mode', type: 'boolean' },
+      { key: 'density', label: 'Density', type: 'number', min: 0.1, max: 1, step: 0.05 },
+      { key: 'speed', label: 'Warp Speed', type: 'number', min: 0.1, max: 5, step: 0.1 },
+    ],
+  },
+  {
     id: 'retro-hud', label: 'Retro Arcade HUD', icon: '🕹', category: 'overlay', defaultTier: 'content',
     desc: '8-bit arcade-style score, level, lives, and ammo HUD',
     defaultConfig: { color: '#ffe14a', score: 128400, level: 1, lives: 3, ammo: 24, tickMs: 1400 },

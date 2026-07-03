@@ -68,6 +68,11 @@ export const EFFECT_CATEGORIES: { label: string; effects: EffectType[] }[] = [
       'confetti-burst',
       'xp-gain',
       'fireworks',
+      'aurora-wave',
+      'starfall',
+      'bubble-pop',
+      'glitter-bomb',
+      'laser-sweep',
       'typewriter',
     ],
   },
@@ -712,6 +717,46 @@ export function createEffectDraft(type: EffectType): EffectConfig {
     return {
       type,
       cfg: { color: '#00ff41', duration: 2.5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'aurora-wave') {
+    return {
+      type,
+      cfg: { colors: ['#00ffc8', '#4488ff', '#cc44ff', '#ff44aa'], intensity: 'medium', duration: 6 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'starfall') {
+    return {
+      type,
+      cfg: { count: 12, colors: ['#ffffff', '#8df6ff', '#ffe14a', '#ff88ff'], duration: 4 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'bubble-pop') {
+    return {
+      type,
+      cfg: { count: 24, colors: ['#8df6ff', '#ff9ee7', '#b7ff9e', '#ffd88d', '#c49eff'], duration: 5 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'glitter-bomb') {
+    return {
+      type,
+      cfg: { count: 160, colors: ['#ffd700', '#ff77ff', '#77e6ff', '#b0ff77', '#ffffff'], duration: 3 },
+      delay: 0,
+    }
+  }
+
+  if (type === 'laser-sweep') {
+    return {
+      type,
+      cfg: { color: '#ff00cc', rainbow: true, beams: 5, duration: 3.5 },
       delay: 0,
     }
   }

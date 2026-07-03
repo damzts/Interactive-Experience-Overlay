@@ -67,6 +67,11 @@ export const rendererManifest: RendererManifest = {
   'neon-border':     () => import('./NeonBorderRenderer').then((m) => ({ component: m.NeonBorderRenderer })),
   'combat-log':      () => import('./CombatLogRenderer').then((m) => ({ component: m.CombatLogRenderer })),
   'retro-hud':       () => import('./RetroHudRenderer').then((m) => ({ component: m.RetroHudRenderer })),
+  // ── Colorful animated backgrounds ───────────────────────────────
+  'synthwave-grid':  () => import('./SynthwaveGridRenderer').then((m) => ({ component: m.SynthwaveGridRenderer })),
+  'aurora-flow':     () => import('./AuroraFlowRenderer').then((m) => ({ component: m.AuroraFlowRenderer })),
+  'lava-lamp':       () => import('./LavaLampRenderer').then((m) => ({ component: m.LavaLampRenderer })),
+  'starfield-warp':  () => import('./StarfieldWarpRenderer').then((m) => ({ component: m.StarfieldWarpRenderer })),
 }
 
 /** Cache: resolved definitions keyed by renderer id */

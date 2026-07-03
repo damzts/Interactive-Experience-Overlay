@@ -3,7 +3,9 @@ import { DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, DEFAULT_WIDGET_THEME_PRESETS,
 import type {
   AchievementUnlockConfig,
   AudioSfxConfig,
+  AuroraWaveConfig,
   BlueScreenConfig,
+  BubblePopConfig,
   ChromaticAberrationConfig,
   ConfettiBurstConfig,
   CorruptionBurstConfig,
@@ -20,7 +22,9 @@ import type {
   FireworksConfig,
   FloatiesConfig,
   FriendJoinConfig,
+  GlitterBombConfig,
   ImageOverlayConfig,
+  LaserSweepConfig,
   LevelUpConfig,
   NeonGlowConfig,
   NetworkGlitchConfig,
@@ -28,6 +32,7 @@ import type {
   PixelTransitionConfig,
   ScanLinesSweepConfig,
   ScreenShakeConfig,
+  StarfallConfig,
   StaticBurstConfig,
   SystemAlertConfig,
   TerminalToastConfig,
@@ -1020,6 +1025,85 @@ export function EventForm({
               <input type="number" value={cfg.level ?? ''} min={1} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'level-up') return; d.cfg.level = e.target.value === '' ? undefined : Number(e.target.value) })} className="w-full text-xs font-mono" placeholder="optional" />
             </div>
             <Slider label="Duration" value={cfg.duration} min={1} max={6} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'level-up') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'aurora-wave') {
+      const cfg = effect.cfg as AuroraWaveConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Intensity</div>
+              <select value={cfg.intensity ?? 'medium'} onChange={(e) => updateEffect(index, (d) => { if (d.type !== 'aurora-wave') return; d.cfg.intensity = e.target.value as AuroraWaveConfig['intensity'] })} className="w-full text-xs">
+                <option value="soft">soft</option>
+                <option value="medium">medium</option>
+                <option value="intense">intense</option>
+              </select>
+            </div>
+            <Slider label="Duration" value={cfg.duration} min={2} max={15} step={0.5} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'aurora-wave') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'starfall') {
+      const cfg = effect.cfg as StarfallConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Stars" value={cfg.count ?? 12} min={3} max={40} step={1} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'starfall') return; d.cfg.count = v })} />
+            <Slider label="Duration" value={cfg.duration} min={1} max={10} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'starfall') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'bubble-pop') {
+      const cfg = effect.cfg as BubblePopConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Bubbles" value={cfg.count ?? 24} min={5} max={80} step={1} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'bubble-pop') return; d.cfg.count = v })} />
+            <Slider label="Duration" value={cfg.duration} min={2} max={12} step={0.5} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'bubble-pop') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'glitter-bomb') {
+      const cfg = effect.cfg as GlitterBombConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Slider label="Flecks" value={cfg.count ?? 160} min={40} max={400} step={20} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'glitter-bomb') return; d.cfg.count = v })} />
+            <Slider label="Duration" value={cfg.duration} min={1} max={6} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'glitter-bomb') return; d.cfg.duration = v })} />
+          </div>
+          {renderSfxPicker(index, effect.sfx)}
+        </div>
+      )
+    }
+
+    if (effect.type === 'laser-sweep') {
+      const cfg = effect.cfg as LaserSweepConfig
+      return (
+        <div className="space-y-4 pl-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Color</div>
+              <HexColorInput value={cfg.color ?? '#ff00cc'} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'laser-sweep') return; d.cfg.color = v })} />
+            </div>
+            <div className="flex items-end pb-1">
+              <Toggle label="Rainbow" checked={cfg.rainbow ?? false} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'laser-sweep') return; d.cfg.rainbow = v })} />
+            </div>
+            <Slider label="Beams" value={cfg.beams ?? 5} min={1} max={12} step={1} onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'laser-sweep') return; d.cfg.beams = v })} />
+            <Slider label="Duration" value={cfg.duration} min={1} max={8} step={0.25} unit="s" onChange={(v) => updateEffect(index, (d) => { if (d.type !== 'laser-sweep') return; d.cfg.duration = v })} />
           </div>
           {renderSfxPicker(index, effect.sfx)}
         </div>

@@ -237,9 +237,13 @@ export class DesktopConfigService implements Manager, IConfigService {
     this._cachedConfig = config
 
     if (this.io) {
-      this.io.emit('config:update', config)
+      // Delta saves broadcast only the changed sections; the full config
+      // replace is reserved for full (non-patch) saves so clients don't
+      // reprocess the entire AppConfig on every incremental edit.
       if (updates && Object.keys(updates).length > 0) {
         this.io.emit('config:patch', updates)
+      } else {
+        this.io.emit('config:update', config)
       }
     }
 
