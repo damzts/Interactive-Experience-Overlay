@@ -14,6 +14,7 @@ import {
   ICON_ANIMATIONS,
   ICON_ARRANGEMENTS,
   SCREENSAVER_PRESETS,
+  WIDGET_SHAPES,
   WIDGET_SKINS,
   WIDGET_THEME_ANIMATIONS,
   WIDGET_THEME_ATMOSPHERES,
@@ -273,6 +274,19 @@ export function DesktopThemeEditor() {
                     className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
                     <span className="text-[11px] font-semibold leading-none">{atmosphere.label}</span>
                     <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{atmosphere.description}</span>
+                  </ConfigChoiceButton>
+                ))}
+              </div>
+            </div>
+            <div className="border-t border-[var(--color-border-default)] pt-3 space-y-2">
+              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">Shape</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {WIDGET_SHAPES.map((shape) => (
+                  <ConfigChoiceButton key={shape.id} type="button" selected={widgetTheme.shape === shape.id}
+                    onClick={() => { setWidgetTheme((prev) => ({ ...prev, shape: shape.id })); setSaved(false) }}
+                    className="min-h-0 flex-col items-start gap-1 px-3 py-2 text-left normal-case">
+                    <span className="text-[11px] font-semibold leading-none">{shape.label}</span>
+                    <span className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">{shape.description}</span>
                   </ConfigChoiceButton>
                 ))}
               </div>

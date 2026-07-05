@@ -352,6 +352,19 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
     ],
   },
   {
+    id: 'media-viz', label: 'Media Visualizer', icon: '🌀', category: 'overlay', defaultTier: 'content',
+    desc: 'Windows Media Player-style audio visualizations driven by the real audio graph — bars, spikes, scope, ambience, battery, plasma, tunnel, particles, or cycling',
+    defaultConfig: { preset: 'cycle', colorA: '#2cf7ff', colorB: '#ff6dff', bgColor: '#05060c', sensitivity: 1, cycleSeconds: 12 },
+    fields: [
+      { key: 'preset', label: 'Preset', type: 'select', options: ['cycle', 'bars', 'spikes', 'scope', 'ambience', 'battery', 'plasma', 'tunnel', 'particles'] },
+      { key: 'colorA', label: 'Color A', type: 'color' },
+      { key: 'colorB', label: 'Color B', type: 'color' },
+      { key: 'bgColor', label: 'Background', type: 'color' },
+      { key: 'sensitivity', label: 'Sensitivity', type: 'number', min: 0.2, max: 3, step: 0.1 },
+      { key: 'cycleSeconds', label: 'Cycle Seconds', type: 'number', min: 3, max: 120, step: 1 },
+    ],
+  },
+  {
     id: 'matrix-rain', label: 'Matrix Rain', icon: '🟩', category: 'background', defaultTier: 'background',
     desc: 'Falling digital rain background, Matrix-style',
     defaultConfig: { color: '#00ff41', rainbow: false, fontSize: 18, bgOpacity: 0.08 },

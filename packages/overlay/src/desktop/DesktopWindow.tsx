@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore'
 import { socket } from '../socket/client'
 import type { DesktopWidgetDragPayload, DesktopWidgetResizePayload } from '@ieomlabs/shared'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
+import { ShapeChrome, buildShapeClipPath, getWidgetShapeDef, isClippedShape, resolveTitleInset, resolveWidgetShape } from './widgetShapes'
 
 const TASKBAR_HEIGHT_PX = 40
 
@@ -121,8 +122,13 @@ export function DesktopWindow({
   const configPos = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowPosition)
   const sizeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowSize)
   const persistedAppTheme = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.theme)
+  const desktopConfig = withDesktopConfigDefaults(rawDesktopConfig)
   // Runtime event theme wins over persisted app theme
-  const widgetTheme = withDesktopConfigDefaults(rawDesktopConfig).widgetThemes?.[id] ?? persistedAppTheme
+  const widgetTheme = desktopConfig.widgetThemes?.[id] ?? persistedAppTheme
+  // Shape needs JS-side geometry, so resolve it against the global default too
+  const effectiveWidgetTheme = widgetTheme ?? desktopConfig.globalThemeDefault.widgetTheme
+  const shapeDef = getWidgetShapeDef(resolveWidgetShape(effectiveWidgetTheme))
+  const isShapeClipped = isClippedShape(shapeDef)
   const windowSeed = hashString(id)
   const motionPhase = (windowSeed % 17) / 2
   const hueShift = (windowSeed % 9) - 4
@@ -159,6 +165,23 @@ export function DesktopWindow({
     setLiveSize(next)
     sizeRef.current = next
   }, [resolvedWidth, resolvedHeight])
+
+  // Clipped silhouettes are generated in px, so auto-height windows need a
+  // measured height; fixed-height windows read liveSize directly below.
+  const [measuredFrame, setMeasuredFrame] = useState<{ width: number; height: number } | null>(null)
+  useEffect(() => {
+    if (!isShapeClipped) {
+      setMeasuredFrame(null)
+      return
+    }
+    const el = frameRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      setMeasuredFrame({ width: el.offsetWidth, height: el.offsetHeight })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isShapeClipped])
 
   useEffect(() => {
     if (dragging.current) return
@@ -285,29 +308,50 @@ export function DesktopWindow({
     e.stopPropagation()
   }
 
+  // Fixed-height windows derive geometry from liveSize (fresher during a
+  // resize drag); auto-height windows wait for the ResizeObserver measurement.
+  const shapeGeometry = liveSize.height
+    ? { width: liveSize.width, height: liveSize.height }
+    : measuredFrame
+  const shapeClipPath = isClippedShape(shapeDef) && shapeGeometry
+    ? buildShapeClipPath(shapeDef, shapeGeometry.width, shapeGeometry.height)
+    : undefined
+
+  const titleInset = resolveTitleInset(shapeDef, liveSize.width)
+  const resizeHandleOffset = shapeDef?.resizeHandle ?? { right: 2, bottom: 2 }
+
   const frame = (
     <div
       ref={frameRef}
-      className={`window desktop-window${opening ? ' desktop-window--opening' : ''} desktop-window--${state} ${windowClassName}`.trim()}
+      className={`window desktop-window${opening ? ' desktop-window--opening' : ''} desktop-window--${state}${isShapeClipped ? ' desktop-window--shaped' : ''} ${windowClassName}`.trim()}
       onAnimationEnd={() => setOpening(false)}
       style={{
-        position: 'absolute',
-        left: pos.x,
-        top: pos.y,
-        width: liveSize.width,
-        height: liveSize.height,
+        position: 'relative',
+        width: '100%',
+        height: liveSize.height ? '100%' : undefined,
         display: 'flex',
         flexDirection: 'column',
         userSelect: 'none',
-        zIndex,
-        boxShadow: 'var(--widget-shell-shadow-drop, 4px 4px 0 #000)',
+        boxShadow: isShapeClipped ? 'none' : 'var(--widget-shell-shadow-drop, 4px 4px 0 #000)',
+        clipPath: shapeClipPath,
+        borderRadius: shapeDef?.kind === 'radius' ? shapeDef.borderRadius : undefined,
         ['--widget-phase' as string]: `${motionPhase}s`,
         ['--widget-hue-shift' as string]: `${hueShift}deg`,
       }}
       onMouseDown={onFocus}
       data-widget-id={id}
     >
-      <div className="title-bar desktop-window-title" style={{ cursor: 'move' }} onMouseDown={handleTitleMouseDown} data-widget-title-bar="true">
+      <div
+        className="title-bar desktop-window-title"
+        style={{
+          cursor: 'move',
+          ...(titleInset?.top !== undefined ? { paddingTop: titleInset.top } : {}),
+          ...(titleInset?.left !== undefined ? { paddingLeft: titleInset.left } : {}),
+          ...(titleInset?.right !== undefined ? { paddingRight: titleInset.right } : {}),
+        }}
+        onMouseDown={handleTitleMouseDown}
+        data-widget-title-bar="true"
+      >
         <div className="title-bar-text">{title}</div>
         <div className="title-bar-controls">
           <button aria-label="Minimize" onClick={onMinimize} />
@@ -330,14 +374,18 @@ export function DesktopWindow({
         data-widget-resize-handle="true"
         style={{
           position: 'absolute',
-          right: 2,
-          bottom: 2,
+          right: resizeHandleOffset.right,
+          bottom: resizeHandleOffset.bottom,
           width: 12,
           height: 12,
           cursor: 'nwse-resize',
+          zIndex: 4,
           background: 'var(--widget-resize-handle, linear-gradient(135deg, transparent 0%, transparent 35%, #4f4f4f 35%, #4f4f4f 55%, #bfbfbf 55%, #bfbfbf 75%, #4f4f4f 75%, #4f4f4f 100%))',
         }}
       />
+      {isClippedShape(shapeDef) && shapeGeometry ? (
+        <ShapeChrome def={shapeDef} width={shapeGeometry.width} height={shapeGeometry.height} />
+      ) : null}
     </div>
   )
 
@@ -346,7 +394,26 @@ export function DesktopWindow({
       className={widgetTheme ? buildWidgetThemeScopeClassNames(widgetTheme) : undefined}
       style={widgetTheme ? buildWidgetThemeVars(widgetTheme) : undefined}
     >
-      {frame}
+      {/*
+        Positioner carries placement and the silhouette drop shadow. The shadow
+        must live on a parent of the clipped frame: filter + clip-path on the
+        same element clips the shadow away.
+      */}
+      <div
+        style={{
+          position: 'absolute',
+          left: pos.x,
+          top: pos.y,
+          width: liveSize.width,
+          height: liveSize.height,
+          zIndex,
+          filter: isShapeClipped
+            ? 'drop-shadow(4px 5px calc(var(--widget-shadow-scale, 1) * 10px) rgba(0, 0, 0, 0.42))'
+            : undefined,
+        }}
+      >
+        {frame}
+      </div>
     </div>
   )
 }

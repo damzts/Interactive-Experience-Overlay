@@ -197,6 +197,26 @@
   box-shadow: 4px 5px calc(var(--widget-shadow-scale, 1) * 18px) rgba(0, 0, 0, calc(0.12 + 0.22 * var(--widget-shadow-scale, 1)));
 }
 
+/*
+ * Shaped (clip-path) windows: the rectangular border/outline/box-shadow would
+ * be cut off mid-edge by the clip, so they are suppressed and the chrome edge
+ * is redrawn inside the silhouette by the .desktop-window-shape-chrome SVG.
+ * The drop shadow moves to a filter: drop-shadow() on the positioner parent.
+ */
+.desktop .desktop-window--shaped {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.desktop-window-shape-chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
 .desktop .desktop-window::before,
 .desktop .desktop-window::after {
   content: '';

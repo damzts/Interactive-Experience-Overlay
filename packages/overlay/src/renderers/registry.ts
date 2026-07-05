@@ -69,6 +69,7 @@ export const rendererManifest: RendererManifest = {
   // ── Retro-futurist / MMORPG renderers ───────────────────────────
   'rpg-hud':         () => import('./RpgHudRenderer').then((m) => ({ component: m.RpgHudRenderer })),
   'winamp-viz':      () => import('./WinampVizRenderer').then((m) => ({ component: m.WinampVizRenderer })),
+  'media-viz':       () => import('./MediaVizRenderer').then((m) => ({ component: m.MediaVizRenderer })),
   'matrix-rain':     () => import('./MatrixRainRenderer').then((m) => ({ component: m.MatrixRainRenderer })),
   'neon-border':     () => import('./NeonBorderRenderer').then((m) => ({ component: m.NeonBorderRenderer })),
   'combat-log':      () => import('./CombatLogRenderer').then((m) => ({ component: m.CombatLogRenderer })),

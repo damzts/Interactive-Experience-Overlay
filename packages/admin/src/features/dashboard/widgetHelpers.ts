@@ -5,7 +5,6 @@ import {
 } from '@ieomlabs/shared'
 import type {
   Application,
-  Scene,
   WidgetComponentType,
   WidgetLayoutDefinition,
   WidgetLayoutItem,
@@ -177,13 +176,3 @@ export function buildUserWidgetId(
   return `${base}-${suffix}`
 }
 
-export function findFirstSceneSource(scenes: Record<string, Scene>) {
-  for (const scene of Object.values(scenes)) {
-    const windows = scene.windows ?? []
-    const firstWindow = windows[0]
-    if (firstWindow) {
-      return { sceneId: scene.id, windowId: firstWindow.id }
-    }
-  }
-  return undefined
-}

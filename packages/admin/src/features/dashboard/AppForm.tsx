@@ -4,25 +4,25 @@ import {
   DEFAULT_WIDGET_THEME_PRESETS,
   getWidgetSource,
   isSystemWidget,
-  resolveWindowInstance,
+  RENDERER_CATALOG,
   withDesktopConfigDefaults,
 } from '@ieomlabs/shared'
 import type {
   Application,
   AppConfig,
   DesktopConfig,
+  WidgetShape,
   WidgetSkinTheme,
   WidgetThemeConfig,
 } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { MediaSelectionInput } from '../media-library/MediaLibrary'
-import { WIDGET_SKINS } from '../../shared/adminDesktopOptions'
+import { WIDGET_SHAPES, WIDGET_SKINS } from '../../shared/adminDesktopOptions'
 import {
   EVENT_EFFECT_TYPES,
   createEffectDraft,
 } from '../media-library/eventPresets'
-import { getSafeSceneWindows } from '../../shared/windowCatalog'
 import {
   ConfigApplyBar,
   ConfigChoiceButton,
@@ -116,20 +116,8 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const isProtectedSystemWidget = isSystemWidget(form)
   const isStickyNotesWidget    = form.id === 'sticky-notes'
   const stickyNotesConfig = form.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS
-  const windowPresets     = config.windowPresets ?? []
-  const selectedSourceSceneId = form.windowWidgetSettings?.sceneId ?? ''
-  const selectedSourceScene   = selectedSourceSceneId ? config.scenes[selectedSourceSceneId] : undefined
-  const selectedSourceSceneWindows = getSafeSceneWindows(selectedSourceScene)
-  const availableSourceScenes = useMemo(
-    () => Object.values(config.scenes).filter((scene) => {
-      const windows = getSafeSceneWindows(scene)
-      return windows.length > 0 || scene.id === selectedSourceSceneId
-    }),
-    [config.scenes, selectedSourceSceneId],
-  )
-  const availableWindows = selectedSourceSceneWindows
-  const selectedWindow   = availableWindows.find((w) => w.id === form.windowWidgetSettings?.windowId)
-  const selectedWindowResolved = selectedWindow ? resolveWindowInstance(selectedWindow, windowPresets) : null
+  const sourceMode = form.windowWidgetSettings?.mode
+    ?? (form.windowWidgetSettings?.rendererType ? 'renderer' : form.windowWidgetSettings?.sceneId ? 'scene' : '')
 
   useEffect(() => {
     if (widgetComponent !== 'camera') return
@@ -500,6 +488,21 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                   <option key={skin.id} value={skin.id}>{skin.label}</option>
                 ))}
               </select>
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Window shape</div>
+                <select
+                  value={widgetTheme.shape ?? DEFAULT_WIDGET_THEME_PRESETS[widgetTheme.skin]?.shape ?? 'rect'}
+                  onChange={(e) => {
+                    setWidgetTheme((prev) => ({ ...prev, shape: e.target.value as WidgetShape }))
+                    setSaved(false)
+                  }}
+                  className="w-full text-xs"
+                >
+                  {WIDGET_SHAPES.map((shape) => (
+                    <option key={shape.id} value={shape.id} title={shape.description}>{shape.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </ConfigPanel>
 
@@ -551,50 +554,51 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
         )}
 
         {widgetComponent === 'window' && (
-          <ConfigPanel title="Window Binding" className="mb-4">
+          <ConfigPanel title="Widget Source" className="mb-4">
             <div className="space-y-3">
               <div className="text-[10px] text-[var(--color-text-secondary)]">
-                Window widgets render one scene window inside a desktop window. Bind this widget to any configured window and change it later without recreating the widget.
+                Source widgets render either a single renderer directly, or a whole scene scaled to fit the widget window.
               </div>
               <div>
-                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Scene</div>
-                <select value={selectedSourceSceneId}
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Source type</div>
+                <select value={sourceMode}
                   onChange={(e) => update((d) => {
-                    const nextSceneId = e.target.value
-                    const nextScene = config.scenes[nextSceneId]
-                    const nextSceneWindows = getSafeSceneWindows(nextScene)
-                    const currentWindowId = d.windowWidgetSettings?.windowId
-                    const nextWindowId = nextSceneWindows.some((w) => w.id === currentWindowId) ? currentWindowId : (nextSceneWindows[0]?.id ?? '')
-                    d.windowWidgetSettings = nextSceneId ? { sceneId: nextSceneId, windowId: nextWindowId } : undefined
+                    const nextMode = e.target.value as '' | 'renderer' | 'scene'
+                    d.windowWidgetSettings = nextMode === 'renderer'
+                      ? { mode: 'renderer', rendererType: d.windowWidgetSettings?.rendererType ?? 'media-viz' }
+                      : nextMode === 'scene'
+                        ? { mode: 'scene', sceneId: d.windowWidgetSettings?.sceneId ?? Object.keys(config.scenes)[0] ?? '' }
+                        : undefined
                   })}
                   className="w-full text-xs">
-                  <option value="">— Select scene —</option>
-                  {availableSourceScenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.label}</option>)}
+                  <option value="">— No source —</option>
+                  <option value="renderer">Renderer</option>
+                  <option value="scene">Full scene</option>
                 </select>
               </div>
-              <div>
-                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Window</div>
-                <select value={form.windowWidgetSettings?.windowId ?? ''}
-                  onChange={(e) => update((d) => { d.windowWidgetSettings = { sceneId: d.windowWidgetSettings?.sceneId ?? '', windowId: e.target.value } })}
-                  disabled={!selectedSourceSceneId || availableWindows.length === 0}
-                  className="w-full text-xs">
-                  <option value="">{selectedSourceSceneId ? '— Select window —' : '— Choose a scene first —'}</option>
-                  {availableWindows.map((w) => (
-                    <option key={w.id} value={w.id}>{w.id} · {resolveWindowInstance(w, windowPresets)?.rendererType ?? 'unbound'}</option>
-                  ))}
-                </select>
-              </div>
-              {availableSourceScenes.length === 0 && (
-                <div className="text-[10px] text-[var(--color-accent-300)] leading-relaxed">No scene windows are configured yet. Add a window to any scene, then bind this widget to it.</div>
+              {sourceMode === 'renderer' && (
+                <div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Renderer</div>
+                  <select value={form.windowWidgetSettings?.rendererType ?? ''}
+                    onChange={(e) => update((d) => { d.windowWidgetSettings = { mode: 'renderer', rendererType: e.target.value } })}
+                    className="w-full text-xs">
+                    {RENDERER_CATALOG.map((entry) => (
+                      <option key={entry.id} value={entry.id} title={entry.desc}>{entry.icon} {entry.label}</option>
+                    ))}
+                  </select>
+                </div>
               )}
-              {selectedSourceSceneId && availableWindows.length === 0 && (
-                <div className="text-[10px] text-[var(--color-text-muted)]">This scene currently has no windows to bind.</div>
-              )}
-              {selectedWindow && selectedSourceScene && (
-                <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 space-y-1">
-                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">Current Binding</div>
-                  <div className="text-[11px] text-[var(--color-text-primary)]">{selectedSourceScene.label}</div>
-                  <div className="text-[10px] text-[var(--color-text-secondary)] font-mono">{selectedWindow.id} · {selectedWindowResolved?.rendererType ?? 'unbound'}</div>
+              {sourceMode === 'scene' && (
+                <div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Scene</div>
+                  <select value={form.windowWidgetSettings?.sceneId ?? ''}
+                    onChange={(e) => update((d) => { d.windowWidgetSettings = { mode: 'scene', sceneId: e.target.value } })}
+                    className="w-full text-xs">
+                    <option value="">— Select scene —</option>
+                    {Object.values(config.scenes).map((scene) => (
+                      <option key={scene.id} value={scene.id}>{scene.label}</option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>

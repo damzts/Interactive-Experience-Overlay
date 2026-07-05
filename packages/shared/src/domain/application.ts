@@ -23,10 +23,22 @@ export type WidgetSkinTheme =
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
 
+/**
+ * Morphologic window silhouette. 'rect' is the classic rectangular chrome;
+ * every other shape reshapes the whole window (clip + redrawn chrome edges).
+ * Straight-edge shapes: bevel, notch-hud, shard, sticker. Radius shapes:
+ * blob, tv. Curved bezier hulls (Winamp Metalheart lineage): metalheart,
+ * wing, wave, pod.
+ */
+export type WidgetShape =
+  | 'rect' | 'bevel' | 'notch-hud' | 'blob' | 'tv' | 'sticker'
+  | 'metalheart' | 'wing' | 'wave' | 'shard' | 'pod'
+
 export type EventWidgetSkinTheme = WidgetSkinTheme | 'random'
 
 export interface WidgetThemeConfig {
   skin: WidgetSkinTheme
+  shape: WidgetShape
   fontFamily: string
   accentColor: string
   textColor: string
@@ -76,8 +88,19 @@ export interface WidgetLayoutDefinition {
 
 // ── Widget-specific settings ─────────────────────────────────────
 
+export type WindowWidgetSourceMode = 'renderer' | 'scene'
+
+/**
+ * Source for a window-backed desktop widget: either one renderer rendered
+ * directly into the widget body, or a whole scene scaled to fit it.
+ */
 export interface WindowWidgetSettings {
+  mode?: WindowWidgetSourceMode
+  /** Renderer id from RENDERER_CATALOG (mode 'renderer'). */
+  rendererType?: string
+  /** Scene to render scaled into the widget (mode 'scene'). */
   sceneId?: string
+  /** @deprecated Legacy scene-window binding — normalized into scene mode. */
   windowId?: string
 }
 

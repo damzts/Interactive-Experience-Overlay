@@ -19,6 +19,7 @@ import {
   GOOGLE_FONTS,
   ICON_ANIMATIONS,
   SCREENSAVER_PRESETS,
+  WIDGET_SHAPES,
   WIDGET_SKINS,
   WIDGET_THEME_ANIMATIONS,
   WIDGET_THEME_ATMOSPHERES,
@@ -128,6 +129,12 @@ export function EventForm({
         <div className="text-[10px] text-zinc-500 mb-1">Atmosphere</div>
         <select value={theme.atmosphere} onChange={(e) => onChange((draft) => { draft.atmosphere = e.target.value as WidgetThemeConfig['atmosphere'] })} className="w-full text-xs">
           {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => <option key={atmosphere.id} value={atmosphere.id}>{atmosphere.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <div className="text-[10px] text-zinc-500 mb-1">Shape</div>
+        <select value={theme.shape ?? 'rect'} onChange={(e) => onChange((draft) => { draft.shape = e.target.value as WidgetThemeConfig['shape'] })} className="w-full text-xs">
+          {WIDGET_SHAPES.map((shape) => <option key={shape.id} value={shape.id}>{shape.label}</option>)}
         </select>
       </div>
       <div>

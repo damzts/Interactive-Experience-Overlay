@@ -54,6 +54,7 @@ import {
   WIDGET_SKINS,
   WIDGET_THEME_ANIMATIONS,
   WIDGET_THEME_ATMOSPHERES,
+  WIDGET_SHAPES,
 } from '../../shared/adminDesktopOptions'
 import { Btn, ConfigCard, ConfigChoiceButton, ConfigSectionPanel, HexColorInput, Slider, Toggle } from '../../shared/ui'
 import {
@@ -1168,6 +1169,7 @@ export function EventForm({
               delete draft.textColor
               delete draft.animation
               delete draft.atmosphere
+              delete draft.shape
               delete draft.motionIntensity
               delete draft.glowIntensity
               draft.skin = 'random'
@@ -1225,6 +1227,18 @@ export function EventForm({
         >
           {WIDGET_THEME_ATMOSPHERES.map((atmosphere) => (
             <option key={atmosphere.id} value={atmosphere.id}>{atmosphere.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <div className="mb-1 text-[10px] text-zinc-500">Shape</div>
+        <select
+          value={theme.shape}
+          onChange={(event) => onChange((draft) => { draft.shape = event.target.value as WidgetThemeConfig['shape'] })}
+          className="w-full text-xs"
+        >
+          {WIDGET_SHAPES.map((shape) => (
+            <option key={shape.id} value={shape.id}>{shape.label}</option>
           ))}
         </select>
       </div>

@@ -6,7 +6,7 @@ import { IconGlyph } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
 import type { UserWidgetBaseComponent } from './widgetHelpers'
-import { buildUserWidgetId, findFirstSceneSource } from './widgetHelpers'
+import { buildUserWidgetId } from './widgetHelpers'
 
 // ── USER_WIDGET_COMPONENT_OPTIONS ─────────────────────────────────────
 
@@ -17,13 +17,12 @@ const USER_WIDGET_COMPONENT_OPTIONS: Array<{
   description: string
 }> = [
   { id: 'camera', label: 'Camera', icon: '📷', description: 'Opens a desktop camera window with per-widget camera defaults.' },
-  { id: 'source', label: 'Source', icon: '🧩', description: 'Opens a desktop window bound to an existing scene source renderer.' },
+  { id: 'source', label: 'Source', icon: '🧩', description: 'Opens a desktop window rendering any renderer directly, or a whole scene scaled to fit.' },
 ]
 
 // ── NewWidgetForm ─────────────────────────────────────────────────────
 
 export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => void }) {
-  const scenes          = useAdminStore((s) => s.config.scenes)
   const applications    = useAdminStore((s) => s.persistedConfig.applications)
   const saveConfig      = useAdminStore((s) => s.saveConfig)
   const patchConfig     = useAdminStore((s) => s.patchConfig)
@@ -39,7 +38,6 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   const defaultLabel = widgetComponent === 'camera' ? 'Camera Widget' : 'Source Widget'
   const nextLabel = label.trim() || defaultLabel
   const previewId = buildUserWidgetId(widgetComponent, nextLabel, existingIds)
-  const firstSourceReference = useMemo(() => findFirstSceneSource(scenes), [scenes])
 
   const handleCreate = () => {
     setCreating(true)
@@ -54,7 +52,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
       widgetComponent: widgetComponent === 'source' ? 'window' : widgetComponent,
       zIndexDefault: nextDefaultZIndex,
       ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
-      ...(widgetComponent === 'source' && firstSourceReference ? { windowWidgetSettings: firstSourceReference } : {}),
+      ...(widgetComponent === 'source' ? { windowWidgetSettings: { mode: 'renderer' as const, rendererType: 'media-viz' } } : {}),
     }
     const nextApplications = [...applications, nextWidget]
     patchConfig({ applications: nextApplications })
@@ -118,9 +116,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
           </div>
           {widgetComponent === 'source' && (
             <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
-              {firstSourceReference
-                ? `Initial binding will use ${firstSourceReference.sceneId} / ${firstSourceReference.windowId}. You can change this immediately after creation.`
-                : 'No scene sources are available yet. The widget will still be created, but you will need to bind it to a source from the widget editor later.'}
+              Starts with the Media Visualizer renderer. Switch it to any other renderer — or a full scene — in the widget editor after creation.
             </div>
           )}
           {error && <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{error}</div>}

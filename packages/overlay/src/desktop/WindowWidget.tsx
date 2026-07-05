@@ -1,9 +1,15 @@
-import { useMemo, useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { resolveWindowInstance } from '@ieomlabs/shared'
+import type { Scene, WindowPreset } from '@ieomlabs/shared'
 import { useAppStore } from '../store/useAppStore'
 import { resolveRenderer, type RendererDefinition } from '../renderers/registry'
+import { WindowHost } from '../layers/WindowHost'
 import { DesktopWindow } from './DesktopWindow'
 import { AppGlyph } from './AppGlyph'
+
+/** Scene stage size — matches the OBS canvas the overlay renders at. */
+const STAGE_W = 1920
+const STAGE_H = 1080
 
 // Same renderer:* DOM bus WindowHost provides, so desktop-hosted renderers
 // participate in signals/actions like scene-hosted ones.
@@ -43,6 +49,108 @@ function WindowWidgetPlaceholder({
   )
 }
 
+function useElementSize() {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      setSize({ width: el.clientWidth, height: el.clientHeight })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  return { ref, size }
+}
+
+/** Renders one renderer directly into the widget body, sized to fit it. */
+function RendererSource({ rendererType, instanceId }: { rendererType: string; instanceId: string }) {
+  const { ref, size } = useElementSize()
+  const [rendererDef, setRendererDef] = useState<RendererDefinition | null>(null)
+  const [resolved, setResolved] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    setResolved(false)
+    resolveRenderer(rendererType).then((def) => {
+      if (!mounted) return
+      setRendererDef(def)
+      setResolved(true)
+    })
+    return () => { mounted = false }
+  }, [rendererType])
+
+  const config = useMemo(
+    () => structuredClone(rendererDef?.catalog?.defaultConfig ?? {}),
+    [rendererDef],
+  )
+
+  const Renderer = rendererDef?.component
+  return (
+    <div ref={ref} className="widget-panel widget-source-canvas" style={{ position: 'relative', overflow: 'hidden' }}>
+      {resolved && !Renderer ? (
+        <WindowWidgetPlaceholder
+          icon="⚠"
+          title="Unsupported renderer"
+          detail={`No renderer is registered for type "${rendererType}".`}
+        />
+      ) : Renderer && size.width > 0 ? (
+        <Renderer
+          config={config}
+          bounds={{ x: 0, y: 0, width: size.width, height: size.height }}
+          emit={BUS_EMIT}
+          onSignal={BUS_SIGNAL}
+          instanceId={instanceId}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+/** Renders a whole scene scaled (letterboxed) into the widget body. */
+function SceneSource({ scene, windowPresets }: { scene: Scene; windowPresets?: WindowPreset[] | null }) {
+  const { ref, size } = useElementSize()
+  const scale = size.width > 0 && size.height > 0
+    ? Math.min(size.width / STAGE_W, size.height / STAGE_H)
+    : 0
+
+  const instances = useMemo(
+    () => scene.windows
+      .map((entry) => resolveWindowInstance(entry, windowPresets))
+      .filter((instance): instance is NonNullable<typeof instance> => instance !== null),
+    [scene, windowPresets],
+  )
+
+  const background = scene.style?.background
+  const stageBackground = background?.type === 'gradient'
+    ? background.gradient
+    : background?.color ?? '#000'
+
+  return (
+    <div ref={ref} className="widget-panel widget-source-canvas" style={{ position: 'relative', overflow: 'hidden', background: '#000' }}>
+      {scale > 0 ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            width: STAGE_W,
+            height: STAGE_H,
+            transform: `translate(-50%, -50%) scale(${scale})`,
+            background: stageBackground,
+            overflow: 'hidden',
+          }}
+        >
+          {instances.map((instance) => (
+            <WindowHost key={instance.id} instance={instance} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function WindowWidget({ appId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
   const applications = useAppStore((s) => s.config.applications)
   const scenes = useAppStore((s) => s.config.scenes)
@@ -52,22 +160,9 @@ export function WindowWidget({ appId, onClose, onMinimize, onFocus, windowState 
     () => applications.find((entry) => entry.id === appId),
     [applications, appId],
   )
-  const sceneId = app?.windowWidgetSettings?.sceneId ?? ''
-  const windowId = app?.windowWidgetSettings?.windowId ?? ''
-  const scene = sceneId ? scenes[sceneId] : undefined
-  const instance = useMemo(() => {
-    const entry = scene?.windows.find((candidate) => candidate.id === windowId)
-    return entry ? resolveWindowInstance(entry, windowPresets) : null
-  }, [scene, windowId, windowPresets])
-
-  const [rendererDef, setRendererDef] = useState<RendererDefinition | null>(null)
-  useEffect(() => {
-    if (!instance?.rendererType) { setRendererDef(null); return }
-    resolveRenderer(instance.rendererType).then(setRendererDef)
-  }, [instance?.rendererType])
-
-  const Renderer = rendererDef?.component
-  const bounds = instance ? instance.position : { x: 0, y: 0, width: 400, height: 300 }
+  const settings = app?.windowWidgetSettings
+  const mode = settings?.mode ?? (settings?.rendererType ? 'renderer' : settings?.sceneId ? 'scene' : undefined)
+  const scene = mode === 'scene' && settings?.sceneId ? scenes[settings.sceneId] : undefined
 
   return (
     <DesktopWindow
@@ -90,34 +185,22 @@ export function WindowWidget({ appId, onClose, onMinimize, onFocus, windowState 
       onClose={onClose}
       bodyStyle={{ padding: 12 }}
     >
-      {!sceneId || !windowId ? (
+      {!mode ? (
         <WindowWidgetPlaceholder
           icon="🧩"
-          title="Window binding required"
-          detail="Bind this widget to a scene window from the admin dashboard to render it here."
+          title="Source required"
+          detail="Pick a renderer or a scene for this widget from the admin dashboard."
         />
+      ) : mode === 'renderer' ? (
+        <RendererSource rendererType={settings!.rendererType!} instanceId={appId ?? 'window-widget'} />
       ) : !scene ? (
         <WindowWidgetPlaceholder
           icon="⚠"
           title="Scene not found"
-          detail={`The configured scene "${sceneId}" is no longer available.`}
-        />
-      ) : !instance ? (
-        <WindowWidgetPlaceholder
-          icon="⚠"
-          title="Window not found"
-          detail={`The configured window "${windowId}" is no longer present in ${scene.label}.`}
-        />
-      ) : !Renderer ? (
-        <WindowWidgetPlaceholder
-          icon="⚠"
-          title="Unsupported renderer"
-          detail={`No renderer is registered for type "${instance.rendererType}".`}
+          detail={`The configured scene "${settings?.sceneId}" is no longer available.`}
         />
       ) : (
-        <div className="widget-panel widget-source-canvas">
-          <Renderer config={instance.config ?? {}} bounds={bounds} emit={BUS_EMIT} onSignal={BUS_SIGNAL} instanceId={instance.id} />
-        </div>
+        <SceneSource scene={scene} windowPresets={windowPresets} />
       )}
     </DesktopWindow>
   )

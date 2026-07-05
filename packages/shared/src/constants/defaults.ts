@@ -6,6 +6,7 @@ import type {
   WidgetThemeAnimation,
   WidgetThemeAtmosphere,
   WidgetThemeConfig,
+  WidgetShape,
   WidgetSkinTheme,
   WidgetComponentType,
   WidgetLayoutDefinition,
@@ -282,6 +283,15 @@ export function withEventListDefaults(events?: EventConfig[] | null): EventConfi
   return (events ?? []).map((event) => withEventConfigDefaults(event))
 }
 
+const WIDGET_SHAPES: readonly WidgetShape[] = [
+  'rect', 'bevel', 'notch-hud', 'blob', 'tv', 'sticker',
+  'metalheart', 'wing', 'wave', 'shard', 'pod',
+]
+
+function normalizeWidgetShape(value: unknown, fallback: WidgetShape = 'rect'): WidgetShape {
+  return WIDGET_SHAPES.includes(value as WidgetShape) ? (value as WidgetShape) : fallback
+}
+
 function normalizeWidgetThemeAnimation(value?: WidgetThemeAnimation): WidgetThemeAnimation {
   if (value === 'steady' || value === 'pulse' || value === 'shimmer' || value === 'aurora' || value === 'broadcast') {
     return value
@@ -329,6 +339,9 @@ function normalizeEventWidgetThemePatch(config?: EventWidgetThemePatch | null): 
   if (config.atmosphere !== undefined) {
     next.atmosphere = normalizeWidgetThemeAtmosphere(config.atmosphere)
   }
+  if (config.shape !== undefined) {
+    next.shape = normalizeWidgetShape(config.shape)
+  }
   if (config.motionIntensity !== undefined && Number.isFinite(config.motionIntensity)) {
     next.motionIntensity = normalizeWidgetThemeIntensity(config.motionIntensity, 1)
   }
@@ -352,6 +365,7 @@ function normalizeWidgetThemeConfig(config?: Partial<WidgetThemeConfig> | null):
     ...widgetPreset,
     ...config,
     skin: widgetSkin,
+    shape: normalizeWidgetShape(config?.shape, widgetPreset.shape),
     animation: normalizeWidgetThemeAnimation(config?.animation ?? widgetPreset.animation),
     atmosphere: normalizeWidgetThemeAtmosphere(config?.atmosphere ?? widgetPreset.atmosphere),
     motionIntensity: normalizeWidgetThemeIntensity(config?.motionIntensity, widgetPreset.motionIntensity),
@@ -386,26 +400,26 @@ export const DEFAULT_STICKY_NOTES_SETTINGS: StickyNotesSettings = {
 }
 
 export const DEFAULT_WIDGET_THEME_PRESETS: Record<WidgetSkinTheme, WidgetThemeConfig> = {
-  metalheart:         { skin: 'metalheart',       fontFamily: 'Audiowide',       accentColor: '#ff5c8a', textColor: '#f8fbff', titleColor: '',        animation: 'shimmer',   atmosphere: 'sparkle',   motionIntensity: 0.95, glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.2, borderRadius: 0  },
-  'genx soft club':   { skin: 'genx soft club',   fontFamily: 'Electrolize',     accentColor: '#ff94d6', textColor: '#2c1430', titleColor: '',        animation: 'pulse',     atmosphere: 'sparkle',   motionIntensity: 1.15, glowIntensity: 0.85, shellOpacity: 1,    shadowIntensity: 0.8, borderRadius: 8  },
-  chromecore:         { skin: 'chromecore',        fontFamily: 'Rajdhani',        accentColor: '#7fe0ff', textColor: '#152433', titleColor: '',        animation: 'shimmer',   atmosphere: 'grid',      motionIntensity: 0.8,  glowIntensity: 0.95, shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 2  },
-  'y2k futurism':     { skin: 'y2k futurism',      fontFamily: 'Orbitron',        accentColor: '#2cf7ff', textColor: '#ebfbff', titleColor: '',        animation: 'aurora',    atmosphere: 'nebula',    motionIntensity: 1.35, glowIntensity: 1.6,  shellOpacity: 1,    shadowIntensity: 1.6, borderRadius: 4  },
-  transparent:        { skin: 'transparent',       fontFamily: 'Share Tech Mono', accentColor: '#b8f4ff', textColor: '#effcff', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1,    glowIntensity: 1.05, shellOpacity: 0.55, shadowIntensity: 0.4, borderRadius: 6  },
-  'aqua pop':         { skin: 'aqua pop',          fontFamily: 'Rajdhani',        accentColor: '#4ddcff', textColor: '#08374c', titleColor: '',        animation: 'shimmer',   atmosphere: 'sparkle',   motionIntensity: 1.05, glowIntensity: 1.25, shellOpacity: 0.92, shadowIntensity: 1.1, borderRadius: 10 },
-  'mallsoft pearl':   { skin: 'mallsoft pearl',    fontFamily: 'Electrolize',     accentColor: '#ffb8e8', textColor: '#5a2b58', titleColor: '',        animation: 'aurora',    atmosphere: 'nebula',    motionIntensity: 0.9,  glowIntensity: 1.15, shellOpacity: 0.9,  shadowIntensity: 0.7, borderRadius: 12 },
-  'messenger glow':   { skin: 'messenger glow',   fontFamily: 'Audiowide',       accentColor: '#75ffb2', textColor: '#16352a', titleColor: '',        animation: 'pulse',     atmosphere: 'grid',      motionIntensity: 1.15, glowIntensity: 1,    shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 4  },
-  'limewire plasma':  { skin: 'limewire plasma',  fontFamily: 'Share Tech Mono', accentColor: '#7aff54', textColor: '#e8ffe1', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
-  'cyber y2k':        { skin: 'cyber y2k',         fontFamily: 'Orbitron',        accentColor: '#ff6dff', textColor: '#f4fbff', titleColor: '',        animation: 'aurora',    atmosphere: 'grid',      motionIntensity: 1.45, glowIntensity: 1.7,  shellOpacity: 1,    shadowIntensity: 1.7, borderRadius: 2  },
-  'digital futurism': { skin: 'digital futurism',  fontFamily: 'Audiowide',       accentColor: '#56f0ff', textColor: '#eafcff', titleColor: '',        animation: 'shimmer',   atmosphere: 'nebula',    motionIntensity: 1.1,  glowIntensity: 1.35, shellOpacity: 0.95, shadowIntensity: 1.3, borderRadius: 4  },
-  'ssx rush':         { skin: 'ssx rush',          fontFamily: 'Rajdhani',        accentColor: '#ff8e2b', textColor: '#fff7ee', titleColor: '',        animation: 'pulse',     atmosphere: 'sparkle',   motionIntensity: 1.55, glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.2, borderRadius: 6  },
-  'ps2 drift':        { skin: 'ps2 drift',         fontFamily: 'Electrolize',     accentColor: '#6ba4ff', textColor: '#edf3ff', titleColor: '',        animation: 'broadcast', atmosphere: 'grid',      motionIntensity: 1.1,  glowIntensity: 1.1,  shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 0  },
-  'xbox blade':       { skin: 'xbox blade',        fontFamily: 'Share Tech Mono', accentColor: '#79ff5a', textColor: '#efffe7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.25, glowIntensity: 1.3,  shellOpacity: 1,    shadowIntensity: 1.3, borderRadius: 2  },
-  'cel street':       { skin: 'cel street',        fontFamily: 'Audiowide',       accentColor: '#ffd447', textColor: '#1a1f2f', titleColor: '',        animation: 'pulse',     atmosphere: 'clean',     motionIntensity: 1.2,  glowIntensity: 0.9,  shellOpacity: 1,    shadowIntensity: 0.9, borderRadius: 4  },
-  'aero nova':        { skin: 'aero nova',         fontFamily: 'Rajdhani',        accentColor: '#59d7ff', textColor: '#103b58', titleColor: '',        animation: 'aurora',    atmosphere: 'sparkle',   motionIntensity: 1.05, glowIntensity: 1.45, shellOpacity: 0.88, shadowIntensity: 0.6, borderRadius: 14 },
-  'aero opaline':     { skin: 'aero opaline',      fontFamily: 'Electrolize',     accentColor: '#7ceee7', textColor: '#1a4960', titleColor: '',        animation: 'shimmer',   atmosphere: 'nebula',    motionIntensity: 0.95, glowIntensity: 1.25, shellOpacity: 0.82, shadowIntensity: 0.5, borderRadius: 16 },
-  'dial-up candy':    { skin: 'dial-up candy',     fontFamily: 'Trebuchet MS',    accentColor: '#58c8ff', textColor: '#20344d', titleColor: '',        animation: 'broadcast', atmosphere: 'sparkle',   motionIntensity: 1.25, glowIntensity: 1.05, shellOpacity: 1,    shadowIntensity: 0.9, borderRadius: 8  },
-  'webcore flash':    { skin: 'webcore flash',     fontFamily: 'Audiowide',       accentColor: '#ffdf3c', textColor: '#201834', titleColor: '',        animation: 'pulse',     atmosphere: 'grid',      motionIntensity: 1.4,  glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.1, borderRadius: 6  },
-  'lan party':        { skin: 'lan party',         fontFamily: 'Share Tech Mono', accentColor: '#67ffcc', textColor: '#e7fff7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
+  metalheart:         { skin: 'metalheart',       shape: 'metalheart', fontFamily: 'Audiowide',       accentColor: '#ff5c8a', textColor: '#f8fbff', titleColor: '',        animation: 'shimmer',   atmosphere: 'sparkle',   motionIntensity: 0.95, glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.2, borderRadius: 0  },
+  'genx soft club':   { skin: 'genx soft club',   shape: 'pod',       fontFamily: 'Electrolize',     accentColor: '#ff94d6', textColor: '#2c1430', titleColor: '',        animation: 'pulse',     atmosphere: 'sparkle',   motionIntensity: 1.15, glowIntensity: 0.85, shellOpacity: 1,    shadowIntensity: 0.8, borderRadius: 8  },
+  chromecore:         { skin: 'chromecore',        shape: 'rect',      fontFamily: 'Rajdhani',        accentColor: '#7fe0ff', textColor: '#152433', titleColor: '',        animation: 'shimmer',   atmosphere: 'grid',      motionIntensity: 0.8,  glowIntensity: 0.95, shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 2  },
+  'y2k futurism':     { skin: 'y2k futurism',      shape: 'notch-hud', fontFamily: 'Orbitron',        accentColor: '#2cf7ff', textColor: '#ebfbff', titleColor: '',        animation: 'aurora',    atmosphere: 'nebula',    motionIntensity: 1.35, glowIntensity: 1.6,  shellOpacity: 1,    shadowIntensity: 1.6, borderRadius: 4  },
+  transparent:        { skin: 'transparent',       shape: 'rect',      fontFamily: 'Share Tech Mono', accentColor: '#b8f4ff', textColor: '#effcff', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1,    glowIntensity: 1.05, shellOpacity: 0.55, shadowIntensity: 0.4, borderRadius: 6  },
+  'aqua pop':         { skin: 'aqua pop',          shape: 'blob',      fontFamily: 'Rajdhani',        accentColor: '#4ddcff', textColor: '#08374c', titleColor: '',        animation: 'shimmer',   atmosphere: 'sparkle',   motionIntensity: 1.05, glowIntensity: 1.25, shellOpacity: 0.92, shadowIntensity: 1.1, borderRadius: 10 },
+  'mallsoft pearl':   { skin: 'mallsoft pearl',    shape: 'blob',      fontFamily: 'Electrolize',     accentColor: '#ffb8e8', textColor: '#5a2b58', titleColor: '',        animation: 'aurora',    atmosphere: 'nebula',    motionIntensity: 0.9,  glowIntensity: 1.15, shellOpacity: 0.9,  shadowIntensity: 0.7, borderRadius: 12 },
+  'messenger glow':   { skin: 'messenger glow',   shape: 'rect',      fontFamily: 'Audiowide',       accentColor: '#75ffb2', textColor: '#16352a', titleColor: '',        animation: 'pulse',     atmosphere: 'grid',      motionIntensity: 1.15, glowIntensity: 1,    shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 4  },
+  'limewire plasma':  { skin: 'limewire plasma',  shape: 'shard',     fontFamily: 'Share Tech Mono', accentColor: '#7aff54', textColor: '#e8ffe1', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
+  'cyber y2k':        { skin: 'cyber y2k',         shape: 'notch-hud', fontFamily: 'Orbitron',        accentColor: '#ff6dff', textColor: '#f4fbff', titleColor: '',        animation: 'aurora',    atmosphere: 'grid',      motionIntensity: 1.45, glowIntensity: 1.7,  shellOpacity: 1,    shadowIntensity: 1.7, borderRadius: 2  },
+  'digital futurism': { skin: 'digital futurism',  shape: 'rect',      fontFamily: 'Audiowide',       accentColor: '#56f0ff', textColor: '#eafcff', titleColor: '',        animation: 'shimmer',   atmosphere: 'nebula',    motionIntensity: 1.1,  glowIntensity: 1.35, shellOpacity: 0.95, shadowIntensity: 1.3, borderRadius: 4  },
+  'ssx rush':         { skin: 'ssx rush',          shape: 'wing',      fontFamily: 'Rajdhani',        accentColor: '#ff8e2b', textColor: '#4b1322', titleColor: '',        animation: 'pulse',     atmosphere: 'sparkle',   motionIntensity: 1.55, glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.2, borderRadius: 6  },
+  'ps2 drift':        { skin: 'ps2 drift',         shape: 'rect',      fontFamily: 'Electrolize',     accentColor: '#6ba4ff', textColor: '#edf3ff', titleColor: '',        animation: 'broadcast', atmosphere: 'grid',      motionIntensity: 1.1,  glowIntensity: 1.1,  shellOpacity: 1,    shadowIntensity: 1.0, borderRadius: 0  },
+  'xbox blade':       { skin: 'xbox blade',        shape: 'bevel',     fontFamily: 'Share Tech Mono', accentColor: '#79ff5a', textColor: '#efffe7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.25, glowIntensity: 1.3,  shellOpacity: 1,    shadowIntensity: 1.3, borderRadius: 2  },
+  'cel street':       { skin: 'cel street',        shape: 'sticker',   fontFamily: 'Audiowide',       accentColor: '#ffd447', textColor: '#1a1f2f', titleColor: '',        animation: 'pulse',     atmosphere: 'clean',     motionIntensity: 1.2,  glowIntensity: 0.9,  shellOpacity: 1,    shadowIntensity: 0.9, borderRadius: 4  },
+  'aero nova':        { skin: 'aero nova',         shape: 'tv',        fontFamily: 'Rajdhani',        accentColor: '#59d7ff', textColor: '#103b58', titleColor: '',        animation: 'aurora',    atmosphere: 'sparkle',   motionIntensity: 1.05, glowIntensity: 1.45, shellOpacity: 0.88, shadowIntensity: 0.6, borderRadius: 14 },
+  'aero opaline':     { skin: 'aero opaline',      shape: 'tv',        fontFamily: 'Electrolize',     accentColor: '#7ceee7', textColor: '#1a4960', titleColor: '',        animation: 'shimmer',   atmosphere: 'nebula',    motionIntensity: 0.95, glowIntensity: 1.25, shellOpacity: 0.82, shadowIntensity: 0.5, borderRadius: 16 },
+  'dial-up candy':    { skin: 'dial-up candy',     shape: 'rect',      fontFamily: 'Trebuchet MS',    accentColor: '#58c8ff', textColor: '#20344d', titleColor: '',        animation: 'broadcast', atmosphere: 'sparkle',   motionIntensity: 1.25, glowIntensity: 1.05, shellOpacity: 1,    shadowIntensity: 0.9, borderRadius: 8  },
+  'webcore flash':    { skin: 'webcore flash',     shape: 'wave',      fontFamily: 'Audiowide',       accentColor: '#ffdf3c', textColor: '#201834', titleColor: '',        animation: 'pulse',     atmosphere: 'grid',      motionIntensity: 1.4,  glowIntensity: 1.2,  shellOpacity: 1,    shadowIntensity: 1.1, borderRadius: 6  },
+  'lan party':        { skin: 'lan party',         shape: 'notch-hud', fontFamily: 'Share Tech Mono', accentColor: '#67ffcc', textColor: '#e7fff7', titleColor: '',        animation: 'broadcast', atmosphere: 'scanlines', motionIntensity: 1.35, glowIntensity: 1.45, shellOpacity: 1,    shadowIntensity: 1.4, borderRadius: 0  },
 }
 
 const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
@@ -600,18 +614,27 @@ function isWidgetComponentType(value: unknown): value is WidgetComponentType {
 function normalizeWindowWidgetSettings(settings?: WindowWidgetSettings | null): WindowWidgetSettings | undefined {
   if (!settings) return undefined
 
-  const sceneId = typeof settings.sceneId === 'string' && settings.sceneId.trim()
-    ? settings.sceneId.trim()
-    : undefined
-  const windowId = typeof settings.windowId === 'string' && settings.windowId.trim()
-    ? settings.windowId.trim()
-    : undefined
+  const trimmed = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined)
+  const rendererType = trimmed(settings.rendererType)
+  const sceneId = trimmed(settings.sceneId)
 
-  if (!sceneId && !windowId) return undefined
+  // Legacy scene-window bindings ({ sceneId, windowId }) collapse to scene mode.
+  const mode: WindowWidgetSettings['mode'] = settings.mode === 'renderer' || settings.mode === 'scene'
+    ? settings.mode
+    : rendererType
+      ? 'renderer'
+      : sceneId
+        ? 'scene'
+        : undefined
+
+  if (!mode) return undefined
+  if (mode === 'renderer' && !rendererType) return sceneId ? { mode: 'scene', sceneId } : undefined
+  if (mode === 'scene' && !sceneId) return rendererType ? { mode: 'renderer', rendererType } : undefined
 
   return {
+    mode,
+    ...(rendererType ? { rendererType } : {}),
     ...(sceneId ? { sceneId } : {}),
-    ...(windowId ? { windowId } : {}),
   }
 }
 

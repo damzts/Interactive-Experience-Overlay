@@ -1,4 +1,4 @@
-import type { DesktopConfig, DesktopIconArrangement, DesktopTheme, WidgetThemeConfig } from '@ieomlabs/shared'
+import type { DesktopConfig, DesktopIconArrangement, DesktopTheme, WidgetShape, WidgetThemeConfig } from '@ieomlabs/shared'
 
 export const GOOGLE_FONTS = [
   { name: 'System Default', css: 'default' },
@@ -64,6 +64,24 @@ export const WIDGET_SKINS: Array<{
   { id: 'dial-up candy', label: 'Dial-Up Candy', description: 'ISP-install-CD gloss, modem LEDs, and bright portal blues.' },
   { id: 'webcore flash', label: 'Webcore Flash', description: 'Button-heavy portal aesthetics with blinkie-banner energy.' },
   { id: 'lan party', label: 'LAN Party', description: 'CRT utility green with late-night file-share atmosphere.' },
+]
+
+export const WIDGET_SHAPES: Array<{
+  id: WidgetShape
+  label: string
+  description: string
+}> = [
+  { id: 'rect',      label: 'Rectangle',   description: 'Classic rectangular window chrome. The Radius slider still rounds corners.' },
+  { id: 'bevel',     label: 'Bevel',       description: 'Winamp-style octagon with all four corners cut at 45°.' },
+  { id: 'notch-hud', label: 'Notch HUD',   description: 'Asymmetric Y2K silhouette — long diagonal top-right, mirrored bottom-left.' },
+  { id: 'blob',      label: 'Blob',        description: 'Organic wobbly plastic with uneven rounded corners.' },
+  { id: 'tv',        label: 'CRT',         description: 'Television bulge — soft top corners, heavy rounded bottom.' },
+  { id: 'sticker',   label: 'Sticker',     description: 'Burst sticker with sawtooth teeth around the whole edge.' },
+  { id: 'metalheart', label: 'Metalheart', description: 'Asymmetric hardware hull with a carved fin recess and curved keel — Winamp MMD3 lineage.' },
+  { id: 'wing',      label: 'Wing',        description: 'Blade swoosh — the top edge sweeps down into the right side.' },
+  { id: 'wave',      label: 'Wave',        description: 'Banner with a scalloped curtain hem along the bottom edge.' },
+  { id: 'shard',     label: 'Shard',       description: 'Crystalline fragment with jagged asymmetric facets on every edge.' },
+  { id: 'pod',       label: 'Pod',         description: 'Soft capsule pod — heavier organic rounding than Blob, egg-bottomed.' },
 ]
 
 export const WIDGET_THEME_ANIMATIONS: Array<{
