@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Monitor,
-  Wifi,
-  Globe,
-  Layers,
-  Settings,
-  Play,
-  Activity,
-  Radio,
-} from 'lucide-react';
+import { Monitor, Wifi, Globe, Layers, Zap, Sparkles, LayoutGrid } from 'lucide-react';
+import type { EventConfig } from '@ieomlabs/shared';
 import { cn } from '../../utils/cn';
 import { Card } from '../../components/molecules/Card';
 import { StatusIndicator } from '../../components/molecules/StatusIndicator';
+import { EmptyState } from '../../components/molecules/EmptyState';
 import { Button } from '../../components/atoms/Button';
+import { Toggle } from '../../components/atoms/Toggle';
+import { IconGlyph } from '../../shared/ui';
 
 /**
  * Hook that detects when a value changes and returns a transient
@@ -35,62 +30,94 @@ function useStateChangeFlash(value: string, durationMs = 600): boolean {
   return flash;
 }
 
-/**
- * DashboardOverview — Default landing view for the IEOM Admin Panel.
- *
- * Displays system health at a glance including connection status cards
- * for Overlay, OBS, and Online Rooms, the current active scene,
- * quick-action buttons for common operations, and a recent activity feed.
- *
- * Uses staggered card entrance animations (`animate-card-entrance`) and
- * CSS custom properties from the design token system for all styling.
- *
- * @example
- * ```tsx
- * <DashboardOverview
- *   overlayStatus="connected"
- *   obsStatus="disconnected"
- *   onlineRoomCount={3}
- *   activeScene="Lobby"
- *   onSwitchScene={() => navigate('/scenes')}
- *   onToggleWidget={() => navigate('/widgets')}
- *   onOpenOverlay={() => window.open('/overlay')}
- *   onOpenSettings={() => navigate('/settings')}
- * />
- * ```
- */
+export interface DashboardSceneEntry {
+  id: string;
+  label: string;
+  icon: string;
+}
 
+export interface DashboardAppEntry {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+export interface DashboardLayoutEntry {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+/**
+ * DashboardOverview — Kiosk-mode control surface for the IEOM Admin Panel.
+ *
+ * A single screen of tap-tiles that fire real actions immediately: switch
+ * scenes, open/close widgets, apply widget layouts, trigger saved effects,
+ * and flip manager toggles — no drilling into other tabs required.
+ */
 export interface DashboardOverviewProps {
-  /** Overlay WebSocket connection status */
   overlayStatus?: 'connected' | 'disconnected';
-  /** OBS Studio connection status */
   obsStatus?: 'connected' | 'disconnected';
-  /** Number of currently active online rooms */
   onlineRoomCount?: number;
-  /** Name of the currently active scene */
-  activeScene?: string;
-  /** Callback to trigger scene switching */
-  onSwitchScene?: () => void;
-  /** Callback to toggle a widget */
-  onToggleWidget?: () => void;
-  /** Callback to open the overlay preview */
   onOpenOverlay?: () => void;
-  /** Callback to open settings */
-  onOpenSettings?: () => void;
-  /** Callback to open the bus trace popup */
-  onOpenBusTrace?: () => void;
+
+  scenes: DashboardSceneEntry[];
+  currentSceneId: string;
+  onActivateScene: (id: string) => void;
+
+  applications: DashboardAppEntry[];
+  openWidgetIds: string[];
+  onToggleWidget: (appId: string) => void;
+
+  widgetLayouts: DashboardLayoutEntry[];
+  onApplyWidgetLayout: (layoutId: string) => void;
+
+  events: EventConfig[];
+  onTriggerEffect: (event: EventConfig) => void;
+  onToggleEffectAuto: (eventId: string) => void;
+
+  aiAmbianceEnabled: boolean;
+  onToggleAiAmbiance: () => void;
+  effectAmbianceEnabled: boolean;
+  onToggleEffectAmbiance: () => void;
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-2)]">
+      {children}
+    </h2>
+  );
+}
+
+function TileGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-[var(--space-2)]">
+      {children}
+    </div>
+  );
 }
 
 export function DashboardOverview({
   overlayStatus = 'disconnected',
   obsStatus = 'disconnected',
   onlineRoomCount = 0,
-  activeScene = 'None',
-  onSwitchScene,
-  onToggleWidget,
   onOpenOverlay,
-  onOpenSettings,
-  onOpenBusTrace,
+  scenes,
+  currentSceneId,
+  onActivateScene,
+  applications,
+  openWidgetIds,
+  onToggleWidget,
+  widgetLayouts,
+  onApplyWidgetLayout,
+  events,
+  onTriggerEffect,
+  onToggleEffectAuto,
+  aiAmbianceEnabled,
+  onToggleAiAmbiance,
+  effectAmbianceEnabled,
+  onToggleEffectAmbiance,
 }: DashboardOverviewProps) {
   const overlayFlash = useStateChangeFlash(overlayStatus);
   const obsFlash = useStateChangeFlash(obsStatus);
@@ -107,210 +134,176 @@ export function DashboardOverview({
   }, [onlineRoomCount]);
 
   return (
-    <div className="flex flex-col gap-[var(--space-6)]">
-      {/* ─── Status Cards ─── */}
+    <div className="flex flex-col gap-[var(--space-4)]">
+      {/* ─── Status strip ─── */}
       <section aria-label="Connection status">
-        <h2 className="text-[var(--text-sm)] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-3)]">
-          System Status
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-[var(--space-4)]">
-          {/* Overlay Status */}
-          <Card
-            variant="status"
-            padding="md"
-            className={cn(
-              'animate-card-entrance transition-shadow duration-[var(--duration-normal)]',
-              overlayFlash && 'animate-highlight-flash',
-            )}
-          >
-            <div className="flex items-center gap-[var(--space-3)]">
-              <div
-                className={cn(
-                  'flex items-center justify-center h-10 w-10 rounded-[var(--radius-md)]',
-                  overlayStatus === 'connected'
-                    ? 'bg-[var(--color-success-400)]/10'
-                    : 'bg-[var(--color-danger-400)]/10',
-                )}
-              >
-                <Monitor
-                  className={cn(
-                    'h-5 w-5',
-                    overlayStatus === 'connected'
-                      ? 'text-[var(--color-success-400)]'
-                      : 'text-[var(--color-danger-400)]',
-                  )}
-                />
-              </div>
-              <div className="flex flex-col gap-[var(--space-1)]">
-                <span className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
-                  Overlay
-                </span>
-                <StatusIndicator
-                  status={overlayStatus}
-                  label={overlayStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                />
-              </div>
-            </div>
-          </Card>
-
-          {/* OBS Status */}
-          <Card
-            variant="status"
-            padding="md"
-            className={cn(
-              'animate-card-entrance transition-shadow duration-[var(--duration-normal)]',
-              obsFlash && 'animate-highlight-flash',
-            )}
-          >
-            <div className="flex items-center gap-[var(--space-3)]">
-              <div
-                className={cn(
-                  'flex items-center justify-center h-10 w-10 rounded-[var(--radius-md)]',
-                  obsStatus === 'connected'
-                    ? 'bg-[var(--color-success-400)]/10'
-                    : 'bg-[var(--color-danger-400)]/10',
-                )}
-              >
-                <Wifi
-                  className={cn(
-                    'h-5 w-5',
-                    obsStatus === 'connected'
-                      ? 'text-[var(--color-success-400)]'
-                      : 'text-[var(--color-danger-400)]',
-                  )}
-                />
-              </div>
-              <div className="flex flex-col gap-[var(--space-1)]">
-                <span className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
-                  OBS Studio
-                </span>
-                <StatusIndicator
-                  status={obsStatus}
-                  label={obsStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                />
-              </div>
-            </div>
-          </Card>
-
-          {/* Online Rooms */}
-          <Card
-            variant="status"
-            padding="md"
-            className={cn(
-              'animate-card-entrance transition-shadow duration-[var(--duration-normal)]',
-              roomFlash && 'animate-highlight-flash',
-            )}
-          >
-            <div className="flex items-center gap-[var(--space-3)]">
-              <div className="flex items-center justify-center h-10 w-10 rounded-[var(--radius-md)] bg-[var(--color-primary-400)]/10">
-                <Globe className="h-5 w-5 text-[var(--color-primary-400)]" />
-              </div>
-              <div className="flex flex-col gap-[var(--space-1)]">
-                <span className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
-                  Online Rooms
-                </span>
-                <span className="text-[var(--text-xs)] text-[var(--color-text-secondary)]">
-                  {onlineRoomCount} {onlineRoomCount === 1 ? 'room' : 'rooms'} active
-                </span>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      {/* ─── Active Scene Card ─── */}
-      <section aria-label="Active scene">
-        <Card
-          variant="elevated"
-          padding="md"
-          glow="primary"
-          className="animate-card-entrance"
-        >
-          <div className="flex items-center gap-[var(--space-3)]">
-            <div className="flex items-center justify-center h-10 w-10 rounded-[var(--radius-md)] bg-[var(--color-primary-400)]/10">
-              <Play className="h-5 w-5 text-[var(--color-primary-400)]" />
-            </div>
-            <div className="flex flex-col gap-[var(--space-1)]">
-              <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
-                Active Scene
-              </span>
-              <span className="text-[var(--text-lg)] font-semibold text-[var(--color-text-primary)]">
-                {activeScene}
-              </span>
-            </div>
+        <div className="flex flex-wrap items-center gap-[var(--space-3)] rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-3)] py-[var(--space-2)]">
+          <div className={cn('flex items-center gap-[var(--space-2)]', overlayFlash && 'animate-highlight-flash')}>
+            <Monitor className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
+            <StatusIndicator status={overlayStatus} label={overlayStatus === 'connected' ? 'Overlay connected' : 'Overlay offline'} />
           </div>
-        </Card>
-      </section>
-
-      {/* ─── Quick Actions ─── */}
-      <section aria-label="Quick actions">
-        <h2 className="text-[var(--text-sm)] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-3)]">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-[var(--space-3)]">
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<Layers />}
-            onClick={onSwitchScene}
-            className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
-          >
-            Switch Scene
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<Monitor />}
-            onClick={onToggleWidget}
-            className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
-          >
-            Toggle Widget
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<Globe />}
-            onClick={onOpenOverlay}
-            className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
-          >
+          <div className={cn('flex items-center gap-[var(--space-2)]', obsFlash && 'animate-highlight-flash')}>
+            <Wifi className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
+            <StatusIndicator status={obsStatus} label={obsStatus === 'connected' ? 'OBS connected' : 'OBS offline'} />
+          </div>
+          <div className={cn('flex items-center gap-[var(--space-2)]', roomFlash && 'animate-highlight-flash')}>
+            <Globe className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
+            <span className="text-[var(--text-xs)] text-[var(--color-text-secondary)]">
+              {onlineRoomCount} {onlineRoomCount === 1 ? 'room' : 'rooms'} active
+            </span>
+          </div>
+          <Button variant="secondary" size="sm" icon={<Globe />} onClick={onOpenOverlay} className="ml-auto">
             Open Overlay
           </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<Settings />}
-            onClick={onOpenSettings}
-            className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
-          >
-            Settings
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<Radio />}
-            onClick={onOpenBusTrace}
-            className="animate-card-entrance flex-col h-auto py-[var(--space-4)]"
-          >
-            Bus Trace
-          </Button>
         </div>
       </section>
 
-      {/* ─── Recent Activity Feed ─── */}
-      <section aria-label="Recent activity">
-        <h2 className="text-[var(--text-sm)] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-3)]">
-          Recent Activity
-        </h2>
-        <Card
-          variant="default"
-          padding="md"
-          className="animate-card-entrance"
-        >
-          <div className="flex items-center gap-[var(--space-3)] text-[var(--color-text-muted)]">
-            <Activity className="h-4 w-4" />
-            <span className="text-[var(--text-sm)]">No recent activity</span>
-          </div>
-        </Card>
+      {/* ─── Scenes ─── */}
+      <section aria-label="Scenes">
+        <SectionHeader>Scenes</SectionHeader>
+        {scenes.length === 0 ? (
+          <EmptyState icon={<Layers className="h-full w-full" />} title="No scenes configured" />
+        ) : (
+          <TileGrid>
+            {scenes.map((scene) => {
+              const isActive = scene.id === currentSceneId;
+              return (
+                <Card
+                  key={scene.id}
+                  variant="interactive"
+                  padding="sm"
+                  glow={isActive ? 'primary' : 'none'}
+                  onClick={() => onActivateScene(scene.id)}
+                  className={cn(
+                    'flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance',
+                    isActive && 'border-[var(--color-primary-400)]',
+                  )}
+                >
+                  <span className="text-lg leading-none">{scene.icon}</span>
+                  <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
+                    {scene.label}
+                  </span>
+                  {isActive && (
+                    <span className="text-[10px] font-medium text-[var(--color-primary-400)]">Live</span>
+                  )}
+                </Card>
+              );
+            })}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Widgets ─── */}
+      <section aria-label="Widgets">
+        <SectionHeader>Widgets</SectionHeader>
+        {applications.length === 0 ? (
+          <EmptyState icon={<Monitor className="h-full w-full" />} title="No widgets configured" />
+        ) : (
+          <TileGrid>
+            {applications.map((app) => {
+              const isOpen = openWidgetIds.includes(app.id);
+              return (
+                <Card
+                  key={app.id}
+                  variant="interactive"
+                  padding="sm"
+                  glow={isOpen ? 'success' : 'none'}
+                  onClick={() => onToggleWidget(app.id)}
+                  className={cn(
+                    'flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance',
+                    isOpen && 'border-[var(--color-success-400)]',
+                  )}
+                >
+                  <IconGlyph icon={app.icon} label={app.label} size={20} />
+                  <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
+                    {app.label}
+                  </span>
+                  {isOpen && (
+                    <span className="text-[10px] font-medium text-[var(--color-success-400)]">Open</span>
+                  )}
+                </Card>
+              );
+            })}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Widget Layouts ─── */}
+      <section aria-label="Widget layouts">
+        <SectionHeader>Widget Layouts</SectionHeader>
+        {widgetLayouts.length === 0 ? (
+          <EmptyState icon={<LayoutGrid className="h-full w-full" />} title="No widget layouts configured" />
+        ) : (
+          <TileGrid>
+            {widgetLayouts.map((layout) => (
+              <Card
+                key={layout.id}
+                variant="interactive"
+                padding="sm"
+                onClick={() => onApplyWidgetLayout(layout.id)}
+                className="flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance"
+              >
+                <span className="text-lg leading-none">{layout.icon}</span>
+                <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
+                  {layout.label}
+                </span>
+              </Card>
+            ))}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Effects ─── */}
+      <section aria-label="Effects">
+        <SectionHeader>Effects</SectionHeader>
+        {events.length === 0 ? (
+          <EmptyState icon={<Zap className="h-full w-full" />} title="No saved effects" />
+        ) : (
+          <TileGrid>
+            {events.map((event) => (
+              <Card
+                key={event.id}
+                variant="interactive"
+                padding="sm"
+                className="flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance"
+              >
+                <button
+                  type="button"
+                  onClick={() => onTriggerEffect(event)}
+                  className="flex w-full flex-col items-center gap-[var(--space-1)]"
+                >
+                  <span className={cn('text-lg leading-none', event.color)}>{event.icon}</span>
+                  <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
+                    {event.label}
+                  </span>
+                </button>
+                <Toggle
+                  checked={event.auto.enabled}
+                  onChange={() => onToggleEffectAuto(event.id)}
+                  size="sm"
+                  label="Auto"
+                />
+              </Card>
+            ))}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Manager toggles ─── */}
+      <section aria-label="Manager toggles">
+        <SectionHeader>Managers</SectionHeader>
+        <div className="flex flex-wrap gap-[var(--space-2)]">
+          <Card variant="default" padding="sm" className="flex items-center gap-[var(--space-2)]">
+            <Sparkles className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
+            <span className="text-[var(--text-xs)] text-[var(--color-text-primary)]">AI Ambiance</span>
+            <Toggle checked={aiAmbianceEnabled} onChange={onToggleAiAmbiance} size="sm" />
+          </Card>
+          <Card variant="default" padding="sm" className="flex items-center gap-[var(--space-2)]">
+            <Zap className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
+            <span className="text-[var(--text-xs)] text-[var(--color-text-primary)]">Effect Ambiance</span>
+            <Toggle checked={effectAmbianceEnabled} onChange={onToggleEffectAmbiance} size="sm" />
+          </Card>
+        </div>
       </section>
     </div>
   );

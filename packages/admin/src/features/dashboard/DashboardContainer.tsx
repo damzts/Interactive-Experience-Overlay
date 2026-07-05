@@ -1,23 +1,20 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import { STATE, withDesktopAmbianceDefaults, type EventConfig, type EffectAmbianceConfig } from '@ieomlabs/shared';
 import { useAdminStore } from '../../store/useAdminStore';
+import { socket } from '../../socket/client';
 import { DashboardOverview } from './DashboardOverview';
 
+const DEFAULT_EFFECT_AMBIANCE: EffectAmbianceConfig = {
+  enabled: false,
+  pool: [],
+  intervalSeconds: 30,
+  jitterFactor: 0.3,
+};
+
 /**
- * DashboardContainer — Connects the DashboardOverview presentational component
- * to the Zustand admin store, providing real-time state from socket events and
- * polling as props.
- *
- * The admin store is already kept in sync via socket events handled in
- * `src/socket/useSocketEvents.ts` (overlay:owner, obs:status, state:change, etc.),
- * so this container simply selects the relevant slices and maps them to the
- * DashboardOverview prop interface.
- *
- * @example
- * ```tsx
- * import { DashboardContainer } from './DashboardContainer';
- * // Renders the dashboard wired to live store data
- * <DashboardContainer />
- * ```
+ * DashboardContainer — Connects the DashboardOverview kiosk grid to the
+ * Zustand admin store and socket, wiring each tile to a real action
+ * (scene switch, widget toggle, effect trigger, manager toggle).
  */
 export function DashboardContainer() {
   // ─── Runtime state from socket events ───
@@ -25,49 +22,85 @@ export function DashboardContainer() {
   const obsConnected = useAdminStore((s) => s.obsConnected);
   const currentState = useAdminStore((s) => s.currentState);
   const clientCount = useAdminStore((s) => s.clientCount);
+  const openWidgetIds = useAdminStore((s) => s.openWidgetIds);
 
-  // ─── UI navigation actions ───
-  const setActiveSection = useAdminStore((s) => s.setActiveSection);
+  // ─── Config ───
+  const applications = useAdminStore((s) => s.config.applications);
+  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? []);
+  const scenesConfig = useAdminStore((s) => s.config.scenes);
+  const sourceEvents = useAdminStore((s) => s.config.sourceEvents ?? []);
+  const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance);
+  const rawEffectAmbiance = useAdminStore((s) => s.config.effectAmbiance);
+  const effectAmbiance: EffectAmbianceConfig = rawEffectAmbiance ?? DEFAULT_EFFECT_AMBIANCE;
+  const saveConfig = useAdminStore((s) => s.saveConfig);
+  const setLastError = useAdminStore((s) => s.setLastError);
 
-  // Derive overlay connection status from whether an overlay client owns the socket
   const overlayStatus: 'connected' | 'disconnected' =
     overlayOwnerSocketId != null ? 'connected' : 'disconnected';
 
-  // Map OBS boolean to the status string expected by DashboardOverview
   const obsStatus: 'connected' | 'disconnected' =
     obsConnected ? 'connected' : 'disconnected';
 
-  // Map the STATE enum value to a human-readable scene name
-  const activeScene = formatSceneName(currentState);
-
-  // TODO: Replace clientCount with a dedicated online room count once the store
-  // tracks individual room objects (e.g. from a periodic /api/online/rooms poll).
-  // For now clientCount is the closest proxy available in the runtime slice.
   const onlineRoomCount = clientCount;
 
-  // ─── Quick action callbacks ───
-  const handleSwitchScene = useCallback(() => {
-    // Navigate to the scenes section in the sidebar
-    setActiveSection('scenes');
-  }, [setActiveSection]);
+  const scenes = useMemo(() => {
+    const custom = Object.values(scenesConfig ?? {}).filter(
+      (s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP,
+    );
+    return [
+      { id: STATE.LOBBY, label: 'Lobby', icon: '🌐' },
+      { id: STATE.DESKTOP, label: 'Desktop', icon: '🖥' },
+      ...custom.map((s) => ({ id: s.id, label: s.label, icon: '🎬' })),
+    ];
+  }, [scenesConfig]);
 
-  const handleToggleWidget = useCallback(() => {
-    // Navigate to the widgets section in the sidebar
-    setActiveSection('widgets');
-  }, [setActiveSection]);
+  const aiAmbianceEnabled = withDesktopAmbianceDefaults(rawDesktopAmbiance).widgetSimulation.enabled;
+  const effectAmbianceEnabled = effectAmbiance.enabled;
+
+  const handleActivateScene = useCallback(
+    (id: string) => {
+      socket.emit('scene:change', id, (err: string | null) => {
+        if (err) setLastError(err);
+      });
+    },
+    [setLastError],
+  );
+
+  const handleToggleWidget = useCallback((appId: string) => {
+    socket.emit('widget:toggle', appId);
+  }, []);
+
+  const handleApplyWidgetLayout = useCallback((layoutId: string) => {
+    socket.emit('widget:layout:apply', layoutId);
+  }, []);
+
+  const handleTriggerEffect = useCallback((event: EventConfig) => {
+    socket.emit('event:preview', event);
+  }, []);
+
+  const handleToggleEffectAuto = useCallback(
+    (eventId: string) => {
+      const next = sourceEvents.map((e) =>
+        e.id === eventId ? { ...e, auto: { ...e.auto, enabled: !e.auto.enabled } } : e,
+      );
+      void saveConfig({ sourceEvents: next });
+    },
+    [sourceEvents, saveConfig],
+  );
+
+  const handleToggleAiAmbiance = useCallback(() => {
+    const widgetSimulation = withDesktopAmbianceDefaults(rawDesktopAmbiance).widgetSimulation;
+    void saveConfig({
+      desktopAmbiance: { widgetSimulation: { ...widgetSimulation, enabled: !widgetSimulation.enabled } },
+    });
+  }, [rawDesktopAmbiance, saveConfig]);
+
+  const handleToggleEffectAmbiance = useCallback(() => {
+    void saveConfig({ effectAmbiance: { ...effectAmbiance, enabled: !effectAmbiance.enabled } });
+  }, [effectAmbiance, saveConfig]);
 
   const handleOpenOverlay = useCallback(() => {
-    // TODO: Determine the correct overlay URL from config/environment
     window.open('/', '_blank');
-  }, []);
-
-  const handleOpenSettings = useCallback(() => {
-    // Navigate to the system/settings section in the sidebar
-    setActiveSection('system');
-  }, []);
-
-  const handleOpenBusTrace = useCallback(() => {
-    window.open('/bus-trace.html', 'ieom-bus-trace', 'width=1000,height=640,menubar=no,toolbar=no,location=no');
   }, []);
 
   return (
@@ -75,22 +108,22 @@ export function DashboardContainer() {
       overlayStatus={overlayStatus}
       obsStatus={obsStatus}
       onlineRoomCount={onlineRoomCount}
-      activeScene={activeScene}
-      onSwitchScene={handleSwitchScene}
-      onToggleWidget={handleToggleWidget}
       onOpenOverlay={handleOpenOverlay}
-      onOpenSettings={handleOpenSettings}
-      onOpenBusTrace={handleOpenBusTrace}
+      scenes={scenes}
+      currentSceneId={currentState}
+      onActivateScene={handleActivateScene}
+      applications={applications}
+      openWidgetIds={openWidgetIds}
+      onToggleWidget={handleToggleWidget}
+      widgetLayouts={widgetLayouts}
+      onApplyWidgetLayout={handleApplyWidgetLayout}
+      events={sourceEvents}
+      onTriggerEffect={handleTriggerEffect}
+      onToggleEffectAuto={handleToggleEffectAuto}
+      aiAmbianceEnabled={aiAmbianceEnabled}
+      onToggleAiAmbiance={handleToggleAiAmbiance}
+      effectAmbianceEnabled={effectAmbianceEnabled}
+      onToggleEffectAmbiance={handleToggleEffectAmbiance}
     />
   );
-}
-
-/**
- * Converts a STATE enum value (e.g. "LOBBY", "DESKTOP") into a
- * title-cased display name for the dashboard.
- */
-function formatSceneName(state: string): string {
-  if (!state) return 'None';
-  // Title-case: "DESKTOP" → "Desktop", "LOBBY" → "Lobby"
-  return state.charAt(0).toUpperCase() + state.slice(1).toLowerCase();
 }
