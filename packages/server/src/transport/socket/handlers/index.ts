@@ -19,6 +19,7 @@ import type { AmbianceManager } from '../../../kernel/managers/ambiance.js'
 import { registerMachineListeners, registerSceneHandlers } from './scene.js'
 import { registerWidgetHandlers } from './widget.js'
 import { registerAmbianceHandlers } from './ambiance.js'
+import { registerAudioHandlers } from './audio.js'
 import { registerDesktopHandlers, getDesktopRuntimeState } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
@@ -142,6 +143,7 @@ export function setupSocketHandlers(
     registerSceneHandlers(ctx, socket)
     registerWidgetHandlers(ctx, socket)
     registerAmbianceHandlers(ctx, socket)
+    registerAudioHandlers(ctx, socket)
     registerDesktopHandlers(ctx, socket)
     registerConfigHandlers(ctx, socket)
     registerDiagnosticsHandlers(ctx, socket)

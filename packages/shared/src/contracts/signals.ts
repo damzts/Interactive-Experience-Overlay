@@ -202,6 +202,25 @@ export interface WidgetSimulationIntentPayload {
 
 export type WidgetSimulationIntentSeed = Omit<WidgetSimulationIntentPayload, 'actionId'>
 
+// ── Audio reactivity signal payloads ──────────────────────────────
+//
+// Detected client-side by the overlay's audio reactivity monitor (mic/system/
+// internal engine analyser) and reported to the kernel over dedicated
+// ClientToServerEvents, then re-broadcast here as public kernel signals —
+// same shape as a manager-originated event like twitch:follow.
+
+export interface AudioBeatPayload {
+  /** Overall smoothed RMS level (0-1) at the moment of the beat. */
+  energy: number
+  /** Bass-band average (0-1) that triggered the beat. */
+  bass: number
+}
+
+export interface AudioEnergyPayload {
+  /** Smoothed RMS level (0-1) at the moment of the threshold crossing. */
+  energy: number
+}
+
 export interface AmbianceSimulationPayload {
   actionId: string
   /** Target ID — widget ID for widget actions, layout ID or scene ID for select actions. */
@@ -248,6 +267,10 @@ export interface KernelSignalMap {
   'obs:recording:stopped': Record<string, never>
   'obs:virtualcam:changed': { active: boolean }
   'show:step': ShowStepPayload
+  'audio:beat': AudioBeatPayload
+  'audio:energy:high': AudioEnergyPayload
+  'audio:energy:low': AudioEnergyPayload
+  'audio:silence': Record<string, never>
 }
 
 export type KernelSignalEvent = keyof KernelSignalMap
@@ -274,6 +297,10 @@ const PUBLIC_KERNEL_SIGNAL_FLAGS: Record<KernelSignalEvent, true> = {
   'obs:recording:stopped': true,
   'obs:virtualcam:changed': true,
   'show:step': true,
+  'audio:beat': true,
+  'audio:energy:high': true,
+  'audio:energy:low': true,
+  'audio:silence': true,
 }
 
 export const PUBLIC_KERNEL_SIGNALS = Object.keys(PUBLIC_KERNEL_SIGNAL_FLAGS) as KernelSignalEvent[]

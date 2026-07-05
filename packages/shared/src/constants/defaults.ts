@@ -1092,6 +1092,12 @@ export const DEFAULT_CONFIG: AppConfig = {
     musicVolume: 0.4,
     ambientTrack: '',
     ambientVolume: 0.6,
+    reactivity: {
+      enabled: false,
+      source: 'internal',
+      sensitivity: 0.5,
+      smoothing: 0.7,
+    },
   },
 
   desktopConfig: DEFAULT_DESKTOP_CONFIG,

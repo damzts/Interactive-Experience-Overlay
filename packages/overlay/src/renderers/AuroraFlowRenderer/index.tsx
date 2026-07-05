@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { RendererProps } from '../registry'
+import { useAudioLevel } from '../useAudioLevel'
 
 /** AURORA-FLOW — slowly drifting northern-lights gradient ribbons. */
 export function AuroraFlowRenderer({ config, bounds }: RendererProps) {
@@ -8,6 +9,12 @@ export function AuroraFlowRenderer({ config, bounds }: RendererProps) {
   const color3  = String(config.color3 ?? '#cc44ff')
   const speed   = Number(config.speed ?? 1)
   const opacity = Number(config.opacity ?? 0.5)
+  const audioReactive = config.audioReactive === true
+  const audioIntensity = Number(config.audioIntensity ?? 0.5)
+
+  const audioLevel = useAudioLevel()
+  const opacityBoostRef = useRef(0)
+  opacityBoostRef.current = audioReactive ? audioLevel * audioIntensity : 0
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef(0)
@@ -53,7 +60,7 @@ export function AuroraFlowRenderer({ config, bounds }: RendererProps) {
         ctx.strokeStyle = grad
         ctx.lineWidth = r.thickness
         ctx.lineCap = 'round'
-        ctx.globalAlpha = opacity
+        ctx.globalAlpha = Math.min(1, opacity + opacityBoostRef.current)
         ctx.filter = 'blur(28px)'
         ctx.stroke()
       }

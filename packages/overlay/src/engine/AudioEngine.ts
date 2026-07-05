@@ -13,6 +13,8 @@ type SoundId =
 
 type SyntheticAmbientKind = 'server-hum' | 'keyboard-clicks' | 'crt-buzz' | 'rain'
 
+export type AudioReactiveSource = 'internal' | 'microphone' | 'system'
+
 const URL_CACHE_MAX = 20
 
 class AudioEngine {
@@ -20,6 +22,13 @@ class AudioEngine {
   private buffers = new Map<SoundId, AudioBuffer>()
   private masterGain: GainNode | null = null
   private analyser: AnalyserNode | null = null
+
+  // Reactivity tap — independent of the playback graph above. Feeds
+  // useAudioLevel()/beat detection from an external source (mic/system audio)
+  // instead of the engine's own SFX/music/ambient bus.
+  private _reactiveAnalyser: AnalyserNode | null = null
+  private _reactiveStream: MediaStream | null = null
+  private _reactiveSource: MediaStreamAudioSourceNode | null = null
 
   // Music track (switches per scene)
   private _musicEl: HTMLAudioElement | null = null
@@ -76,6 +85,69 @@ class AudioEngine {
   /** Access the AnalyserNode for real-time frequency/energy data. */
   getAnalyser(): AnalyserNode | null {
     return this.analyser
+  }
+
+  /** Analyser to use for audio-reactivity (backgrounds, beat detection): an
+   *  external mic/system tap if configured, else falls back to the internal
+   *  engine bus analyser above. */
+  getReactiveAnalyser(): AnalyserNode | null {
+    return this._reactiveAnalyser ?? this.analyser
+  }
+
+  /** Stop and tear down any external reactivity capture (mic/system). Safe to call anytime. */
+  stopReactiveSource(): void {
+    if (this._reactiveSource) { try { this._reactiveSource.disconnect() } catch {} this._reactiveSource = null }
+    if (this._reactiveAnalyser) { try { this._reactiveAnalyser.disconnect() } catch {} this._reactiveAnalyser = null }
+    if (this._reactiveStream) {
+      for (const track of this._reactiveStream.getTracks()) { try { track.stop() } catch {} }
+      this._reactiveStream = null
+    }
+  }
+
+  /** Switch what audio-reactivity reads from.
+   *  'internal' falls back to the SFX/music/ambient bus analyser (no capture needed).
+   *  'microphone'/'system' capture a live MediaStream and analyse it independently —
+   *  never connected to destination, so there's no feedback/echo.
+   *  Returns false (state left unchanged) on permission denial or an unsupported API. */
+  async setReactiveSource(mode: AudioReactiveSource): Promise<boolean> {
+    this.initContext()
+    if (!this.ctx) return false
+
+    if (mode === 'internal') {
+      this.stopReactiveSource()
+      return true
+    }
+
+    try {
+      const stream = mode === 'microphone'
+        ? await navigator.mediaDevices.getUserMedia({ audio: true })
+        : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+
+      if (mode === 'system') {
+        // Only audio is needed for analysis — release the video track immediately.
+        for (const track of stream.getVideoTracks()) track.stop()
+      }
+      if (stream.getAudioTracks().length === 0) {
+        for (const track of stream.getTracks()) { try { track.stop() } catch {} }
+        console.warn('[AudioEngine] captured stream has no audio track')
+        return false
+      }
+
+      this.stopReactiveSource()
+
+      const source = this.ctx.createMediaStreamSource(stream)
+      const analyser = this.ctx.createAnalyser()
+      analyser.fftSize = 1024
+      source.connect(analyser)
+
+      this._reactiveStream = stream
+      this._reactiveSource = source
+      this._reactiveAnalyser = analyser
+      return true
+    } catch (err) {
+      console.warn(`[AudioEngine] failed to capture ${mode} audio`, err)
+      return false
+    }
   }
 
   private async preloadAll() {

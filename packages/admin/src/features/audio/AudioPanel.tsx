@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react'
+import type { AudioReactiveSourceMode } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { Slider, ConfigPageIntro, ConfigTable } from '../../shared/ui'
-import { Button } from '../../components/atoms'
+import { Slider, ConfigPageIntro, ConfigTable, ConfigChoiceButton } from '../../shared/ui'
+import { Button, Toggle } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
 import { MediaSelectionInput } from '../media-library/MediaLibrary'
+
+const REACTIVITY_SOURCES: { value: AudioReactiveSourceMode; label: string; desc: string }[] = [
+  { value: 'internal', label: 'Internal Engine Audio', desc: 'SFX, music, and ambient — no permission prompt' },
+  { value: 'microphone', label: 'Microphone', desc: 'Captures the mic in the overlay’s browser context' },
+  { value: 'system', label: 'Computer Audio', desc: 'Captures system/tab audio via screen-share (audio-only)' },
+]
 
 /** Notice component for informational/warning messages within config panels */
 function Notice({ tone = 'info', children }: { tone?: 'info' | 'warning' | 'danger' | 'success'; children: React.ReactNode }) {
@@ -27,6 +34,10 @@ export function AudioPanel() {
   const [audio, setAudio] = useState(() => ({ ...config.audio }))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const reactivity = audio.reactivity ?? { enabled: false, source: 'internal' as AudioReactiveSourceMode, sensitivity: 0.5, smoothing: 0.7 }
+  const setReactivity = (patch: Partial<typeof reactivity>) =>
+    setAudio((a) => ({ ...a, reactivity: { ...(a.reactivity ?? reactivity), ...patch } }))
 
   // Keep local state in sync if server pushes a config update
   useEffect(() => {
@@ -63,6 +74,53 @@ export function AudioPanel() {
               <Slider label="Ambient Volume" value={audio.ambientVolume ?? 0.6}
                 onChange={(v) => setAudio((a) => ({ ...a, ambientVolume: v }))} />
             </div>
+            <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>
+              {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}
+            </Button>
+          </div>
+        </ConfigPanel>
+
+        <ConfigPanel title="Audio Reactivity" collapsible>
+          <div className="space-y-4">
+            <Notice>
+              Drives beat/energy detection (automation triggers like <code>audio:beat</code>) and any renderer with
+              &quot;Audio Reactive&quot; enabled — backgrounds, borders, and visualizers all read from the same source below.
+            </Notice>
+            <Toggle
+              checked={reactivity.enabled}
+              onChange={(v) => setReactivity({ enabled: v })}
+              size="md"
+              label="Enable Audio Reactivity"
+            />
+            <div className="space-y-2">
+              <div className="admin-text-body text-xs uppercase tracking-wide text-[var(--color-text-muted)]">Source</div>
+              <div className="flex flex-wrap gap-2">
+                {REACTIVITY_SOURCES.map((s) => (
+                  <ConfigChoiceButton
+                    key={s.value}
+                    selected={reactivity.source === s.value}
+                    onClick={() => setReactivity({ source: s.value })}
+                    title={s.desc}
+                  >
+                    {s.label}
+                  </ConfigChoiceButton>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Slider label="Sensitivity" value={reactivity.sensitivity}
+                onChange={(v) => setReactivity({ sensitivity: v })} />
+              <Slider label="Smoothing" value={reactivity.smoothing}
+                onChange={(v) => setReactivity({ smoothing: v })} />
+            </div>
+            {reactivity.source !== 'internal' && (
+              <Notice tone="warning">
+                Microphone/computer-audio permission prompts happen in the <strong>overlay&apos;s own browser context</strong>,
+                not this dashboard — open the overlay URL directly in a normal browser tab once to grant access. OBS Browser
+                Sources may need the <code>--use-fake-ui-for-media-stream</code> launch flag (or a persisted Chromium profile)
+                to skip the prompt inside OBS.
+              </Notice>
+            )}
             <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>
               {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}
             </Button>

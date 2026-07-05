@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { audioEngine } from '../engine/AudioEngine'
 
-/** Base hook for audio-reactive renderers — samples the shared AnalyserNode via RAF
- *  and returns a smoothed 0–1 amplitude level. Falls back to 0 when no analyser is
+/** Base hook for audio-reactive renderers — samples the configured reactivity
+ *  AnalyserNode via RAF and returns a smoothed 0–1 amplitude level. Follows
+ *  whatever source is set via audioEngine.setReactiveSource() (internal engine
+ *  bus, microphone, or system audio), falling back to 0 when no analyser is
  *  available (Web Audio not yet unlocked, or unsupported browser). */
 export function useAudioLevel(smoothing = 0.7): number {
   const [level, setLevel] = useState(0)
@@ -12,7 +14,7 @@ export function useAudioLevel(smoothing = 0.7): number {
   useEffect(() => {
     let raf = 0
     const tick = () => {
-      const analyser = audioEngine.getAnalyser()
+      const analyser = audioEngine.getReactiveAnalyser()
       if (analyser) {
         if (!dataRef.current || dataRef.current.length !== analyser.frequencyBinCount) {
           dataRef.current = new Uint8Array(analyser.frequencyBinCount)

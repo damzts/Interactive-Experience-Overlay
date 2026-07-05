@@ -368,13 +368,15 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
   {
     id: 'neon-border', label: 'Neon Border', icon: '🌈', category: 'post', defaultTier: 'post',
     desc: 'Animated glowing neon border frame around the scene',
-    defaultConfig: { thickness: 4, rainbow: true, color: '#ff00ff', speed: 6, cornerRadius: 0 },
+    defaultConfig: { thickness: 4, rainbow: true, color: '#ff00ff', speed: 6, cornerRadius: 0, audioReactive: false, audioIntensity: 0.5 },
     fields: [
       { key: 'thickness', label: 'Thickness (px)', type: 'number', min: 1, max: 20, step: 1 },
       { key: 'rainbow', label: 'Rainbow Cycle', type: 'boolean' },
       { key: 'color', label: 'Color', type: 'color' },
       { key: 'speed', label: 'Cycle Speed', type: 'number', min: 1, max: 20, step: 1 },
       { key: 'cornerRadius', label: 'Corner Radius', type: 'number', min: 0, max: 60, step: 1 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
   {
@@ -391,25 +393,29 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
   {
     id: 'synthwave-grid', label: 'Synthwave Grid', icon: '🌅', category: 'background', defaultTier: 'background',
     desc: 'Retro-futurist perspective grid scrolling toward a horizon sun',
-    defaultConfig: { gridColor: '#ff00cc', sunColor: '#ff6ec7', skyTop: '#0b0033', showSun: true, speed: 1 },
+    defaultConfig: { gridColor: '#ff00cc', sunColor: '#ff6ec7', skyTop: '#0b0033', showSun: true, speed: 1, audioReactive: false, audioIntensity: 0.5 },
     fields: [
       { key: 'gridColor', label: 'Grid Color', type: 'color' },
       { key: 'sunColor', label: 'Sun Color', type: 'color' },
       { key: 'skyTop', label: 'Sky Color', type: 'color' },
       { key: 'showSun', label: 'Show Sun', type: 'boolean' },
       { key: 'speed', label: 'Scroll Speed', type: 'number', min: 0, max: 5, step: 0.25 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
   {
     id: 'aurora-flow', label: 'Aurora Flow', icon: '🌌', category: 'background', defaultTier: 'background',
     desc: 'Slowly drifting northern-lights gradient ribbons',
-    defaultConfig: { color1: '#00ffc8', color2: '#4488ff', color3: '#cc44ff', speed: 1, opacity: 0.5 },
+    defaultConfig: { color1: '#00ffc8', color2: '#4488ff', color3: '#cc44ff', speed: 1, opacity: 0.5, audioReactive: false, audioIntensity: 0.5 },
     fields: [
       { key: 'color1', label: 'Color 1', type: 'color' },
       { key: 'color2', label: 'Color 2', type: 'color' },
       { key: 'color3', label: 'Color 3', type: 'color' },
       { key: 'speed', label: 'Drift Speed', type: 'number', min: 0, max: 5, step: 0.25 },
       { key: 'opacity', label: 'Opacity', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
   {
@@ -427,12 +433,14 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
   {
     id: 'starfield-warp', label: 'Starfield Warp', icon: '🚀', category: 'background', defaultTier: 'background',
     desc: 'Hyperspace star streaks radiating from screen center',
-    defaultConfig: { color: '#ffffff', rainbow: false, density: 0.5, speed: 1 },
+    defaultConfig: { color: '#ffffff', rainbow: false, density: 0.5, speed: 1, audioReactive: false, audioIntensity: 0.5 },
     fields: [
       { key: 'color', label: 'Star Color', type: 'color' },
       { key: 'rainbow', label: 'Rainbow Mode', type: 'boolean' },
       { key: 'density', label: 'Density', type: 'number', min: 0.1, max: 1, step: 0.05 },
       { key: 'speed', label: 'Warp Speed', type: 'number', min: 0.1, max: 5, step: 0.1 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
   {

@@ -25,6 +25,8 @@ import type {
   DesktopWidgetResizePayload,
   WidgetSimulationCommandPayload,
   WidgetSimulationIntentPayload,
+  AudioBeatPayload,
+  AudioEnergyPayload,
 } from './signals.js'
 
 // ── Command-only payload types ────────────────────────────────────
@@ -94,6 +96,7 @@ export interface OverlaySyncSnapshot {
  *   Ambiance      — ambiance:simulate:accepted/started/done, widget:simulate:intent,
  *                   widget:simulate, widget:simulate:action, widget:signal
  *   Queries       — state:request, desktop:state:request, overlay:sync
+ *   Audio         — audio:beat, audio:energy:high, audio:energy:low, audio:silence
  *   Dev tooling   — bus:trace:subscribe, bus:trace:unsubscribe
  */
 export interface ClientToServerEvents {
@@ -155,6 +158,14 @@ export interface ClientToServerEvents {
   'widget:simulate:action': (payload: WidgetSimulationCommandPayload) => void
   /** Widget signal for widget wire routing */
   'widget:signal': (payload: { source: string; event: string; payload: unknown }) => void
+  /** Overlay reports a detected beat from its audio reactivity monitor */
+  'audio:beat': (payload: AudioBeatPayload) => void
+  /** Overlay reports sustained high energy from its audio reactivity monitor */
+  'audio:energy:high': (payload: AudioEnergyPayload) => void
+  /** Overlay reports sustained low energy from its audio reactivity monitor */
+  'audio:energy:low': (payload: AudioEnergyPayload) => void
+  /** Overlay reports sustained silence from its audio reactivity monitor */
+  'audio:silence': () => void
 
   // ── Queries (request/response via callback) ──────────────────────
   /** Request current scene state */

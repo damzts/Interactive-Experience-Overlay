@@ -25,6 +25,24 @@ export interface ShowDefinition {
   steps: ShowStep[]
 }
 
+// ── Audio reactivity config ───────────────────────────────────────
+
+/** Where audio-reactivity (beat/energy detection, audio-reactive backgrounds)
+ *  reads its signal from. 'internal' taps the engine's own SFX/music/ambient
+ *  bus (no permission prompt); 'microphone'/'system' capture a live
+ *  MediaStream via getUserMedia/getDisplayMedia in the overlay's own browser
+ *  context. */
+export type AudioReactiveSourceMode = 'internal' | 'microphone' | 'system'
+
+export interface AudioReactivityConfig {
+  enabled: boolean
+  source: AudioReactiveSourceMode
+  /** 0–1, scales the beat detection threshold */
+  sensitivity: number
+  /** 0–1, level smoothing factor fed to useAudioLevel */
+  smoothing: number
+}
+
 /** Root application config — stored in server memory */
 export interface AppConfig {
   scenes: Record<string, Scene>
@@ -45,6 +63,9 @@ export interface AppConfig {
     ambientTrack?: string
     /** 0–1 gain for the ambient layer, default 0.6 */
     ambientVolume?: number
+    /** Audio-reactivity wiring — which audio feeds beat/energy detection and
+     *  audio-reactive backgrounds (AudioEngine.setReactiveSource). */
+    reactivity?: AudioReactivityConfig
   }
   desktopConfig?: DesktopConfig
   desktopAmbiance?: DesktopAmbianceConfig

@@ -3,6 +3,7 @@ import { STATE } from '@ieomlabs/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
 import { audioEngine } from './engine/AudioEngine'
+import { startAudioReactivityMonitor } from './engine/audioReactivityMonitor'
 import { TransitionEngine } from './engine/TransitionEngine'
 import { SceneCompositor } from './layers/SceneCompositor'
 import { TransitionLayer } from './layers/TransitionLayer'
@@ -34,6 +35,23 @@ export default function App() {
     audioEngine.setMusicVolume(config.audio.musicVolume)
     audioEngine.setAmbientVolume(config.audio.ambientVolume ?? 0.6)
   }, [config.audio.masterVolume, config.audio.musicVolume, config.audio.ambientVolume])
+
+  // Audio reactivity: switch capture source and start/stop the beat/energy
+  // monitor as the operator toggles it in the Admin Audio panel. Disabled by
+  // default — no analyser polling, no getUserMedia/getDisplayMedia prompts.
+  const reactivity = config.audio.reactivity
+  useEffect(() => {
+    if (!reactivity?.enabled) {
+      audioEngine.stopReactiveSource()
+      return
+    }
+    void audioEngine.setReactiveSource(reactivity.source)
+    const stop = startAudioReactivityMonitor()
+    return () => {
+      stop()
+      audioEngine.stopReactiveSource()
+    }
+  }, [reactivity?.enabled, reactivity?.source])
 
   const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { RendererProps } from '../registry'
+import { useAudioLevel } from '../useAudioLevel'
 
 interface Star {
   angle: number
@@ -14,6 +15,12 @@ export function StarfieldWarpRenderer({ config, bounds }: RendererProps) {
   const rainbow = config.rainbow === true
   const density = Math.max(0.1, Math.min(1, Number(config.density ?? 0.5)))
   const speed   = Number(config.speed ?? 1)
+  const audioReactive = config.audioReactive === true
+  const audioIntensity = Number(config.audioIntensity ?? 0.5)
+
+  const audioLevel = useAudioLevel()
+  const speedMultRef = useRef(1)
+  speedMultRef.current = audioReactive ? 1 + audioLevel * audioIntensity * 2 : 1
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef(0)
@@ -53,7 +60,7 @@ export function StarfieldWarpRenderer({ config, bounds }: RendererProps) {
         const s = stars[i]
         const prev = s.dist
         // Accelerate outward — the further out, the faster
-        s.dist += (0.4 + (s.dist / maxDist) * 14) * s.speed * speed
+        s.dist += (0.4 + (s.dist / maxDist) * 14) * s.speed * speed * speedMultRef.current
         if (s.dist > maxDist) {
           stars[i] = spawn()
           continue

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { RendererProps } from '../registry'
+import { useAudioLevel } from '../useAudioLevel'
 
 /** SYNTHWAVE-GRID — retro-futurist perspective grid scrolling toward a horizon sun. */
 export function SynthwaveGridRenderer({ config, bounds }: RendererProps) {
@@ -8,9 +9,16 @@ export function SynthwaveGridRenderer({ config, bounds }: RendererProps) {
   const skyTop    = String(config.skyTop ?? '#0b0033')
   const showSun   = config.showSun !== false
   const speed     = Number(config.speed ?? 1)
+  const audioReactive = config.audioReactive === true
+  const audioIntensity = Number(config.audioIntensity ?? 0.5)
+
+  const audioLevel = useAudioLevel()
+  const glowBoost = audioReactive ? audioLevel * audioIntensity : 0
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef(0)
+  const glowBoostRef = useRef(0)
+  glowBoostRef.current = glowBoost
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -27,6 +35,8 @@ export function SynthwaveGridRenderer({ config, bounds }: RendererProps) {
     let scroll = 0
 
     const tick = () => {
+      const boost = glowBoostRef.current
+
       // Sky
       const sky = ctx.createLinearGradient(0, 0, 0, horizonY)
       sky.addColorStop(0, skyTop)
@@ -36,12 +46,24 @@ export function SynthwaveGridRenderer({ config, bounds }: RendererProps) {
 
       // Sun with horizontal blind stripes
       if (showSun) {
-        const sunR = Math.min(W, H) * 0.22
+        const sunR = Math.min(W, H) * (0.22 + boost * 0.06)
         const cx = W / 2
         const cy = horizonY - sunR * 0.15
         const sunGrad = ctx.createLinearGradient(0, cy - sunR, 0, cy + sunR)
         sunGrad.addColorStop(0, '#ffe14a')
         sunGrad.addColorStop(1, sunColor)
+        // Glow halo drawn before clipping — shadowBlur is clipped away otherwise
+        if (boost > 0) {
+          ctx.save()
+          ctx.shadowColor = sunColor
+          ctx.shadowBlur = 20 + boost * 70
+          ctx.fillStyle = sunColor
+          ctx.beginPath()
+          ctx.arc(cx, cy, sunR, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        }
+
         ctx.save()
         ctx.beginPath()
         ctx.arc(cx, cy, sunR, 0, Math.PI * 2)
@@ -66,7 +88,7 @@ export function SynthwaveGridRenderer({ config, bounds }: RendererProps) {
 
       ctx.strokeStyle = gridColor
       ctx.shadowColor = gridColor
-      ctx.shadowBlur = 6
+      ctx.shadowBlur = 6 + boost * 18
 
       // Vertical lines converge on the vanishing point
       ctx.lineWidth = 1.5
