@@ -381,6 +381,10 @@ export type EffectConfig = {
     delay?: number
     sfx?: string
     chain?: EffectChain
+    /** 0-1 chance this effect fires at all, independent of chain.chance. Default 1 (always). */
+    chance?: number
+    /** Non-empty = only fire while the current scene id is in this list. Omit = any scene. */
+    sceneIs?: string[]
   }
 }[EffectType]
 

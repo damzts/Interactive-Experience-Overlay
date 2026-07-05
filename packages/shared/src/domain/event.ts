@@ -27,10 +27,16 @@ export interface AutoTrigger {
 export interface EventDesktopConfigAction {
   kind: 'desktop-config'
   timeoutSeconds?: number
+  /** When true, the patch is never auto-reverted (no scheduleRuntimeConfigReset).
+   *  Used by ThemeDriftManager so ambient drift sticks as the new baseline
+   *  until the next drift or an explicit runtime-config reset. */
+  persistent?: boolean
   patch: {
     theme?: EventDesktopTheme
     iconAnimation?: DesktopIconAnimation
     iconMotion?: number
+    iconArrangement?: DesktopConfig['iconArrangement']
+    iconArrangementMotion?: number
     widgetTheme?: EventWidgetThemePatch
     screenSaver?: Partial<DesktopConfig['screenSaver']>
   }

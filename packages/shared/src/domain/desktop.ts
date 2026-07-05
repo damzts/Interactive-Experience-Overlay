@@ -18,11 +18,27 @@ export type DesktopTheme =
   | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
   | 'diablo' | 'matrix' | 'cyberpunk' | 'runescape'
 
+/** Real, drift-able theme presets — excludes 'custom' (hand-tuned overrides,
+ *  not a preset to randomly land on). Server-importable (no admin UI import). */
+export const DESKTOP_THEME_IDS: DesktopTheme[] = [
+  'win98', 'frutiger aero', 'y2k candy', 'midnight chrome',
+  'sunset boulevard', 'coastal glass', 'amber terminal',
+  'diablo', 'matrix', 'cyberpunk', 'runescape',
+]
+
 export type DesktopIconAnimation =
   | 'none' | 'pulse' | 'float' | 'jiggle' | 'drift' | 'orbit' | 'breathe' | 'reactive'
 
+export const DESKTOP_ICON_ANIMATION_IDS: DesktopIconAnimation[] = [
+  'none', 'pulse', 'float', 'jiggle', 'drift', 'orbit', 'breathe', 'reactive',
+]
+
 export type DesktopIconArrangement =
   | 'grid' | 'wave' | 'ripple' | 'spiral' | 'scatter' | 'orbit'
+
+export const DESKTOP_ICON_ARRANGEMENT_IDS: DesktopIconArrangement[] = [
+  'grid', 'wave', 'ripple', 'spiral', 'scatter', 'orbit',
+]
 
 export type EventDesktopTheme = DesktopTheme | 'random'
 

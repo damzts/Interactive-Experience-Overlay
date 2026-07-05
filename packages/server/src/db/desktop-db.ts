@@ -113,6 +113,16 @@ const SCHEMA = `
     simulation_json TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS effect_ambiance (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    config_json TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS desktop_theme_drift (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    config_json TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS media_renders (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,

@@ -59,4 +59,24 @@ export class ThemeRepository {
   saveDesktopAmbiance(ambiance: NonNullable<AppConfig['desktopAmbiance']>): void {
     this.db.prepare('INSERT OR REPLACE INTO desktop_ambiance (id, simulation_json) VALUES (1, ?)').run(JSON.stringify(ambiance))
   }
+
+  loadEffectAmbiance(): AppConfig['effectAmbiance'] | undefined {
+    const row = this.db.prepare('SELECT * FROM effect_ambiance WHERE id = 1').get() as { config_json: string | null } | undefined
+    if (!row?.config_json) return undefined
+    return parseJson(row.config_json, undefined)
+  }
+
+  saveEffectAmbiance(config: NonNullable<AppConfig['effectAmbiance']>): void {
+    this.db.prepare('INSERT OR REPLACE INTO effect_ambiance (id, config_json) VALUES (1, ?)').run(JSON.stringify(config))
+  }
+
+  loadDesktopThemeDrift(): AppConfig['desktopThemeDrift'] | undefined {
+    const row = this.db.prepare('SELECT * FROM desktop_theme_drift WHERE id = 1').get() as { config_json: string | null } | undefined
+    if (!row?.config_json) return undefined
+    return parseJson(row.config_json, undefined)
+  }
+
+  saveDesktopThemeDrift(config: NonNullable<AppConfig['desktopThemeDrift']>): void {
+    this.db.prepare('INSERT OR REPLACE INTO desktop_theme_drift (id, config_json) VALUES (1, ?)').run(JSON.stringify(config))
+  }
 }

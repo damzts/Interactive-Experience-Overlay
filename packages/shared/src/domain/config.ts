@@ -1,6 +1,7 @@
 import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
 import type { DesktopAmbianceConfig, EffectAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
+import type { DesktopThemeDriftConfig } from './themeDrift.js'
 import type { EventAction, EventConfig } from './event.js'
 import type { MediaEntry, Scene, WindowPreset } from './scene.js'
 import type { AutomationRule } from '../contracts/automation.js'
@@ -68,6 +69,8 @@ export interface AppConfig {
   effectAmbiance?: EffectAmbianceConfig
   /** Chat reaction rules (ChatReactionManager → chat_reactions table) */
   chatReactions?: ChatReactionRule[]
+  /** Ambient art-style drift config (ThemeDriftManager → desktop_theme_drift table) */
+  desktopThemeDrift?: DesktopThemeDriftConfig
 }
 
 // ── Twitch config ────────────────────────────────────────────────

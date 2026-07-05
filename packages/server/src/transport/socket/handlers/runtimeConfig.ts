@@ -14,6 +14,8 @@ export const RUNTIME_CONFIG_RESET_SCOPES = [
   'desktop.globalThemeDefault',
   'desktop.iconAnimation',
   'desktop.iconMotion',
+  'desktop.iconArrangement',
+  'desktop.iconArrangementMotion',
   'desktop.screenSaver',
   'desktop.widgetThemes',
   'ambiance.widgetSimulation',
@@ -127,6 +129,8 @@ export function clearRuntimeConfigScopes(ctx: HandlerContext, scopes: RuntimeCon
     if (scope === 'desktop.globalThemeDefault') delete nextDesktop.globalThemeDefault
     if (scope === 'desktop.iconAnimation') delete nextDesktop.iconAnimation
     if (scope === 'desktop.iconMotion') delete nextDesktop.iconMotion
+    if (scope === 'desktop.iconArrangement') delete nextDesktop.iconArrangement
+    if (scope === 'desktop.iconArrangementMotion') delete nextDesktop.iconArrangementMotion
     if (scope === 'desktop.screenSaver') delete nextDesktop.screenSaver
     if (scope === 'desktop.widgetThemes') delete nextDesktop.widgetThemes
     if (scope === 'ambiance.widgetSimulation') delete nextAmbiance.widgetSimulation

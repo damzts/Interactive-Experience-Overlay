@@ -16,6 +16,7 @@ import type {
 } from '../domain/application.js'
 import { WIDGET_DEFINITIONS } from '../widgets/index.js'
 import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
+import type { DesktopThemeDriftConfig } from '../domain/themeDrift.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
@@ -841,6 +842,29 @@ export function withDesktopAmbianceDefaults(config?: Partial<DesktopAmbianceConf
     widgetSimulation: {
       ...DEFAULT_DESKTOP_AMBIANCE_CONFIG.widgetSimulation,
       ...config?.widgetSimulation,
+    },
+  }
+}
+
+export const DEFAULT_DESKTOP_THEME_DRIFT: DesktopThemeDriftConfig = {
+  enabled: false,
+  intervalSeconds: 45,
+  tickJitterFactor: 0.2,
+  groups: {
+    theme:      { enabled: true, chance: 0.15 },
+    colors:     { enabled: true, chance: 0.2 },
+    motion:     { enabled: true, chance: 0.2 },
+    atmosphere: { enabled: true, chance: 0.2 },
+  },
+}
+
+export function withDesktopThemeDriftDefaults(config?: Partial<DesktopThemeDriftConfig> | null): DesktopThemeDriftConfig {
+  return {
+    ...DEFAULT_DESKTOP_THEME_DRIFT,
+    ...config,
+    groups: {
+      ...DEFAULT_DESKTOP_THEME_DRIFT.groups,
+      ...config?.groups,
     },
   }
 }

@@ -40,7 +40,12 @@ export type SignalHandlerMap = {
 
 // ── Effect firing (with delay + chained-effect support) ───────────
 
-function fireEffect(eff: EffectConfig): void {
+function fireEffect(eff: EffectConfig, store: AppStore): void {
+  // Per-effect stack conditions — checked before any sound/visual dispatch,
+  // so a skipped effect makes no sound either.
+  if (eff.sceneIs?.length && !eff.sceneIs.includes(store.visualState)) return
+  if (eff.chance !== undefined && Math.random() >= eff.chance) return
+
   // audio-sfx: play sound from cfg, no visual dispatch
   if (eff.type === 'audio-sfx') {
     const audioCfg = eff.cfg as import('@ieomlabs/shared').AudioSfxConfig
@@ -66,15 +71,15 @@ function fireEffect(eff: EffectConfig): void {
   }
 
   if (eff.chain && Math.random() < eff.chain.chance) {
-    scheduleEffect(eff.chain.effect)
+    scheduleEffect(eff.chain.effect, store)
   }
 }
 
 /** Schedule an effect to fire after its `delay` (seconds), then evaluate its chain. */
-function scheduleEffect(eff: EffectConfig): void {
+function scheduleEffect(eff: EffectConfig, store: AppStore): void {
   const delay = eff.delay ?? 0
-  if (delay > 0) setTimeout(() => fireEffect(eff), delay * 1000)
-  else fireEffect(eff)
+  if (delay > 0) setTimeout(() => fireEffect(eff, store), delay * 1000)
+  else fireEffect(eff, store)
 }
 
 // ── Signal handler map ───────────────────────────────────────────
@@ -99,10 +104,10 @@ export const signalHandlers: SignalHandlerMap = {
     store.setPendingTransition(payload)
   },
 
-  'overlay:show': (payload: OverlayTriggerPayload, _store) => {
+  'overlay:show': (payload: OverlayTriggerPayload, store) => {
     const { effects } = payload
     if (!effects.length) return
-    effects.forEach((eff) => scheduleEffect(eff))
+    effects.forEach((eff) => scheduleEffect(eff, store))
   },
 
   'overlay:resync': (_payload, _store) => {

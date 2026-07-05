@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_WIDGET_THEME_PRESETS, EFFECT_CATALOG, getEffectLabel, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import { DEFAULT_WIDGET_THEME_PRESETS, EFFECT_CATALOG, getEffectLabel, NAVIGABLE_STATES, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type {
   DesktopConfig,
   EffectType,
@@ -53,6 +53,8 @@ export function EventForm({
   const [collapsedActionIndexes, setCollapsedActionIndexes] = useState<number[]>([])
   const [collapsedEffectIndexes, setCollapsedEffectIndexes] = useState<number[]>([])
   const normalizedEffects = useMemo(() => def.effects.map((effect) => normalizeEventEffectConfig(effect)), [def.effects])
+  // Scene ids are data-driven: built-ins plus every scene defined in config.
+  const sceneIds = useMemo(() => [...new Set([...NAVIGABLE_STATES, ...Object.keys(config.scenes ?? {})])], [config.scenes])
 
   const update = (fn: (d: EventDef) => void) => {
     const next: EventDef = {
@@ -645,10 +647,36 @@ export function EventForm({
                   </div>
 
                   {!collapsedEffectIndexes.includes(index) && (
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-5 py-4">
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-5 py-4 space-y-4">
                       <Slider label="Delay" value={effect.delay ?? 0} min={0} max={10} step={0.1} unit="s" onChange={(value) => update((draft) => {
                         draft.effects[index] = { ...draft.effects[index], delay: value }
                       })} />
+                      <Slider label="Chance" value={effect.chance ?? 1} min={0} max={1} step={0.05} onChange={(value) => update((draft) => {
+                        draft.effects[index] = { ...draft.effects[index], chance: value }
+                      })} />
+                      <div>
+                        <div className="mb-1 text-[10px] text-zinc-500">
+                          Scene condition <span className="normal-case font-normal text-zinc-600">(optional — leave blank to fire in any scene)</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {sceneIds.map((s) => {
+                            const active = (effect.sceneIs ?? []).includes(s)
+                            return (
+                              <ConfigChoiceButton
+                                key={s}
+                                selected={active}
+                                onClick={() => update((draft) => {
+                                  const current = draft.effects[index].sceneIs ?? []
+                                  const next = active ? current.filter((x) => x !== s) : [...current, s]
+                                  draft.effects[index] = { ...draft.effects[index], sceneIs: next.length ? next : undefined }
+                                })}
+                              >
+                                {s}
+                              </ConfigChoiceButton>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   )}
 

@@ -287,7 +287,7 @@ export function isPublicKernelSignal(event: string): event is KernelSignalEvent 
 // ── Runtime config ────────────────────────────────────────────────
 
 export interface RuntimeConfig {
-  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemes' | 'iconAnimation' | 'iconMotion' | 'screenSaver'>
+  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemes' | 'iconAnimation' | 'iconMotion' | 'iconArrangement' | 'iconArrangementMotion' | 'screenSaver'>
   /** Transient per-widget positions (not persisted — runtime state only) */
   widgetPositions?: Record<string, { x: number; y: number }>
   /** Transient per-widget sizes (not persisted — runtime state only) */

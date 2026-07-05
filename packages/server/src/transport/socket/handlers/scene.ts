@@ -1,6 +1,7 @@
 import {
   STATE,
   DEFAULT_WIDGET_THEME_PRESETS,
+  DESKTOP_THEME_IDS,
   withDesktopConfigDefaults,
   withEventConfigDefaults,
   mergeAppConfig,
@@ -25,11 +26,6 @@ import {
 } from './runtimeConfig.js'
 import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout } from './widget.js'
 
-const RANDOMIZABLE_DESKTOP_THEMES: DesktopTheme[] = [
-  'win98', 'frutiger aero', 'y2k candy', 'midnight chrome',
-  'sunset boulevard', 'coastal glass', 'amber terminal',
-  'diablo', 'matrix', 'cyberpunk', 'runescape',
-]
 const RANDOMIZABLE_WIDGET_SKINS = Object.keys(DEFAULT_WIDGET_THEME_PRESETS) as WidgetSkinTheme[]
 
 function pickRandomEntry<T>(entries: T[]): T | null {
@@ -40,7 +36,7 @@ function pickRandomEntry<T>(entries: T[]): T | null {
 export function resolveRuntimeDesktopTheme(theme?: DesktopTheme | 'random', currentTheme?: DesktopTheme): DesktopTheme | undefined {
   if (theme === undefined) return undefined
   if (theme !== 'random') return theme
-  const pool = currentTheme ? RANDOMIZABLE_DESKTOP_THEMES.filter((e) => e !== currentTheme) : RANDOMIZABLE_DESKTOP_THEMES
+  const pool = currentTheme ? DESKTOP_THEME_IDS.filter((e) => e !== currentTheme) : DESKTOP_THEME_IDS
   return pickRandomEntry(pool) ?? currentTheme ?? 'win98'
 }
 
@@ -111,15 +107,24 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
         ...(globalPatch ? { globalThemeDefault: globalPatch } : {}),
         ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
         ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
+        ...(action.patch.iconArrangement !== undefined ? { iconArrangement: action.patch.iconArrangement } : {}),
+        ...(action.patch.iconArrangementMotion !== undefined ? { iconArrangementMotion: action.patch.iconArrangementMotion } : {}),
         ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
       }
       applyRuntimeConfig(ctx, { desktopConfig: desktopPatch as typeof ctx.runtimeConfig['desktopConfig'] })
-      const resetScopes: RuntimeConfigResetScope[] = []
-      if (globalPatch) resetScopes.push('desktop.globalThemeDefault')
-      if (desktopPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
-      if (desktopPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
-      if (desktopPatch.screenSaver) resetScopes.push('desktop.screenSaver')
-      if (resetScopes.length) scheduleRuntimeConfigReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
+      if (!action.persistent) {
+        const resetScopes: RuntimeConfigResetScope[] = []
+        if (globalPatch) resetScopes.push('desktop.globalThemeDefault')
+        if (desktopPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
+        if (desktopPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
+        if (desktopPatch.iconArrangement !== undefined) resetScopes.push('desktop.iconArrangement')
+        if (desktopPatch.iconArrangementMotion !== undefined) resetScopes.push('desktop.iconArrangementMotion')
+        if (desktopPatch.screenSaver) resetScopes.push('desktop.screenSaver')
+        if (resetScopes.length) scheduleRuntimeConfigReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
+      }
+      // persistent actions (e.g. ThemeDriftManager) skip reset scheduling —
+      // the patch sticks as the new baseline until the next drift or an
+      // explicit runtime:config:reset.
       continue
     }
 

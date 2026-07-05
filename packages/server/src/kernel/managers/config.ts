@@ -212,6 +212,7 @@ export class DesktopConfigService implements Manager, IConfigService {
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
         'sourceEvents', 'sourceMedia', 'windowPresets', 'sourceTransitions', 'shows',
+        'effectAmbiance', 'desktopThemeDrift',
       ])
     }
 
@@ -263,6 +264,8 @@ export class DesktopConfigService implements Manager, IConfigService {
       shows:            this.loadShows(),
       twitch:           this.loadTwitchConfig(),
       chatReactions:    this.loadChatReactions(),
+      effectAmbiance:   this.themeRepo.loadEffectAmbiance(),
+      desktopThemeDrift: this.themeRepo.loadDesktopThemeDrift(),
     }
     return this.withConfigDefaults(base)
   }
@@ -353,6 +356,8 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'shows':            this.saveShows(cfg.shows ?? []); break
           case 'twitch':           if (cfg.twitch) this.saveTwitchConfig(cfg.twitch); break
           case 'chatReactions':    this.saveChatReactions(cfg.chatReactions ?? []); break
+          case 'effectAmbiance':   if (cfg.effectAmbiance) this.themeRepo.saveEffectAmbiance(cfg.effectAmbiance); break
+          case 'desktopThemeDrift': if (cfg.desktopThemeDrift) this.themeRepo.saveDesktopThemeDrift(cfg.desktopThemeDrift); break
         }
       }
     })

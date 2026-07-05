@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { STATE, getEffectLabel } from '@ieomlabs/shared'
-import type { EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
+import { STATE, getEffectLabel, DEFAULT_DESKTOP_THEME_DRIFT } from '@ieomlabs/shared'
+import type { DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import {
-  ConfigCard, ConfigPageIntro, ConfigSectionPanel,
+  Btn, ConfigCard, ConfigPageIntro, ConfigSectionPanel,
   Toggle, Slider, ConfigChoiceButton,
 } from '../../shared/ui'
 import { EFFECT_CATEGORIES, createEffectDraft } from '../media-library/eventPresets'
@@ -315,12 +315,110 @@ function EffectAmbianceSection({
   )
 }
 
+// ── ThemeDriftSection ────────────────────────────────────────────────
+
+const DRIFT_GROUP_LABELS: Record<keyof DesktopThemeDriftConfig['groups'], { label: string; desc: string }> = {
+  theme:      { label: 'Theme + Skin', desc: 'DesktopTheme and widget skin/shape swap together — the biggest visual change.' },
+  colors:     { label: 'Colors', desc: 'Widget accent and text color.' },
+  motion:     { label: 'Motion', desc: 'Icon animation, arrangement, and motion intensity.' },
+  atmosphere: { label: 'Atmosphere', desc: 'Widget theme animation, atmosphere, glow, and shadow.' },
+}
+
+function ThemeDriftSection({
+  config,
+  onChange,
+}: {
+  config: DesktopThemeDriftConfig
+  onChange: (patch: Partial<DesktopThemeDriftConfig>) => void
+}) {
+  const [clearing, setClearing] = useState(false)
+
+  const setGroup = (key: keyof DesktopThemeDriftConfig['groups'], patch: Partial<DesktopThemeDriftConfig['groups'][typeof key]>) => {
+    onChange({ groups: { ...config.groups, [key]: { ...config.groups[key], ...patch } } })
+  }
+
+  const clearRuntimeConfig = () => {
+    if (!window.confirm('Clear all runtime overrides (theme drift, temporary event patches, etc.)? This affects the live overlay immediately.')) return
+    setClearing(true)
+    socket.emit('runtime:config:reset', () => setClearing(false))
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-semibold text-zinc-200">Theme Drift</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            Ambiently varies the desktop art style over time. Each enabled group independently rolls a chance to
+            change on every tick — the change sticks as the new look (a runtime override) until the next drift or
+            a runtime config reset. Nothing here is saved to your base theme.
+          </div>
+        </div>
+        <Toggle checked={config.enabled} onChange={(v) => onChange({ enabled: v })} />
+      </div>
+
+      <Slider
+        label="Interval"
+        value={config.intervalSeconds}
+        min={5}
+        max={600}
+        step={5}
+        unit="s"
+        onChange={(v) => onChange({ intervalSeconds: v })}
+      />
+
+      <Slider
+        label="Jitter"
+        value={config.tickJitterFactor ?? 0.2}
+        min={0}
+        max={0.8}
+        step={0.05}
+        onChange={(v) => onChange({ tickJitterFactor: v })}
+      />
+
+      <div className="space-y-3">
+        {(Object.keys(DRIFT_GROUP_LABELS) as Array<keyof DesktopThemeDriftConfig['groups']>).map((key) => {
+          const group = config.groups[key]
+          const meta = DRIFT_GROUP_LABELS[key]
+          return (
+            <div key={key} className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold text-zinc-300">{meta.label}</div>
+                  <div className="text-[10px] text-zinc-600">{meta.desc}</div>
+                </div>
+                <Toggle checked={group.enabled} onChange={(v) => setGroup(key, { enabled: v })} />
+              </div>
+              <Slider
+                label="Chance per tick"
+                value={group.chance}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(v) => setGroup(key, { chance: v })}
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="flex justify-end border-t border-zinc-800/60 pt-3">
+        <Btn variant="danger" onClick={clearRuntimeConfig} disabled={clearing}>
+          {clearing ? 'Clearing…' : 'Clear Runtime Config'}
+        </Btn>
+      </div>
+    </div>
+  )
+}
+
 // ── SchedulerPanel ─────────────────────────────────────────────────
 
 export function SchedulerPanel() {
   const events         = useAdminStore((s) => s.config.sourceEvents ?? [])
   const rawAmbiance    = useAdminStore((s) => s.config.effectAmbiance)
   const effectAmbiance: EffectAmbianceConfig = rawAmbiance ?? DEFAULT_EFFECT_AMBIANCE
+  const rawThemeDrift  = useAdminStore((s) => s.config.desktopThemeDrift)
+  const themeDrift: DesktopThemeDriftConfig = rawThemeDrift ?? DEFAULT_DESKTOP_THEME_DRIFT
   const saveConfig     = useAdminStore((s) => s.saveConfig)
   const diag           = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
 
@@ -343,6 +441,10 @@ export function SchedulerPanel() {
 
   const handleAmbianceChange = (patch: Partial<EffectAmbianceConfig>) => {
     void saveConfig({ effectAmbiance: { ...effectAmbiance, ...patch } })
+  }
+
+  const handleThemeDriftChange = (patch: Partial<DesktopThemeDriftConfig>) => {
+    void saveConfig({ desktopThemeDrift: { ...themeDrift, ...patch } })
   }
 
   return (
@@ -395,6 +497,10 @@ export function SchedulerPanel() {
 
       <ConfigSectionPanel label="Effect ambiance">
         <EffectAmbianceSection config={effectAmbiance} onChange={handleAmbianceChange} />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Theme drift">
+        <ThemeDriftSection config={themeDrift} onChange={handleThemeDriftChange} />
       </ConfigSectionPanel>
     </div>
   )

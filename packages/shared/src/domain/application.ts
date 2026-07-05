@@ -23,6 +23,10 @@ export type WidgetSkinTheme =
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
 
+/** Server-importable value pools for the two enums above (theme-drift manager). */
+export const WIDGET_THEME_ANIMATION_IDS: WidgetThemeAnimation[] = ['steady', 'pulse', 'shimmer', 'aurora', 'broadcast']
+export const WIDGET_THEME_ATMOSPHERE_IDS: WidgetThemeAtmosphere[] = ['clean', 'sparkle', 'scanlines', 'grid', 'nebula']
+
 /**
  * Morphologic window silhouette. 'rect' is the classic rectangular chrome;
  * every other shape reshapes the whole window (clip + redrawn chrome edges).
@@ -33,6 +37,11 @@ export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' |
 export type WidgetShape =
   | 'rect' | 'bevel' | 'notch-hud' | 'blob' | 'tv' | 'sticker'
   | 'metalheart' | 'wing' | 'wave' | 'shard' | 'pod'
+
+export const WIDGET_SHAPE_IDS: WidgetShape[] = [
+  'rect', 'bevel', 'notch-hud', 'blob', 'tv', 'sticker',
+  'metalheart', 'wing', 'wave', 'shard', 'pod',
+]
 
 export type EventWidgetSkinTheme = WidgetSkinTheme | 'random'
 
