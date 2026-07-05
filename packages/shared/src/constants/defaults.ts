@@ -114,8 +114,11 @@ function clampUnitInterval(value: number | undefined, fallback: number) {
 function normalizeAllowedStates(states?: AutoTrigger['allowedStates']) {
   if (!Array.isArray(states) || states.length === 0) return undefined
 
-  const allowed = new Set(Object.values(STATE))
-  const normalized = states.filter((state): state is STATE => allowed.has(state as STATE))
+  // Scene ids are data-driven — any non-empty string except the
+  // TRANSITIONING machine phase is a valid scene gate.
+  const normalized = states.filter(
+    (state): state is STATE => typeof state === 'string' && state.length > 0 && state !== STATE.TRANSITIONING,
+  )
   return normalized.length ? normalized : undefined
 }
 

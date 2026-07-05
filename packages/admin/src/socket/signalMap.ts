@@ -58,11 +58,17 @@ export const adminSignalHandlers: AdminSignalHandlerMap = {
     store.setRuntimeDiagnostics(payload)
   },
 
-  'chat:connected': ({ channel }: { channel: string }, store) => {
-    store.setTwitchConnected(true, channel)
-  },
-
-  'twitch:eventsub:connected': (_payload: { sessionId: string }, store) => {
-    store.setTwitchEventSubConnected(true)
+  // Generic domain-event channel — BusFrame envelopes for public kernel
+  // events (see KernelSignalMap in @ieomlabs/shared). Admin only reacts to
+  // the few it surfaces; everything else flows through untouched.
+  'kernel:signal': (frame, store) => {
+    switch (frame.event) {
+      case 'chat:connected':
+        store.setTwitchConnected(true, (frame.payload as { channel: string }).channel)
+        break
+      case 'twitch:eventsub:connected':
+        store.setTwitchEventSubConnected(true)
+        break
+    }
   },
 }

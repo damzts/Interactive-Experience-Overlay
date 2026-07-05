@@ -49,7 +49,8 @@ export function StickyNotesWidget({
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
       if (payload.widgetId !== appId || payload.kind !== 'sticky:set-color') return
-      setColor(payload.color)
+      const color = typeof payload.params?.color === 'string' ? payload.params.color : null
+      setColor((prev) => color ?? NOTE_COLORS[(NOTE_COLORS.indexOf(prev) + 1) % NOTE_COLORS.length])
     })
   }, [appId])
 

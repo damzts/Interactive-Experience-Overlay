@@ -1,16 +1,16 @@
 import type { Rect } from './geometry.js'
+import type { DefinedWidgetComponentType } from '../widgets/index.js'
 
 // ── Widget types ─────────────────────────────────────────────────
 
 export type WidgetLayoutSource = 'system' | 'user'
 
-export type WidgetComponentType =
-  | 'camera' | 'chat' | 'gallery' | 'music' | 'window'
-  | 'sticky-notes' | 'spectrum-analyzer' | 'equalizer-rack' | 'wave-scope'
-  | 'playlist-deck' | 'net-meter' | 'cd-ripper' | 'signal-lab'
-  | 'broadcast-scheduler' | 'weather-console' | 'clock-tower' | 'newswire-desk'
-  | 'city-navigator' | 'lcd-dolphins'
-  | 'generic'
+/**
+ * Derived from WIDGET_DEFINITIONS — adding a widget definition extends
+ * this union automatically. 'window' (renderer/scene host) and 'generic'
+ * (fallback chrome) are the only component types without definitions.
+ */
+export type WidgetComponentType = DefinedWidgetComponentType | 'window' | 'generic'
 
 // ── Widget theme types ────────────────────────────────────────────
 

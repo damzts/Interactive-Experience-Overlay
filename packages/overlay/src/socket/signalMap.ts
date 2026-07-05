@@ -8,15 +8,11 @@
  * Adding a new signal = add one entry here. No hook hunting.
  */
 
-import { withDesktopConfigDefaults, DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS } from '@ieomlabs/shared'
+import { withDesktopConfigDefaults, DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, EFFECT_CATALOG } from '@ieomlabs/shared'
 import type {
-  CursorMirrorPayload,
   DesktopNotificationPayload,
   DesktopRecycleBinPayload,
-  DesktopStartMenuSimulationPhasePayload,
-  DesktopStartMenuStatePayload,
   ObsStatusPayload,
-  OpenWidgetMenuTimelinePayload,
   RuntimeConfig,
   TransitionPlayPayload,
   WidgetSimulationIntentPayload,
@@ -29,7 +25,6 @@ import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
 import { dispatchWidgetSimulationIntent, dispatchWidgetChainAction, dispatchWidgetSignal } from '../desktop/widgetSimulationEvents'
-import { runWidgetCursorSimulation } from '../desktop/cursorSimUtils'
 import { socket } from './client'
 import type { AppStore } from '../store/useAppStore'
 
@@ -41,35 +36,6 @@ export type SignalHandlerMap = {
   [K in keyof ServerToClientEvents]?: SignalHandler<
     Parameters<ServerToClientEvents[K]>[0]
   >
-}
-
-// ── SFX map for effects ───────────────────────────────────────────
-
-const SFX_MAP: Partial<Record<EffectConfig['type'], Parameters<typeof audioEngine.play>[0]>> = {
-  'death-overlay':       'death',
-  'victory-overlay':     'victory',
-  'revive-overlay':      'revive',
-  'network-glitch':      'glitch',
-  'corruption-burst':    'glitch',
-  'static-burst':        'transition',
-  'achievement-unlock':  'victory',
-  'level-up':            'level-up-chime',
-  'confetti-burst':      'victory',
-  'fireworks':           'victory',
-  'friend-join':         'startup',
-  'dial-up-connect':     'dial-up-connect',
-  'blue-screen':         'glitch',
-  'tv-off':              'transition',
-  'vhs-glitch':          'glitch',
-  'error-dialog':        'win98-error',
-  // ── MMORPG / Retro-Futurist ──────────────────────────────────────
-  'item-pickup':         'loot',
-  'quest-complete':      'mmorpg-ding',
-  'critical-hit':        'glitch',
-  'boss-warning':        'glitch',
-  'combo-multiplier':    'mmorpg-ding',
-  'game-over-effect':    'death',
-  'matrix-glitch':       'glitch',
 }
 
 // ── Effect firing (with delay + chained-effect support) ───────────
@@ -93,8 +59,9 @@ function fireEffect(eff: EffectConfig): void {
         audioEngine.play(eff.sfx as Parameters<typeof audioEngine.play>[0])
       }
     } else {
-      const sfxId = SFX_MAP[eff.type]
-      if (sfxId) audioEngine.play(sfxId)
+      // Default sound comes from the effect's catalog manifest
+      const sfxId = EFFECT_CATALOG[eff.type]?.defaultSfx
+      if (sfxId) audioEngine.play(sfxId as Parameters<typeof audioEngine.play>[0])
     }
   }
 
@@ -109,10 +76,6 @@ function scheduleEffect(eff: EffectConfig): void {
   if (delay > 0) setTimeout(() => fireEffect(eff), delay * 1000)
   else fireEffect(eff)
 }
-
-// ── Cursor mirror helpers (need ref state, exposed via module-level vars) ─────
-
-let menuTimelineLockUntil = 0
 
 // ── Signal handler map ───────────────────────────────────────────
 
@@ -205,60 +168,6 @@ export const signalHandlers: SignalHandlerMap = {
 
   'obs:status': (payload: ObsStatusPayload, store) => {
     store.setObsConnected(payload.connected)
-  },
-
-  // ── Cursor mirror signals ──────────────────────────────────────
-
-  'cursor:mirror': (payload: CursorMirrorPayload, _store) => {
-    const cursor = (window as any).__cursorOverlayController
-    if (!cursor) return
-    const locked = Date.now() < menuTimelineLockUntil
-    if (locked && (payload.kind === 'move' || payload.kind === 'click')) return
-
-    if (payload.kind === 'move') {
-      ;(window as any).__cursorMirrorApplying = true
-      void cursor.moveTo(payload.x, payload.y, { duration: payload.duration ?? 600 }).finally(() => {
-        ;(window as any).__cursorMirrorApplying = false
-      })
-      return
-    }
-    if (payload.kind === 'click') {
-      ;(window as any).__cursorMirrorApplying = true
-      void cursor.click().finally(() => {
-        ;(window as any).__cursorMirrorApplying = false
-      })
-      return
-    }
-    ;(window as any).__cursorMirrorApplying = true
-    cursor.setVisible(payload.visible)
-    ;(window as any).__cursorMirrorApplying = false
-  },
-
-  'cursor:mirror:menu-timeline': (payload: OpenWidgetMenuTimelinePayload, _store) => {
-    const cursor = (window as any).__cursorOverlayController
-    if (!cursor) return
-    const totalMs =
-      payload.startMoveMs +
-      payload.startPostMs +
-      payload.steps.reduce((sum, step) => sum + step.moveMs + step.hoverMs + step.postMs, 0)
-    menuTimelineLockUntil = Date.now() + totalMs + 400
-    void runWidgetCursorSimulation(cursor, payload.widgetLabel, {
-      startMenu: false,
-      menuPath: payload.menuPath,
-      visualOnly: true,
-      driveCursorVisualOnly: true,
-      allowDomActionsInVisualOnly: false,
-      debugTag: `mirror:${payload.targetAppId ?? payload.widgetLabel}`,
-      targetAppId: payload.targetAppId,
-      activateLeafClick: false,
-      openFirstLevelOnHover: true,
-      closeStartMenuAfterPath: false,
-      timingPlan: {
-        startMoveMs: payload.startMoveMs,
-        startPostMs: payload.startPostMs,
-        steps: payload.steps,
-      },
-    })
   },
 
   // ── Ambiance signals ───────────────────────────────────────────

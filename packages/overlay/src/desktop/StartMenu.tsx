@@ -1,4 +1,5 @@
-import type { Application, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload } from '@ieomlabs/shared'
+import type { Application, DesktopStartMenuRoot } from '@ieomlabs/shared'
+import type { DesktopStartMenuSimulationPhasePayload } from './simulationTypes'
 import { STATE } from '@ieomlabs/shared'
 import { AppGlyph } from './AppGlyph'
 import { socket } from '../socket/client'

@@ -1,6 +1,6 @@
 import type { WidgetDefinition } from '../../contracts/widget.js'
 
-export const weatherDefinition: WidgetDefinition = {
+export const weatherDefinition = {
   id: 'weather',
   componentType: 'weather-console',
   defaultSize: { width: 420, height: 330 },
@@ -12,4 +12,4 @@ export const weatherDefinition: WidgetDefinition = {
     { event: 'weather:update', label: 'Weather updated' },
   ],
   accepts: [],
-}
+} as const satisfies WidgetDefinition

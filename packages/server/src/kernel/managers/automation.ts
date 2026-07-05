@@ -141,8 +141,10 @@ export class AutomationManager implements Manager {
         }
         case 'scene:change': {
           const sceneId = params['sceneId']
-          if (typeof sceneId === 'string' && Object.values(STATE).includes(sceneId as STATE)) {
-            this.machine.transition(sceneId as STATE)
+          // Scene ids are data-driven — the machine itself rejects
+          // TRANSITIONING and no-op transitions.
+          if (typeof sceneId === 'string' && sceneId.length > 0) {
+            this.machine.transition(sceneId)
           }
           break
         }

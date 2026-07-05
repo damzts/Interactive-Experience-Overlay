@@ -1,0 +1,253 @@
+# Architecture Debt Assessment — Gap Analysis Against the Lego Vision
+
+> **Purpose.** IEOM's goal is a solid core engine with lego-style composability: unique
+> effects/interactions/automation cheap to create, easy feature expansion, easy art-style
+> pivots, and features that couple/decouple freely. This doc is an honest retrospective of
+> where the current architecture serves that goal and where it fights it, with a phased
+> consolidation roadmap. It is the reference for future refactor sessions.
+>
+> **Written:** 2026-07-05. Line counts and file paths were verified on that date; treat them
+> as evidence snapshots, not living facts. If this doc contradicts the code, the code wins.
+>
+> **Compat stance for the roadmap:** breaking changes to persisted data (SQLite rows, saved
+> config) are acceptable. Solo operator; the DB can be reset or hand-fixed after a phase lands.
+
+---
+
+## The one-sentence diagnosis
+
+The right idea — **a self-describing manifest plus a generic dispatcher** — already exists in
+this repo several times (`RENDERER_CATALOG`, `AutomationRule`, the effect dispatch registry,
+`BusFrame` + `onAny`), but the older subsystems were never retrofitted onto it. The debt is
+**consolidation, not rewrite**. Nothing below proposes new architecture; every fix direction
+points at a pattern that already ships in the codebase.
+
+---
+
+## 1. What is already right — keep these, and consolidate *onto* them
+
+| Asset | Where | Why it's the lego pattern |
+|---|---|---|
+| Kernel/userspace split | `packages/server` / `packages/overlay` | Kernel decides, overlay renders. The split itself has held up. |
+| `Manager` interface + `bootPriority` + declaration-merged `*.signals.ts` | `shared/src/contracts/manager.ts`, `server/src/kernel/managers/` | New kernel subsystems plug in without editing `bus.ts` or each other. |
+| Repository layer + per-section config writes | `server/src/db/repositories/`, `config_store` | Persistence is already decoupled from orchestration. |
+| **`RENDERER_CATALOG`** — the reference pattern | `shared/src/domain/plugin.ts` | Entries self-describe `fields` (schema → admin UI is *generated*), `defaults`, `emits`/`accepts` (→ automation vocabulary). Adding a renderer = 3 files, **zero admin code**. This is what every other extension point should look like. |
+| Unified `AutomationRule` | `shared/src/contracts/automation.ts` | One shape for any signal → any action; deterministic overlay/server evaluation split; single-hop `signal:emit` loop guard. |
+| Effect dispatch registry | `overlay/src/effects/registry.ts` | String-keyed, hot-swappable, concurrency-budgeted. The *dispatch* side of effects is already generic. |
+| `BusFrame` envelope + `KernelBus.onAny` | `shared/src/contracts/signals.ts`, `server/src/kernel/bus.ts` | A generic `{event, payload, source, t, seq}` envelope already exists and is already consumed generically by `AutomationManager` and `BusHistoryRecorder`. |
+
+---
+
+## 2. The five structural problems
+
+### P1 — The kernel→overlay ABI is a bag of bespoke events and doesn't scale
+
+**Evidence (2026-07-05):**
+
+- `shared/src/contracts/signals.ts` — 377 lines, ~50 hand-listed events in
+  `ServerToClientEvents`, including 11 `twitch:*`, 5 `obs:*`, plus `chat:*`, `show:*`.
+- `server/src/transport/socket/handlers/managers.ts` — **19 identical lines** of
+  `bus.on(X, p => io.emit(X, p))`. Boilerplate this uniform is proof the abstraction is missing.
+- Cost of one new manager capability today: 4–5 file touches — KernelEvents declaration
+  (`*.signals.ts`), payload type + `ServerToClientEvents` entry (`signals.ts`), bridge line
+  (`managers.ts`), overlay handler (`signalMap.ts`) or widget listener.
+
+**Why it fights the vision:** every new integration (a Discord manager, a hardware button, a
+game-state poller) pays a per-event transport tax before any creative work starts, and its
+events are *not* automatically visible to widgets/renderers/automation on the overlay side.
+
+**Fix direction:** one generic `kernel:signal` socket channel carrying `BusFrame` envelopes
+for all **domain** events. Overlay gets a typed helper (`onKernelSignal('twitch:follow', cb)`)
+that narrows payloads from the existing `KernelEvents` map. Bespoke socket events remain
+*only* for protocol/lifecycle: config sync (`config:update`/`config:patch`), `state:update`,
+overlay slot ownership, resync, and WebRTC signaling. The server side becomes one
+`bus.onAny` forwarder with an allowlist (a manager marks events as `public` in its signals
+file) — `managers.ts` is deleted. A new manager event then costs **zero** transport changes
+and is instantly consumable by automation rules, widgets, and renderers.
+
+### P2 — Effects are the least-lego subsystem, and they're the main creative currency
+
+**Evidence (2026-07-05):** a new effect touches **6 files** across 3 packages:
+
+1. Config interface + map entry in `shared/src/contracts/effects.ts` (648 lines, ~75 types).
+2. `run*` function in `overlay/src/transitions/`.
+3. `registerEffect(...)` call in `overlay/src/effects/index.ts` (74 calls).
+4. Container div in `overlay/src/layers/TransitionLayer.tsx` (canvas/DOM effects).
+5. `EFFECT_CATEGORIES` group + `EFFECT_DRAFT_DEFAULTS` entry in
+   `admin/src/features/media-library/eventPresets.ts` (total record — admin fails to compile
+   until the entry exists).
+6. Optional per-type editor block in `admin/src/features/media-library/EventForm.tsx`
+   (1,646 lines).
+
+Plus `SFX_MAP` — the effect→default-sound mapping — hardcoded in
+`overlay/src/socket/signalMap.ts`, far from the effects it describes.
+
+**Why it fights the vision:** effects are the highest-frequency creative act in this project,
+and they have the highest per-unit cost. Compare renderers: 3 files, admin UI free.
+
+**Fix direction:** apply the `RENDERER_CATALOG` pattern. An `EffectManifest` data entry —
+`{ id, label, icon, category, fields (reuse RendererFieldDef), defaults, duration,
+defaultSfx }` — in a shared `EFFECT_CATALOG`. Derived from it: admin categories, draft
+defaults, the generic schema-driven editor (keep hand-written editor blocks only for the few
+effects that genuinely need custom UI), and the SFX default. Per-effect TS config interfaces
+in shared go away; a run function declares its own local cfg type. New effect = **2 files**
+(catalog entry + run function). The dispatch registry and concurrency budget stay as-is.
+
+### P3 — Three plugin systems, three shapes
+
+**Evidence:** the same concept — "a thing with an id, a config schema, signals it emits,
+actions it accepts" — is expressed three ways:
+
+- **Widgets:** `shared/src/widgets/{id}/definition.ts` + one `widgetRegistry.ts` line + a
+  *manual* `WidgetComponentType` union edit in `shared/src/domain/application.ts` (a leak —
+  the definition should be the single source).
+- **Renderers:** `RENDERER_CATALOG` (the good one).
+- **Effects:** the 6-file path (P2).
+
+**Why it fights the vision:** nothing composes uniformly. Automation UI, admin forms, and
+ambiance each need per-kind special cases; a new *kind* of lego brick (e.g. "audio behaviors",
+"input devices") would invent a fourth shape.
+
+**Fix direction:** one manifest shape — `{ id, kind: 'widget'|'renderer'|'effect', label,
+icon, fields, defaults, emits, accepts, ...kind-specific extras }` — with per-kind registries
+but a shared schema-form generator in admin (one `SchemaForm` component). Derive
+`WidgetComponentType` from the definitions so adding a widget never edits
+`application.ts`. Registration stays build-time (an `import.meta.glob` sweep is a nice-to-have,
+not the point).
+
+### P4 — Presentation leaked into the kernel ABI (this is what blocks art-style pivots)
+
+**Evidence:**
+
+- The *shared contract* contains Win98-desktop concepts: `desktop:start-menu:phase`,
+  `desktop:start-menu:state`, `cursor:mirror:menu-timeline` (start-menu hover/timing
+  choreography computed kernel-side), `desktop:recycle-bin`.
+- `shared/src/constants/ambianceSimulation.ts` hardcodes specific widgets' verbs —
+  `music:play-pause`, `gallery:next`, `sticky:set-color`, `chat:add-message` — as the
+  `WidgetSimulationIntentSeed` union, **even though widget definitions already declare
+  `accepts`** (e.g. `shared/src/widgets/music/definition.ts`). The vocabulary exists in the
+  manifests; ambiance duplicates it by hand.
+- Ad-hoc globals stitch the choreography together overlay-side
+  (`window.__cursorOverlayController`, `__cursorMirrorApplying` in `signalMap.ts`).
+
+**Why it fights the vision:** ARCHITECTURE.md promises "any client that speaks the signal
+contract works" — but the contract itself speaks Win98. Swap the skin and the kernel's
+AmbianceManager is directing start-menu theater that no longer exists. "Easy art style change
+direction" dies exactly here.
+
+**Fix direction:** the kernel emits *abstract* ambient intents — "ambiently open widget W",
+"perform one of W's declared `accepts` actions" (picked from the manifest, optionally with
+per-action simulation hints like weight or a param generator). The overlay — as the owner of
+the skin — resolves the *performance*: cursor theater, menu paths, timing. Start-menu and
+cursor-timeline signals move out of the shared ABI into overlay-internal concerns.
+`ambianceSimulation.ts`'s hardcoded union is deleted in favor of manifest-driven picks.
+
+> ⚠️ **Verify at execution time:** whether `cursor:mirror` / start-menu-state signals also
+> serve multi-client mirroring in online rooms (leader/follower overlays). If so, keep a
+> generic "presentation event relay" channel rather than deleting the capability.
+
+### P5 — Two competing scene concepts
+
+**Evidence:** a data-driven `scenes` table (with renderers, tiers, transitions, ambient
+tracks) coexists with a compile-time `enum STATE { LOBBY, DESKTOP, TRANSITIONING }` in
+`shared/src/contracts/state.ts`, baked into `AutomationTrigger.sceneIs`, `SceneMachine`,
+`TransitionPlayPayload`, and the overlay's visual-state store.
+
+**Why it fights the vision:** "unique interactive experiences" implies inventing new top-level
+scenes as *data* — a third scene today requires recompiling the shared contract and touching
+the state machine.
+
+**Fix direction:** scene identity = string id from the DB. LOBBY and DESKTOP become two
+built-in scene rows (the R3F lobby is just a scene whose content source is the lobby
+renderer; the desktop is a scene with `showDesktop`). `SceneMachine` validates against the
+scene table instead of an enum; `TRANSITIONING` becomes a machine phase, not a scene.
+`sceneIs` in automation rules widens to string ids.
+
+---
+
+## 3. Phased roadmap
+
+Each phase is independently shippable and leaves the system fully working. Order is by
+leverage ÷ risk. Breaking persisted data is acceptable in every phase.
+
+### Phase 1 — Signal fabric (P1)
+
+- **Goal:** all domain events flow kernel→overlay through one generic `kernel:signal`
+  BusFrame channel; `managers.ts` deleted.
+- **Touches:** `shared/src/contracts/signals.ts` (shrink `ServerToClientEvents` to
+  protocol/lifecycle + `kernel:signal`), a `public: true` marker convention in
+  `server/src/kernel/managers/*.signals.ts`, one `bus.onAny` forwarder in
+  `server/src/transport/socket/handlers/`, a typed `onKernelSignal` helper in
+  `overlay/src/socket/`, migration of the few overlay/widget listeners that consumed the
+  bespoke twitch/obs/chat/show events, admin diagnostics listeners.
+- **Done when:** adding a throwaway event to any manager reaches an overlay listener and an
+  automation rule with zero transport-file edits; `managers.ts` no longer exists.
+- **Risk:** low. Payload typing across the generic channel must stay ergonomic — the
+  `KernelEvents` map already provides the type source.
+
+### Phase 2 — Effect manifests (P2)
+
+- **Goal:** new effect = catalog entry + run function.
+- **Touches:** new `EFFECT_CATALOG` in shared (data only); rewrite
+  `admin/.../eventPresets.ts` as derivations; replace most of `EventForm.tsx`'s per-type
+  blocks with the schema form; move `SFX_MAP` into manifests as `defaultSfx`; delete
+  per-effect config interfaces from `shared/src/contracts/effects.ts` (keep
+  `OverlayTriggerPayload` and the `EffectConfig` envelope with `cfg: Record<string,
+  unknown>`).
+- **Done when:** the 6-file checklist in the memory/README is obsolete; one existing effect
+  ported end-to-end proves the path, then bulk-port the rest.
+- **Risk:** medium — 75 types to port (mechanical), loss of per-effect TS narrowing in admin
+  (acceptable; run functions keep local types). Field schema must express everything the
+  hand-written editors did; keep custom editor escape hatch.
+
+### Phase 3 — Unified plugin shape + SchemaForm (P3)
+
+- **Goal:** widgets, renderers, effects share one manifest shape; one `SchemaForm` in admin;
+  `WidgetComponentType` derived, never hand-edited.
+- **Touches:** `shared/src/contracts/widget.ts` / `domain/plugin.ts` (common base type),
+  `shared/src/domain/application.ts` (derive union), admin form components (renderer editor +
+  effect editor + widget settings converge on `SchemaForm`).
+- **Done when:** adding any brick kind uses the same mental model and the admin renders its
+  settings without new form code.
+- **Risk:** low-medium; mostly type plumbing and admin convergence.
+
+### Phase 4 — Kernel presentation purge (P4)
+
+- **Goal:** the shared ABI contains no Win98/desktop-skin concepts; ambiance drives
+  interactions from widget manifests.
+- **Touches:** delete `WidgetSimulationIntentSeed` union in
+  `shared/src/constants/ambianceSimulation.ts` (manifest-driven picks, optional per-`accepts`
+  simulation hints in definitions); move start-menu/cursor choreography computation from
+  `server/src/kernel/managers/ambiance.ts` (and related) into the overlay; replace
+  start-menu/cursor-timeline signals with abstract intents; kill `window.__cursor*` globals
+  behind a proper overlay service.
+- **Done when:** grep of `shared/src/contracts` + `shared/src/constants` finds no start-menu,
+  cursor-path, recycle-bin, or per-widget-verb strings; ambiance still visibly "plays" the
+  desktop.
+- **Risk:** medium-high — the ambiance/cursor pipeline is behaviorally rich; verify the
+  online-rooms mirroring question (⚠️ above) first. Ship behind side-by-side testing of the
+  simulation loop.
+
+### Phase 5 — Data-driven scenes (P5)
+
+- **Goal:** scenes are DB rows identified by string ids; `STATE` enum retired.
+- **Touches:** `shared/src/contracts/state.ts`, `SceneMachine`, `TransitionPlayPayload`,
+  `AutomationTrigger.sceneIs`, overlay `sceneSlice` visual-state typing, admin scene pickers;
+  seed LOBBY/DESKTOP as built-in rows.
+- **Done when:** a third top-level scene can be created entirely from the admin panel and
+  automation rules can gate on it.
+- **Risk:** highest blast radius (touches state machine, store typing, and every `STATE`
+  import) — hence last. Mechanically simple though: enum → string union → string.
+
+---
+
+## 4. Smaller irritants noticed along the way (fix opportunistically)
+
+- `overlay/src/layers/TransitionLayer.tsx` pre-mounts a static div per legacy effect —
+  effects created after the registry pattern self-manage containers; port the old ones when
+  touched (folds into Phase 2).
+- `EventForm.tsx` at 1,646 lines will mostly dissolve in Phase 2/3; don't refactor it before
+  then.
+- `signalMap.ts` mixes transport handling with effect firing/SFX policy (`fireEffect`,
+  `scheduleEffect`) — the effect-firing pipeline belongs next to the effect registry (folds
+  into Phase 1/2).

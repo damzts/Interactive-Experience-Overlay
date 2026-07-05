@@ -1,13 +1,13 @@
 ﻿import { useMemo } from 'react'
 import {
-  DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS,
   DEFAULT_WIDGET_THEME_PRESETS,
+  EFFECT_CATALOG,
+  getEffectLabel,
   STATE,
   withDesktopConfigDefaults,
 } from '@ieomlabs/shared'
 import type {
   DesktopConfig,
-  DesktopNotificationEffectConfig,
   EffectType,
   EventAction,
   EventDesktopTheme,
@@ -31,9 +31,9 @@ import {
   EVENT_EFFECT_TYPES,
   COMMON_EVENT_ACTION_KINDS,
   getEventActionLabel,
-  normalizeDesktopNotificationEffectConfig,
   type EventDef,
 } from '../media-library/eventPresets'
+import { SchemaForm } from '../media-library/SchemaForm'
 import {
   Btn,
   ConfigCard,
@@ -75,13 +75,11 @@ export function EventForm({
     onUpdate(next)
   }
 
-  const updateDesktopNotificationEffect = (index: number, updater: (cfg: DesktopNotificationEffectConfig) => void) => {
+  const updateEffectCfg = (index: number, key: string, value: unknown) => {
     update((d) => {
       const effect = d.effects[index]
-      if (!effect || effect.type !== 'desktop-notification') return
-      const nextCfg = normalizeDesktopNotificationEffectConfig(effect.cfg)
-      updater(nextCfg)
-      d.effects[index] = { ...effect, cfg: nextCfg }
+      if (!effect) return
+      ;(effect.cfg as Record<string, unknown>)[key] = value
     })
   }
 
@@ -415,7 +413,7 @@ export function EventForm({
                 {EVENT_EFFECT_TYPES.slice(0, 6).map((type) => (
                   <button key={type} type="button" onClick={() => addEffect(type)}
                     className="rounded-full border border-zinc-700/70 bg-zinc-950/60 px-3 py-1.5 text-[11px] font-semibold text-zinc-300 transition hover:border-cyan-400/35 hover:text-cyan-200">
-                    + {type}
+                    + {getEffectLabel(type)}
                   </button>
                 ))}
               </div>
@@ -423,43 +421,27 @@ export function EventForm({
               {def.effects.map((eff, index) => (
                 <div key={`${def.id}-effect-${index}`} className="space-y-3 border-b border-zinc-700/40 py-3 last:border-b-0">
                   <div className="flex items-center gap-3">
-                    <span className="flex-1 text-xs font-mono text-zinc-300">{eff.type}</span>
+                    <span className="flex-1 text-xs font-mono text-zinc-300">{getEffectLabel(eff.type)}</span>
                     <input type="number" min={0} max={10} step={0.1} value={eff.delay ?? 0}
                       onChange={(e) => update((d) => { d.effects[index] = { ...d.effects[index], delay: Number(e.target.value) } })}
                       className="w-20 font-mono text-xs" title="Delay (s)" />
                     <span className="text-[10px] text-zinc-600">s</span>
                     <button onClick={() => update((d) => { d.effects.splice(index, 1) })} className="rounded-md px-2 py-1 text-[11px] text-red-400 transition hover:bg-red-500/10 hover:text-red-200">Remove</button>
                   </div>
-                  {eff.type === 'desktop-notification' && (() => {
-                    const cfg = normalizeDesktopNotificationEffectConfig(eff.cfg)
-                    return (
-                      <div className="grid grid-cols-2 gap-2 pl-1">
-                        <div className="col-span-2">
-                          <div className="text-[10px] text-zinc-500 mb-1">Title</div>
-                          <input type="text" value={cfg.title} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.title = e.target.value })} className="w-full text-xs" />
-                        </div>
-                        <div className="col-span-2">
-                          <div className="text-[10px] text-zinc-500 mb-1">Body</div>
-                          <textarea value={cfg.body} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.body = e.target.value })} className="w-full min-h-[72px] text-xs" />
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1">Icon</div>
-                          <input type="text" value={cfg.icon ?? ''} onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.icon = e.target.value || undefined })} className="w-full text-xs font-mono" />
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-zinc-500 mb-1">Duration (ms)</div>
-                          <input type="number" min={0} step={250} value={cfg.durationMs ?? DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS}
-                            onChange={(e) => updateDesktopNotificationEffect(index, (draft) => { draft.durationMs = Number(e.target.value) || 0 })}
-                            className="w-full font-mono text-xs" />
-                        </div>
-                      </div>
-                    )
-                  })()}
+                  {(EFFECT_CATALOG[eff.type]?.fields.length ?? 0) > 0 && (
+                    <div className="pl-1">
+                      <SchemaForm
+                        fields={EFFECT_CATALOG[eff.type].fields}
+                        values={eff.cfg as Record<string, unknown>}
+                        onChange={(key, value) => updateEffectCfg(index, key, value)}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
               <select defaultValue="" onChange={(e) => { const type = e.target.value as EffectType; if (!type) return; e.target.value = ''; addEffect(type) }} className="w-full text-sm">
                 <option value="">More effects…</option>
-                {EVENT_EFFECT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                {EVENT_EFFECT_TYPES.map((type) => <option key={type} value={type}>{getEffectLabel(type)}</option>)}
               </select>
             </div>
           </ConfigSectionPanel>

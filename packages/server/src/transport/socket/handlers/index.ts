@@ -22,7 +22,7 @@ import { registerAmbianceHandlers } from './ambiance.js'
 import { registerDesktopHandlers, getDesktopRuntimeState } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
-import { registerManagerSignals } from './managers.js'
+import { registerKernelSignalBridge, makeKernelSignalFrame } from './kernelSignal.js'
 
 export function setupSocketHandlers(
   io: IO,
@@ -79,7 +79,7 @@ export function setupSocketHandlers(
   ambianceManager.setDiagnosticsListener(() => queueRuntimeDiagnosticsEmit(ctx))
 
   registerMachineListeners(ctx)
-  registerManagerSignals(ctx)
+  registerKernelSignalBridge(ctx)
 
   const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'unknown' => {
     const auth = socket.handshake.auth as { clientType?: string } | undefined
@@ -127,8 +127,8 @@ export function setupSocketHandlers(
     }
     if (options?.getTwitchStatus) {
       const ts = options.getTwitchStatus()
-      if (ts.ircConnected) socket.emit('chat:connected', { channel: ts.channel })
-      if (ts.eventSubConnected) socket.emit('twitch:eventsub:connected', { sessionId: '' })
+      if (ts.ircConnected) socket.emit('kernel:signal', makeKernelSignalFrame('chat:connected', { channel: ts.channel }))
+      if (ts.eventSubConnected) socket.emit('kernel:signal', makeKernelSignalFrame('twitch:eventsub:connected', { sessionId: '' }))
     }
 
     socket.on('overlay:sync', (callback) => {

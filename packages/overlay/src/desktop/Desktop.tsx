@@ -13,7 +13,8 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
 import { STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
-import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuSimulationPhasePayload, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
+import type { DesktopStartMenuSimulationPhasePayload } from './simulationTypes'
 import { useAppStore } from '../store/useAppStore'
 import { Taskbar } from './Taskbar'
 import { ScreenSaver } from './ScreenSaver'
@@ -377,19 +378,9 @@ export function Desktop({ apps }: DesktopProps) {
       }
     }
 
-    const applyStartMenuSimulationPhase = (payload: DesktopStartMenuSimulationPhasePayload) => {
-      if (payload.phase === 'clear') {
-        setStartMenuSimulationPhase(null)
-        return
-      }
-      setStartMenuSimulationPhase(payload)
-    }
-
     socket.on('desktop:start-menu:state', applyStartMenuState)
-    socket.on('desktop:start-menu:phase', applyStartMenuSimulationPhase)
     return () => {
       socket.off('desktop:start-menu:state', applyStartMenuState)
-      socket.off('desktop:start-menu:phase', applyStartMenuSimulationPhase)
     }
   }, [])
 

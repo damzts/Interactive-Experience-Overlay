@@ -1,6 +1,6 @@
 import type { WidgetDefinition } from '../../contracts/widget.js'
 
-export const musicDefinition: WidgetDefinition = {
+export const musicDefinition = {
   id: 'music',
   componentType: 'music',
   defaultSize: { width: 280, height: 250 },
@@ -13,9 +13,9 @@ export const musicDefinition: WidgetDefinition = {
     { event: 'music:stopped',       label: 'Playback stopped' },
   ],
   accepts: [
-    { action: 'music:play-pause', label: 'Play / Pause' },
-    { action: 'music:prev',       label: 'Previous track' },
-    { action: 'music:next',       label: 'Next track' },
+    { action: 'music:play-pause', label: 'Play / Pause',   simulate: true },
+    { action: 'music:prev',       label: 'Previous track', simulate: true },
+    { action: 'music:next',       label: 'Next track',     simulate: true },
     { action: 'music:stop',       label: 'Stop playback' },
   ],
-}
+} as const satisfies WidgetDefinition

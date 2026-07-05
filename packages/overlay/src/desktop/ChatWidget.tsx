@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { addWidgetSimulationIntentListener, dispatchWidgetSignal, addWidgetChainActionListener } from './widgetSimulationEvents'
-import { socket } from '../socket/client'
+import { onKernelSignal } from '../socket/kernelSignals'
 
 interface Message {
   user: string
@@ -37,9 +37,11 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
       if (payload.widgetId !== appId || payload.kind !== 'chat:add-message') return
+      const msg = payload.params?.message as Message | undefined
+      if (!msg) return
       setMessages((prev) => {
-        dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: payload.message } })
-        return [...prev, payload.message]
+        dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
+        return [...prev, msg]
       })
     })
   }, [appId])
@@ -54,15 +56,13 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
     })
   }, [appId])
 
-  // Real Twitch messages arrive via the typed chat:message signal
+  // Real Twitch messages arrive via the kernel:signal fabric
   useEffect(() => {
-    const handleChatMessage = (payload: { user: string; text: string; color: string }) => {
+    return onKernelSignal('chat:message', (payload) => {
       const msg: Message = { user: payload.user, text: payload.text, color: payload.color || '#ffffff' }
       setMessages((prev) => [...prev, msg])
       dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
-    }
-    socket.on('chat:message', handleChatMessage)
-    return () => { socket.off('chat:message', handleChatMessage) }
+    })
   }, [appId])
 
   const handleSend = () => {

@@ -19,13 +19,13 @@ import type { Manager } from '@ieomlabs/shared'
 import { KernelBus } from './bus.js'
 
 // Import all manager signal augmentations so KernelEvents is fully typed
-// whenever this module is imported. New managers should add a signals.ts entry here.
+// whenever this module is imported. Public (client-visible) events come
+// from the shared KernelSignalMap via publicSignals; manager-private
+// events keep per-manager signals.ts files — add new ones here.
+import './publicSignals.js'
 import './managers/scheduler.signals.js'
 import './managers/ambiance.signals.js'
 import './managers/config.signals.js'
-import './managers/obs.signals.js'
-import './managers/showSequencer.signals.js'
-import './managers/twitch.signals.js'
 
 export { KernelBus } from './bus.js'
 export type { KernelEvents, BusFrame, BoundBus } from './bus.js'

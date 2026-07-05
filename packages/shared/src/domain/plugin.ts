@@ -1,35 +1,25 @@
 import type { TierName } from './scene.js'
+import type { FieldDef, PluginManifestBase } from './fields.js'
 
 export type MediaKind = 'image' | 'video' | 'audio'
 
 export type RendererCategory = 'background' | 'media' | 'overlay' | 'text' | 'post' | 'builtin'
 
-export type RendererFieldDef = {
-  key: string
-  label: string
-  type: 'text' | 'number' | 'color' | 'boolean' | 'select'
-  mediaKinds?: MediaKind[]
-  options?: string[]
-  min?: number
-  max?: number
-  step?: number
-  placeholder?: string
-}
+/** @deprecated Renderers use the unified FieldDef from domain/fields.ts. */
+export type RendererFieldDef = FieldDef
 
-export type RendererCatalogEntry = {
+/** Renderer manifest — extends the unified PluginManifestBase (label,
+ *  icon, desc, fields, emits, accepts) with renderer-specific placement. */
+export interface RendererCatalogEntry extends PluginManifestBase {
   id: string
   label: string
   icon: string
   desc: string
   category: RendererCategory
   defaultConfig: Record<string, unknown>
-  fields: RendererFieldDef[]
+  fields: FieldDef[]
   defaultPosition?: { x: number; y: number; width: number; height: number }
   defaultTier?: TierName
-  /** Signals this renderer emits into the automation pipeline (rule triggers) */
-  emits?: Array<{ event: string; label: string }>
-  /** Actions this renderer accepts from automation rules */
-  accepts?: Array<{ action: string; label: string }>
 }
 
 export const RENDERER_CATALOG: RendererCatalogEntry[] = [

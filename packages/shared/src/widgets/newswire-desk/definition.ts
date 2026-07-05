@@ -1,6 +1,6 @@
 import type { WidgetDefinition } from '../../contracts/widget.js'
 
-export const newswireDeskDefinition: WidgetDefinition = {
+export const newswireDeskDefinition = {
   id: 'newswire-desk',
   componentType: 'newswire-desk',
   defaultSize: { width: 430, height: 340 },
@@ -8,4 +8,4 @@ export const newswireDeskDefinition: WidgetDefinition = {
   system: true,
   emits: [{ event: 'newswire:breaking', label: 'Breaking news' }],
   accepts: [],
-}
+} as const satisfies WidgetDefinition

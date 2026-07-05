@@ -10,19 +10,25 @@
  */
 import type { AppConfig } from '../domain/config.js'
 import type { Application, WidgetComponentType } from '../domain/application.js'
+import type { PluginManifestBase, SignalDescriptor, ActionDescriptor } from '../domain/fields.js'
 import type { STATE } from './state.js'
 
 /**
- * Declaration-first widget descriptor.
- * Create one per system widget in packages/shared/src/widgets/{id}/definition.ts.
- * All lookup tables (sizes, z-indices, component mappings, intent manifests) are derived
- * from these declarations — adding a widget only requires this file + a React component.
+ * Declaration-first widget descriptor — extends the unified
+ * PluginManifestBase (emits, accepts, optional fields/label/icon).
+ * Create one per system widget in packages/shared/src/widgets/{id}/definition.ts
+ * using `as const satisfies WidgetDefinition` so the componentType literal is
+ * preserved — the WidgetComponentType union is DERIVED from these declarations.
+ * All lookup tables (sizes, z-indices, component mappings, intent manifests)
+ * are derived too — adding a widget only requires this file + a React component.
  */
-export interface WidgetDefinition {
+export interface WidgetDefinition extends PluginManifestBase {
   /** Canonical widget instance ID, e.g. 'gallery', 'clock-tower' */
   id: string
-  /** React component type key, e.g. 'gallery', 'weather-console' */
-  componentType: Exclude<WidgetComponentType, 'generic'>
+  /** React component type key, e.g. 'gallery', 'weather-console'.
+   *  Kept as string here; membership in WidgetComponentType is guaranteed
+   *  because the union is derived from the definitions themselves. */
+  componentType: string
   /** Default window dimensions */
   defaultSize: { width: number; height: number }
   /** Default z-index for stacking order */
@@ -30,9 +36,9 @@ export interface WidgetDefinition {
   /** True for all built-in system widgets */
   system: boolean
   /** Signals this widget type can emit */
-  emits: WidgetSignalDescriptor[]
+  emits: readonly WidgetSignalDescriptor[]
   /** Actions this widget type can receive */
-  accepts: WidgetActionDescriptor[]
+  accepts: readonly WidgetActionDescriptor[]
   /**
    * Optional seed Application record used by bootstrapConfig to create
    * the initial row for fresh installs. Fields here override the derived defaults.
@@ -112,17 +118,11 @@ export function getWidgetLifecycle(componentType: WidgetComponentType): WidgetLi
 
 // ── Widget intent manifest (pub/sub vocabulary declaration) ──────
 
-/** A signal this widget can emit (publish). */
-export interface WidgetSignalDescriptor {
-  event: string    // e.g. 'weather:storm'
-  label: string    // human-readable, e.g. 'Storm detected'
-}
+/** A signal this widget can emit (publish). Alias of the unified SignalDescriptor. */
+export type WidgetSignalDescriptor = SignalDescriptor
 
-/** An action this widget can receive (subscribe/consume). */
-export interface WidgetActionDescriptor {
-  action: string   // e.g. 'gallery:next'
-  label: string    // human-readable, e.g. 'Next slide'
-}
+/** An action this widget can receive (subscribe/consume). Alias of the unified ActionDescriptor. */
+export type WidgetActionDescriptor = ActionDescriptor
 
 /**
  * Static declaration of a widget's pub/sub vocabulary.
@@ -132,9 +132,9 @@ export interface WidgetActionDescriptor {
 export interface WidgetIntentManifest {
   componentType: import('../domain/application.js').WidgetComponentType
   /** Signals this widget type can emit */
-  emits: WidgetSignalDescriptor[]
+  emits: readonly WidgetSignalDescriptor[]
   /** Actions this widget type can receive */
-  accepts: WidgetActionDescriptor[]
+  accepts: readonly WidgetActionDescriptor[]
 }
 
 const intentRegistry = new Map<string, WidgetIntentManifest>()

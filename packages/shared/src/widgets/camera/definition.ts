@@ -1,6 +1,6 @@
 import type { WidgetDefinition } from '../../contracts/widget.js'
 
-export const cameraDefinition: WidgetDefinition = {
+export const cameraDefinition = {
   id: 'camera',
   componentType: 'camera',
   defaultSize: { width: 400, height: 300 },
@@ -11,4 +11,4 @@ export const cameraDefinition: WidgetDefinition = {
     { event: 'camera:inactive', label: 'Camera inactive' },
   ],
   accepts: [],
-}
+} as const satisfies WidgetDefinition

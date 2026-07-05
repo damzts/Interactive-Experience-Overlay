@@ -13,9 +13,14 @@ import { clockTowerDefinition } from './clock-tower/definition.js'
 import { newswireDeskDefinition } from './newswire-desk/definition.js'
 import { cityNavDefinition } from './city-nav/definition.js'
 import { lcdDolphinsDefinition } from './lcd-dolphins/definition.js'
+import { spectrumAnalyzerDefinition } from './spectrum-analyzer/definition.js'
+import { equalizerRackDefinition } from './equalizer-rack/definition.js'
+import { waveScopeDefinition } from './wave-scope/definition.js'
+import { playlistDeckDefinition } from './playlist-deck/definition.js'
+import { netMeterDefinition } from './net-meter/definition.js'
 export type { WidgetDefinition }
 
-export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
+export const WIDGET_DEFINITIONS = [
   galleryDefinition,
   musicDefinition,
   stickyNotesDefinition,
@@ -29,4 +34,16 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   newswireDeskDefinition,
   cityNavDefinition,
   lcdDolphinsDefinition,
-]
+  spectrumAnalyzerDefinition,
+  equalizerRackDefinition,
+  waveScopeDefinition,
+  playlistDeckDefinition,
+  netMeterDefinition,
+] as const satisfies readonly WidgetDefinition[]
+
+/**
+ * Component types declared by widget definitions — the source half of the
+ * derived WidgetComponentType union in domain/application.ts. Adding a
+ * widget definition automatically extends the union; no manual edit.
+ */
+export type DefinedWidgetComponentType = (typeof WIDGET_DEFINITIONS)[number]['componentType']

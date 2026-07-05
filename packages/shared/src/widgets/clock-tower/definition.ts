@@ -1,6 +1,6 @@
 import type { WidgetDefinition } from '../../contracts/widget.js'
 
-export const clockTowerDefinition: WidgetDefinition = {
+export const clockTowerDefinition = {
   id: 'clock-tower',
   componentType: 'clock-tower',
   defaultSize: { width: 500, height: 360 },
@@ -11,4 +11,4 @@ export const clockTowerDefinition: WidgetDefinition = {
     { event: 'clock:midnight', label: 'Midnight' },
   ],
   accepts: [],
-}
+} as const satisfies WidgetDefinition

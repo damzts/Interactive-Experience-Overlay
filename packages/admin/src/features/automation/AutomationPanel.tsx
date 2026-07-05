@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { AutomationRule, AutomationActionKind, AutomationTrigger, WidgetIntentManifest, EffectType } from '@ieomlabs/shared'
-import { STATE, NAVIGABLE_STATES, findRendererCatalogEntry } from '@ieomlabs/shared'
+import { STATE, NAVIGABLE_STATES, findRendererCatalogEntry, PUBLIC_KERNEL_SIGNALS } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   fetchAutomationRules, fetchAutomationManifests,
@@ -10,10 +10,9 @@ import { createEffectDraft, EVENT_EFFECT_TYPES } from '../media-library/eventPre
 import { ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
 import { Button, Toggle } from '../../components/atoms'
 
-const SUGGESTED_EVENTS = [
-  'twitch:follow', 'twitch:subscribe', 'twitch:gift-sub', 'twitch:cheer',
-  'twitch:raid', 'twitch:points:redemption', 'scene:changed',
-]
+// Every public kernel event is a valid trigger — derived from the shared
+// allowlist so new manager events show up here automatically.
+const SUGGESTED_EVENTS = [...PUBLIC_KERNEL_SIGNALS, 'scene:changed']
 
 const ACTION_KINDS: AutomationActionKind[] = [
   'overlay:show', 'widget:action', 'widget:toggle', 'scene:change', 'desktop:notify', 'signal:emit',
@@ -56,8 +55,8 @@ function summarizeAction(rule: AutomationRule, apps: { id: string; label: string
 interface SignalPeer {
   id: string
   label: string
-  emits: Array<{ event: string; label: string }>
-  accepts: Array<{ action: string; label: string }>
+  emits: readonly { event: string; label: string }[]
+  accepts: readonly { action: string; label: string }[]
 }
 
 export function AutomationPanel() {
@@ -86,12 +85,16 @@ export function AutomationPanel() {
   const [dstWidgetId, setDstWidgetId] = useState('')
   const [dstAction, setDstAction] = useState('')
   const [sceneId, setSceneId] = useState<string>(NAVIGABLE_STATES[0] ?? '')
+
   const [notifyTitle, setNotifyTitle] = useState('')
   const [notifyBody, setNotifyBody] = useState('')
   const [emitEvent, setEmitEvent] = useState('')
   const [emitPayloadJson, setEmitPayloadJson] = useState('')
 
   const manifestByType = new Map(manifests.map((m) => [m.componentType, m]))
+
+  // Scene ids are data-driven: built-ins plus every scene in config.
+  const navigableSceneIds = [...new Set([...NAVIGABLE_STATES, ...Object.keys(scenes ?? {})])]
 
   // Widgets and scene-renderer instances form one flat list of signal peers.
   const peers: SignalPeer[] = [
@@ -289,7 +292,7 @@ export function AutomationPanel() {
               Scene condition <span className="normal-case font-normal text-zinc-600">(optional — leave blank to fire in any scene)</span>
             </div>
             <div className="flex items-center gap-2">
-              {NAVIGABLE_STATES.map((s) => (
+              {navigableSceneIds.map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -385,7 +388,7 @@ export function AutomationPanel() {
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Scene</div>
               <select value={sceneId} onChange={(e) => setSceneId(e.target.value)} className="w-full text-xs">
-                {NAVIGABLE_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {navigableSceneIds.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           )}

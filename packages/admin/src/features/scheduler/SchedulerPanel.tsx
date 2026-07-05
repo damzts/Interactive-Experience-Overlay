@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieomlabs/shared'
+import { STATE, getEffectLabel } from '@ieomlabs/shared'
 import type { EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
@@ -264,7 +264,7 @@ function EffectAmbianceSection({
             {EFFECT_CATEGORIES.filter(c => c.label !== 'Audio').map((cat) => (
               <optgroup key={cat.label} label={cat.label}>
                 {cat.effects.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>{getEffectLabel(t)}</option>
                 ))}
               </optgroup>
             ))}

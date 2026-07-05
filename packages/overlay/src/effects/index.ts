@@ -2,9 +2,14 @@
  *
  * Import this module once (in useSocket.ts) to arm the registry before any
  * overlay:show events arrive. To add a new effect:
- *   1. Create your run* function in transitions/
- *   2. Add a registerEffect() call here
- *   Nothing else needs changing.
+ *   1. Add the EffectConfigMap entry + config interface in
+ *      @ieomlabs/shared contracts/effects.ts, and its manifest entry
+ *      (label, category, defaults, fields, defaultSfx) in
+ *      domain/effectCatalog.ts — the compiler enforces both.
+ *   2. Create your run* function in transitions/ and add a
+ *      registerEffect() call here.
+ * Admin pickers, editors, draft defaults, and the SFX mapping are all
+ * derived from the catalog — no admin code, ever.
  */
 import { registerEffect } from './registry'
 

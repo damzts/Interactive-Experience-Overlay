@@ -111,9 +111,12 @@ export function getWidgetInteractionStepForIntent(
 ): WidgetInteractionStep | null {
   const recipe = getWidgetSimulationRecipe(app)
 
-  if (intent.kind === 'sticky:set-color') {
+  // Param-carrying intents can target the exact control (e.g. the matching
+  // color swatch) so cursor theater and widget state agree.
+  const color = typeof intent.params?.color === 'string' ? intent.params.color : null
+  if (intent.kind === 'sticky:set-color' && color) {
     return {
-      selectors: [`button[data-sim-action="sticky-color-${intent.color.replace('#', '')}"]`],
+      selectors: [`button[data-sim-action="sticky-color-${color.replace('#', '')}"]`],
       intentKind: intent.kind,
     }
   }
