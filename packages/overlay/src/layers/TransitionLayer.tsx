@@ -297,6 +297,29 @@ export function TransitionLayer() {
 
       {/* Matrix glitch — matrix-rain dissolve, full-screen */}
       <div id="tl-matrix-glitch" style={{ position: 'fixed', inset: 0, zIndex: 233, display: 'none', pointerEvents: 'none', overflow: 'hidden', opacity: 0 }} />
+
+      {/* ── Aesthetic Cartridges ───────────────────────────────── */}
+
+      {/* Halo charge — Aero Saint spinning ring + white-out bloom, full-screen */}
+      <div id="tl-halo-charge" style={{ position: 'fixed', inset: 0, zIndex: 217, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Item get — Chrome Requiem loot ticker, bottom-third band */}
+      <div id="tl-item-get" style={{ position: 'fixed', inset: 0, zIndex: 219, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Sick trick — Trick City spray-streak wipe + combo callout, full-screen */}
+      <div id="tl-sick-trick" style={{ position: 'fixed', inset: 0, zIndex: 219, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Save point chime — Save Point JRPG level-up card, full-screen */}
+      <div id="tl-save-point-chime" style={{ position: 'fixed', inset: 0, zIndex: 227, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Sign-on ping — Dial Tone Dream buddy-list card, bottom-right */}
+      <div id="tl-sign-on-ping" style={{ position: 'fixed', bottom: 32, right: 32, zIndex: 220, display: 'none', pointerEvents: 'none' }} />
+
+      {/* Next episode — Signal Ghost VHS bumper title card, full-screen */}
+      <div id="tl-next-episode" style={{ position: 'fixed', inset: 0, zIndex: 234, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
+
+      {/* Podium take — Podium Chrome medal-ceremony card + confetti chrome, full-screen */}
+      <div id="tl-podium-take" style={{ position: 'fixed', inset: 0, zIndex: 219, display: 'none', pointerEvents: 'none', overflow: 'hidden' }} />
     </>
   )
 }

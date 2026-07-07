@@ -95,6 +95,14 @@ export interface EffectConfigMap {
   'bubble-pop': BubblePopConfig               // Glossy iridescent bubbles rise, wobble, and pop
   'glitter-bomb': GlitterBombConfig           // Twinkling glitter explosion from screen center
   'laser-sweep': LaserSweepConfig             // Synthwave laser beams sweep across the screen
+  // ── Aesthetic Cartridges (retrofuturism/nostalgia remix set) ─────
+  'halo-charge': HaloChargeConfig             // Aero Saint — spinning glass halo detonates into a white-out bloom
+  'item-get': ItemGetConfig                   // Chrome Requiem — server-announcement loot ticker slams across the screen
+  'sick-trick': SickTrickConfig                // Trick City — diagonal spray streak wipe + racking combo callout
+  'save-point-chime': SavePointChimeConfig    // Save Point — JRPG level-up card with job title, ATB gauge freeze-fill
+  'sign-on-ping': SignOnPingConfig            // Dial Tone Dream — Y2K buddy-list sign-on card + door chime
+  'next-episode': NextEpisodeConfig           // Signal Ghost — VHS-tracking anime bumper title card
+  'podium-take': PodiumTakeConfig             // Podium Chrome — glass medal-ceremony podium card + confetti chrome
 }
 
 export type EffectType = keyof EffectConfigMap
@@ -638,6 +646,58 @@ export interface LaserSweepConfig {
   rainbow?: boolean
   /** Number of beams, default 5 */
   beams?: number
+  /** Duration in seconds */
+  duration: number
+}
+
+// ── Aesthetic Cartridge configs ───────────────────────────────────
+
+export interface HaloChargeConfig {
+  color?: string
+  text?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface ItemGetConfig {
+  itemName?: string
+  rarity?: 'common' | 'rare' | 'epic' | 'legendary'
+  flavorText?: string
+  durationMs?: number
+}
+
+export interface SickTrickConfig {
+  comboLabel?: string
+  score?: number
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface SavePointChimeConfig {
+  title?: string
+  jobTitle?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface SignOnPingConfig {
+  username?: string
+  status?: string
+  durationMs?: number
+}
+
+export interface NextEpisodeConfig {
+  episodeNumber?: number
+  title?: string
+  previewText?: string
+  /** Duration in seconds */
+  duration: number
+}
+
+export interface PodiumTakeConfig {
+  username?: string
+  place?: 1 | 2 | 3
+  metric?: string
   /** Duration in seconds */
   duration: number
 }

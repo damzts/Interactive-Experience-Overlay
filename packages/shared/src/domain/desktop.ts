@@ -17,6 +17,8 @@ export type DesktopTheme =
   | 'win98' | 'frutiger aero' | 'y2k candy' | 'midnight chrome'
   | 'sunset boulevard' | 'coastal glass' | 'amber terminal' | 'custom'
   | 'diablo' | 'matrix' | 'cyberpunk' | 'runescape'
+  | 'aero saint' | 'chrome requiem' | 'trick city' | 'save point'
+  | 'dial tone dream' | 'signal ghost' | 'podium chrome'
 
 /** Real, drift-able theme presets — excludes 'custom' (hand-tuned overrides,
  *  not a preset to randomly land on). Server-importable (no admin UI import). */
@@ -24,6 +26,8 @@ export const DESKTOP_THEME_IDS: DesktopTheme[] = [
   'win98', 'frutiger aero', 'y2k candy', 'midnight chrome',
   'sunset boulevard', 'coastal glass', 'amber terminal',
   'diablo', 'matrix', 'cyberpunk', 'runescape',
+  'aero saint', 'chrome requiem', 'trick city', 'save point',
+  'dial tone dream', 'signal ghost', 'podium chrome',
 ]
 
 export type DesktopIconAnimation =

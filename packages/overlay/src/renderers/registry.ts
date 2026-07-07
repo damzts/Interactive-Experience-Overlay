@@ -81,6 +81,14 @@ export const rendererManifest: RendererManifest = {
   'aurora-flow':     () => import('./AuroraFlowRenderer').then((m) => ({ component: m.AuroraFlowRenderer })),
   'lava-lamp':       () => import('./LavaLampRenderer').then((m) => ({ component: m.LavaLampRenderer })),
   'starfield-warp':  () => import('./StarfieldWarpRenderer').then((m) => ({ component: m.StarfieldWarpRenderer })),
+  // ── Aesthetic Cartridge backgrounds ──────────────────────────────
+  'aero-bloom':      () => import('./AeroBloomRenderer').then((m) => ({ component: m.AeroBloomRenderer })),
+  'forge-grid':      () => import('./ForgeGridRenderer').then((m) => ({ component: m.ForgeGridRenderer })),
+  'tag-wall':        () => import('./TagWallRenderer').then((m) => ({ component: m.TagWallRenderer })),
+  'atb-field':       () => import('./AtbFieldRenderer').then((m) => ({ component: m.AtbFieldRenderer })),
+  'buddy-bloom':     () => import('./BuddyBloomRenderer').then((m) => ({ component: m.BuddyBloomRenderer })),
+  'tape-wear':       () => import('./TapeWearRenderer').then((m) => ({ component: m.TapeWearRenderer })),
+  'podium-glow':     () => import('./PodiumGlowRenderer').then((m) => ({ component: m.PodiumGlowRenderer })),
 }
 
 /** Cache: resolved definitions keyed by renderer id */

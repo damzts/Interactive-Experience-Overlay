@@ -149,6 +149,66 @@ export function buildDesktopThemeVars(
       '--desktop-icon-label': '#ffcc33', '--desktop-icon-shadow': '1px 1px 2px #000, -1px -1px 2px #000',
       '--desktop-tray-glow': 'rgba(255, 204, 51, 0.4)',
     })
+  } else if (theme === 'aero saint') {
+    Object.assign(vars, {
+      '--desktop-panel': 'rgba(234, 246, 255, 0.9)', '--desktop-panel-light': '#ffffff', '--desktop-panel-dark': '#6fa8c9',
+      '--desktop-panel-shadow': '#0d3350', '--desktop-title-start': '#3fb4ec', '--desktop-title-end': '#eaf6ff',
+      '--desktop-title-text': '#083048', '--desktop-ui-font': 'Tahoma, Segoe UI, Arial, sans-serif',
+      '--desktop-menu-hover': '#6fd1ff', '--desktop-menu-danger': '#d24d4d',
+      '--desktop-icon-shadow': '0 2px 8px rgba(8, 48, 72, 0.7)', '--desktop-tray-glow': 'rgba(111, 209, 255, 0.55)',
+    })
+  } else if (theme === 'chrome requiem') {
+    Object.assign(vars, {
+      '--desktop-panel': '#2b2d33', '--desktop-panel-light': '#4a4e58', '--desktop-panel-dark': '#17181c',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#17181c', '--desktop-title-end': '#8f1b22',
+      '--desktop-title-text': '#e8e6df', '--desktop-ui-font': 'Cinzel, Times New Roman, serif',
+      '--desktop-menu-hover': '#c9313a', '--desktop-menu-danger': '#8f1b22',
+      '--desktop-icon-label': '#e8e6df', '--desktop-icon-shadow': '0 0 8px rgba(0, 0, 0, 0.9)',
+      '--desktop-tray-glow': 'rgba(201, 49, 58, 0.5)',
+    })
+  } else if (theme === 'trick city') {
+    Object.assign(vars, {
+      '--desktop-panel': '#1c1c22', '--desktop-panel-light': '#33333d', '--desktop-panel-dark': '#0d0d10',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#ff6b35', '--desktop-title-end': '#2ee6d6',
+      '--desktop-title-text': '#1c1c22', '--desktop-ui-font': 'Rajdhani, Arial, sans-serif',
+      '--desktop-menu-hover': '#ff6b35', '--desktop-menu-danger': '#d6402a',
+      '--desktop-icon-label': '#ffffff', '--desktop-icon-shadow': '1px 1px 2px #000, -1px -1px 2px #000',
+      '--desktop-tray-glow': 'rgba(46, 230, 214, 0.5)',
+    })
+  } else if (theme === 'save point') {
+    Object.assign(vars, {
+      '--desktop-panel': '#16213e', '--desktop-panel-light': '#1c2a52', '--desktop-panel-dark': '#0c1226',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#101830', '--desktop-title-end': '#5b7cff',
+      '--desktop-title-text': '#ffd166', '--desktop-ui-font': 'Cambria, Georgia, serif',
+      '--desktop-menu-hover': '#5b7cff', '--desktop-menu-danger': '#8c2a2a',
+      '--desktop-icon-label': '#ffd166', '--desktop-icon-shadow': '0 0 8px rgba(91, 124, 255, 0.7)',
+      '--desktop-tray-glow': 'rgba(91, 124, 255, 0.5)',
+    })
+  } else if (theme === 'dial tone dream') {
+    Object.assign(vars, {
+      '--desktop-panel': '#fff0f8', '--desktop-panel-light': '#ffffff', '--desktop-panel-dark': '#e6a8cc',
+      '--desktop-panel-shadow': '#5a2b58', '--desktop-title-start': '#ff9ecb', '--desktop-title-end': '#9be8ff',
+      '--desktop-title-text': '#5a2b58', '--desktop-ui-font': 'Trebuchet MS, Verdana, Arial, sans-serif',
+      '--desktop-menu-hover': '#ff9ecb', '--desktop-menu-danger': '#c9636e',
+      '--desktop-icon-shadow': '0 1px 3px rgba(90, 43, 88, 0.5)', '--desktop-tray-glow': 'rgba(155, 232, 255, 0.5)',
+    })
+  } else if (theme === 'signal ghost') {
+    Object.assign(vars, {
+      '--desktop-panel': '#0d0d14', '--desktop-panel-light': '#1a1a22', '--desktop-panel-dark': '#050508',
+      '--desktop-panel-shadow': '#000000', '--desktop-title-start': '#0d0d14', '--desktop-title-end': '#ff2e88',
+      '--desktop-title-text': '#22e6ff', '--desktop-ui-font': 'Share Tech Mono, Lucida Console, monospace',
+      '--desktop-menu-hover': '#ff2e88', '--desktop-menu-danger': '#ff2222',
+      '--desktop-icon-label': '#22e6ff', '--desktop-icon-shadow': '0 0 10px rgba(255, 46, 136, 0.7)',
+      '--desktop-tray-glow': 'rgba(34, 230, 255, 0.5)',
+    })
+  } else if (theme === 'podium chrome') {
+    Object.assign(vars, {
+      '--desktop-panel': 'rgba(255, 249, 232, 0.92)', '--desktop-panel-light': '#ffffff', '--desktop-panel-dark': '#c9a24b',
+      '--desktop-panel-shadow': '#4a3a12', '--desktop-title-start': '#f5d67a', '--desktop-title-end': '#d8e6f2',
+      '--desktop-title-text': '#2c2408', '--desktop-ui-font': 'Tahoma, Segoe UI, Arial, sans-serif',
+      '--desktop-menu-hover': '#f5d67a', '--desktop-menu-danger': '#b44f4f',
+      '--desktop-icon-shadow': '0 2px 6px rgba(74, 58, 18, 0.7)', '--desktop-tray-glow': 'rgba(245, 214, 122, 0.5)',
+    })
   } else if (theme === 'custom') {
     Object.assign(vars, {
       '--desktop-panel': adjustHexColor(customAccent, 110), '--desktop-panel-light': '#ffffff',

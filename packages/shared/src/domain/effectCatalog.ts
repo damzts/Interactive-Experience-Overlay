@@ -30,6 +30,7 @@ export const EFFECT_CATEGORY_ORDER = [
   '2000s Internet',
   'Anime',
   'MMORPG / Retro-Futurist',
+  'Aesthetic Cartridges',
 ] as const
 
 export type EffectCategory = (typeof EFFECT_CATEGORY_ORDER)[number]
@@ -547,6 +548,50 @@ export const EFFECT_CATALOG: { readonly [K in EffectType]: EffectManifest<K> } =
     desc: 'Matrix-rain dissolve transition',
     defaults: { color: '#00ff41', duration: 2.5 },
     fields: [color(), dur(1, 8)],
+  },
+
+  // ── Aesthetic Cartridges ─────────────────────────────────────────
+  'halo-charge': {
+    label: 'Halo Charge', category: 'Aesthetic Cartridges', defaultSfx: 'level-up-chime',
+    desc: 'Aero Saint — a glass halo spins up behind the alert and detonates into a soft white-out bloom',
+    defaults: { color: '#bfe9ff', text: '', duration: 2.6 },
+    fields: [color('color', 'Halo Color'), text('text', 'Caption', true), dur(1, 6)],
+  },
+  'item-get': {
+    label: 'Item Get', category: 'Aesthetic Cartridges', defaultSfx: 'loot',
+    desc: 'Chrome Requiem — a forged server-announcement ticker slams across the bottom third',
+    defaults: { itemName: 'Mystery Drop', rarity: 'rare', flavorText: '', durationMs: 3200 },
+    fields: [text('itemName', 'Item Name', true), sel('rarity', 'Rarity', ['common', 'rare', 'epic', 'legendary']), text('flavorText', 'Flavor Text', true), durMs()],
+  },
+  'sick-trick': {
+    label: 'Sick Trick', category: 'Aesthetic Cartridges', defaultSfx: 'mmorpg-ding',
+    desc: 'Trick City — a spray-streak diagonal wipe with a racking combo callout',
+    defaults: { comboLabel: 'SICK TRICK!', score: 5000, duration: 2.2 },
+    fields: [text('comboLabel', 'Combo Label', true), slider('score', 'Score', 100, 999999, 100), dur(1, 6)],
+  },
+  'save-point-chime': {
+    label: 'Save Point Chime', category: 'Aesthetic Cartridges', defaultSfx: 'level-up-chime',
+    desc: 'Save Point — a JRPG level-up card freezes the ATB gauge full and stamps a new job title',
+    defaults: { title: 'LEVEL UP', jobTitle: 'Novice', duration: 3.4 },
+    fields: [text('title', 'Title', true), text('jobTitle', 'Job Title', true), dur(1.5, 8)],
+  },
+  'sign-on-ping': {
+    label: 'Sign-On Ping', category: 'Aesthetic Cartridges', defaultSfx: 'dial-up-connect',
+    desc: 'Dial Tone Dream — a Y2K buddy-list card slides in like an old IM client sign-on',
+    defaults: { username: 'newBuddy99', status: 'is now online', durationMs: 3500 },
+    fields: [text('username', 'Username', true), text('status', 'Status Line', true), durMs()],
+  },
+  'next-episode': {
+    label: 'Next Episode', category: 'Aesthetic Cartridges',
+    desc: 'Signal Ghost — a VHS-tracking anime bumper title card with a running episode counter',
+    defaults: { episodeNumber: 1, title: 'Next Episode', previewText: '', duration: 3.6 },
+    fields: [slider('episodeNumber', 'Episode #', 1, 9999, 1), text('title', 'Title', true), text('previewText', 'Preview Caption', true), dur(1.5, 8)],
+  },
+  'podium-take': {
+    label: 'Podium Take', category: 'Aesthetic Cartridges', defaultSfx: 'mmorpg-ding',
+    desc: 'Podium Chrome — a glass medal-ceremony card with gold/silver confetti chrome',
+    defaults: { username: 'topGifter', place: 1, metric: '', duration: 4 },
+    fields: [text('username', 'Username', true), slider('place', 'Place', 1, 3, 1), text('metric', 'Metric Label', true), dur(2, 8)],
   },
 }
 

@@ -49,6 +49,13 @@ const THEME_CLASSNAME: Record<DesktopTheme, string> = {
   matrix: 'desktop--theme-matrix',
   cyberpunk: 'desktop--theme-cyberpunk',
   runescape: 'desktop--theme-runescape',
+  'aero saint': 'desktop--theme-aero-saint',
+  'chrome requiem': 'desktop--theme-chrome-requiem',
+  'trick city': 'desktop--theme-trick-city',
+  'save point': 'desktop--theme-save-point',
+  'dial tone dream': 'desktop--theme-dial-tone-dream',
+  'signal ghost': 'desktop--theme-signal-ghost',
+  'podium chrome': 'desktop--theme-podium-chrome',
   custom: 'desktop--theme-custom',
 }
 

@@ -73,6 +73,22 @@ function sawtooth(x0: number, y0: number, x1: number, y1: number, depth: number,
   return pts
 }
 
+/** Jagged torn-drip bottom edge, right→left: peaks sit on the base line, each
+ *  valley is pulled up by its own depth — reads as spray-paint drips without
+ *  ever extending past the widget's own bounds. */
+function dripEdge(w: number, h: number, depths: number[]): ShapePoint[] {
+  const n = depths.length
+  const step = w / n
+  const pts: ShapePoint[] = []
+  for (let i = 0; i < n; i += 1) {
+    const xRight = w - i * step
+    const xMid = xRight - step / 2
+    const xLeft = w - (i + 1) * step
+    pts.push([xRight, h], [xMid, h - depths[i]], [xLeft, h])
+  }
+  return pts
+}
+
 /** Scalloped curtain edge along the bottom, right→left, valleys rising to depth. */
 function scallops(w: number, h: number, depth: number, span: number): string {
   const waves = Math.max(2, Math.round(w / span))
@@ -237,6 +253,38 @@ const SHAPE_DEFS: Record<WidgetShape, WidgetShapeDef | null> = {
     },
     titleInset: { left: 6, right: 6 },
     resizeHandle: { right: 8, bottom: 18 },
+  },
+
+  /** JRPG dialogue-box tab — small corner cuts plus a triangular tab notch
+   *  pointing down into the top edge, like a menu-box pointer. Save Point lineage. */
+  codex: {
+    kind: 'polygon',
+    polygon: (w, h) => {
+      const cut = 10
+      const midW = w / 2
+      const notchHalf = Math.min(18, w * 0.12)
+      const notchDepth = 14
+      return [
+        [cut, 0], [midW - notchHalf, 0], [midW, notchDepth], [midW + notchHalf, 0], [w - cut, 0],
+        [w, cut], [w, h - cut],
+        [w - cut, h], [cut, h],
+        [0, h - cut], [0, cut],
+      ]
+    },
+    titleInset: { top: 4, left: 6, right: 6 },
+    resizeHandle: { right: 8, bottom: 8 },
+  },
+
+  /** Spray-tag silhouette — torn drip edge along the bottom, Jet Set Radio lineage. */
+  tag: {
+    kind: 'polygon',
+    polygon: (w, h) => [
+      [10, 0], [w - 10, 0], [w, 16], [w, h - 30],
+      ...dripEdge(w, h, [30, 10, 40, 16, 24]),
+      [0, h - 30], [0, 16],
+    ],
+    titleInset: { left: 6, right: 6 },
+    resizeHandle: { right: 10, bottom: 44 },
   },
 }
 

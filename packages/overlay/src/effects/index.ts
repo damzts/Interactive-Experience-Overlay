@@ -86,6 +86,13 @@ import {
   type BubblePopConfig,
   type GlitterBombConfig,
   type LaserSweepConfig,
+  type HaloChargeConfig,
+  type ItemGetConfig,
+  type SickTrickConfig,
+  type SavePointChimeConfig,
+  type SignOnPingConfig,
+  type NextEpisodeConfig,
+  type PodiumTakeConfig,
 } from '@ieomlabs/shared'
 
 import { runAimMessage }            from '../transitions/AimMessage'
@@ -160,6 +167,13 @@ import { runStarfall }              from '../transitions/Starfall'
 import { runBubblePop }             from '../transitions/BubblePop'
 import { runGlitterBomb }           from '../transitions/GlitterBomb'
 import { runLaserSweep }            from '../transitions/LaserSweep'
+import { runHaloCharge }            from '../transitions/HaloCharge'
+import { runItemGet }               from '../transitions/ItemGet'
+import { runSickTrick }             from '../transitions/SickTrick'
+import { runSavePointChime }        from '../transitions/SavePointChime'
+import { runSignOnPing }            from '../transitions/SignOnPing'
+import { runNextEpisode }           from '../transitions/NextEpisode'
+import { runPodiumTake }            from '../transitions/PodiumTake'
 
 // ── Original effects ──────────────────────────────────────────────
 registerEffect('death-overlay',    (cfg) => runDeathOverlay(cfg as DeathOverlayConfig))
@@ -246,3 +260,12 @@ registerEffect('starfall',         (cfg) => runStarfall(cfg as StarfallConfig))
 registerEffect('bubble-pop',       (cfg) => runBubblePop(cfg as BubblePopConfig))
 registerEffect('glitter-bomb',     (cfg) => runGlitterBomb(cfg as GlitterBombConfig))
 registerEffect('laser-sweep',      (cfg) => runLaserSweep(cfg as LaserSweepConfig))
+
+// ── Aesthetic Cartridges ──────────────────────────────────────────
+registerEffect('halo-charge',       (cfg) => runHaloCharge(cfg as HaloChargeConfig))
+registerEffect('item-get',          (cfg) => runItemGet(cfg as ItemGetConfig))
+registerEffect('sick-trick',        (cfg) => runSickTrick(cfg as SickTrickConfig))
+registerEffect('save-point-chime',  (cfg) => runSavePointChime(cfg as SavePointChimeConfig))
+registerEffect('sign-on-ping',      (cfg) => runSignOnPing(cfg as SignOnPingConfig))
+registerEffect('next-episode',      (cfg) => runNextEpisode(cfg as NextEpisodeConfig))
+registerEffect('podium-take',       (cfg) => runPodiumTake(cfg as PodiumTakeConfig))

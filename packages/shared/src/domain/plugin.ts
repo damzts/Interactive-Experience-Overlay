@@ -485,6 +485,89 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
       { key: 'tickMs', label: 'Tick Interval (ms)', type: 'number', min: 200, max: 5000, step: 100 },
     ],
   },
+
+  // ── Aesthetic Cartridge backgrounds ──────────────────────────────
+  {
+    id: 'aero-bloom', label: 'Aero Bloom', icon: '💠', category: 'background', defaultTier: 'background',
+    desc: 'Aero Saint — slow-drifting glass bokeh over a soft aurora wash',
+    defaultConfig: { skyTop: '#0d2233', glassColor: '#bfe9ff', auroraColor: '#6fd1ff', density: 0.5, speed: 1, audioReactive: false, audioIntensity: 0.5 },
+    fields: [
+      { key: 'skyTop', label: 'Sky Color', type: 'color' },
+      { key: 'glassColor', label: 'Bokeh Color', type: 'color' },
+      { key: 'auroraColor', label: 'Aurora Color', type: 'color' },
+      { key: 'density', label: 'Bokeh Density', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'speed', label: 'Drift Speed', type: 'number', min: 0, max: 5, step: 0.25 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    id: 'forge-grid', label: 'Forge Grid', icon: '⚒', category: 'background', defaultTier: 'background',
+    desc: 'Chrome Requiem — dim red-lit dungeon-floor grid with drifting embers',
+    defaultConfig: { gridColor: '#c9313a', emberColor: '#ff8a4a', cellSize: 22, emberCount: 30, audioReactive: false, audioIntensity: 0.5 },
+    fields: [
+      { key: 'gridColor', label: 'Grid Color', type: 'color' },
+      { key: 'emberColor', label: 'Ember Color', type: 'color' },
+      { key: 'cellSize', label: 'Cell Size (px)', type: 'number', min: 8, max: 80, step: 2 },
+      { key: 'emberCount', label: 'Ember Count', type: 'number', min: 0, max: 80, step: 5 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    id: 'tag-wall', label: 'Tag Wall', icon: '🎨', category: 'background', defaultTier: 'background',
+    desc: 'Trick City — spray-paint blooms build up on a concrete backdrop over the session',
+    defaultConfig: { wallColor: '#1c1c22', spawnIntervalMs: 4500, maxTags: 24 },
+    fields: [
+      { key: 'wallColor', label: 'Wall Color', type: 'color' },
+      { key: 'spawnIntervalMs', label: 'New Tag Every (ms)', type: 'number', min: 500, max: 30000, step: 500 },
+      { key: 'maxTags', label: 'Max Tags On Wall', type: 'number', min: 1, max: 60, step: 1 },
+    ],
+  },
+  {
+    id: 'atb-field', label: 'ATB Field', icon: '🗡', category: 'background', defaultTier: 'background',
+    desc: 'Save Point — an ambient corner gauge over a starfield-parallax dungeon backdrop',
+    defaultConfig: { fillColor: '#5b7cff', trackColor: '#0c1226', progress: 0.4, starDensity: 0.5 },
+    fields: [
+      { key: 'fillColor', label: 'Gauge Fill', type: 'color' },
+      { key: 'trackColor', label: 'Gauge Track', type: 'color' },
+      { key: 'progress', label: 'Progress', type: 'number', min: 0, max: 1, step: 0.01 },
+      { key: 'starDensity', label: 'Star Density', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    id: 'buddy-bloom', label: 'Buddy Bloom', icon: '🫧', category: 'background', defaultTier: 'background',
+    desc: 'Dial Tone Dream — pastel gel bubbles drift like a Y2K screensaver',
+    defaultConfig: { bgTop: '#ffffff', bgBottom: '#d9f4ff', count: 12, speed: 1 },
+    fields: [
+      { key: 'bgTop', label: 'Sky Top', type: 'color' },
+      { key: 'bgBottom', label: 'Sky Bottom', type: 'color' },
+      { key: 'count', label: 'Bubble Count', type: 'number', min: 2, max: 30, step: 1 },
+      { key: 'speed', label: 'Drift Speed', type: 'number', min: 0, max: 5, step: 0.25 },
+    ],
+  },
+  {
+    id: 'tape-wear', label: 'Tape Wear', icon: '📼', category: 'background', defaultTier: 'background',
+    desc: 'Signal Ghost — VHS tracking-error sweep over a warm CRT-glow gradient',
+    defaultConfig: { glowColor: '#ff2e88', glowColor2: '#22e6ff', intensity: 0.5, audioReactive: false, audioIntensity: 0.5 },
+    fields: [
+      { key: 'glowColor', label: 'Glow Color A', type: 'color' },
+      { key: 'glowColor2', label: 'Glow Color B', type: 'color' },
+      { key: 'intensity', label: 'Scanline Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'audioReactive', label: 'Audio Reactive', type: 'boolean' },
+      { key: 'audioIntensity', label: 'Audio Intensity', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    id: 'podium-glow', label: 'Podium Glow', icon: '🏆', category: 'background', defaultTier: 'background',
+    desc: 'Podium Chrome — a warm gold floor-light that brightens when the leaderboard changes',
+    defaultConfig: { glowColor: '#f5d67a', baseColor: '#1a1608', brightness: 0.35 },
+    fields: [
+      { key: 'glowColor', label: 'Glow Color', type: 'color' },
+      { key: 'baseColor', label: 'Base Color', type: 'color' },
+      { key: 'brightness', label: 'Brightness', type: 'number', min: 0, max: 1, step: 0.05 },
+    ],
+  },
 ]
 
 export function findRendererCatalogEntry(rendererType: string | undefined): RendererCatalogEntry | undefined {

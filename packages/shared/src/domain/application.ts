@@ -19,6 +19,8 @@ export type WidgetSkinTheme =
   | 'aqua pop' | 'mallsoft pearl' | 'messenger glow' | 'limewire plasma' | 'cyber y2k'
   | 'digital futurism' | 'ssx rush' | 'ps2 drift' | 'xbox blade' | 'cel street'
   | 'aero nova' | 'aero opaline' | 'dial-up candy' | 'webcore flash' | 'lan party'
+  | 'aero saint' | 'chrome requiem' | 'trick city' | 'save point'
+  | 'dial tone dream' | 'signal ghost' | 'podium chrome'
 
 export type WidgetThemeAnimation = 'steady' | 'pulse' | 'shimmer' | 'aurora' | 'broadcast'
 export type WidgetThemeAtmosphere = 'clean' | 'sparkle' | 'scanlines' | 'grid' | 'nebula'
@@ -37,10 +39,12 @@ export const WIDGET_THEME_ATMOSPHERE_IDS: WidgetThemeAtmosphere[] = ['clean', 's
 export type WidgetShape =
   | 'rect' | 'bevel' | 'notch-hud' | 'blob' | 'tv' | 'sticker'
   | 'metalheart' | 'wing' | 'wave' | 'shard' | 'pod'
+  | 'codex' | 'tag'
 
 export const WIDGET_SHAPE_IDS: WidgetShape[] = [
   'rect', 'bevel', 'notch-hud', 'blob', 'tv', 'sticker',
   'metalheart', 'wing', 'wave', 'shard', 'pod',
+  'codex', 'tag',
 ]
 
 export type EventWidgetSkinTheme = WidgetSkinTheme | 'random'
