@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-import { STATE, getEffectLabel, DEFAULT_DESKTOP_THEME_DRIFT } from '@ieomlabs/shared'
-import type { DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { STATE, getEffectLabel, withDesktopAmbianceDefaults, DEFAULT_DESKTOP_THEME_DRIFT } from '@ieomlabs/shared'
+import type { DesktopAmbianceConfig, DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import {
-  Btn, ConfigCard, ConfigPageIntro, ConfigSectionPanel,
-  Toggle, Slider, ConfigChoiceButton,
+  Btn, ConfigCard, ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel,
+  Toggle, Slider, ConfigChoiceButton, isSameDraft,
 } from '../../shared/ui'
 import { EFFECT_CATEGORIES, createEffectDraft } from '../media-library/eventPresets'
+import {
+  createDefaultNavBehavior, createDefaultWidgetBehavior,
+  WidgetAmbianceSection, LayoutAmbianceSection, SceneAmbianceSection,
+} from './DesktopAmbianceSections'
+import type { AmbianceUpdater } from './DesktopAmbianceSections'
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -413,6 +418,13 @@ function ThemeDriftSection({
 
 // ── SchedulerPanel ─────────────────────────────────────────────────
 
+type SchedulerDraft = {
+  sourceEvents: EventConfig[]
+  effectAmbiance: EffectAmbianceConfig
+  desktopThemeDrift: DesktopThemeDriftConfig
+  desktopAmbiance: DesktopAmbianceConfig
+}
+
 export function SchedulerPanel() {
   const events         = useAdminStore((s) => s.config.sourceEvents ?? [])
   const rawAmbiance    = useAdminStore((s) => s.config.effectAmbiance)
@@ -421,6 +433,11 @@ export function SchedulerPanel() {
   const themeDrift: DesktopThemeDriftConfig = rawThemeDrift ?? DEFAULT_DESKTOP_THEME_DRIFT
   const saveConfig     = useAdminStore((s) => s.saveConfig)
   const diag           = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
+
+  const allApps            = useAdminStore((s) => s.config.applications)
+  const allLayouts         = useAdminStore((s) => s.config.widgetLayouts ?? [])
+  const allScenes          = useAdminStore((s) => s.config.scenes ?? {})
+  const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance)
 
   // tick every second so countdowns refresh
   const [, setTick] = useState(0)
@@ -432,25 +449,114 @@ export function SchedulerPanel() {
 
   const diagByEventId = Object.fromEntries(diag.events.map((e) => [e.id, e]))
 
+  const userLayouts = allLayouts.filter((l) => l.source === 'user')
+  const sceneEntries: Array<{ id: string; label: string; icon: string }> = [
+    { id: STATE.LOBBY,   label: 'Lobby',   icon: '🌐' },
+    { id: STATE.DESKTOP, label: 'Desktop', icon: '🖥' },
+    ...Object.values(allScenes)
+      .filter((s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP)
+      .map((s) => ({ id: s.id, label: s.label, icon: '🎬' })),
+  ]
+
+  // ── Unified page draft (Events, Effect Ambiance, Theme Drift, Desktop Ambiance) ──
+  const sourceDraft: SchedulerDraft = useMemo(() => ({
+    sourceEvents: events,
+    effectAmbiance,
+    desktopThemeDrift: themeDrift,
+    desktopAmbiance: withDesktopAmbianceDefaults(rawDesktopAmbiance),
+  }), [events, effectAmbiance, themeDrift, rawDesktopAmbiance])
+
+  const [draft, setDraft] = useState<SchedulerDraft>(() => structuredClone(sourceDraft))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const dirty = !isSameDraft(draft, sourceDraft)
+
+  useEffect(() => {
+    if (dirty) return
+    setDraft((prev) => (isSameDraft(prev, sourceDraft) ? prev : structuredClone(sourceDraft)))
+    setSaved(false)
+  }, [dirty, sourceDraft])
+
+  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
+
+  const update = useCallback(<K extends keyof SchedulerDraft>(key: K, updater: (d: SchedulerDraft[K]) => void) => {
+    setDraft((prev) => {
+      const next = structuredClone(prev)
+      updater(next[key])
+      setSaved(false)
+      return next
+    })
+  }, [])
+
   const handleChange = (eventId: string, patch: Partial<AutoTrigger>) => {
-    const next = events.map((e) =>
-      e.id === eventId ? { ...e, auto: { ...e.auto, ...patch } } : e,
-    )
-    void saveConfig({ sourceEvents: next })
+    update('sourceEvents', (list) => {
+      const ev = list.find((e) => e.id === eventId)
+      if (ev) ev.auto = { ...ev.auto, ...patch }
+    })
   }
 
   const handleAmbianceChange = (patch: Partial<EffectAmbianceConfig>) => {
-    void saveConfig({ effectAmbiance: { ...effectAmbiance, ...patch } })
+    update('effectAmbiance', (d) => Object.assign(d, patch))
   }
 
   const handleThemeDriftChange = (patch: Partial<DesktopThemeDriftConfig>) => {
-    void saveConfig({ desktopThemeDrift: { ...themeDrift, ...patch } })
+    update('desktopThemeDrift', (d) => Object.assign(d, patch))
   }
+
+  const updateAmbiance: AmbianceUpdater = useCallback((key, updater) => {
+    update('desktopAmbiance', (d) => updater(d[key]))
+  }, [update])
+
+  const enableAllAmbianceTargets = useCallback(() => {
+    updateAmbiance('widgetSimulation', (ws) => {
+      ws.enabled = true
+      allApps.forEach((app) => {
+        ws.behaviors[app.id] = { ...createDefaultWidgetBehavior(true), ...ws.behaviors[app.id], enabled: true }
+      })
+      userLayouts.forEach((l) => {
+        if (!ws.layoutBehaviors) ws.layoutBehaviors = {}
+        ws.layoutBehaviors[l.id] = { ...createDefaultNavBehavior(true), ...ws.layoutBehaviors?.[l.id], enabled: true }
+      })
+      sceneEntries.forEach((s) => {
+        if (!ws.sceneBehaviors) ws.sceneBehaviors = {}
+        ws.sceneBehaviors[s.id] = { ...createDefaultNavBehavior(true), ...ws.sceneBehaviors?.[s.id], enabled: true }
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateAmbiance, allApps, userLayouts, sceneEntries.length])
+
+  const apply = useCallback(async () => {
+    if (!dirty) return
+    setSaving(true)
+    await saveConfig({
+      sourceEvents: draft.sourceEvents,
+      effectAmbiance: draft.effectAmbiance,
+      desktopThemeDrift: draft.desktopThemeDrift,
+      desktopAmbiance: draft.desktopAmbiance,
+    })
+    setSaving(false)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    setSaved(true)
+    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+  }, [dirty, saveConfig, draft])
+
+  const reset = useCallback(() => {
+    setDraft(structuredClone(sourceDraft))
+    setSaved(false)
+  }, [sourceDraft])
+
+  const simConfig = draft.desktopAmbiance.widgetSimulation
+  const totalAmbianceEnabled =
+    Object.values(simConfig.behaviors).filter((b) => b?.enabled).length +
+    Object.values(simConfig.layoutBehaviors ?? {}).filter((b) => b?.enabled).length +
+    Object.values(simConfig.sceneBehaviors ?? {}).filter((b) => b?.enabled).length
 
   return (
     <div className="space-y-5">
       <ConfigPageIntro title="Scheduler">
-        Automatic event triggers. Each event fires based on its mode, timing, and chance roll.
+        Automatic event triggers and ambient background systems: effects, theme drift, and desktop AI simulation.
       </ConfigPageIntro>
 
       <ConfigSectionPanel label="Engine status">
@@ -478,12 +584,12 @@ export function SchedulerPanel() {
         </div>
       </ConfigSectionPanel>
 
-      {events.length === 0 ? (
+      {draft.sourceEvents.length === 0 ? (
         <div className="text-xs text-zinc-600 italic px-1">No events configured. Create events in the Asset Library.</div>
       ) : (
         <ConfigSectionPanel label="Events">
           <div className="space-y-2">
-            {events.map((event) => (
+            {draft.sourceEvents.map((event) => (
               <EventRow
                 key={event.id}
                 event={event}
@@ -496,12 +602,40 @@ export function SchedulerPanel() {
       )}
 
       <ConfigSectionPanel label="Effect ambiance">
-        <EffectAmbianceSection config={effectAmbiance} onChange={handleAmbianceChange} />
+        <EffectAmbianceSection config={draft.effectAmbiance} onChange={handleAmbianceChange} />
       </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Theme drift">
-        <ThemeDriftSection config={themeDrift} onChange={handleThemeDriftChange} />
+        <ThemeDriftSection config={draft.desktopThemeDrift} onChange={handleThemeDriftChange} />
       </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Widget ambiance">
+        <WidgetAmbianceSection
+          form={draft.desktopAmbiance}
+          update={updateAmbiance}
+          allApps={allApps}
+          onEnableAll={enableAllAmbianceTargets}
+          showEnableAll={!simConfig.enabled || totalAmbianceEnabled === 0}
+        />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Layout ambiance">
+        <LayoutAmbianceSection form={draft.desktopAmbiance} update={updateAmbiance} userLayouts={userLayouts} />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Scene ambiance">
+        <SceneAmbianceSection form={draft.desktopAmbiance} update={updateAmbiance} sceneEntries={sceneEntries} />
+      </ConfigSectionPanel>
+
+      <ConfigApplyBar
+        label="Scheduler"
+        dirty={dirty}
+        saving={saving}
+        saved={saved}
+        onApply={apply}
+        onReset={reset}
+        alwaysShow
+      />
     </div>
   )
 }

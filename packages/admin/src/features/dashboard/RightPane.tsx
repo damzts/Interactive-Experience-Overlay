@@ -10,7 +10,6 @@ import {
 } from '../../shared/ui'
 import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
-import { AmbiancePanel } from '../ambiance/AmbiancePanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
 import { SchedulerPanel } from '../scheduler/SchedulerPanel'
 import { ObsPanel } from '../obs/ObsPanel'
@@ -114,7 +113,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'settings') return <SettingsPanel />
-  if (selected.kind === 'ambiance') return <AmbiancePanel />
   if (selected.kind === 'scheduler') return <SchedulerPanel />
 if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
@@ -145,7 +143,6 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
   { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
 { icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
-  { icon: '🌌', label: 'Ambiance',           kind: 'ambiance' },
   { icon: '🔊', label: 'Audio Engine',       kind: 'audio' },
   { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
   { icon: '⚙', label: 'Kernel Health',      kind: 'kernel-health' },
@@ -225,7 +222,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
-    else if (selected.kind === 'ambiance')          { headerIcon = '🌌'; headerLabel = 'Ambiance';       headerMeta = 'Engine' }
     else if (selected.kind === 'scheduler')         { headerIcon = '⏱';  headerLabel = 'Scheduler';      headerMeta = 'Engine' }
     else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Engine' }
     else if (selected.kind === 'kernel-health')     { headerIcon = '⚙';  headerLabel = 'Kernel Health';  headerMeta = 'Engine' }
