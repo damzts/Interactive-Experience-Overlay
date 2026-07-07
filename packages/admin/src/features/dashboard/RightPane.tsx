@@ -17,6 +17,7 @@ import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { AutomationPanel } from '../automation/AutomationPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
+import { PresetsPanel } from '../presets/PresetsPanel'
 import { MediaLibraryPanel } from '../media-library/MediaLibraryPanel'
 import { MediaLibraryProvider } from '../media-library/MediaLibraryContext'
 import type { SelectedItem } from './types'
@@ -119,6 +120,7 @@ if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'automation') return <AutomationPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
+  if (selected.kind === 'presets') return <PresetsPanel />
   if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
   if (selected.kind === 'media-gallery')     return <MediaLibraryPanel tab="catalog" />
   if (selected.kind === 'media-effects')     return <MediaLibraryPanel tab="events" />
@@ -149,6 +151,7 @@ const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kin
   { icon: '🤖', label: 'Automation',        kind: 'automation' },
   { icon: '🎭', label: 'Show Sequencer',    kind: 'shows' },
   { icon: '💬', label: 'Twitch Integration', kind: 'twitch' },
+  { icon: '💾', label: 'Presets',            kind: 'presets' },
   { icon: '⚙', label: 'Settings',           kind: 'settings' },
 ]
 
@@ -229,6 +232,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
     else if (selected.kind === 'shows')             { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Integration'; headerMeta = 'Engine' }
+    else if (selected.kind === 'presets')            { headerIcon = '💾'; headerLabel = 'Presets';           headerMeta = 'System' }
     else {
       const mediaTab = MEDIA_TABS.find((t) => t.kind === selected.kind)
       if (mediaTab) { headerIcon = mediaTab.icon; headerLabel = mediaTab.label; headerMeta = 'Media Library' }

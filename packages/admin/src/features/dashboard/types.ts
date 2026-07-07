@@ -25,6 +25,7 @@ export type SelectedItem =
   | { kind: 'automation' }
   | { kind: 'shows' }
   | { kind: 'twitch' }
+  | { kind: 'presets' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState

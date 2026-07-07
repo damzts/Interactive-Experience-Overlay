@@ -148,3 +148,13 @@ export interface ChatReactionRule {
   /** Minimum milliseconds between firings of this rule (cooldown) */
   cooldownMs?: number
 }
+
+// ── Config presets (full-system snapshot/load) ────────────────────
+
+/** A named snapshot of an arbitrary subset of AppConfig sections, saved/loaded as a unit. */
+export interface ConfigPreset {
+  id: string
+  label: string
+  sections: Partial<AppConfig>
+  createdAt: number
+}

@@ -217,6 +217,13 @@ const SCHEMA = `
     effects_json TEXT,
     cooldown_ms INTEGER NOT NULL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS config_presets (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    sections_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
 `
 
 export function initDesktopDatabase(dbPath: string): DesktopDatabase {

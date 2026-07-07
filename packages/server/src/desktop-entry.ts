@@ -48,6 +48,7 @@ import { ThemeDriftManager } from './kernel/managers/themeDrift.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
 import { showsRoute } from './transport/http/shows.js'
+import { presetsRoute } from './transport/http/presets.js'
 import { busHistoryRoute } from './transport/http/busHistory.js'
 import { BusHistoryRecorder } from './kernel/BusHistoryRecorder.js'
 import { UserRepository } from './db/repositories/UserRepository.js'
@@ -353,6 +354,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     },
   })
   await app.register(showsRoute, { sequencer: showSequencer, configService })
+  await app.register(presetsRoute, { configService })
   const busRecorder = new BusHistoryRecorder(kernel.bus, { capacity: 500, io })
   await app.register(busHistoryRoute, { recorder: busRecorder })
 

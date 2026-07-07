@@ -23,6 +23,7 @@ import {
 import type {
   AppConfig,
   Application,
+  ConfigPreset,
   DesktopConfig,
   Manager,
   ManagerStatus,
@@ -36,6 +37,7 @@ import { WidgetRepository } from '../../db/repositories/WidgetRepository.js'
 import { EventRepository } from '../../db/repositories/EventRepository.js'
 import { ThemeRepository } from '../../db/repositories/ThemeRepository.js'
 import { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
+import { ConfigPresetRepository } from '../../db/repositories/ConfigPresetRepository.js'
 
 type DesktopDatabase = Database.Database
 
@@ -104,6 +106,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   private readonly widgetRepo: WidgetRepository
   private readonly eventRepo: EventRepository
   private readonly themeRepo: ThemeRepository
+  private readonly presetRepo: ConfigPresetRepository
   readonly automationRules: AutomationRuleRepository
 
   constructor(
@@ -116,6 +119,7 @@ export class DesktopConfigService implements Manager, IConfigService {
     this.eventRepo = new EventRepository(db)
     this.themeRepo = new ThemeRepository(db)
     this.automationRules = new AutomationRuleRepository(db)
+    this.presetRepo = new ConfigPresetRepository(db)
 
     // Ensure required tables exist
     this.db.exec(`
@@ -242,6 +246,40 @@ export class DesktopConfigService implements Manager, IConfigService {
       }
     }
     return config
+  }
+
+  // ── Config presets ───────────────────────────────────────────
+
+  listPresets(): ConfigPreset[] {
+    return this.presetRepo.list()
+  }
+
+  savePreset(label: string, sectionKeys: Array<keyof AppConfig>): ConfigPreset {
+    const current = this._cachedConfig ?? this.loadFromDb()
+    const sections: Partial<AppConfig> = {}
+    for (const key of sectionKeys) {
+      sections[key] = clone(current[key]) as never
+    }
+    const preset: ConfigPreset = {
+      id: crypto.randomUUID(),
+      label,
+      sections,
+      createdAt: Date.now(),
+    }
+    this.presetRepo.upsert(preset)
+    return preset
+  }
+
+  async applyPreset(id: string): Promise<AppConfig> {
+    const preset = this.presetRepo.get(id)
+    if (!preset) throw new Error(`Config preset not found: ${id}`)
+    const current = this._cachedConfig ?? this.loadFromDb()
+    const next = { ...current, ...preset.sections }
+    return this.persistForUser('', next, preset.sections)
+  }
+
+  deletePreset(id: string): void {
+    this.presetRepo.delete(id)
   }
 
   // ── Private: Load ────────────────────────────────────────────
