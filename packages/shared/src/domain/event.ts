@@ -88,6 +88,12 @@ export interface EventTransitionAction {
   transitionId: string
 }
 
+export interface EventPresetApplyAction {
+  kind: 'preset-apply'
+  /** ConfigPreset id (AppConfig.ConfigPreset, saved via the Presets panel) */
+  presetId: string
+}
+
 export type EventAction =
   | EventDesktopConfigAction
   | EventWidgetThemesAction
@@ -97,6 +103,7 @@ export type EventAction =
   | EventObsStreamAction
   | EventSceneChangeAction
   | EventTransitionAction
+  | EventPresetApplyAction
 
 // ── Event entity ─────────────────────────────────────────────────
 

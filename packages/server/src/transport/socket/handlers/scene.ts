@@ -194,6 +194,13 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
+    if (action.kind === 'preset-apply') {
+      // Persisted, not a runtime patch — a preset swap is meant to stick,
+      // same as the rest of the config it just overwrote.
+      void ctx.configService?.applyPreset(action.presetId)
+      continue
+    }
+
     applyRuntimeConfig(ctx, {
       desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
     })

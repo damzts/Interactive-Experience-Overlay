@@ -89,6 +89,7 @@ export interface IConfigService {
   upsertApplication(app: Application): Promise<void>
   onConfigUpdate(listener: (config: AppConfig) => void): void
   invalidateCache(): void
+  applyPreset(id: string): Promise<AppConfig>
 }
 
 // ── DesktopConfigService ─────────────────────────────────────────

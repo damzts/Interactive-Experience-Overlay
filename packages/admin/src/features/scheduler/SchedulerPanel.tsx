@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { STATE, getEffectLabel, withDesktopAmbianceDefaults, DEFAULT_DESKTOP_THEME_DRIFT } from '@ieomlabs/shared'
-import type { DesktopAmbianceConfig, DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger } from '@ieomlabs/shared'
+import type { DesktopAmbianceConfig, DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger, ConfigPreset } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
+import { fetchPresets } from '../../api/presetsApi'
 import {
   Btn, ConfigCard, ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel,
   Toggle, Slider, ConfigChoiceButton, isSameDraft,
@@ -36,6 +37,25 @@ function formatAgo(ts: number | null): string {
 
 const ALL_STATES: STATE[] = [STATE.LOBBY, STATE.DESKTOP]
 
+/** A sourceEvents entry created by the Preset Rotation quick-create form —
+ *  its only action is swapping the whole config to a saved preset. */
+function isPresetRotationEvent(event: EventConfig): boolean {
+  return event.actions?.length === 1 && event.actions[0].kind === 'preset-apply'
+}
+
+function blankPresetRotationEvent(preset: ConfigPreset): EventConfig {
+  return {
+    id: crypto.randomUUID(),
+    label: `🎭 ${preset.label}`,
+    icon: '💾',
+    color: 'text-fuchsia-400',
+    desc: `Swaps the whole config to preset "${preset.label}"`,
+    effects: [],
+    actions: [{ kind: 'preset-apply', presetId: preset.id }],
+    auto: { enabled: true, mode: 'interval', intervalMin: 30, idleMin: 10, chance: 1, cooldownMin: 0 },
+  }
+}
+
 const DEFAULT_EFFECT_AMBIANCE: EffectAmbianceConfig = {
   enabled: false,
   pool: [],
@@ -49,10 +69,12 @@ function EventRow({
   event,
   diag,
   onChange,
+  onDelete,
 }: {
   event: EventConfig
   diag: { nextRunAt: number | null; due: boolean; idleTriggered: boolean } | undefined
   onChange: (patch: Partial<AutoTrigger>) => void
+  onDelete?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const auto = event.auto
@@ -93,6 +115,9 @@ function EventRow({
             checked={auto.enabled}
             onChange={(v) => onChange({ enabled: v })}
           />
+          {onDelete && (
+            <button type="button" onClick={onDelete} className="text-zinc-600 hover:text-red-400 transition-colors text-sm">✕</button>
+          )}
         </div>
       </div>
 
@@ -416,6 +441,81 @@ function ThemeDriftSection({
   )
 }
 
+// ── PresetRotationSection ────────────────────────────────────────────
+
+function PresetRotationSection({
+  events,
+  diagByEventId,
+  onAutoChange,
+  onAdd,
+  onDelete,
+}: {
+  events: EventConfig[]
+  diagByEventId: Record<string, { nextRunAt: number | null; due: boolean; idleTriggered: boolean }>
+  onAutoChange: (eventId: string, patch: Partial<AutoTrigger>) => void
+  onAdd: (preset: ConfigPreset) => void
+  onDelete: (eventId: string) => void
+}) {
+  const [presets, setPresets] = useState<ConfigPreset[]>([])
+  const [selectedPresetId, setSelectedPresetId] = useState('')
+
+  useEffect(() => { void fetchPresets().then(setPresets).catch(() => {}) }, [])
+
+  const handleAdd = () => {
+    const preset = presets.find((p) => p.id === selectedPresetId)
+    if (!preset) return
+    onAdd(preset)
+    setSelectedPresetId('')
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-[10px] text-zinc-500">
+        Randomly swaps the entire config to a saved preset on a timer — same engine as Effect Ambiance and
+        Theme Drift, but the whole thematic (skin, ambiance, sounds, everything the preset captured) changes
+        at once instead of just one layer. Presets are managed in System → Presets.
+      </div>
+
+      <div className="flex gap-2">
+        <select
+          value={selectedPresetId}
+          onChange={(e) => setSelectedPresetId(e.target.value)}
+          className="flex-1 rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-[11px] text-zinc-200 focus:border-fuchsia-500/50 focus:outline-none"
+        >
+          <option value="">
+            {presets.length === 0 ? 'No presets saved yet' : 'Select a preset…'}
+          </option>
+          {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!selectedPresetId}
+          className="rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-[11px] font-semibold text-fuchsia-300 hover:border-fuchsia-400/60 hover:bg-fuchsia-500/20 hover:text-fuchsia-100 transition disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          + Add Rotation
+        </button>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="text-[10px] text-zinc-600 italic">No preset rotations configured.</div>
+      ) : (
+        <div className="space-y-2">
+          {events.map((event) => (
+            <EventRow
+              key={event.id}
+              event={event}
+              diag={diagByEventId[event.id]}
+              onChange={(patch) => onAutoChange(event.id, patch)}
+              onDelete={() => onDelete(event.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── SchedulerPanel ─────────────────────────────────────────────────
 
 type SchedulerDraft = {
@@ -494,6 +594,17 @@ export function SchedulerPanel() {
     update('sourceEvents', (list) => {
       const ev = list.find((e) => e.id === eventId)
       if (ev) ev.auto = { ...ev.auto, ...patch }
+    })
+  }
+
+  const handleAddPresetRotation = (preset: ConfigPreset) => {
+    update('sourceEvents', (list) => { list.push(blankPresetRotationEvent(preset)) })
+  }
+
+  const handleDeletePresetRotation = (eventId: string) => {
+    update('sourceEvents', (list) => {
+      const i = list.findIndex((e) => e.id === eventId)
+      if (i >= 0) list.splice(i, 1)
     })
   }
 
@@ -584,22 +695,35 @@ export function SchedulerPanel() {
         </div>
       </ConfigSectionPanel>
 
-      {draft.sourceEvents.length === 0 ? (
-        <div className="text-xs text-zinc-600 italic px-1">No events configured. Create events in the Asset Library.</div>
-      ) : (
-        <ConfigSectionPanel label="Events">
-          <div className="space-y-2">
-            {draft.sourceEvents.map((event) => (
-              <EventRow
-                key={event.id}
-                event={event}
-                diag={diagByEventId[event.id]}
-                onChange={(patch) => handleChange(event.id, patch)}
-              />
-            ))}
-          </div>
-        </ConfigSectionPanel>
-      )}
+      {(() => {
+        const plainEvents = draft.sourceEvents.filter((e) => !isPresetRotationEvent(e))
+        return plainEvents.length === 0 ? (
+          <div className="text-xs text-zinc-600 italic px-1">No events configured. Create events in the Asset Library.</div>
+        ) : (
+          <ConfigSectionPanel label="Events">
+            <div className="space-y-2">
+              {plainEvents.map((event) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  diag={diagByEventId[event.id]}
+                  onChange={(patch) => handleChange(event.id, patch)}
+                />
+              ))}
+            </div>
+          </ConfigSectionPanel>
+        )
+      })()}
+
+      <ConfigSectionPanel label="Preset rotation">
+        <PresetRotationSection
+          events={draft.sourceEvents.filter(isPresetRotationEvent)}
+          diagByEventId={diagByEventId}
+          onAutoChange={handleChange}
+          onAdd={handleAddPresetRotation}
+          onDelete={handleDeletePresetRotation}
+        />
+      </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Effect ambiance">
         <EffectAmbianceSection config={draft.effectAmbiance} onChange={handleAmbianceChange} />

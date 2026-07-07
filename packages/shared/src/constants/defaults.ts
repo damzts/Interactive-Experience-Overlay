@@ -253,6 +253,11 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     return { kind: 'transition', transitionId: action.transitionId }
   }
 
+  if (action.kind === 'preset-apply') {
+    const presetId = action.presetId.trim()
+    return presetId ? { kind: 'preset-apply', presetId } : null
+  }
+
   return {
     kind: 'ambiance-patch',
     timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
