@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3'
-import type { AppConfig, DesktopConfig } from '@ieomlabs/shared'
+import type { AppConfig, DesktopConfig, PersonaConfig } from '@ieomlabs/shared'
 
 function parseJson<T>(v: string | null | undefined, fallback: T): T {
   if (!v) return fallback; try { return JSON.parse(v) as T } catch { return fallback }
@@ -78,5 +78,15 @@ export class ThemeRepository {
 
   saveDesktopThemeDrift(config: NonNullable<AppConfig['desktopThemeDrift']>): void {
     this.db.prepare('INSERT OR REPLACE INTO desktop_theme_drift (id, config_json) VALUES (1, ?)').run(JSON.stringify(config))
+  }
+
+  loadPersonaConfig(): PersonaConfig | undefined {
+    const row = this.db.prepare('SELECT * FROM desktop_persona WHERE id = 1').get() as { config_json: string | null } | undefined
+    if (!row?.config_json) return undefined
+    return parseJson(row.config_json, undefined)
+  }
+
+  savePersonaConfig(config: PersonaConfig): void {
+    this.db.prepare('INSERT OR REPLACE INTO desktop_persona (id, config_json) VALUES (1, ?)').run(JSON.stringify(config))
   }
 }

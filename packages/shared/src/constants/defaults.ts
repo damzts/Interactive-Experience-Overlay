@@ -17,6 +17,7 @@ import type {
 import { WIDGET_DEFINITIONS } from '../widgets/index.js'
 import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { DesktopThemeDriftConfig } from '../domain/themeDrift.js'
+import type { PersonaConfig } from '../domain/persona.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
@@ -878,6 +879,31 @@ export function withDesktopThemeDriftDefaults(config?: Partial<DesktopThemeDrift
     groups: {
       ...DEFAULT_DESKTOP_THEME_DRIFT.groups,
       ...config?.groups,
+    },
+  }
+}
+
+export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
+  enabled: false,
+  triggerMode: 'command',
+  triggerValue: 'say',
+  chance: 0.05,
+  cooldownMs: 30_000,
+  maxChars: 200,
+  voice: {
+    pitchSemitones: 3,
+    roboticIntensity: 0.5,
+    rate: 0,
+  },
+}
+
+export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): PersonaConfig {
+  return {
+    ...DEFAULT_PERSONA_CONFIG,
+    ...config,
+    voice: {
+      ...DEFAULT_PERSONA_CONFIG.voice,
+      ...config?.voice,
     },
   }
 }

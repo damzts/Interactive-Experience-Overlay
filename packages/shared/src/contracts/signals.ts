@@ -36,6 +36,15 @@ export interface BusFrame {
 
 // ── Manager signal payloads ────────────────────────────────────────
 
+export interface PersonaSpeakPayload {
+  user: string
+  /** The (possibly truncated) chat message text that was spoken. */
+  text: string
+  /** URL to the synthesized wav, servable under /assets/. */
+  audioUrl: string
+  t: number
+}
+
 export interface ChatMessagePayload {
   user: string
   text: string
@@ -271,6 +280,7 @@ export interface KernelSignalMap {
   'audio:energy:high': AudioEnergyPayload
   'audio:energy:low': AudioEnergyPayload
   'audio:silence': Record<string, never>
+  'persona:speak': PersonaSpeakPayload
 }
 
 export type KernelSignalEvent = keyof KernelSignalMap
@@ -301,6 +311,7 @@ const PUBLIC_KERNEL_SIGNAL_FLAGS: Record<KernelSignalEvent, true> = {
   'audio:energy:high': true,
   'audio:energy:low': true,
   'audio:silence': true,
+  'persona:speak': true,
 }
 
 export const PUBLIC_KERNEL_SIGNALS = Object.keys(PUBLIC_KERNEL_SIGNAL_FLAGS) as KernelSignalEvent[]

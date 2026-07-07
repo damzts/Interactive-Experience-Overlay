@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieomlabs/shared'
+import { STATE, withPersonaDefaults } from '@ieomlabs/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
+import { onKernelSignal } from './socket/kernelSignals'
 import { audioEngine } from './engine/AudioEngine'
 import { startAudioReactivityMonitor } from './engine/audioReactivityMonitor'
 import { TransitionEngine } from './engine/TransitionEngine'
@@ -11,6 +12,7 @@ import { Desktop } from './desktop/Desktop'
 import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
 import { RtcStreamProvider } from './rtc/RtcStreamContext'
+import { runChatBubble } from './transitions/ChatBubble'
 
 const LobbyScene = React.lazy(() => import('./lobby/LobbyScene').then(m => ({ default: m.LobbyScene })))
 
@@ -52,6 +54,16 @@ export default function App() {
       audioEngine.stopReactiveSource()
     }
   }, [reactivity?.enabled, reactivity?.source])
+
+  // Persona: chat-to-voice companion. A spoken line is independent of any
+  // open widget, so it's wired globally here rather than in ChatWidget.
+  useEffect(() => {
+    return onKernelSignal('persona:speak', ({ user, text, audioUrl }) => {
+      const voice = withPersonaDefaults(useAppStore.getState().config.persona).voice
+      void audioEngine.playPersonaLine(audioUrl, voice)
+      runChatBubble({ author: user, text, duration: 5, position: 'bottom' })
+    })
+  }, [])
 
   const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
 

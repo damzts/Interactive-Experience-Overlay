@@ -217,7 +217,7 @@ export class DesktopConfigService implements Manager, IConfigService {
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
         'sourceEvents', 'sourceMedia', 'windowPresets', 'sourceTransitions', 'shows',
-        'effectAmbiance', 'desktopThemeDrift',
+        'effectAmbiance', 'desktopThemeDrift', 'persona',
       ])
     }
 
@@ -305,6 +305,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       chatReactions:    this.loadChatReactions(),
       effectAmbiance:   this.themeRepo.loadEffectAmbiance(),
       desktopThemeDrift: this.themeRepo.loadDesktopThemeDrift(),
+      persona:          this.themeRepo.loadPersonaConfig(),
     }
     return this.withConfigDefaults(base)
   }
@@ -397,6 +398,7 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'chatReactions':    this.saveChatReactions(cfg.chatReactions ?? []); break
           case 'effectAmbiance':   if (cfg.effectAmbiance) this.themeRepo.saveEffectAmbiance(cfg.effectAmbiance); break
           case 'desktopThemeDrift': if (cfg.desktopThemeDrift) this.themeRepo.saveDesktopThemeDrift(cfg.desktopThemeDrift); break
+          case 'persona':          if (cfg.persona) this.themeRepo.savePersonaConfig(cfg.persona); break
         }
       }
     })

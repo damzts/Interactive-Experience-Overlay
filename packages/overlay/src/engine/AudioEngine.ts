@@ -350,6 +350,54 @@ class AudioEngine {
     }
   }
 
+  /** Play a one-shot Persona TTS line through a ring-modulated "robotic" filter.
+   *  Not cached (URLs are one-shot, generated per chat line) — dry/wet blend
+   *  and pitch are live-tunable per call via `voice`. */
+  async playPersonaLine(url: string, voice: { pitchSemitones: number; roboticIntensity: number }): Promise<void> {
+    this.initContext()
+    const ctx = this.ctx
+    const out = this.masterGain
+    if (!ctx || !out) return
+    this.unlockContext()
+    try {
+      const res = await fetch(url)
+      if (!res.ok) return
+      const buffer = await ctx.decodeAudioData(await res.arrayBuffer())
+
+      const src = ctx.createBufferSource()
+      src.buffer = buffer
+      src.playbackRate.value = 2 ** (voice.pitchSemitones / 12)
+
+      const intensity = Math.max(0, Math.min(1, voice.roboticIntensity))
+      const dryGain = ctx.createGain()
+      dryGain.gain.value = 1 - intensity
+      src.connect(dryGain)
+      dryGain.connect(out)
+
+      // Ring modulation: an LFO's output drives the gain AudioParam of a node
+      // the dry signal passes through, multiplying the two signals together —
+      // this is what gives a flat TTS voice its robotic/vocaloid buzz.
+      const carrier = ctx.createOscillator()
+      carrier.type = 'sine'
+      carrier.frequency.value = 38
+      const ringGain = ctx.createGain()
+      ringGain.gain.value = 0
+      const wetGain = ctx.createGain()
+      wetGain.gain.value = intensity
+
+      src.connect(ringGain)
+      carrier.connect(ringGain.gain)
+      ringGain.connect(wetGain)
+      wetGain.connect(out)
+
+      carrier.start()
+      src.start()
+      src.onended = () => { try { carrier.stop() } catch { /* already stopped */ } }
+    } catch {
+      // Ignore — bad URL or decode failure
+    }
+  }
+
   setMasterVolume(v: number) {
     if (this.masterGain) this.masterGain.gain.value = Math.max(0, Math.min(1, v))
   }

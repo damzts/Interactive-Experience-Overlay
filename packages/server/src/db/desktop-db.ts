@@ -123,6 +123,11 @@ const SCHEMA = `
     config_json TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS desktop_persona (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    config_json TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS media_renders (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,

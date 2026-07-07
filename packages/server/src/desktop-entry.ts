@@ -45,6 +45,8 @@ import { TwitchIntegrationManager } from './kernel/managers/twitch.js'
 import { ChatReactionManager } from './kernel/managers/chatReactions.js'
 import { EffectAmbianceManager } from './kernel/managers/effectAmbiance.js'
 import { ThemeDriftManager } from './kernel/managers/themeDrift.js'
+import { PersonaManager } from './kernel/managers/persona.js'
+import { TtsService } from './services/TtsService.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
 import { showsRoute } from './transport/http/shows.js'
@@ -307,6 +309,13 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     kernel.bus,
   )
   kernel.register(themeDriftManager, { after: ['DesktopConfigService'] })
+
+  const personaManager = new PersonaManager(
+    () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
+    kernel.bus,
+    new TtsService(),
+  )
+  kernel.register(personaManager, { after: ['DesktopConfigService', 'TwitchIntegrationManager'] })
 
   // ── Scene → RuntimeState sync ─────────────────────────────────
   machine.on('state:change', (payload: { state: import('@ieomlabs/shared').STATE }) => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { STATE, getEffectLabel, withDesktopAmbianceDefaults, DEFAULT_DESKTOP_THEME_DRIFT } from '@ieomlabs/shared'
-import type { DesktopAmbianceConfig, DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger, ConfigPreset } from '@ieomlabs/shared'
+import { STATE, getEffectLabel, withDesktopAmbianceDefaults, DEFAULT_DESKTOP_THEME_DRIFT, withPersonaDefaults } from '@ieomlabs/shared'
+import type { DesktopAmbianceConfig, DesktopThemeDriftConfig, EffectAmbianceConfig, EffectConfig, EffectType, EventConfig, AutoTrigger, ConfigPreset, PersonaConfig } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { fetchPresets } from '../../api/presetsApi'
@@ -516,6 +516,82 @@ function PresetRotationSection({
   )
 }
 
+// ── PersonaSection ───────────────────────────────────────────────────
+
+const TRIGGER_MODES: Array<{ id: PersonaConfig['triggerMode']; label: string }> = [
+  { id: 'command', label: 'Command' },
+  { id: 'keyword', label: 'Keyword' },
+  { id: 'chance',  label: 'Chance' },
+  { id: 'all',     label: 'All messages' },
+]
+
+function PersonaSection({
+  config,
+  onChange,
+}: {
+  config: PersonaConfig
+  onChange: (patch: Partial<PersonaConfig>) => void
+}) {
+  const setVoice = (patch: Partial<PersonaConfig['voice']>) => {
+    onChange({ voice: { ...config.voice, ...patch } })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-semibold text-zinc-200">Persona</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            Picks a chat message and speaks it in the overlay through a robotic voice filter, with a caption
+            bubble — a chat-to-voice bridge you can react to live.
+          </div>
+        </div>
+        <Toggle checked={config.enabled} onChange={(v) => onChange({ enabled: v })} />
+      </div>
+
+      <div>
+        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Trigger</div>
+        <div className="flex gap-1.5">
+          {TRIGGER_MODES.map((mode) => (
+            <ConfigChoiceButton key={mode.id} selected={config.triggerMode === mode.id} onClick={() => onChange({ triggerMode: mode.id })}>
+              {mode.label}
+            </ConfigChoiceButton>
+          ))}
+        </div>
+      </div>
+
+      {(config.triggerMode === 'command' || config.triggerMode === 'keyword') && (
+        <div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            {config.triggerMode === 'command' ? 'Command (without !)' : 'Keyword'}
+          </div>
+          <input
+            type="text"
+            value={config.triggerValue ?? ''}
+            onChange={(e) => onChange({ triggerValue: e.target.value })}
+            placeholder={config.triggerMode === 'command' ? 'say' : 'ene'}
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+          />
+        </div>
+      )}
+
+      {config.triggerMode === 'chance' && (
+        <Slider label="Chance per message" value={config.chance ?? 0.05} min={0} max={1} step={0.01} onChange={(v) => onChange({ chance: v })} />
+      )}
+
+      <Slider label="Cooldown" value={config.cooldownMs} min={0} max={120_000} step={1000} unit="ms" onChange={(v) => onChange({ cooldownMs: v })} />
+      <Slider label="Max characters" value={config.maxChars} min={20} max={500} step={10} onChange={(v) => onChange({ maxChars: v })} />
+
+      <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 space-y-2">
+        <div className="text-[11px] font-semibold text-zinc-300">Voice</div>
+        <Slider label="Pitch" value={config.voice.pitchSemitones} min={-12} max={12} step={1} unit=" st" onChange={(v) => setVoice({ pitchSemitones: v })} />
+        <Slider label="Robotic intensity" value={config.voice.roboticIntensity} min={0} max={1} step={0.05} onChange={(v) => setVoice({ roboticIntensity: v })} />
+        <Slider label="Speech rate" value={config.voice.rate} min={-10} max={10} step={1} onChange={(v) => setVoice({ rate: v })} />
+      </div>
+    </div>
+  )
+}
+
 // ── SchedulerPanel ─────────────────────────────────────────────────
 
 type SchedulerDraft = {
@@ -523,6 +599,7 @@ type SchedulerDraft = {
   effectAmbiance: EffectAmbianceConfig
   desktopThemeDrift: DesktopThemeDriftConfig
   desktopAmbiance: DesktopAmbianceConfig
+  persona: PersonaConfig
 }
 
 export function SchedulerPanel() {
@@ -531,6 +608,8 @@ export function SchedulerPanel() {
   const effectAmbiance: EffectAmbianceConfig = rawAmbiance ?? DEFAULT_EFFECT_AMBIANCE
   const rawThemeDrift  = useAdminStore((s) => s.config.desktopThemeDrift)
   const themeDrift: DesktopThemeDriftConfig = rawThemeDrift ?? DEFAULT_DESKTOP_THEME_DRIFT
+  const rawPersona     = useAdminStore((s) => s.config.persona)
+  const persona: PersonaConfig = withPersonaDefaults(rawPersona)
   const saveConfig     = useAdminStore((s) => s.saveConfig)
   const diag           = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
 
@@ -564,7 +643,8 @@ export function SchedulerPanel() {
     effectAmbiance,
     desktopThemeDrift: themeDrift,
     desktopAmbiance: withDesktopAmbianceDefaults(rawDesktopAmbiance),
-  }), [events, effectAmbiance, themeDrift, rawDesktopAmbiance])
+    persona,
+  }), [events, effectAmbiance, themeDrift, rawDesktopAmbiance, persona])
 
   const [draft, setDraft] = useState<SchedulerDraft>(() => structuredClone(sourceDraft))
   const [saving, setSaving] = useState(false)
@@ -616,6 +696,10 @@ export function SchedulerPanel() {
     update('desktopThemeDrift', (d) => Object.assign(d, patch))
   }
 
+  const handlePersonaChange = (patch: Partial<PersonaConfig>) => {
+    update('persona', (d) => Object.assign(d, patch))
+  }
+
   const updateAmbiance: AmbianceUpdater = useCallback((key, updater) => {
     update('desktopAmbiance', (d) => updater(d[key]))
   }, [update])
@@ -646,6 +730,7 @@ export function SchedulerPanel() {
       effectAmbiance: draft.effectAmbiance,
       desktopThemeDrift: draft.desktopThemeDrift,
       desktopAmbiance: draft.desktopAmbiance,
+      persona: draft.persona,
     })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -731,6 +816,10 @@ export function SchedulerPanel() {
 
       <ConfigSectionPanel label="Theme drift">
         <ThemeDriftSection config={draft.desktopThemeDrift} onChange={handleThemeDriftChange} />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Persona">
+        <PersonaSection config={draft.persona} onChange={handlePersonaChange} />
       </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Widget ambiance">
