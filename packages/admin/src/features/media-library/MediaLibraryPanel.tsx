@@ -206,7 +206,7 @@ export function MediaLibraryContent() {
     editingEvent, eventDraftOriginalId, createEventDraft, patchEventDraft,
     saveEventDraft, deleteEventDraft, handleTriggerEvent,
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId, sourceDraftCreatesNewPreset,
-    selectedSourceUsageCount, createSourcePresetDraft, patchSourcePresetDraft,
+    createSourcePresetDraft, patchSourcePresetDraft,
     saveSourcePresetDraft, deleteSourcePresetDraft,
   } = useMediaLibrary()
 
@@ -233,7 +233,6 @@ export function MediaLibraryContent() {
           selectedSourceMeta={selectedSourceMeta}
           sourcePresetOriginalId={sourcePresetOriginalId}
           sourceDraftCreatesNewPreset={sourceDraftCreatesNewPreset}
-          selectedSourceUsageCount={selectedSourceUsageCount}
           createSourcePresetDraft={createSourcePresetDraft}
           patchSourcePresetDraft={patchSourcePresetDraft}
           saveSourcePresetDraft={saveSourcePresetDraft}

@@ -8,6 +8,7 @@ import Database from 'better-sqlite3'
 import { existsSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import logger from '../lib/logger.js'
+import { RENDERER_CATALOG } from '@ieomlabs/shared'
 
 export type DesktopDatabase = Database.Database
 
@@ -262,7 +263,34 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   try {
     db.exec("DELETE FROM widgets WHERE widget_component IN ('rpg-stats', 'stream-quest', 'combat-log-widget', 'retro-messenger')")
   } catch { /* table may not exist yet */ }
+
+  seedDefaultMediaRenders(db)
+
   return db
+}
+
+/** Seed one preset row per RENDERER_CATALOG entry on a fresh install so renderer
+ *  types are usable presets out of the box. Only fires when the table is empty —
+ *  never re-inserts rows a user has since deleted or renamed. */
+function seedDefaultMediaRenders(db: DesktopDatabase): void {
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM media_renders').get() as { count: number }
+  if (count > 0) return
+
+  const insert = db.prepare(
+    'INSERT INTO media_renders (id, label, renderer_type, config_json, default_position_json) VALUES (?, ?, ?, ?, ?)'
+  )
+  const insertAll = db.transaction((entries: typeof RENDERER_CATALOG) => {
+    for (const entry of entries) {
+      insert.run(
+        entry.id,
+        entry.label,
+        entry.id,
+        JSON.stringify(entry.defaultConfig),
+        entry.defaultPosition ? JSON.stringify(entry.defaultPosition) : null
+      )
+    }
+  })
+  insertAll(RENDERER_CATALOG)
 }
 
 /** One-time unification of automation_rules + widget_wires into the trigger/action rule shape.

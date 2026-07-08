@@ -1,4 +1,4 @@
-﻿import { type ReactNode } from 'react'
+﻿import { type ReactNode, useState } from 'react'
 import type { WindowPreset } from '@ieomlabs/shared'
 import { MediaSelectionInput } from './MediaLibrary'
 import { findRendererCatalogEntry, RENDERER_CATALOG, type RendererCatalogEntry as CatalogEntry, type RendererFieldDef as FieldDef } from '@ieomlabs/shared'
@@ -303,7 +303,6 @@ export function SourcesTabContent({
   selectedSourceMeta,
   sourcePresetOriginalId,
   sourceDraftCreatesNewPreset,
-  selectedSourceUsageCount,
   createSourcePresetDraft,
   patchSourcePresetDraft,
   saveSourcePresetDraft,
@@ -313,28 +312,35 @@ export function SourcesTabContent({
   selectedSourceMeta?: CatalogEntry
   sourcePresetOriginalId: string | null
   sourceDraftCreatesNewPreset: boolean
-  selectedSourceUsageCount: number
   createSourcePresetDraft: (entry: CatalogEntry) => void
   patchSourcePresetDraft: (updates: Partial<WindowPreset>) => void
   saveSourcePresetDraft: () => void
   deleteSourcePresetDraft: () => void
 }) {
+  const [newPresetType, setNewPresetType] = useState(RENDERER_CATALOG[0]?.id ?? '')
+  const newPresetEntry = RENDERER_CATALOG.find((entry) => entry.id === newPresetType)
+  const [editorTab, setEditorTab] = useState<'settings' | 'preview'>('settings')
+
   const catalogButtons = (
-    <div className="grid gap-2 lg:grid-cols-2">
-      {RENDERER_CATALOG.map((entry) => (
-        <button
-          key={entry.id}
-          type="button"
-          onClick={() => createSourcePresetDraft(entry)}
-          className="w-full rounded-lg border border-zinc-800/80 bg-zinc-950/55 px-3 py-3 text-left transition-colors hover:border-zinc-700/80 hover:bg-zinc-900/75"
-        >
-          <div className="flex items-center gap-2">
-            <span>{entry.icon}</span>
-            <span className="text-[12px] font-medium text-zinc-100">{entry.label}</span>
-          </div>
-          <div className="mt-1 text-[10px] text-zinc-500">{entry.desc}</div>
-        </button>
-      ))}
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <select
+        value={newPresetType}
+        onChange={(event) => setNewPresetType(event.target.value)}
+        className="min-w-0 flex-1 text-sm"
+      >
+        {RENDERER_CATALOG.map((entry) => (
+          <option key={entry.id} value={entry.id}>{entry.icon} {entry.label}</option>
+        ))}
+      </select>
+      <Btn
+        type="button"
+        variant="primary"
+        disabled={!newPresetEntry}
+        onClick={() => newPresetEntry && createSourcePresetDraft(newPresetEntry)}
+        className="px-4 py-2 text-sm"
+      >
+        Create Preset
+      </Btn>
     </div>
   )
 
@@ -345,7 +351,7 @@ export function SourcesTabContent({
           <ConfigCard className="space-y-4 p-5 sm:p-6">
             <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
               <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Renderer Type</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Create Renderer Preset</div>
                 <div className="text-xs text-zinc-500">Pick a renderer type to open a new preset draft below.</div>
               </div>
               {catalogButtons}
@@ -353,87 +359,76 @@ export function SourcesTabContent({
           </ConfigCard>
 
           <ConfigCard className="space-y-4 p-5 sm:p-6">
-            <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-5 py-4">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Preset Editor</div>
-              <div className="text-xs text-zinc-500">Primary window preset authoring card.</div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80">
+              <div className="flex shrink-0 items-center">
+                {(['settings', 'preview'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditorTab(t)}
+                    className={
+                      '-mb-px border-b-2 px-3 pb-2.5 pt-2 text-xs font-medium transition-colors ' +
+                      (editorTab === t
+                        ? 'border-cyan-400 text-zinc-50'
+                        : 'border-transparent text-zinc-500 hover:text-zinc-200')
+                    }
+                  >
+                    {t === 'settings' ? 'Renderer Settings' : 'Preview & Position'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 pb-2">
+                <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-3 py-1.5 text-xs">
+                  {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
+                </Btn>
+                <Btn type="button" variant="danger" onClick={deleteSourcePresetDraft} className="px-3 py-1.5 text-xs">
+                  {sourcePresetOriginalId ? 'Delete Preset' : 'Delete Draft'}
+                </Btn>
+              </div>
             </div>
 
-            <div className="grid items-start gap-4 xl:grid-cols-2">
-              <div className="min-w-0">
-                <ConfigSectionPanel label="Preset Summary" first>
-                  <div className="space-y-3">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                          <span className="text-zinc-500">Label</span>
-                          <span className="truncate text-right font-semibold text-zinc-100">{editingSourcePreset.label}</span>
-                        </div>
+            {editorTab === 'settings' ? (
+              <div className="grid items-start gap-4 pt-4 xl:grid-cols-2">
+                <div className="min-w-0">
+                  <ConfigSectionPanel label="Identity" first>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="mb-1 text-[10px] text-zinc-500">Label</div>
+                        <input
+                          type="text"
+                          value={editingSourcePreset.label}
+                          onChange={(event) => patchSourcePresetDraft({ label: event.target.value })}
+                          className="w-full text-sm"
+                        />
                       </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                          <span className="text-zinc-500">Preset Id</span>
-                          <span className="truncate text-right font-semibold text-zinc-100">{sourcePresetOriginalId ?? 'Draft until saved'}</span>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                          <span className="text-zinc-500">Type</span>
-                          <span className="truncate text-right font-semibold text-zinc-100">{selectedSourceMeta.label}</span>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                        <div className="flex items-baseline justify-between gap-3 text-[11px]">
-                          <span className="text-zinc-500">Used In Scenes</span>
-                          <span className="text-right font-semibold text-zinc-100">{selectedSourceUsageCount}</span>
-                        </div>
+                      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
+                        {sourceDraftCreatesNewPreset
+                          ? 'Saving will create a new preset because this label differs from the saved window.'
+                          : 'Saving will update the currently selected preset.'}
                       </div>
                     </div>
+                  </ConfigSectionPanel>
+                </div>
 
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
-                      Review the selected draft details and configure the preset below.
+                <div className="min-w-0">
+                  <ConfigSectionPanel label="Renderer Settings" first>
+                    <div className="space-y-3">
+                      {selectedSourceMeta.fields.map((field) => (
+                        <SourceField
+                          key={field.key}
+                          field={field}
+                          value={editingSourcePreset.config[field.key]}
+                          onChange={(value) => patchSourcePresetDraft({
+                            config: { ...editingSourcePreset.config, [field.key]: value },
+                          })}
+                        />
+                      ))}
                     </div>
-                  </div>
-                </ConfigSectionPanel>
+                  </ConfigSectionPanel>
+                </div>
               </div>
-
-              <div className="min-w-0">
-                <ConfigSectionPanel label="Actions" first>
-                  <div className="space-y-4">
-                    <div className="text-sm text-zinc-500">{sourceDraftCreatesNewPreset ? 'Editing new window preset draft' : `Editing ${editingSourcePreset.label}`}</div>
-                    <div className="flex flex-wrap gap-2">
-                      <Btn type="button" variant="primary" onClick={saveSourcePresetDraft} className="px-4 py-2 text-sm">
-                        {sourceDraftCreatesNewPreset ? 'Save as New Preset' : 'Save Preset'}
-                      </Btn>
-                      <Btn type="button" variant="danger" onClick={deleteSourcePresetDraft} className="px-4 py-2 text-sm">
-                        {sourcePresetOriginalId ? 'Delete Preset' : 'Delete Draft'}
-                      </Btn>
-                    </div>
-                  </div>
-                </ConfigSectionPanel>
-              </div>
-
-              <div className="min-w-0">
-                <ConfigSectionPanel label="Identity" first>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="mb-1 text-[10px] text-zinc-500">Label</div>
-                      <input
-                        type="text"
-                        value={editingSourcePreset.label}
-                        onChange={(event) => patchSourcePresetDraft({ label: event.target.value })}
-                        className="w-full text-sm"
-                      />
-                    </div>
-                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
-                      {sourceDraftCreatesNewPreset
-                        ? 'Saving will create a new preset because this label differs from the saved window.'
-                        : 'Saving will update the currently selected preset.'}
-                    </div>
-                  </div>
-                </ConfigSectionPanel>
-              </div>
-
-              <div className="min-w-0">
+            ) : (
+              <div className="space-y-4 pt-4">
                 <ConfigSectionPanel label="Default Position" first>
                   <div className="grid grid-cols-4 gap-2">
                     {(['x', 'y', 'width', 'height'] as const).map((field) => (
@@ -454,37 +449,18 @@ export function SourcesTabContent({
                     ))}
                   </div>
                 </ConfigSectionPanel>
-              </div>
 
-              <div className="min-w-0">
-                <ConfigSectionPanel label="Renderer Settings" first>
-                  <div className="space-y-3">
-                    {selectedSourceMeta.fields.map((field) => (
-                      <SourceField
-                        key={field.key}
-                        field={field}
-                        value={editingSourcePreset.config[field.key]}
-                        onChange={(value) => patchSourcePresetDraft({
-                          config: { ...editingSourcePreset.config, [field.key]: value },
-                        })}
-                      />
-                    ))}
-                  </div>
+                <ConfigSectionPanel label="Preview">
+                  <SourcePresetPreview
+                    preset={editingSourcePreset}
+                    meta={selectedSourceMeta}
+                    onPositionChange={({ x, y, width, height }) => patchSourcePresetDraft({
+                      defaultPosition: { x, y, width, height },
+                    })}
+                  />
                 </ConfigSectionPanel>
               </div>
-            </div>
-          </ConfigCard>
-
-          <ConfigCard className="p-5 sm:p-6">
-            <ConfigSectionPanel label="Preview" first>
-              <SourcePresetPreview
-                preset={editingSourcePreset}
-                meta={selectedSourceMeta}
-                onPositionChange={({ x, y, width, height }) => patchSourcePresetDraft({
-                  defaultPosition: { x, y, width, height },
-                })}
-              />
-            </ConfigSectionPanel>
+            )}
           </ConfigCard>
         </>
       ) : (
@@ -492,7 +468,7 @@ export function SourcesTabContent({
           <ConfigCard className="space-y-4 p-5 sm:p-6">
             <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
               <div className="space-y-1">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Add Renderer Type</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Create Renderer Preset</div>
                 <div className="text-xs text-zinc-500">Choose a renderer type to start a new preset draft.</div>
               </div>
               {catalogButtons}

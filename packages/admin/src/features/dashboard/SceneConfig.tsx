@@ -57,26 +57,6 @@ export function SourcesEditor({
       : w))
   }
 
-  const addFromCatalog = (type: string) => {
-    const entry = RENDERER_CATALOG.find((c) => c.id === type)
-    if (!entry) return
-    const isTierWindow = type.startsWith('builtin:')
-    const tier: TierName = type === 'builtin:background' ? 'background'
-      : type === 'builtin:particles' ? 'particles'
-      : type === 'builtin:effects'   ? 'post'
-      : 'content'
-    const newWindow: WindowInstance = {
-      id: `win-${Date.now()}`,
-      rendererType: type,
-      config: structuredClone(entry.defaultConfig),
-      position: entry.defaultPosition ?? { x: 0, y: 0, width: 1920, height: 1080 },
-      zIndex: sources.length,
-      visible: true,
-      ...(isTierWindow ? { tier } : {}),
-    }
-    onChange([...sources, newWindow])
-  }
-
   const addFromPreset = () => {
     onChange([...sources, {
       id: `win-${Date.now()}`,
@@ -149,24 +129,10 @@ export function SourcesEditor({
         )
       })}
 
-      {/* Add window: pick a type directly from the catalog */}
+      {/* Add window: always via a saved preset */}
       <div className="space-y-1.5 pt-1">
         <div className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">Add window</div>
-        <div className="grid grid-cols-4 gap-1">
-          {RENDERER_CATALOG.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              title={entry.desc}
-              onClick={() => addFromCatalog(entry.id)}
-              className="flex flex-col items-center gap-0.5 rounded-lg border border-[var(--color-border-strong)] bg-white/[0.02] px-1 py-2 text-center hover:bg-white/[0.06] transition-colors"
-            >
-              <span className="text-lg leading-none">{entry.icon}</span>
-              <span className="text-[9px] text-[var(--color-text-muted)] leading-tight">{entry.label}</span>
-            </button>
-          ))}
-        </div>
-        {windowPresets.length > 0 && (
+        {windowPresets.length > 0 ? (
           <Button
             variant="ghost" size="sm"
             onClick={addFromPreset}
@@ -174,6 +140,10 @@ export function SourcesEditor({
           >
             + From saved preset
           </Button>
+        ) : (
+          <div className="rounded-lg border border-dashed border-[var(--color-border-strong)] px-3 py-2 text-[10px] text-[var(--color-text-muted)]">
+            No saved presets yet — create one in the Sources tab of the Media Library, then add it here.
+          </div>
         )}
       </div>
     </div>
