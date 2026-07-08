@@ -21,14 +21,14 @@ function clampDimension(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-function resolveWidth(value: number | undefined, fallback: number) {
+function resolveWidth(value: number | undefined, fallback: number, min = 180) {
   if (!Number.isFinite(value)) return fallback
-  return clampDimension(value as number, 180, 1400)
+  return clampDimension(value as number, min, 1400)
 }
 
-function resolveHeight(value: number | undefined) {
+function resolveHeight(value: number | undefined, min = 140) {
   if (!Number.isFinite(value)) return undefined
-  return clampDimension(value as number, 140, 1000)
+  return clampDimension(value as number, min, 1000)
 }
 
 function clampWindowPosition(
@@ -97,6 +97,11 @@ interface DesktopWindowProps {
   bodyStyle?: React.CSSProperties
   bodyClassName?: string
   frameless?: boolean
+  /** Size is fully computed by the caller each render (e.g. fit-to-image);
+   *  ignores any persisted windowSize and hides the manual resize handle. */
+  autoSize?: boolean
+  /** Forces window body overflow, overriding the widget theme's scrollbars setting. Prefer leaving unset so admin theme config controls it. */
+  bodyOverflow?: 'auto' | 'hidden' | 'visible'
   onFocus?: () => void
   onMinimize?: () => void
   onClose: () => void
@@ -115,6 +120,8 @@ export function DesktopWindow({
   bodyStyle,
   bodyClassName = '',
   frameless = false,
+  autoSize = false,
+  bodyOverflow,
   onFocus,
   onMinimize,
   onClose,
@@ -122,13 +129,15 @@ export function DesktopWindow({
 }: DesktopWindowProps) {
   const rawDesktopConfig = useAppStore((store) => store.config.desktopConfig)
   const configPos = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowPosition)
-  const sizeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowSize)
+  const persistedSizeOverride = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.windowSize)
+  const sizeOverride = autoSize ? undefined : persistedSizeOverride
   const persistedAppTheme = useAppStore((store) => store.config.applications.find((a) => a.id === id)?.theme)
   const desktopConfig = withDesktopConfigDefaults(rawDesktopConfig)
   // Runtime event theme wins over persisted app theme
   const widgetTheme = desktopConfig.widgetThemes?.[id] ?? persistedAppTheme
   // Shape needs JS-side geometry, so resolve it against the global default too
   const effectiveWidgetTheme = widgetTheme ?? desktopConfig.globalThemeDefault.widgetTheme
+  const resolvedBodyOverflow = bodyOverflow ?? (effectiveWidgetTheme.scrollbars === 'hidden' ? 'hidden' : 'auto')
   const shapeDef = getWidgetShapeDef(resolveWidgetShape(effectiveWidgetTheme))
   const isShapeClipped = isClippedShape(shapeDef)
   const windowSeed = hashString(id)
@@ -141,8 +150,12 @@ export function DesktopWindow({
   const resizing = useRef(false)
   const resizeStartPointer = useRef({ x: 0, y: 0 })
   const resizeStartSize = useRef({ width: width, height: height ?? 0 })
-  const resolvedWidth = resolveWidth(sizeOverride?.width, width)
-  const resolvedHeight = resolveHeight(sizeOverride?.height ?? height)
+  // Frameless widgets fit their content exactly (e.g. an image's native size)
+  // rather than assuming a title-bar-sized minimum window.
+  const minWidth = frameless ? 40 : 180
+  const minHeight = frameless ? 40 : 140
+  const resolvedWidth = resolveWidth(sizeOverride?.width, width, minWidth)
+  const resolvedHeight = resolveHeight(sizeOverride?.height ?? height, minHeight)
   const [liveSize, setLiveSize] = useState(() => ({ width: resolvedWidth, height: resolvedHeight }))
   const sizeRef = useRef(liveSize)
   const measureWindowHeight = () => frameRef.current?.offsetHeight ?? liveSize.height ?? height ?? 260
@@ -219,10 +232,10 @@ export function DesktopWindow({
       } else if (resizing.current) {
         const dx = e.clientX - resizeStartPointer.current.x
         const dy = e.clientY - resizeStartPointer.current.y
-        const maxResizableHeight = Math.max(140, window.innerHeight - TASKBAR_HEIGHT_PX)
+        const maxResizableHeight = Math.max(minHeight, window.innerHeight - TASKBAR_HEIGHT_PX)
         const next = {
-          width: clampDimension(resizeStartSize.current.width + dx, 180, 1400),
-          height: clampDimension(resizeStartSize.current.height + dy, 140, maxResizableHeight),
+          width: clampDimension(resizeStartSize.current.width + dx, minWidth, 1400),
+          height: clampDimension(resizeStartSize.current.height + dy, minHeight, maxResizableHeight),
         }
         sizeRef.current = next
         setLiveSize(next)
@@ -367,11 +380,12 @@ export function DesktopWindow({
         className={`window-body desktop-window-body ${bodyClassName}`.trim()}
         style={{
           ...bodyStyle,
-          ...(liveSize.height ? { flex: 1, overflow: 'auto' } : {}),
+          ...(liveSize.height ? { flex: 1, overflow: resolvedBodyOverflow } : {}),
         }}
       >
         {children}
       </div>
+      {!autoSize && (
       <div
         role="presentation"
         onMouseDown={handleResizeMouseDown}
@@ -387,6 +401,7 @@ export function DesktopWindow({
           background: 'var(--widget-resize-handle, linear-gradient(135deg, transparent 0%, transparent 35%, #4f4f4f 35%, #4f4f4f 55%, #bfbfbf 55%, #bfbfbf 75%, #4f4f4f 75%, #4f4f4f 100%))',
         }}
       />
+      )}
       {isClippedShape(shapeDef) && shapeGeometry ? (
         <ShapeChrome def={shapeDef} width={shapeGeometry.width} height={shapeGeometry.height} />
       ) : null}

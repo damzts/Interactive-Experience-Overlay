@@ -25,6 +25,8 @@ type AssetCatalogResponse = {
 }
 
 const WINAMP_FOLDER = 'images/winamp'
+const DEFAULT_BOX = { width: 275, height: 116 }
+const MAX_BOX_WIDTH = 400
 
 function randomIndex(length: number, exclude: number | null) {
   if (length <= 1) return 0
@@ -40,6 +42,7 @@ export function WinampWindowWidget({ appId, onClose, onMinimize, onFocus, window
   const [assets, setAssets] = useState<AssetCatalogEntry[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [box, setBox] = useState(DEFAULT_BOX)
 
   const winampWindowSettings = useMemo(() => {
     const app = applications.find((entry) => entry.id === appId)
@@ -76,6 +79,14 @@ export function WinampWindowWidget({ appId, onClose, onMinimize, onFocus, window
   }, [])
 
   const current = useMemo(() => assets[currentIndex] ?? null, [assets, currentIndex])
+
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget
+    if (!naturalWidth || !naturalHeight) return
+    const width = Math.min(MAX_BOX_WIDTH, naturalWidth)
+    const height = Math.round(width * (naturalHeight / naturalWidth))
+    setBox({ width, height })
+  }, [])
 
   const showNext = useCallback(() => {
     setCurrentIndex((prev) => {
@@ -126,8 +137,10 @@ export function WinampWindowWidget({ appId, onClose, onMinimize, onFocus, window
     <DesktopWindow
       id={appId ?? 'winamp-window'}
       title=""
-      width={275}
+      width={box.width}
+      height={box.height}
       frameless
+      autoSize
       defaultPosition={{ x: 220, y: 90 }}
       zIndex={zIndex}
       state={windowState}
@@ -142,6 +155,7 @@ export function WinampWindowWidget({ appId, onClose, onMinimize, onFocus, window
         <img
           src={current.url}
           alt={current.name}
+          onLoad={handleImageLoad}
           style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
           draggable={false}
         />

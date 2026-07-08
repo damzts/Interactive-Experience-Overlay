@@ -63,6 +63,7 @@ export interface WidgetThemeConfig {
   shadowIntensity: number
   borderRadius: number
   titleColor: string
+  scrollbars: 'auto' | 'hidden'
 }
 
 export type EventWidgetThemePatch = Partial<Omit<WidgetThemeConfig, 'skin'>> & {

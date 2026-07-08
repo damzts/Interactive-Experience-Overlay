@@ -300,6 +300,8 @@ export function DesktopThemeEditor() {
                   onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, shadowIntensity: value / 100 })); setSaved(false) }} />
                 <Slider label="Radius" value={widgetTheme.borderRadius} min={0} max={32} step={1} unit="px"
                   onChange={(value) => { setWidgetTheme((prev) => ({ ...prev, borderRadius: value })); setSaved(false) }} />
+                <Toggle checked={widgetTheme.scrollbars === 'hidden'} label="Hide scrollbars" size="sm"
+                  onChange={(v) => { setWidgetTheme((prev) => ({ ...prev, scrollbars: v ? 'hidden' : 'auto' })); setSaved(false) }} />
               </div>
             </div>
           </div>

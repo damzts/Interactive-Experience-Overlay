@@ -521,6 +521,11 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
                   ))}
                 </select>
               </div>
+              <Toggle checked={widgetTheme.scrollbars === 'hidden'} label="Hide scrollbars" size="sm"
+                onChange={(v) => {
+                  setWidgetTheme((prev) => ({ ...prev, scrollbars: v ? 'hidden' : 'auto' }))
+                  setSaved(false)
+                }} />
             </div>
           </ConfigPanel>
         )}
