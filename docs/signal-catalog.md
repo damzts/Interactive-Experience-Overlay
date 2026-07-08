@@ -17,7 +17,12 @@ All Socket.IO event types between kernel and userspace.
 
 ## Signals (Kernel → Overlay)
 
-Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
+Two planes, both defined in `packages/shared/src/contracts/signals.ts`:
+
+- **Protocol/lifecycle signals** — bespoke `ServerToClientEvents` entries, one `socket.on(...)` per event. Reserved for things that aren't manager domain events: state/config sync, overlay slot ownership, WebRTC signaling, diagnostics.
+- **Domain (manager) signals** — travel over one generic `'kernel:signal'` socket event carrying a `BusFrame` envelope (`{ event, payload, source, t, seq }`). `KernelSignalMap` is the single source of truth for which KernelBus events are public and what they carry; the server allowlists by its keys (`isPublicKernelSignal`) and forwards automatically (`transport/socket/handlers/kernelSignal.ts`) — adding a manager event here costs zero transport code. Overlay clients subscribe with the typed helper `onKernelSignal('some:event', payload => ...)` (`overlay/src/socket/kernelSignals.ts`).
+
+### Protocol/lifecycle (`ServerToClientEvents`)
 
 | Event | Payload | When | Receiver action |
 |-------|---------|------|----------------|
@@ -26,7 +31,7 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `overlay:show` | `OverlayTriggerPayload` | Admin trigger, event fire | Run effects + SFX |
 | `config:update` | `AppConfig` | Full (non-patch) config save | Replace full config in store |
 | `config:patch` | `Partial<AppConfig>` | Partial config save (the common path) | Merge patch into config |
-| `runtime:config:override` | `RuntimeConfigOverridePayload` | Admin preview / runtime tweak | Apply scoped override without persisting |
+| `runtime:config` | `RuntimeConfig` | Admin preview / runtime tweak | Apply scoped override without persisting |
 | `obs:status` | `ObsStatusPayload` | OBS connection state changes | Update OBS indicator in admin/overlay |
 | `ambiance:metrics` | `{ accepted, rejected }` | After each simulation cycle | Update diagnostics display |
 | `runtime:diagnostics` | `RuntimeDiagnosticsPayload` | Throttled periodic emit | Update admin diagnostics panels |
@@ -39,25 +44,36 @@ Defined in `packages/shared/src/contracts/signals.ts` as `ServerToClientEvents`.
 | `widget:layout:apply` | `layoutId: string` | Layout preset activated | Apply named widget layout |
 | `widget:layout:apply:items` | `WidgetLayoutItem[]` | Layout items applied | Apply raw widget positions/sizes |
 | `desktop:notify` | `DesktopNotificationPayload` | Server wants to notify user | Show OS-style notification toast |
-| `desktop:recycle-bin` | `{ full: boolean }` | Recycle bin state changes | Update bin icon appearance |
+| `desktop:recycle-bin` | `DesktopRecycleBinPayload` | Recycle bin state changes | Update bin icon appearance |
 | `desktop:start-menu:state` | `DesktopStartMenuStatePayload` | Start menu visibility changes | Sync start menu open/closed state |
-| `desktop:start-menu:phase` | `DesktopStartMenuSimulationPhasePayload` | Ambiance navigates start menu | Animate cursor through menu phases |
-| `desktop:screen-saver:test` | `{ preset }` | Admin previews screen saver | Activate screen saver temporarily |
-| `desktop:icon:drag` | `DesktopIconDragPayload` | Ambiance drags an icon | Animate icon to new position |
-| `desktop:widget:drag` | `DesktopWidgetDragPayload` | Ambiance drags a window | Move widget to new position |
-| `desktop:widget:resize` | `DesktopWidgetResizePayload` | Ambiance resizes a window | Resize widget |
+| `desktop:screen-saver:test` | `DesktopScreenSaverPreviewPayload` | Admin previews screen saver | Activate screen saver temporarily |
 | `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Automation rule fires a custom widget action | Widget receives the action |
-| `chat:message` | `ChatMessagePayload` | TwitchChatManager (via explicit bridge) | Every Twitch PRIVMSG received |
-| `chat:connected` | `{ channel: string }` | TwitchChatManager (via explicit bridge) | IRC JOIN confirmed |
-| `obs:stream:started` | `{}` | ObsBridge (via explicit bridge) | OBS starts streaming |
-| `obs:stream:stopped` | `{}` | ObsBridge (via explicit bridge) | OBS stops streaming |
-| `obs:recording:started` | `{}` | ObsBridge (via explicit bridge) | OBS starts recording |
-| `obs:recording:stopped` | `{}` | ObsBridge (via explicit bridge) | OBS stops recording |
-| `obs:virtualcam:changed` | `{ active: boolean }` | ObsBridge (via explicit bridge) | Virtual camera toggled |
-| `show:step` | `ShowStepPayload` | ShowSequencer (via explicit bridge) | Each step of a running show executes |
+| `widget:signal` | `{ source, event, payload }` | Server-originated automation `signal:emit` action | Overlay re-enters it on the widget DOM signal bus |
+| `kernel:signal` | `BusFrame` | Any public KernelBus event (see table below) | `onKernelSignal` fans it out to per-event listeners |
 | `bus:trace:frames` | `BusFrame[]` | BusHistoryRecorder | Batched bus frames pushed to `bus:trace` room subscribers |
 | `pov-online:relay:offer` | `{ sdp: string }` | RoomRelay when active participant changes | Overlay creates answer PC, calls `pov-online:relay:answer` |
 | `pov-online:relay:ice` | `RTCIceCandidateInit` | RoomRelay during ICE negotiation | Overlay adds ICE candidate to its PC |
+
+### Domain signals (via `kernel:signal`, defined in `KernelSignalMap`)
+
+| Event | Payload | When |
+|-------|---------|------|
+| `chat:message` | `ChatMessagePayload` | Every Twitch PRIVMSG (IRC) or simulated chat message |
+| `chat:connected` | `{ channel: string }` | IRC JOIN confirmed |
+| `twitch:eventsub:connected` | `TwitchEventSubConnectedPayload` | EventSub WebSocket session established |
+| `twitch:follow` / `twitch:subscribe` / `twitch:gift-sub` / `twitch:cheer` / `twitch:raid` / `twitch:points:redemption` | per-event payload types | Corresponding Twitch EventSub notification |
+| `twitch:stream:online` / `twitch:stream:offline` | `TwitchStreamOnlinePayload` / `{}` | Channel goes live / offline |
+| `twitch:hype-train:begin` / `twitch:hype-train:end` | begin/end payload types | Hype train starts/ends |
+| `obs:stream:started` / `obs:stream:stopped` | `{}` | OBS starts/stops streaming |
+| `obs:recording:started` / `obs:recording:stopped` | `{}` | OBS starts/stops recording |
+| `obs:virtualcam:changed` | `{ active: boolean }` | Virtual camera toggled |
+| `show:step` | `ShowStepPayload` | Each step of a running show executes |
+| `audio:beat` | `AudioBeatPayload` | Overlay's audio-reactivity monitor detects a beat |
+| `audio:energy:high` / `audio:energy:low` | `AudioEnergyPayload` | Audio level crosses a reactivity threshold |
+| `audio:silence` | `{}` | Audio-reactivity monitor detects silence |
+| `persona:speak` | `PersonaSpeakPayload` | PersonaManager selects and synthesizes a chat line |
+
+Ground truth for this table is `KernelSignalMap` in `signals.ts` — it's a compiler-enforced total record against `PUBLIC_KERNEL_SIGNAL_FLAGS`, so it can never drift out of sync with the allowlist itself (only with this doc).
 
 ---
 

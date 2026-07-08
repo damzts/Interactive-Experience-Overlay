@@ -96,7 +96,7 @@ The `obs-stream` kind is exclusive to shows (and automation rules). It calls int
 
 ## Bus events
 
-As each step fires, the sequencer emits `show:step` on the KernelBus (forwarded to overlay via `bus:custom`):
+As each step fires, the sequencer emits `show:step` on the KernelBus (declared in the shared `KernelSignalMap`, so it's forwarded to overlay automatically via the generic `kernel:signal` bridge — see `docs/signal-catalog.md`):
 
 ```ts
 { event: 'show:step', payload: { showId: string, stepIndex: number, label: string } }

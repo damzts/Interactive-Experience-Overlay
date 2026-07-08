@@ -7,6 +7,7 @@
 import Database from 'better-sqlite3'
 import { existsSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import logger from '../lib/logger.js'
 
 export type DesktopDatabase = Database.Database
 
@@ -323,15 +324,15 @@ export function migrateAutomationRules(db: DesktopDatabase): void {
       }
       db.exec('DROP TABLE widget_wires;')
     })()
-    console.log('[desktop-db] imported widget_wires into automation_rules')
+    logger.info('[desktop-db] imported widget_wires into automation_rules')
   }
 }
 
 export function closeDesktopDatabase(db: DesktopDatabase): void {
   try {
     db.close()
-    console.log('[desktop-db] Database closed.')
+    logger.info('[desktop-db] Database closed.')
   } catch (e) {
-    console.error('[desktop-db] Error closing database:', e)
+    logger.error(`[desktop-db] Error closing database: ${(e as Error).message}`)
   }
 }

@@ -35,35 +35,41 @@ points at a pattern that already ships in the codebase.
 | Unified `AutomationRule` | `shared/src/contracts/automation.ts` | One shape for any signal → any action; deterministic overlay/server evaluation split; single-hop `signal:emit` loop guard. |
 | Effect dispatch registry | `overlay/src/effects/registry.ts` | String-keyed, hot-swappable, concurrency-budgeted. The *dispatch* side of effects is already generic. |
 | `BusFrame` envelope + `KernelBus.onAny` | `shared/src/contracts/signals.ts`, `server/src/kernel/bus.ts` | A generic `{event, payload, source, t, seq}` envelope already exists and is already consumed generically by `AutomationManager` and `BusHistoryRecorder`. |
+| `KernelSignalMap` + `kernel:signal` bridge (P1, now shipped) | `shared/src/contracts/signals.ts`, `server/src/transport/socket/handlers/kernelSignal.ts` | Compiler-enforced map↔allowlist; one generic forwarder; `onKernelSignal` typed client helper. New public manager event = one map entry, zero transport code. |
 
 ---
 
 ## 2. The five structural problems
 
-### P1 — The kernel→overlay ABI is a bag of bespoke events and doesn't scale
+### P1 — The kernel→overlay ABI is a bag of bespoke events and doesn't scale — ✅ SHIPPED (verified 2026-07-07)
 
-**Evidence (2026-07-05):**
+**Original evidence (2026-07-05):** `shared/src/contracts/signals.ts` hand-listed ~50 events in
+`ServerToClientEvents`; `server/src/transport/socket/handlers/managers.ts` had 19 identical
+`bus.on(X, p => io.emit(X, p))` lines; a new manager capability cost 4–5 file touches.
 
-- `shared/src/contracts/signals.ts` — 377 lines, ~50 hand-listed events in
-  `ServerToClientEvents`, including 11 `twitch:*`, 5 `obs:*`, plus `chat:*`, `show:*`.
-- `server/src/transport/socket/handlers/managers.ts` — **19 identical lines** of
-  `bus.on(X, p => io.emit(X, p))`. Boilerplate this uniform is proof the abstraction is missing.
-- Cost of one new manager capability today: 4–5 file touches — KernelEvents declaration
-  (`*.signals.ts`), payload type + `ServerToClientEvents` entry (`signals.ts`), bridge line
-  (`managers.ts`), overlay handler (`signalMap.ts`) or widget listener.
+**Current state:** this phase is done. `KernelSignalMap` in `shared/src/contracts/signals.ts`
+is the compiler-enforced (map ↔ allowlist) single source of truth for public domain events;
+`transport/socket/handlers/kernelSignal.ts` is the one generic `bus.onAny` forwarder
+(`registerKernelSignalBridge`); `managers.ts` no longer exists. Overlay consumes via the typed
+`onKernelSignal` helper in `overlay/src/socket/kernelSignals.ts`. `ServerToClientEvents` now
+holds only protocol/lifecycle events (config sync, `state:update`, overlay slot ownership,
+resync, WebRTC signaling) plus the single `kernel:signal` passthrough — exactly the fix
+direction below. A manager event (e.g. `persona:speak`, added 2026-07-07) now costs one line
+in `KernelSignalMap` + one allowlist flag, zero transport code. See `docs/manager-authoring.md`
+Step 4 and `docs/signal-catalog.md` for the current pattern.
 
-**Why it fights the vision:** every new integration (a Discord manager, a hardware button, a
-game-state poller) pays a per-event transport tax before any creative work starts, and its
-events are *not* automatically visible to widgets/renderers/automation on the overlay side.
+<details>
+<summary>Original fix direction (kept for history — now the shipped behavior)</summary>
 
-**Fix direction:** one generic `kernel:signal` socket channel carrying `BusFrame` envelopes
-for all **domain** events. Overlay gets a typed helper (`onKernelSignal('twitch:follow', cb)`)
-that narrows payloads from the existing `KernelEvents` map. Bespoke socket events remain
-*only* for protocol/lifecycle: config sync (`config:update`/`config:patch`), `state:update`,
-overlay slot ownership, resync, and WebRTC signaling. The server side becomes one
-`bus.onAny` forwarder with an allowlist (a manager marks events as `public` in its signals
-file) — `managers.ts` is deleted. A new manager event then costs **zero** transport changes
-and is instantly consumable by automation rules, widgets, and renderers.
+One generic `kernel:signal` socket channel carrying `BusFrame` envelopes for all **domain**
+events. Overlay gets a typed helper (`onKernelSignal('twitch:follow', cb)`) that narrows
+payloads from the existing `KernelEvents` map. Bespoke socket events remain *only* for
+protocol/lifecycle: config sync (`config:update`/`config:patch`), `state:update`, overlay slot
+ownership, resync, and WebRTC signaling. The server side becomes one `bus.onAny` forwarder
+with an allowlist (a manager marks events as `public` in its signals file) — `managers.ts` is
+deleted. A new manager event then costs **zero** transport changes and is instantly consumable
+by automation rules, widgets, and renderers.
+</details>
 
 ### P2 — Effects are the least-lego subsystem, and they're the main creative currency
 
@@ -146,6 +152,13 @@ cursor-timeline signals move out of the shared ABI into overlay-internal concern
 > serve multi-client mirroring in online rooms (leader/follower overlays). If so, keep a
 > generic "presentation event relay" channel rather than deleting the capability.
 
+> **Partial progress noted 2026-07-07:** `desktop:start-menu:phase` (the per-frame cursor
+> choreography payload) is already gone from the shared ABI — `DesktopStartMenuSimulationPhasePayload`
+> now lives entirely in `overlay/src/desktop/simulationTypes.ts` and is computed/consumed
+> overlay-internally (`cursorSimUtils.ts`, `Desktop.tsx`, `StartMenu.tsx`). `desktop:start-menu:state`
+> (open/closed + active root) is still a shared signal — that's the one to re-examine against
+> the online-rooms mirroring question above, not the phase timeline.
+
 ### P5 — Two competing scene concepts
 
 **Evidence:** a data-driven `scenes` table (with renderers, tiers, transitions, ambient
@@ -170,20 +183,10 @@ scene table instead of an enum; `TRANSITIONING` becomes a machine phase, not a s
 Each phase is independently shippable and leaves the system fully working. Order is by
 leverage ÷ risk. Breaking persisted data is acceptable in every phase.
 
-### Phase 1 — Signal fabric (P1)
+### Phase 1 — Signal fabric (P1) — ✅ DONE
 
-- **Goal:** all domain events flow kernel→overlay through one generic `kernel:signal`
-  BusFrame channel; `managers.ts` deleted.
-- **Touches:** `shared/src/contracts/signals.ts` (shrink `ServerToClientEvents` to
-  protocol/lifecycle + `kernel:signal`), a `public: true` marker convention in
-  `server/src/kernel/managers/*.signals.ts`, one `bus.onAny` forwarder in
-  `server/src/transport/socket/handlers/`, a typed `onKernelSignal` helper in
-  `overlay/src/socket/`, migration of the few overlay/widget listeners that consumed the
-  bespoke twitch/obs/chat/show events, admin diagnostics listeners.
-- **Done when:** adding a throwaway event to any manager reaches an overlay listener and an
-  automation rule with zero transport-file edits; `managers.ts` no longer exists.
-- **Risk:** low. Payload typing across the generic channel must stay ergonomic — the
-  `KernelEvents` map already provides the type source.
+All domain events flow kernel→overlay through the generic `kernel:signal` BusFrame channel;
+`managers.ts` is deleted. See the P1 section above for the current shape.
 
 ### Phase 2 — Effect manifests (P2)
 

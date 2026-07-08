@@ -7,14 +7,16 @@
 
 ## Overview
 
-Two managers handle Twitch chat:
+Two managers handle Twitch:
 
-- **`TwitchChatManager`** — connects to Twitch IRC, parses messages, emits them on the KernelBus.
+- **`TwitchIntegrationManager`** (`kernel/managers/twitch.ts`) — connects to Twitch IRC for chat, and to EventSub for channel events (follow, subscribe, gift-sub, cheer, raid, points redemption, stream online/offline, hype train). Emits everything on the KernelBus.
 - **`ChatReactionManager`** — sits on top, evaluates configured rules against every `chat:message`, and fires effects or actions when they match.
+
+This doc focuses on the chat/IRC half. EventSub payloads (`twitch:follow`, `twitch:raid`, etc.) are cataloged in `docs/signal-catalog.md`.
 
 ---
 
-## TwitchChatManager
+## TwitchIntegrationManager (chat/IRC half)
 
 ### Connection
 
@@ -37,14 +39,14 @@ Connects to `wss://irc-ws.chat.twitch.tv:443` using the IRCv3 protocol.
 
 Set via the admin panel (**System → Twitch Chat**) or the config API: `POST /api/config/section { section: 'twitch', data: { channel: 'mychannel', enabled: true } }`.
 
-The connection status dot in the admin panel is driven live by the `bus:custom → chat:connected` Socket.IO event — it turns green as soon as IRC JOIN is confirmed.
+The connection status dot in the admin panel is driven live by the `chat:connected` kernel signal (delivered over the generic `kernel:signal` channel — see below) — it turns green as soon as IRC JOIN is confirmed.
 
 ### What gets emitted
 
 Every PRIVMSG parsed from Twitch IRC produces a `chat:message` event on `KernelBus`:
 
 ```ts
-bus.emitCustom('chat:message', {
+bus.emit('chat:message', {
   user:    string,   // display-name tag, falls back to IRC nick
   text:    string,   // message body
   color:   string,   // #RRGGBB from color tag, or '' if unset
@@ -54,7 +56,7 @@ bus.emitCustom('chat:message', {
 })
 ```
 
-`KernelBus.emitCustom` automatically forwards this to every connected overlay client as a `bus:custom` Socket.IO event.
+`chat:message` is declared in the shared `KernelSignalMap` (`packages/shared/src/contracts/signals.ts`), so the generic kernel→client bridge (`transport/socket/handlers/kernelSignal.ts`) forwards it to every connected overlay client automatically as a `kernel:signal` BusFrame — there is no per-event bridge code to maintain. See `docs/signal-catalog.md` for the full domain-signal catalog and `docs/manager-authoring.md` for how to add a new one.
 
 ### Reconnect
 
@@ -70,16 +72,16 @@ Exponential backoff: `[5s, 10s, 30s, 60s, 120s]`. After the last tier it keeps r
 
 ```
 Twitch IRC
-  → TwitchChatManager
-  → bus.emitCustom('chat:message')
-  → bus:custom socket event
-  → ChatWidget useEffect → setMessages()
+  → TwitchIntegrationManager
+  → bus.emit('chat:message')
+  → kernel:signal socket event (generic bridge)
+  → onKernelSignal('chat:message') in ChatWidget → setMessages()
 
 Admin simulate button
   → kernel simulate handler
-  → bus.emitCustom('chat:message', { source: 'simulation' })
-  → bus:custom socket event
-  → ChatWidget useEffect → setMessages()
+  → bus.emit('chat:message', { source: 'simulation' })
+  → kernel:signal socket event (generic bridge)
+  → onKernelSignal('chat:message') in ChatWidget → setMessages()
 ```
 
 Both paths produce identical `Message` objects in the widget. `source` field lets you distinguish real from simulated if needed.
@@ -130,9 +132,9 @@ The admin panel supports match type, match value, cooldown, and comma-separated 
 
 | File | Role |
 |------|------|
-| `packages/server/src/kernel/managers/twitchChat.ts` | IRC connection, parsing, reconnect |
-| `packages/server/src/kernel/managers/twitchChat.signals.ts` | `chat:message`, `chat:connected` KernelEvents augmentation |
+| `packages/server/src/kernel/managers/twitch.ts` | `TwitchIntegrationManager` — IRC connection/parsing/reconnect + EventSub |
+| `packages/shared/src/contracts/signals.ts` | `chat:message`, `chat:connected`, `twitch:*` entries in `KernelSignalMap` |
 | `packages/server/src/kernel/managers/chatReactions.ts` | Rule evaluation, cooldown, dispatch |
 | `packages/shared/src/domain/config.ts` | `TwitchConfig`, `ChatReactionMatch`, `ChatReactionRule` types |
-| `packages/overlay/src/desktop/ChatWidget.tsx` | Receives `bus:custom` chat:message events |
+| `packages/overlay/src/desktop/ChatWidget.tsx` | Receives `chat:message` via `onKernelSignal` |
 | `packages/admin/src/features/twitch/TwitchPanel.tsx` | Admin panel (System → Twitch Chat) |

@@ -130,25 +130,29 @@ export class YourManager implements Manager {
 
 ---
 
-## Step 4 — Add socket signals (if the manager emits to the overlay)
+## Step 4 — Make the event public (if the manager emits to the overlay)
 
-In `packages/shared/src/contracts/signals.ts`, add to `ServerToClientEvents`:
-
-```ts
-'your:signal': (payload: YourSignalPayload) => void
-```
-
-In `transport/socket/handlers/managers.ts`, add one line to `registerManagerSignals`:
+Domain events reach clients through one generic channel, not bespoke socket events. Add your event to `KernelSignalMap` (and its allowlist flag) in `packages/shared/src/contracts/signals.ts`:
 
 ```ts
-bus.on('your:event', (payload) => {
-  io.emit('your:signal', payload)
-})
+export interface KernelSignalMap {
+  // ...
+  'your:event': YourEventPayload
+}
+
+const PUBLIC_KERNEL_SIGNAL_FLAGS: Record<KernelSignalEvent, true> = {
+  // ...
+  'your:event': true,
+}
 ```
 
-This is the **explicit bridge** between the two communication planes. Nothing is forwarded automatically — every signal that crosses from KernelBus to Socket.IO requires a line here.
+That's it — nothing else to touch. `KernelEvents` picks up the augmentation automatically (`kernel/publicSignals.ts` does `interface KernelEvents extends KernelSignalMap {}` once, for every event), and the transport bridge (`transport/socket/handlers/kernelSignal.ts`) forwards every allowlisted bus event to clients as a `kernel:signal` BusFrame with zero per-event code. Overlay clients consume it with a typed helper:
 
-**Why separate bus events from socket signals?** Bus events are internal. Multiple consumers can listen (diagnostics, logging, other managers). Socket signals are external ABI — once you emit them, clients depend on them. Keeping the bridge explicit means you can change internal plumbing without touching the ABI.
+```ts
+onKernelSignal('your:event', (payload) => { /* ... */ })
+```
+
+**Why a generic channel instead of a bespoke `ServerToClientEvents` entry per event?** The compiler-enforced `PUBLIC_KERNEL_SIGNAL_FLAGS` map keeps the map and the allowlist in sync, so making an event public is a one-line, one-file change instead of a bus declaration + payload type + bridge line + client handler across four files. Reserve bespoke `ServerToClientEvents` entries for protocol/lifecycle concerns only (config sync, state:update, overlay slot ownership, WebRTC signaling) — not for manager domain events.
 
 ---
 
@@ -179,5 +183,5 @@ Add the command type in `packages/shared/src/contracts/commands.ts`.
 - [ ] Registered in `desktop-entry.ts` after its dependencies
 - [ ] Bus events (if any) declared in a co-located `yourmanager.signals.ts` (never edit `kernel/bus.ts` directly)
 - [ ] `yourmanager.signals.ts` side-effect imported in `kernel/index.ts`
-- [ ] Socket signals (if any) added to `ServerToClientEvents` in `signals.ts`
+- [ ] Public overlay-facing events (if any) added to `KernelSignalMap` + its allowlist flag in `signals.ts`
 - [ ] Socket commands (if any) added to `ClientToServerEvents` in `commands.ts`

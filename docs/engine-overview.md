@@ -68,7 +68,7 @@ The engine is presentation-agnostic. It manages state, schedules events, runs am
 
 ## What the engine does
 
-The engine has eleven distinct responsibilities:
+The engine has these distinct responsibilities:
 
 **State machine** — owns the current scene and valid transitions between scenes. Nothing outside the engine decides what the current visual state is.
 
@@ -88,9 +88,15 @@ The engine has eleven distinct responsibilities:
 
 **Show sequencer** — scripted show pipelines. A `ShowDefinition` is an ordered list of `ShowStep` records (each with a `delayMs` and an `EventAction`). POST `/api/shows/:id/run` starts the chain; POST `/api/shows/:id/cancel` aborts it. Each step fires via `scheduler:fired` so the existing action dispatch path handles it — the sequencer only needs to know about `obs-stream` actions, which it executes directly through `ObsBridge`.
 
-**Twitch chat bridge** — connects to Twitch IRC over WebSocket (anonymous read-only via `justinfan` nick, or authenticated). Parses IRCv3 PRIVMSG tags and emits `chat:message` onto the KernelBus; the explicit bridge in `handlers/managers.ts` forwards it to clients as the first-class `chat:message` Socket.IO signal. `ChatReactionManager` sits on top and fires configured effects and actions when chat messages match keyword, command, or regex rules.
+**Twitch integration** — `TwitchIntegrationManager` connects to Twitch IRC over WebSocket (anonymous read-only via `justinfan` nick, or authenticated) for chat, and to EventSub over WebSocket for channel events (follow, subscribe, gift-sub, cheer, raid, points redemption, stream online/offline, hype train). Both emit onto the KernelBus (`chat:message`, `twitch:*`); since those events are declared in the shared `KernelSignalMap`, the generic `kernel:signal` bridge (see P1 in `docs/architecture-debt.md`) forwards them to clients automatically — no per-event transport code. `ChatReactionManager` sits on top of chat and fires configured effects/actions when messages match keyword, command, or regex rules.
 
-**OBS bridge** — full bidirectional OBS WebSocket integration. Records streaming, recording, and virtual camera state; emits `obs:stream:started/stopped`, `obs:recording:started/stopped`, and `obs:virtualcam:changed` events on the KernelBus. The explicit bridge in `handlers/managers.ts` forwards these to clients as first-class Socket.IO signals. Show sequencer and automation rules can start/stop streams via the `obs-stream` `EventAction` kind.
+**OBS bridge** — full bidirectional OBS WebSocket integration via `ObsBridgeManager`. Tracks streaming, recording, and virtual camera state; emits `obs:stream:started/stopped`, `obs:recording:started/stopped`, and `obs:virtualcam:changed` on the KernelBus, forwarded to clients the same generic way. Show sequencer and automation rules can start/stop streams via the `obs-stream` `EventAction` kind.
+
+**Effect ambiance** — `EffectAmbianceManager` fires configured effects on a random ambient loop, independent of the scripted scheduler/show-sequencer paths.
+
+**Theme drift** — `ThemeDriftManager` ambiently varies the desktop art style (theme/skin, colors, motion, atmosphere) over time as a non-reverting runtime override — see `desktopThemeDrift` in `AppConfig`.
+
+**Persona** — `PersonaManager` picks a chat message (command/keyword/chance-triggered), synthesizes it to speech (Windows SAPI via `TtsService`), and emits `persona:speak` so the overlay can play it through a robotic voice filter with a caption bubble.
 
 ## What the engine exposes
 
@@ -119,14 +125,19 @@ packages/server/src/
 │       ├── config.signals.ts        # KernelEvents augmentation for config:changed
 │       ├── automation.ts   # AutomationManager — persisted "when event X → do Y" rules
 │       ├── runtime.ts      # RuntimeStateStore — in-memory session state (incl. overlaySocketId)
-│       ├── obs.ts          # ObsBridge — OBS WebSocket bridge (stream/record/vcam state + actions)
-│       ├── obs.signals.ts           # KernelEvents augmentation for obs:stream/recording/virtualcam
+│       ├── obs.ts          # ObsBridgeManager — OBS WebSocket bridge (stream/record/vcam state + actions)
 │       ├── showSequencer.ts         # ShowSequencer — scripted multi-step show pipelines
-│       ├── showSequencer.signals.ts # KernelEvents augmentation for show:step
-│       ├── twitchChat.ts            # TwitchChatManager — IRC-over-WS, emits chat:message
-│       ├── twitchChat.signals.ts    # KernelEvents augmentation for chat:message, chat:connected
+│       ├── twitch.ts                # TwitchIntegrationManager — IRC chat + EventSub (follow/sub/cheer/raid/...)
 │       ├── chatReactions.ts         # ChatReactionManager — keyword/command/regex → effects/actions
+│       ├── effectAmbiance.ts        # EffectAmbianceManager — ambient random effect loop
+│       ├── themeDrift.ts            # ThemeDriftManager — ambient art-style drift
+│       ├── persona.ts               # PersonaManager — chat-to-voice companion (TTS + robotic filter)
 │       └── pov.ts          # POVOrchestrator — video switching
+# All manager-private bus events (ambiance:tick, scheduler:fired, config:changed, ...) live in a
+# co-located `<manager>.signals.ts` next to the manager that owns them — see manager-authoring.md.
+# Events meant for clients don't need one of these files; they're declared directly in the
+# shared KernelSignalMap (packages/shared/src/contracts/signals.ts) and reach overlay/admin
+# automatically via the generic `kernel:signal` bridge (transport/socket/handlers/kernelSignal.ts).
 ├── transport/
 │   ├── http/               # Fastify routes (config, media, archive, room, automation, shows)
 │   ├── socket/             # Socket.IO handlers (all domain modules)
@@ -163,10 +174,12 @@ packages/server/src/
 - "Add a bus event for a manager" → create `kernel/managers/yourmanager.signals.ts`, see `docs/manager-authoring.md`
 - "Change fresh-install defaults" → `lib/bootstrapConfig.ts`
 - "Set up a scripted show pipeline" → `kernel/managers/showSequencer.ts`, `GET/POST /api/shows`
-- "Connect Twitch chat" → `kernel/managers/twitchChat.ts` (config: `AppConfig.twitch`)
+- "Connect Twitch chat / EventSub" → `kernel/managers/twitch.ts` (config: `AppConfig.twitch`)
 - "React to chat messages" → `kernel/managers/chatReactions.ts` (config: `AppConfig.chatReactions`)
-- "React to OBS stream/record events" → `kernel/managers/obs.signals.ts` + automation rules
+- "Speak a chat message aloud" → `kernel/managers/persona.ts`, `services/TtsService.ts` (config: `AppConfig.persona`)
+- "React to OBS stream/record events" → `obs:*` entries in `shared/src/contracts/signals.ts` (`KernelSignalMap`) + automation rules
 - "See OBS streaming/recording/vcam status in admin" → `features/obs/ObsPanel.tsx` (status badges shown when connected)
+- "Make a manager event visible to clients" → add it to `KernelSignalMap` in `shared/src/contracts/signals.ts`, see `docs/manager-authoring.md`
 
 ## Manager lifecycle
 
