@@ -41,6 +41,13 @@
   border-color: var(--desktop-panel-light) var(--desktop-panel-dark) var(--desktop-panel-dark) var(--desktop-panel-light);
 }
 
+.desktop .window.desktop-window--frameless {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: move;
+}
+
 .desktop--theme-y2k-candy .window,
 .desktop--theme-frutiger-aero .window,
 .desktop--theme-midnight-chrome .window,
@@ -482,6 +489,12 @@
   pointer-events: none;
   z-index: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 46%);
+}
+
+.desktop .desktop-window--frameless .desktop-window-body,
+.desktop .desktop-window--frameless .desktop-window-body::before {
+  background: transparent;
+  border: none;
 }
 
   .widget-forecast-shell {

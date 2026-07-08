@@ -642,6 +642,24 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
             </div>
           </ConfigPanel>
         )}
+
+        {form.id === 'winamp-window' && (
+          <ConfigPanel title="Winamp Window Settings" className="mb-4">
+            <div className="space-y-3">
+              <Toggle checked={form.winampWindowSettings?.randomOrder ?? true} label="Random order" size="sm"
+                onChange={(v) => update((d) => { d.winampWindowSettings = { randomOrder: v, autoPlay: d.winampWindowSettings?.autoPlay ?? false, intervalSec: d.winampWindowSettings?.intervalSec ?? 8 } })} />
+              <Toggle checked={form.winampWindowSettings?.autoPlay ?? false} label="Auto play" size="sm"
+                onChange={(v) => update((d) => { d.winampWindowSettings = { randomOrder: d.winampWindowSettings?.randomOrder ?? true, autoPlay: v, intervalSec: d.winampWindowSettings?.intervalSec ?? 8 } })} />
+              <div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Auto interval (seconds)</div>
+                <input type="number" min={2} max={120} value={form.winampWindowSettings?.intervalSec ?? 8}
+                  onChange={(e) => update((d) => { d.winampWindowSettings = { randomOrder: d.winampWindowSettings?.randomOrder ?? true, autoPlay: d.winampWindowSettings?.autoPlay ?? false, intervalSec: Math.max(2, Math.min(120, Number(e.target.value) || 8)) } })}
+                  className="w-24 font-mono text-xs" />
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-1">Borderless — cycles skin screenshots from assets/images/winamp.</div>
+              </div>
+            </div>
+          </ConfigPanel>
+        )}
         </>}
       </div>
 

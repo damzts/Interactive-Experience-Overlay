@@ -148,6 +148,12 @@ export interface Application {
     autoPlay?: boolean
     intervalSec?: number
   }
+  /** Optional per-widget settings for the winamp-window widget runtime behavior. */
+  winampWindowSettings?: {
+    randomOrder?: boolean
+    autoPlay?: boolean
+    intervalSec?: number
+  }
   /** Optional per-widget defaults for camera widget runtime behavior. */
   cameraSettings?: {
     preferredDeviceLabel?: string

@@ -1,6 +1,7 @@
 import type { WidgetDefinition } from '../contracts/widget.js'
 
 import { galleryDefinition } from './gallery/definition.js'
+import { winampWindowDefinition } from './winamp-window/definition.js'
 import { musicDefinition } from './music/definition.js'
 import { stickyNotesDefinition } from './sticky-notes/definition.js'
 import { chatDefinition } from './chat/definition.js'
@@ -22,6 +23,7 @@ export type { WidgetDefinition }
 
 export const WIDGET_DEFINITIONS = [
   galleryDefinition,
+  winampWindowDefinition,
   musicDefinition,
   stickyNotesDefinition,
   chatDefinition,

@@ -96,6 +96,7 @@ interface DesktopWindowProps {
   windowClassName?: string
   bodyStyle?: React.CSSProperties
   bodyClassName?: string
+  frameless?: boolean
   onFocus?: () => void
   onMinimize?: () => void
   onClose: () => void
@@ -113,6 +114,7 @@ export function DesktopWindow({
   windowClassName = '',
   bodyStyle,
   bodyClassName = '',
+  frameless = false,
   onFocus,
   onMinimize,
   onClose,
@@ -323,7 +325,7 @@ export function DesktopWindow({
   const frame = (
     <div
       ref={frameRef}
-      className={`window desktop-window${opening ? ' desktop-window--opening' : ''} desktop-window--${state}${isShapeClipped ? ' desktop-window--shaped' : ''} ${windowClassName}`.trim()}
+      className={`window desktop-window${opening ? ' desktop-window--opening' : ''} desktop-window--${state}${isShapeClipped ? ' desktop-window--shaped' : ''}${frameless ? ' desktop-window--frameless' : ''} ${windowClassName}`.trim()}
       onAnimationEnd={() => setOpening(false)}
       style={{
         position: 'relative',
@@ -332,33 +334,35 @@ export function DesktopWindow({
         display: 'flex',
         flexDirection: 'column',
         userSelect: 'none',
-        boxShadow: isShapeClipped ? 'none' : 'var(--widget-shell-shadow-drop, 4px 4px 0 #000)',
+        boxShadow: frameless || isShapeClipped ? 'none' : 'var(--widget-shell-shadow-drop, 4px 4px 0 #000)',
         clipPath: shapeClipPath,
         borderRadius: shapeDef?.kind === 'radius' ? shapeDef.borderRadius : undefined,
         ['--widget-phase' as string]: `${motionPhase}s`,
         ['--widget-hue-shift' as string]: `${hueShift}deg`,
       }}
-      onMouseDown={onFocus}
+      onMouseDown={frameless ? handleTitleMouseDown : onFocus}
       data-widget-id={id}
     >
-      <div
-        className="title-bar desktop-window-title"
-        style={{
-          cursor: 'move',
-          ...(titleInset?.top !== undefined ? { paddingTop: titleInset.top } : {}),
-          ...(titleInset?.left !== undefined ? { paddingLeft: titleInset.left } : {}),
-          ...(titleInset?.right !== undefined ? { paddingRight: titleInset.right } : {}),
-        }}
-        onMouseDown={handleTitleMouseDown}
-        data-widget-title-bar="true"
-      >
-        <div className="title-bar-text">{title}</div>
-        <div className="title-bar-controls">
-          <button aria-label="Minimize" onClick={onMinimize} />
-          <button aria-label="Maximize" />
-          <button aria-label="Close" onClick={onClose} />
+      {!frameless && (
+        <div
+          className="title-bar desktop-window-title"
+          style={{
+            cursor: 'move',
+            ...(titleInset?.top !== undefined ? { paddingTop: titleInset.top } : {}),
+            ...(titleInset?.left !== undefined ? { paddingLeft: titleInset.left } : {}),
+            ...(titleInset?.right !== undefined ? { paddingRight: titleInset.right } : {}),
+          }}
+          onMouseDown={handleTitleMouseDown}
+          data-widget-title-bar="true"
+        >
+          <div className="title-bar-text">{title}</div>
+          <div className="title-bar-controls">
+            <button aria-label="Minimize" onClick={onMinimize} />
+            <button aria-label="Maximize" />
+            <button aria-label="Close" onClick={onClose} />
+          </div>
         </div>
-      </div>
+      )}
       <div
         className={`window-body desktop-window-body ${bodyClassName}`.trim()}
         style={{

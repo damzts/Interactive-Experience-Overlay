@@ -1088,6 +1088,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   applications: [
     { id: 'gallery',              label: 'GALLERY.exe',         icon: '🖼',   widgetSource: 'system' as const, widgetComponent: 'gallery' as const,              gallerySettings: { randomOrder: true, autoPlay: false, intervalSec: 8 } },
+    { id: 'winamp-window',        label: 'Winamp.exe',          icon: '🎚️',  widgetSource: 'system' as const, widgetComponent: 'winamp-window' as const,        winampWindowSettings: { randomOrder: true, autoPlay: false, intervalSec: 8 } },
     { id: 'music',                label: 'MUSIC.exe',            icon: '🎵',   widgetSource: 'system' as const, widgetComponent: 'music' as const },
     { id: 'sticky-notes',         label: 'Sticky Notes',         icon: '📝',   widgetSource: 'system' as const, widgetComponent: 'sticky-notes' as const,         stickyNotesSettings: { ...DEFAULT_STICKY_NOTES_SETTINGS } },
     { id: 'chat',                 label: 'CHAT.exe',             icon: '💬',   widgetSource: 'system' as const, widgetComponent: 'chat' as const },

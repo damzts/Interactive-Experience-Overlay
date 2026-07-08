@@ -42,6 +42,7 @@ const widgetManifest: Record<RegisteredWidgetComponentType, WidgetManifestEntry>
   'sticky-notes':        { load: () => import('./StickyNotesWidget').then((m) => m.StickyNotesWidget),               defaultPosition: { x: 280,  y: 110 }, defaultSize: { width: 260              } },
   'wave-scope':          { load: () => import('./WaveScopeWidget').then((m) => m.WaveScopeWidget),                   defaultPosition: { x: 248,  y: 192 }, defaultSize: { width: 320              } },
   'weather-console':     { load: () => import('./WeatherConsoleWidget').then((m) => m.WeatherConsoleWidget),         defaultPosition: { x: 346,  y: 140 }, defaultSize: { width: 500              } },
+  'winamp-window':       { load: () => import('./WinampWindowWidget').then((m) => m.WinampWindowWidget),              defaultPosition: { x: 220,  y: 90  }, defaultSize: { width: 275, height: 116 } },
 }
 
 /** Cache of resolved components, populated on first use. */

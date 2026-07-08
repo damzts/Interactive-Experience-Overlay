@@ -36,6 +36,7 @@ export class WidgetRepository {
   private appToRow(app: Application): unknown[] {
     const settings: Record<string, unknown> = {}
     if (app.gallerySettings)      settings.gallerySettings      = app.gallerySettings
+    if (app.winampWindowSettings) settings.winampWindowSettings = app.winampWindowSettings
     if (app.cameraSettings)       settings.cameraSettings       = app.cameraSettings
     if (app.windowWidgetSettings) settings.windowWidgetSettings = app.windowWidgetSettings
     if (app.stickyNotesSettings)  settings.stickyNotesSettings  = app.stickyNotesSettings
