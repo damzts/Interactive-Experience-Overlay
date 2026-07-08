@@ -9,6 +9,8 @@ interface Message {
   color: string
 }
 
+const MAX_MESSAGES = 100
+
 const SEED_MESSAGES: Message[] = [
   { user: 'xXProGamer99', text: 'what game are you playing?', color: '#ff6b6b' },
   { user: 'StreamFan42',  text: 'PogChamp',                  color: '#69db7c' },
@@ -41,7 +43,7 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
       if (!msg) return
       setMessages((prev) => {
         dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
-        return [...prev, msg]
+        return [...prev, msg].slice(-MAX_MESSAGES)
       })
     })
   }, [appId])
@@ -51,7 +53,7 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
       if (targetWidgetId !== appId || action !== 'chat:add-message') return
       // chain actions don't carry a message payload — use a placeholder
       const msg = { user: 'chain', text: '(chain triggered)', color: '#aaa' }
-      setMessages((prev) => [...prev, msg])
+      setMessages((prev) => [...prev, msg].slice(-MAX_MESSAGES))
       dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
     })
   }, [appId])
@@ -60,7 +62,7 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
   useEffect(() => {
     return onKernelSignal('chat:message', (payload) => {
       const msg: Message = { user: payload.user, text: payload.text, color: payload.color || '#ffffff' }
-      setMessages((prev) => [...prev, msg])
+      setMessages((prev) => [...prev, msg].slice(-MAX_MESSAGES))
       dispatchWidgetSignal({ source: appId, event: 'chat:message', payload: { message: msg } })
     })
   }, [appId])
@@ -68,7 +70,7 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
   const handleSend = () => {
     const txt = input.trim()
     if (!txt) return
-    setMessages((prev) => [...prev, { user: 'You', text: txt, color: '#ffd43b' }])
+    setMessages((prev) => [...prev, { user: 'You', text: txt, color: '#ffd43b' }].slice(-MAX_MESSAGES))
     setInput('')
   }
 
@@ -77,6 +79,7 @@ export function ChatWidget({ appId, onClose, onMinimize, onFocus, windowState = 
       id="chat"
       title="💬 Chat.exe"
       width={280}
+      height={360}
       defaultPosition={{ x: 1580, y: 60 }}
       zIndex={zIndex}
       state={windowState}
