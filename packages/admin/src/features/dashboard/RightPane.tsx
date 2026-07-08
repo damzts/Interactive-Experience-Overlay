@@ -11,7 +11,7 @@ import {
 import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { AudioPanel } from '../audio/AudioPanel'
 import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
-import { SchedulerPanel } from '../scheduler/SchedulerPanel'
+import { SchedulerHost } from '../scheduler/SchedulerHost'
 import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
 import { AutomationPanel } from '../automation/AutomationPanel'
@@ -115,8 +115,10 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'settings') return <SettingsPanel />
-  if (selected.kind === 'scheduler') return <SchedulerPanel />
-if (selected.kind === 'obs') return <ObsPanel />
+  if (selected.kind === 'scheduler') {
+    return <SchedulerHost tab={selected.tab} onTabChange={(tab) => onSelectItem({ kind: 'scheduler', tab })} />
+  }
+  if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
   if (selected.kind === 'automation') return <AutomationPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
@@ -143,7 +145,6 @@ const MEDIA_TABS: Array<{ kind: SelectedItem['kind']; icon: string; label: strin
 
 const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
   { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
-{ icon: '⏱', label: 'Scheduler',          kind: 'scheduler' },
   { icon: '🎬', label: 'OBS',               kind: 'obs' },
   { icon: '🔊', label: 'Audio Engine',       kind: 'audio' },
   { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
@@ -225,7 +226,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
-    else if (selected.kind === 'scheduler')         { headerIcon = '⏱';  headerLabel = 'Scheduler';      headerMeta = 'Engine' }
     else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Engine' }
     else if (selected.kind === 'kernel-health')     { headerIcon = '⚙';  headerLabel = 'Kernel Health';  headerMeta = 'Engine' }
     else if (selected.kind === 'automation')        { headerIcon = '🤖'; headerLabel = 'Automation';     headerMeta = 'Engine' }
@@ -272,7 +272,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           </div>
         ) : (
           <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-            {!MEDIA_TABS.some((t) => t.kind === selected.kind) && (
+            {!MEDIA_TABS.some((t) => t.kind === selected.kind) && selected.kind !== 'scheduler' && (
               <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
                 <span className="text-sm shrink-0">{headerIcon}</span>
                 <span className="flex-1 min-w-0">

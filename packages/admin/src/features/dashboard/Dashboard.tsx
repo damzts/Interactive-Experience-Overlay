@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { LayoutDashboard, Monitor, Layers, LayoutGrid, Image, Settings, Film } from 'lucide-react'
+import { LayoutDashboard, Monitor, Layers, LayoutGrid, Image, Settings, Film, Sparkles } from 'lucide-react'
 import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -21,6 +21,7 @@ const NAV_SECTIONS: TopBarNavSection[] = [
   { id: 'widgets', label: 'Widgets', icon: Layers },
   { id: 'layouts', label: 'Layouts', icon: LayoutGrid },
   { id: 'sequences', label: 'Sequences', icon: Film },
+  { id: 'scheduler', label: 'Ambience', icon: Sparkles },
   { id: 'media', label: 'Media', icon: Image },
   { id: 'system', label: 'Manager', icon: Settings },
 ]
@@ -88,7 +89,11 @@ export function Dashboard() {
 
   const handleNavigate = useCallback((section: string) => {
     setActiveSection(section)
-    setSelected(section === 'media' ? { kind: 'media-gallery' } : null)
+    setSelected(
+      section === 'media' ? { kind: 'media-gallery' }
+      : section === 'scheduler' ? { kind: 'scheduler', tab: 'events' }
+      : null
+    )
   }, [])
 
   // ─── Determine whether to show the dashboard overview or the existing content ───

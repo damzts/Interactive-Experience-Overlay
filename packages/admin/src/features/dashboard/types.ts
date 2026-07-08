@@ -14,7 +14,7 @@ export type SelectedItem =
   | { kind: 'audio' }
   | { kind: 'keybinds' }
   | { kind: 'settings' }
-  | { kind: 'scheduler' }
+  | { kind: 'scheduler'; tab: 'events' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
   | { kind: 'media-gallery' }
@@ -35,5 +35,6 @@ export function itemKey(item: SelectedItem): string {
   if (item.kind === 'widget-layout') return 'widget-layout-' + item.layoutId
   if (item.kind === 'pov-online') return 'pov-online'
   if (item.kind === 'sequence') return 'sequence-' + item.sequenceId
+  if (item.kind === 'scheduler') return 'scheduler-' + item.tab
   return item.kind
 }
