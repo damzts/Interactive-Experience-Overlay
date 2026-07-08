@@ -1,11 +1,10 @@
 import gsap from 'gsap'
+import type { WipeLeftConfig } from '@ieomlabs/shared'
 
 /** WIPE-LEFT — a black panel sweeps in from the right, cuts, then exits left. */
-export function wipeLeft(onComplete: () => void): gsap.core.Timeline {
+export function runWipeLeft(cfg: WipeLeftConfig): void {
   const flash = document.getElementById('tl-flash')
-  const tl    = gsap.timeline()
-
-  if (!flash) { onComplete(); return tl }
+  if (!flash) return
 
   gsap.set(flash, {
     opacity: 1,
@@ -13,13 +12,9 @@ export function wipeLeft(onComplete: () => void): gsap.core.Timeline {
     clipPath: 'inset(0 100% 0 0)',
   })
 
-  tl
-    // Wipe panel in from right
+  gsap.timeline()
+    .timeScale(Math.max(cfg?.speed ?? 1, 0.1))
     .to(flash, { clipPath: 'inset(0 0% 0 0)', duration: 0.45, ease: 'power2.inOut' })
-    .call(onComplete)
-    // Wipe panel out to left
     .to(flash, { clipPath: 'inset(0 0% 0 100%)', duration: 0.45, ease: 'power2.inOut' })
     .call(() => { gsap.set(flash, { clearProps: 'all' }) })
-
-  return tl
 }

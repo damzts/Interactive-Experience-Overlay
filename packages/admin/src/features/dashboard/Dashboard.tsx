@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { LayoutDashboard, Monitor, Layers, LayoutGrid, Image, Settings } from 'lucide-react'
+import { LayoutDashboard, Monitor, Layers, LayoutGrid, Image, Settings, Film } from 'lucide-react'
 import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -20,6 +20,7 @@ const NAV_SECTIONS: TopBarNavSection[] = [
   { id: 'scenes', label: 'Scenes', icon: Monitor },
   { id: 'widgets', label: 'Widgets', icon: Layers },
   { id: 'layouts', label: 'Layouts', icon: LayoutGrid },
+  { id: 'sequences', label: 'Sequences', icon: Film },
   { id: 'media', label: 'Media', icon: Image },
   { id: 'system', label: 'Manager', icon: Settings },
 ]

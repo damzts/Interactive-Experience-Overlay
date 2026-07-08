@@ -14,11 +14,24 @@
  * the per-type cap or the global budget are dropped — on a live overlay a
  * late effect is worse than a skipped one, and uncapped stacking of
  * canvas+rAF loops is what causes frame drops under load.
+ *
+ * Exclusive types: registerEffect(type, handler, { exclusive: true }) opts a
+ * type out of the budget entirely — it is never dropped. At most one run of
+ * that type is live: a new dispatch cancels the previous run first, via a
+ * canceller the handler may return. Used by the 'sequence' effect (scene
+ * transitions and any other ordered, must-play pipeline).
  */
 
 export type EffectHandler = (cfg: unknown) => void
 
+/** Exclusive handlers may return a canceller for the run they just started —
+ *  called before the next dispatch of the same type is invoked. Ordinary
+ *  (budgeted) handlers stay `void`-returning; the extra return is opt-in. */
+export type ExclusiveEffectHandler = (cfg: unknown) => (() => void) | void
+
 const handlers = new Map<string, EffectHandler>()
+const exclusiveTypes = new Set<string>()
+const activeCancellers = new Map<string, () => void>()
 
 // ── Concurrency budget ────────────────────────────────────────────
 
@@ -34,12 +47,19 @@ const MAX_TRACKED_DURATION_S = 30
 /** Per-type list of expiry timestamps (ms epoch) for presumed-active instances. */
 const activeInstances = new Map<string, number[]>()
 
-function estimateDurationMs(cfg: unknown): number {
-  const duration = (cfg as { duration?: unknown } | null | undefined)?.duration
-  const seconds = typeof duration === 'number' && Number.isFinite(duration) && duration > 0
-    ? Math.min(duration, MAX_TRACKED_DURATION_S)
-    : DEFAULT_DURATION_S
-  return seconds * 1000
+/** Estimate an effect's on-screen lifetime from its cfg (checks `duration`
+ *  in seconds, then `durationMs`), falling back to a default. Used both for
+ *  concurrency-budget bookkeeping here and by runSequence.ts to size the
+ *  wait before advancing to a sequence's next step. */
+export function estimateDurationMs(cfg: unknown): number {
+  const c = cfg as { duration?: unknown; durationMs?: unknown } | null | undefined
+  if (typeof c?.duration === 'number' && Number.isFinite(c.duration) && c.duration > 0) {
+    return Math.min(c.duration, MAX_TRACKED_DURATION_S) * 1000
+  }
+  if (typeof c?.durationMs === 'number' && Number.isFinite(c.durationMs) && c.durationMs > 0) {
+    return Math.min(c.durationMs, MAX_TRACKED_DURATION_S * 1000)
+  }
+  return DEFAULT_DURATION_S * 1000
 }
 
 /** Drop expired instances for one type; returns the still-active expiries. */
@@ -62,21 +82,46 @@ function totalActive(now: number): number {
 
 // ── Registry API ──────────────────────────────────────────────────
 
-export function registerEffect(type: string, handler: EffectHandler): void {
-  handlers.set(type, handler)
+export function registerEffect(
+  type: string,
+  handler: EffectHandler | ExclusiveEffectHandler,
+  opts?: { exclusive?: boolean },
+): void {
+  handlers.set(type, handler as EffectHandler)
+  if (opts?.exclusive) exclusiveTypes.add(type)
+  else exclusiveTypes.delete(type)
 }
 
-export function replaceEffect(type: string, handler: EffectHandler): void {
+/** Look up a registered handler without dispatching it — bypasses the
+ *  concurrency budget entirely. Used by runSequence.ts to invoke a
+ *  sequence step's effect directly (a step must always fire). */
+export function getEffectHandler(type: string): EffectHandler | undefined {
+  return handlers.get(type)
+}
+
+export function replaceEffect(type: string, handler: EffectHandler | ExclusiveEffectHandler): void {
   if (!handlers.has(type)) {
     console.warn(`[effects] replaceEffect: no existing handler for "${type}", registering anyway`)
   }
-  handlers.set(type, handler)
+  handlers.set(type, handler as EffectHandler)
 }
 
 export function dispatchEffect(type: string, cfg: unknown): void {
   const handler = handlers.get(type)
   if (!handler) {
     console.warn(`[effects] no handler registered for effect type: "${type}"`)
+    return
+  }
+
+  // Exclusive types (e.g. 'sequence') never compete for the concurrency
+  // budget and are never dropped — a scene transition or other exclusive
+  // effect must always play. Instead, at most one run of a given exclusive
+  // type is live at a time: dispatching cancels the previous run.
+  if (exclusiveTypes.has(type)) {
+    activeCancellers.get(type)?.()
+    const cancel = (handler as ExclusiveEffectHandler)(cfg)
+    if (cancel) activeCancellers.set(type, cancel)
+    else activeCancellers.delete(type)
     return
   }
 

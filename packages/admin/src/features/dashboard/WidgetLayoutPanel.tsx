@@ -113,11 +113,14 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const dirty = !isSameDraft(layout, sourceLayout)
   const persistLayout = async (nextLayout: WidgetLayoutDefinition) => {
     setSaving(true)
-    await saveConfig({ widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? nextLayout : entry) })
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
+    try {
+      await saveConfig({ widgetLayouts: sourceLayouts.map((entry) => entry.id === layoutId ? nextLayout : entry) })
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+      setSaved(true)
+      savedTimer.current = setTimeout(() => setSaved(false), 1500)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const updateLayout = (updater: (draft: WidgetLayoutDefinition) => void) => {

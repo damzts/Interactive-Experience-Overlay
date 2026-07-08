@@ -20,12 +20,12 @@ export type SelectedItem =
   | { kind: 'media-gallery' }
   | { kind: 'media-effects' }
   | { kind: 'media-renders' }
-  | { kind: 'media-transitions' }
   | { kind: 'kernel-health' }
   | { kind: 'automation' }
   | { kind: 'shows' }
   | { kind: 'twitch' }
   | { kind: 'presets' }
+  | { kind: 'sequence'; sequenceId: string }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'env')   return 'env-' + item.envState
@@ -34,5 +34,6 @@ export function itemKey(item: SelectedItem): string {
   if (item.kind === 'widget-create') return 'widget-create'
   if (item.kind === 'widget-layout') return 'widget-layout-' + item.layoutId
   if (item.kind === 'pov-online') return 'pov-online'
+  if (item.kind === 'sequence') return 'sequence-' + item.sequenceId
   return item.kind
 }

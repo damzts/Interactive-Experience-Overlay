@@ -15,7 +15,7 @@ import type { RTCIceCandidateInit } from './webrtc-types.js'
 import type { DesktopConfig } from '../domain/desktop.js'
 import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
 import type { WidgetLayoutItem } from '../domain/application.js'
-import type { TransitionStep } from '../domain/scene.js'
+import type { SequenceStep } from '../domain/sequence.js'
 import type { OverlayTriggerPayload } from './effects.js'
 import type { ObsStatusPayload, RuntimeDiagnosticsPayload } from './diagnostics.js'
 
@@ -132,9 +132,9 @@ export interface TransitionPlayPayload {
   from: STATE
   to: STATE
   /** Ordered exit pipeline — plays before scene content swaps */
-  exit: TransitionStep[]
+  exit: SequenceStep[]
   /** Ordered intro pipeline — plays after scene content swaps */
-  intro: TransitionStep[]
+  intro: SequenceStep[]
 }
 
 // ── Desktop signal payloads ───────────────────────────────────────

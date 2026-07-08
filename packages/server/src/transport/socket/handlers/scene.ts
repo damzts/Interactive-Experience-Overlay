@@ -8,7 +8,7 @@ import {
   type AppConfig,
   type EventConfig,
   type OverlayTriggerPayload,
-  type TransitionStep,
+  type SequenceStep,
   type TransitionPlayPayload,
   type DesktopTheme,
   type EventWidgetThemePatch,
@@ -47,40 +47,27 @@ export function resolveRuntimeWidgetThemePatch(patch?: EventWidgetThemePatch): P
   return { ...structuredClone(DEFAULT_WIDGET_THEME_PRESETS[resolvedSkin]), ...patch, skin: resolvedSkin }
 }
 
-/** Coerce a legacy single-string transition into a one-step array. */
-function stepFromString(s: string | undefined): TransitionStep[] | undefined {
-  if (!s || s === 'none') return undefined
-  const qi = s.indexOf('?')
-  const id = qi >= 0 ? s.slice(0, qi) : s
-  const dur = qi >= 0 ? new URLSearchParams(s.slice(qi + 1)).get('duration') : null
-  return [{ id, ...(dur ? { duration: parseFloat(dur) } : {}) }]
-}
-
 export function isNavigableState(value: string): value is STATE {
   return value === STATE.LOBBY || value === STATE.DESKTOP
 }
 
-export function resolvePipelines(cfg: AppConfig, fromState: STATE, toState: STATE): { exit: TransitionStep[]; intro: TransitionStep[] } {
-  let exit: TransitionStep[] | undefined
-  let intro: TransitionStep[] | undefined
+function sequenceLookup(ctx: HandlerContext): (id: string) => { steps: SequenceStep[] } | undefined {
+  return (id) => ctx.configService?.getSequence(id)
+}
 
-  const resolveNames = (names?: string[]): TransitionStep[] | undefined => {
-    if (!names?.length) return undefined
-    const steps = names.flatMap((name) => {
-      const def = cfg.sourceTransitions?.find((t) => t.id === name)
-      return def ? [{ id: def.id } as TransitionStep] : (stepFromString(name) ?? [])
-    })
-    return steps.length ? steps : undefined
-  }
+/** Resolve a scene pair's exit/intro Sequences into their step lists.
+ *  `getSequence` looks up a Sequence by id (ctx.configService.getSequence). */
+export function resolvePipelines(
+  cfg: AppConfig,
+  getSequence: (id: string) => { steps: SequenceStep[] } | undefined,
+  fromState: STATE,
+  toState: STATE,
+): { exit: SequenceStep[]; intro: SequenceStep[] } {
+  const targetScene = cfg.scenes[toState]
+  const fromScene = cfg.scenes[fromState]
 
-  if (!intro) {
-    const targetScene = cfg.scenes[toState]
-    intro = resolveNames(targetScene?.onEntry)
-  }
-  if (!exit) {
-    const fromScene = cfg.scenes[fromState]
-    exit = resolveNames(fromScene?.onExit)
-  }
+  const intro = targetScene?.introSequenceId ? getSequence(targetScene.introSequenceId)?.steps : undefined
+  const exit = fromScene?.exitSequenceId ? getSequence(fromScene.exitSequenceId)?.steps : undefined
 
   return { exit: exit ?? [], intro: intro ?? [] }
 }
@@ -175,18 +162,19 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       const scene = (ctx.cachedUserConfig.scenes ?? {})[action.target]
       if (scene && !isNavigableState(action.target)) {
         const target = action.target as STATE
-        const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, ctx.machine.currentState, target)
+        const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
         ctx.machine.transition(target, { exit, intro })
       }
       continue
     }
 
     if (action.kind === 'transition') {
-      if (action.transitionId) {
+      const sequence = action.sequenceId ? ctx.configService?.getSequence(action.sequenceId) : undefined
+      if (sequence) {
         const payload: TransitionPlayPayload = {
           from: ctx.machine.currentState,
           to: ctx.machine.currentState,
-          exit: [{ id: action.transitionId }],
+          exit: sequence.steps,
           intro: [],
         }
         ctx.io.emit('transition:play', payload)
@@ -223,7 +211,7 @@ export function runConfiguredAction(ctx: HandlerContext, action: string): { ok: 
   if (action.startsWith('scene:')) {
     const target = action.slice(6).trim()
     if (!isNavigableState(target)) return { ok: false, error: `Unknown scene target: ${target}` }
-    const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, ctx.machine.currentState, target)
+    const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
     return ctx.machine.transition(target, { exit, intro })
   }
 
@@ -248,7 +236,7 @@ export function registerSceneHandlers(ctx: HandlerContext, socket: AppSocket): v
 
   socket.on('scene:change', (target, callback) => {
     ctx.scheduler?.noteActivity()
-    const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, ctx.machine.currentState, target)
+    const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
     const result = ctx.machine.transition(target, { exit, intro })
     if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
   })
@@ -264,7 +252,7 @@ export function registerSceneHandlers(ctx: HandlerContext, socket: AppSocket): v
     if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
   })
 
-  socket.on('transition:preview', (steps: TransitionStep[]) => {
+  socket.on('transition:preview', (steps: SequenceStep[]) => {
     ctx.scheduler?.noteActivity()
     const payload: TransitionPlayPayload = {
       from: ctx.machine.currentState,

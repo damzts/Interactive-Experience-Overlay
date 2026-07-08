@@ -19,8 +19,8 @@ const SCHEMA = `
     windows_json TEXT NOT NULL DEFAULT '[]',
     style_json TEXT,
     lobby_config_json TEXT,
-    on_entry_json TEXT NOT NULL DEFAULT '[]',
-    on_exit_json TEXT NOT NULL DEFAULT '[]',
+    intro_sequence_id TEXT,
+    exit_sequence_id TEXT,
     music_track TEXT,
     ambient_track TEXT,
     show_desktop INTEGER NOT NULL DEFAULT 0
@@ -145,11 +145,11 @@ const SCHEMA = `
     duration REAL
   );
 
-  CREATE TABLE IF NOT EXISTS media_transitions (
+  CREATE TABLE IF NOT EXISTS sequences (
     id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
-    type TEXT NOT NULL,
-    params_json TEXT NOT NULL DEFAULT '{}'
+    steps_json TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS license_cache (
@@ -246,6 +246,8 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
     try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`) } catch { /* already exists */ }
   }
   addColumn('scenes', 'ambient_track', 'TEXT')
+  addColumn('scenes', 'intro_sequence_id', 'TEXT')
+  addColumn('scenes', 'exit_sequence_id', 'TEXT')
   addColumn('audio_config', 'ambient_track', 'TEXT')
   addColumn('audio_config', 'ambient_volume', 'REAL')
   addColumn('twitch_config', 'client_id', 'TEXT')

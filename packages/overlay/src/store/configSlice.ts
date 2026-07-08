@@ -6,7 +6,7 @@ const EMPTY_CONFIG: AppConfig = {
   windowPresets: [], scenes: {}, applications: [], keybinds: { obs: {}, admin: {} },
   obs: { url: '', password: '' }, audio: { masterVolume: 0.8, sfxVolume: 0.7, musicVolume: 0.4 },
   desktopConfig: {} as any, desktopAmbiance: {} as any,
-  widgetLayouts: [], sourceEvents: [], sourceMedia: [], sourceTransitions: [],
+  widgetLayouts: [], sourceEvents: [], sourceMedia: [],
 } as unknown as AppConfig
 
 export interface ConfigSlice {

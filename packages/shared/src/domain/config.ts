@@ -1,4 +1,4 @@
-import type { Application, TransitionDefinition, WidgetLayoutDefinition } from './application.js'
+import type { Application, WidgetLayoutDefinition } from './application.js'
 import type { DesktopAmbianceConfig, EffectAmbianceConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { DesktopThemeDriftConfig } from './themeDrift.js'
@@ -78,8 +78,6 @@ export interface AppConfig {
   sourceMedia?: MediaEntry[]
   /** Reusable renderer presets (Media Library → Renders tab → media_renders table) */
   windowPresets?: WindowPreset[]
-  /** Named transition definitions (Media Library → Transitions tab → media_transitions table) */
-  sourceTransitions?: TransitionDefinition[]
   /** Operator-configured automation rules (Automation panel → automation_rules table).
    *  Widget-source rules are evaluated in the overlay; kernel-source rules in the server. */
   automationRules?: AutomationRule[]

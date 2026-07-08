@@ -65,7 +65,6 @@ describe('mergeAppConfig', () => {
     expect(merged.audio).toEqual(base.audio)
     expect(merged.widgetLayouts).toEqual(base.widgetLayouts)
     expect(merged.sourceMedia).toEqual(base.sourceMedia)
-    expect(merged.sourceTransitions).toEqual(base.sourceTransitions)
   })
 
   it('is idempotent over empty merges', () => {

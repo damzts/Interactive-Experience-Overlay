@@ -120,4 +120,55 @@ describe('effect dispatch registry', () => {
     expect(handlers.get('fx-4')).not.toHaveBeenCalled()
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('global effect budget'))
   })
+
+  describe('exclusive types', () => {
+    it('is never dropped even when the global budget is already exhausted', async () => {
+      const { registerEffect, dispatchEffect } = await loadRegistry()
+      for (let t = 0; t < 4; t++) {
+        registerEffect(`fx-${t}`, vi.fn())
+        for (let i = 0; i < 3; i++) dispatchEffect(`fx-${t}`, { duration: 10 })
+      }
+
+      const seqHandler = vi.fn()
+      registerEffect('sequence', seqHandler, { exclusive: true })
+      dispatchEffect('sequence', { steps: [] })
+
+      expect(seqHandler).toHaveBeenCalledOnce()
+    })
+
+    it('cancels the previous run before starting a new one', async () => {
+      const { registerEffect, dispatchEffect } = await loadRegistry()
+      const cancel = vi.fn()
+      const handler = vi.fn(() => cancel)
+      registerEffect('sequence', handler, { exclusive: true })
+
+      dispatchEffect('sequence', { steps: ['a'] })
+      expect(cancel).not.toHaveBeenCalled()
+
+      dispatchEffect('sequence', { steps: ['b'] })
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(handler).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not require a canceller to be returned', async () => {
+      const { registerEffect, dispatchEffect } = await loadRegistry()
+      const handler = vi.fn(() => undefined)
+      registerEffect('sequence', handler, { exclusive: true })
+
+      expect(() => {
+        dispatchEffect('sequence', { steps: ['a'] })
+        dispatchEffect('sequence', { steps: ['b'] })
+      }).not.toThrow()
+      expect(handler).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not consume per-type or global budget slots', async () => {
+      const { registerEffect, dispatchEffect } = await loadRegistry()
+      registerEffect('sequence', vi.fn(), { exclusive: true })
+
+      for (let i = 0; i < 20; i++) dispatchEffect('sequence', { steps: [] })
+
+      expect(console.warn).not.toHaveBeenCalled()
+    })
+  })
 })

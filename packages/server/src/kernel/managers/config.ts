@@ -28,8 +28,8 @@ import type {
   Manager,
   ManagerStatus,
   Scene,
+  Sequence,
   WidgetLayoutDefinition,
-  TransitionDefinition,
 } from '@ieomlabs/shared'
 import type { EventConfig } from '@ieomlabs/shared'
 import { SceneRepository } from '../../db/repositories/SceneRepository.js'
@@ -38,6 +38,7 @@ import { EventRepository } from '../../db/repositories/EventRepository.js'
 import { ThemeRepository } from '../../db/repositories/ThemeRepository.js'
 import { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
 import { ConfigPresetRepository } from '../../db/repositories/ConfigPresetRepository.js'
+import { SequenceRepository } from '../../db/repositories/SequenceRepository.js'
 
 type DesktopDatabase = Database.Database
 
@@ -73,8 +74,8 @@ function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<S
     windows: clone(source.windows ?? []),
     style: source.style ? clone(source.style) : undefined,
     lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
-    onEntry: source.onEntry ? [...source.onEntry] : undefined,
-    onExit: source.onExit ? [...source.onExit] : undefined,
+    introSequenceId: source.introSequenceId,
+    exitSequenceId: source.exitSequenceId,
   }
 }
 
@@ -90,6 +91,8 @@ export interface IConfigService {
   onConfigUpdate(listener: (config: AppConfig) => void): void
   invalidateCache(): void
   applyPreset(id: string): Promise<AppConfig>
+  listSequences(): Sequence[]
+  getSequence(id: string): Sequence | undefined
 }
 
 // ── DesktopConfigService ─────────────────────────────────────────
@@ -108,6 +111,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   private readonly eventRepo: EventRepository
   private readonly themeRepo: ThemeRepository
   private readonly presetRepo: ConfigPresetRepository
+  private readonly sequenceRepo: SequenceRepository
   readonly automationRules: AutomationRuleRepository
 
   constructor(
@@ -121,6 +125,7 @@ export class DesktopConfigService implements Manager, IConfigService {
     this.themeRepo = new ThemeRepository(db)
     this.automationRules = new AutomationRuleRepository(db)
     this.presetRepo = new ConfigPresetRepository(db)
+    this.sequenceRepo = new SequenceRepository(db)
 
     // Ensure required tables exist
     this.db.exec(`
@@ -216,7 +221,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       this.writeSections(config, [
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
-        'sourceEvents', 'sourceMedia', 'windowPresets', 'sourceTransitions', 'shows',
+        'sourceEvents', 'sourceMedia', 'windowPresets', 'shows',
         'effectAmbiance', 'desktopThemeDrift', 'persona',
       ])
     }
@@ -283,6 +288,34 @@ export class DesktopConfigService implements Manager, IConfigService {
     this.presetRepo.delete(id)
   }
 
+  // ── Sequences ─────────────────────────────────────────────────
+
+  listSequences(): Sequence[] {
+    return this.sequenceRepo.list()
+  }
+
+  getSequence(id: string): Sequence | undefined {
+    return this.sequenceRepo.get(id)
+  }
+
+  createSequence(label: string, steps: Sequence['steps']): Sequence {
+    const seq: Sequence = { id: crypto.randomUUID(), label, steps }
+    this.sequenceRepo.upsert(seq)
+    return seq
+  }
+
+  updateSequence(id: string, patch: { label?: string; steps?: Sequence['steps'] }): Sequence {
+    const current = this.sequenceRepo.get(id)
+    if (!current) throw new Error(`Sequence not found: ${id}`)
+    const next: Sequence = { ...current, ...patch }
+    this.sequenceRepo.upsert(next)
+    return next
+  }
+
+  deleteSequence(id: string): void {
+    this.sequenceRepo.delete(id)
+  }
+
   // ── Private: Load ────────────────────────────────────────────
 
   private loadFromDb(): AppConfig {
@@ -298,7 +331,6 @@ export class DesktopConfigService implements Manager, IConfigService {
       sourceEvents:     this.eventRepo.load(),
       sourceMedia:      this.loadSourceMedia(),
       windowPresets:    this.loadWindowPresets(),
-      sourceTransitions: this.loadSourceTransitions(),
       automationRules:  this.automationRules.list(),
       shows:            this.loadShows(),
       twitch:           this.loadTwitchConfig(),
@@ -364,13 +396,6 @@ export class DesktopConfigService implements Manager, IConfigService {
     }))
   }
 
-  private loadSourceTransitions(): TransitionDefinition[] {
-    const rows = this.db.prepare('SELECT * FROM media_transitions').all() as Array<{
-      id: string; label: string; type: string; params_json: string;
-    }>
-    return rows.map((row) => ({ id: row.id, label: row.label, type: row.type, params: this._parseJson(row.params_json, undefined) }))
-  }
-
   private _parseJson<T>(v: string | null | undefined, fallback: T): T {
     if (!v) return fallback; try { return JSON.parse(v) as T } catch { return fallback }
   }
@@ -392,7 +417,6 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'sourceEvents':     this.eventRepo.save(cfg.sourceEvents ?? []); break
           case 'sourceMedia':      this.saveSourceMedia(cfg.sourceMedia ?? []); break
           case 'windowPresets':    this.saveWindowPresets(cfg.windowPresets ?? []); break
-          case 'sourceTransitions': this.saveSourceTransitions(cfg.sourceTransitions ?? []); break
           case 'shows':            this.saveShows(cfg.shows ?? []); break
           case 'twitch':           if (cfg.twitch) this.saveTwitchConfig(cfg.twitch); break
           case 'chatReactions':    this.saveChatReactions(cfg.chatReactions ?? []); break
@@ -447,14 +471,6 @@ export class DesktopConfigService implements Manager, IConfigService {
         JSON.stringify(preset.config ?? {}),
         preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
       )
-    }
-  }
-
-  private saveSourceTransitions(transitions: TransitionDefinition[]): void {
-    this.db.prepare('DELETE FROM media_transitions').run()
-    const insert = this.db.prepare('INSERT INTO media_transitions (id, label, type, params_json) VALUES (?, ?, ?, ?)')
-    for (const t of transitions) {
-      insert.run(t.id, t.label, t.type, JSON.stringify(t.params ?? {}))
     }
   }
 
@@ -593,7 +609,6 @@ export class DesktopConfigService implements Manager, IConfigService {
       sourceEvents: withEventListDefaults(next.sourceEvents ?? []),
       sourceMedia: next.sourceMedia ?? [],
       windowPresets: next.windowPresets ?? [],
-      sourceTransitions: next.sourceTransitions ?? [],
       automationRules: next.automationRules ?? [],
       shows: next.shows ?? [],
     }
@@ -604,13 +619,13 @@ export class DesktopConfigService implements Manager, IConfigService {
   createScene(_app: Application, scene: Scene): AppConfig {
     this.db.transaction(() => {
       this.db.prepare(`
-        INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, lobby_config_json, on_entry_json, on_exit_json, music_track, show_desktop)
+        INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, lobby_config_json, intro_sequence_id, exit_sequence_id, music_track, show_desktop)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         scene.id, scene.label, boolToInt(scene.backgroundOpaque),
         JSON.stringify(scene.windows ?? []),
         scene.style ? JSON.stringify(scene.style) : null,
-        null, JSON.stringify([]), JSON.stringify([]), null, 0,
+        null, null, null, null, 0,
       )
     })()
     this._cachedConfig = null

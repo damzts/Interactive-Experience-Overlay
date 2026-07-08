@@ -135,7 +135,7 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
   }
 
   if (kind === 'transition') {
-    return { kind, transitionId: 'fade' }
+    return { kind, sequenceId: '' }
   }
 
   return {

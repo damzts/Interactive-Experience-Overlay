@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE, withOverlayStyleDefaults } from '@ieomlabs/shared'
-import type { OverlayStyle, Scene, WindowInstance, TransitionStep } from '@ieomlabs/shared'
+import type { OverlayStyle, Scene, Sequence, WindowInstance } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
 import { SourcesEditor } from './SceneConfig'
 import { ScenePreview } from './ScenePreview'
-import { TransitionChipPicker } from './TransitionPicker'
+import { fetchSequences } from '../../api/sequencesApi'
 
 type ScenePanelDraft = {
-  label:       string
-  onEntry:     TransitionStep[]
-  onExit:      TransitionStep[]
+  label:           string
+  introSequenceId: string | undefined
+  exitSequenceId:  string | undefined
   style:       OverlayStyle
   windows:     WindowInstance[]
   showDesktop: boolean
@@ -23,9 +23,9 @@ function buildDraft(
 ): ScenePanelDraft {
   const scene = config.scenes[sceneId] as Scene | undefined
   return {
-    label:       scene?.label ?? sceneId,
-    onEntry:     structuredClone(scene?.onEntry?.map((id) => ({ id })) ?? []),
-    onExit:      structuredClone(scene?.onExit?.map((id) => ({ id })) ?? []),
+    label:           scene?.label ?? sceneId,
+    introSequenceId: scene?.introSequenceId,
+    exitSequenceId:  scene?.exitSequenceId,
     style:       structuredClone(withOverlayStyleDefaults(scene?.style)),
     windows:     structuredClone(scene?.windows ?? []),
     showDesktop: scene?.showDesktop ?? false,
@@ -46,7 +46,10 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
   const [saved,  setSaved]  = useState(false)
   const [tab,    setTab]    = useState<'windows' | 'settings'>('windows')
   const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
+  const [sequences, setSequences] = useState<Sequence[]>([])
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => { void fetchSequences().then(setSequences) }, [])
 
   const dirty = !isSameDraft(draft, baseDraft)
 
@@ -65,21 +68,24 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
 
   const apply = useCallback(async () => {
     setSaving(true)
-    const scene = (config.scenes[sceneId] ?? {}) as Scene
-    const nextScene: Scene = {
-      ...scene,
-      label:       draft.label.trim() || sceneId,
-      windows:     draft.windows,
-      showDesktop: draft.showDesktop,
-      onEntry:     draft.onEntry.filter((s) => s.id).map((s) => s.id),
-      onExit:      draft.onExit.filter((s) => s.id).map((s) => s.id),
-      ...(isDesktop ? {} : { style: draft.style }),
+    try {
+      const scene = (config.scenes[sceneId] ?? {}) as Scene
+      const nextScene: Scene = {
+        ...scene,
+        label:       draft.label.trim() || sceneId,
+        windows:     draft.windows,
+        showDesktop: draft.showDesktop,
+        introSequenceId: draft.introSequenceId,
+        exitSequenceId:  draft.exitSequenceId,
+        ...(isDesktop ? {} : { style: draft.style }),
+      }
+      await saveConfig({ scenes: { ...config.scenes, [sceneId]: nextScene } })
+      if (savedTimer.current) clearTimeout(savedTimer.current)
+      setSaved(true)
+      savedTimer.current = setTimeout(() => setSaved(false), 1500)
+    } finally {
+      setSaving(false)
     }
-    await saveConfig({ scenes: { ...config.scenes, [sceneId]: nextScene } })
-    setSaving(false)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
-    setSaved(true)
-    savedTimer.current = setTimeout(() => setSaved(false), 1500)
   }, [config, draft, sceneId, saveConfig, isDesktop])
 
   const reset = useCallback(() => {
@@ -145,13 +151,25 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
             </label>
           )}
 
-          {/* Transitions — two columns */}
-          <ConfigPanel title="Transitions">
+          {/* Sequences — two columns */}
+          <ConfigPanel title="Sequences" description="Effect pipelines authored in the Sequences tab">
             <div className="grid grid-cols-2 gap-4">
-              <TransitionChipPicker label="On Entry" steps={draft.onEntry}
-                onChange={(steps) => update((d) => { d.onEntry = steps })} />
-              <TransitionChipPicker label="On Exit" steps={draft.onExit}
-                onChange={(steps) => update((d) => { d.onExit = steps })} />
+              <label className="block text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                On Entry
+                <select className="mt-1 w-full text-xs" value={draft.introSequenceId ?? ''}
+                  onChange={(e) => update((d) => { d.introSequenceId = e.target.value || undefined })}>
+                  <option value="">— none —</option>
+                  {sequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.label}</option>)}
+                </select>
+              </label>
+              <label className="block text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                On Exit
+                <select className="mt-1 w-full text-xs" value={draft.exitSequenceId ?? ''}
+                  onChange={(e) => update((d) => { d.exitSequenceId = e.target.value || undefined })}>
+                  <option value="">— none —</option>
+                  {sequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.label}</option>)}
+                </select>
+              </label>
             </div>
           </ConfigPanel>
 

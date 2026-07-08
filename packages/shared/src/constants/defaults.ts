@@ -251,7 +251,7 @@ function normalizeEventAction(action: EventAction): EventAction | null {
   }
 
   if (action.kind === 'transition') {
-    return { kind: 'transition', transitionId: action.transitionId }
+    return { kind: 'transition', sequenceId: action.sequenceId }
   }
 
   if (action.kind === 'preset-apply') {
@@ -988,7 +988,6 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
     sourceEvents: updates.sourceEvents ? withEventListDefaults(updates.sourceEvents) : withEventListDefaults(base.sourceEvents),
     sourceMedia: updates.sourceMedia ?? base.sourceMedia,
     windowPresets: updates.windowPresets ? withWindowPresetListDefaults(updates.windowPresets) : withWindowPresetListDefaults(base.windowPresets),
-    sourceTransitions: updates.sourceTransitions ?? base.sourceTransitions,
   }
 }
 
@@ -1148,5 +1147,4 @@ export const DEFAULT_CONFIG: AppConfig = {
   sourceEvents: [],
 
   sourceMedia: [],
-  sourceTransitions: [],
 }

@@ -1,14 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_EVENT_DEFS, createBlankEventDef, type EventDef } from './eventPresets'
-import { deleteMediaFile, inferMediaKindFromUrl, mediaEntryToRecord, useMediaCatalog, type MediaKind, type MediaRecord } from '../../shared/catalog'
+import { deleteMediaFile, mediaEntryToRecord, useMediaCatalog, type MediaKind, type MediaRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { RENDERER_CATALOG, findRendererCatalogEntry } from '@ieomlabs/shared'
 import { getSafeSceneWindows } from '../../shared/windowCatalog'
-import { TRANSITION_OPTIONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
-import type { MediaEntry, WindowPreset } from '@ieomlabs/shared'
+import type { WindowPreset } from '@ieomlabs/shared'
 
-export type MediaLibraryTab = 'catalog' | 'events' | 'sources' | 'transitions'
+export type MediaLibraryTab = 'catalog' | 'events' | 'sources'
 
 // ── Per-tab state interfaces ───────────────────────────────────────
 
@@ -24,6 +23,7 @@ export interface CatalogTabState {
   catalogError: string | null
   refreshCatalog: () => void
   handleDeleteCatalogAsset: (asset: MediaRecord) => void
+  handleDeleteMediaEntry: (id: string) => void
 }
 
 export interface EventsTabState {
@@ -59,30 +59,10 @@ export interface SourcesTabState {
   deleteSourcePresetDraft: () => void
 }
 
-export interface TransitionsTabState {
-  transitionSearch: string
-  setTransitionSearch: (v: string) => void
-  filteredSystemTransitions: typeof TRANSITION_OPTIONS
-  filteredTransitionLibrary: MediaEntry[]
-  selectedTransition: { kind: 'system'; entry: typeof TRANSITION_OPTIONS[number] } | { kind: 'user'; entry: MediaEntry } | null
-  setSelectedTransitionKey: (k: string | null) => void
-  handleSave: () => void
-  handleDeleteMediaEntry: (id: string) => void
-  name: string
-  setName: (v: string) => void
-  url: string
-  setUrl: (v: string) => void
-  durStr: string
-  setDurStr: (v: string) => void
-  pendingTransitionKind: 'image' | 'video'
-  resetForm: () => void
-}
-
 export interface MediaLibraryContextValue
   extends CatalogTabState,
     EventsTabState,
-    SourcesTabState,
-    TransitionsTabState {
+    SourcesTabState {
   tab: MediaLibraryTab
   setTab: (t: MediaLibraryTab) => void
 }
@@ -111,9 +91,6 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useMediaCatalog()
 
   const [tab, setTab]                       = useState<MediaLibraryTab>('catalog')
-  const [name, setName]                     = useState('')
-  const [url, setUrl]                       = useState('')
-  const [durStr, setDurStr]                 = useState('')
   const [catalogSearch, setCatalogSearch]   = useState('')
   const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | MediaKind>('all')
   const [selectedCatalogAssetId, setSelectedCatalogAssetId] = useState<string | null>(null)
@@ -128,12 +105,9 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     originalId: string | null
     originalLabel: string | null
   } | null>(null)
-  const [transitionSearch, setTransitionSearch] = useState('')
-  const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const sourcePresets = config.windowPresets ?? []
-  const resetForm = () => { setName(''); setUrl(''); setDurStr('') }
 
   // ── Derived: Events ──────────────────────────────────────────────
 
@@ -180,43 +154,6 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     [filteredCatalogAssets, selectedCatalogAssetId]
   )
 
-  // ── Derived: Transitions ─────────────────────────────────────────
-
-  const sortedTransitionLibrary = useMemo(
-    () => [...sourceMedia].sort((a, b) => getMediaTransitionLabel(a).localeCompare(getMediaTransitionLabel(b))),
-    [sourceMedia]
-  )
-
-  const filteredSystemTransitions = useMemo(() => {
-    const q = transitionSearch.trim().toLowerCase()
-    if (!q) return TRANSITION_OPTIONS
-    return TRANSITION_OPTIONS.filter((t) => [t.id, t.label].some((v) => v.toLowerCase().includes(q)))
-  }, [transitionSearch])
-
-  const filteredTransitionLibrary = useMemo(() => {
-    const q = transitionSearch.trim().toLowerCase()
-    if (!q) return sortedTransitionLibrary
-    return sortedTransitionLibrary.filter((e) =>
-      [e.name, e.url, e.id, getMediaTransitionLabel(e)].some((v) => v.toLowerCase().includes(q))
-    )
-  }, [sortedTransitionLibrary, transitionSearch])
-
-  const selectedTransition = useMemo(() => {
-    if (!selectedTransitionKey) {
-      return filteredSystemTransitions[0]
-        ? { kind: 'system' as const, entry: filteredSystemTransitions[0] }
-        : filteredTransitionLibrary[0]
-        ? { kind: 'user' as const, entry: filteredTransitionLibrary[0] }
-        : null
-    }
-    if (selectedTransitionKey.startsWith('system:')) {
-      const entry = filteredSystemTransitions.find((t) => t.id === selectedTransitionKey.slice(7))
-      return entry ? { kind: 'system' as const, entry } : null
-    }
-    const entry = filteredTransitionLibrary.find((t) => t.id === selectedTransitionKey.slice(5))
-    return entry ? { kind: 'user' as const, entry } : null
-  }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
-
   // ── Derived: Sources ─────────────────────────────────────────────
 
   const filteredSourcePresets = useMemo(() => {
@@ -248,11 +185,6 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     !!sourcePresetDraft &&
     (!sourcePresetDraft.originalId || sourcePresetDraft.originalLabel?.trim() !== sourcePresetDraft.preset.label.trim())
   const selectedSourceUsageCount = selectedSourcePreset ? usageCountByPreset[selectedSourcePreset.id] ?? 0 : 0
-
-  const pendingTransitionKind = useMemo(() => {
-    const inferred = inferMediaKindFromUrl(url, 'image')
-    return inferred === 'video' ? 'video' : 'image'
-  }, [url])
 
   const editingEvent = eventDraft?.event ?? null
 
@@ -294,35 +226,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     }
   }, [filteredCatalogAssets, selectedCatalogAssetId])
 
-  useEffect(() => {
-    const options = [
-      ...filteredSystemTransitions.map((t) => `system:${t.id}`),
-      ...filteredTransitionLibrary.map((t) => `user:${t.id}`),
-    ]
-    if (options.length === 0) {
-      if (selectedTransitionKey !== null) setSelectedTransitionKey(null)
-      return
-    }
-    if (!selectedTransitionKey || !options.includes(selectedTransitionKey)) setSelectedTransitionKey(options[0])
-  }, [filteredSystemTransitions, filteredTransitionLibrary, selectedTransitionKey])
-
   // ── Handlers ─────────────────────────────────────────────────────
-
-  const handleSave = async () => {
-    if (!url) return
-    const durVal = parseFloat(durStr)
-    const type   = pendingTransitionKind
-    const hasDur = type === 'image' && !Number.isNaN(durVal) && durVal > 0
-    const entry: MediaEntry = {
-      id:   'media-' + Date.now(),
-      name: name.trim() || url.split('/').pop() || 'Unnamed',
-      type,
-      url,
-      ...(hasDur ? { duration: durVal } : {}),
-    }
-    await saveConfig({ sourceMedia: [...sourceMedia, entry] })
-    resetForm()
-  }
 
   const handleDeleteMediaEntry = async (id: string) => {
     await saveConfig({ sourceMedia: sourceMedia.filter((e) => e.id !== id) })
@@ -466,6 +370,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     catalogSearch, setCatalogSearch, catalogKindFilter, setCatalogKindFilter,
     selectedCatalogAsset, setSelectedCatalogAssetId,
     catalogFolderGroups, catalogLoading, catalogError, refreshCatalog, handleDeleteCatalogAsset,
+    handleDeleteMediaEntry,
     // events
     eventSearch, setEventSearch, filteredEventDefs,
     selectedEventId, editingEvent, eventDraftOriginalId: eventDraft?.originalId ?? null,
@@ -475,11 +380,6 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId: sourcePresetDraft?.originalId ?? null,
     sourceDraftCreatesNewPreset, selectedSourceUsageCount, usageCountByPreset,
     createSourcePresetDraft, patchSourcePresetDraft, saveSourcePresetDraft, deleteSourcePresetDraft,
-    // transitions
-    transitionSearch, setTransitionSearch, filteredSystemTransitions, filteredTransitionLibrary,
-    selectedTransition, setSelectedTransitionKey,
-    handleSave, handleDeleteMediaEntry,
-    name, setName, url, setUrl, durStr, setDurStr, pendingTransitionKind, resetForm,
   }
 
   return <MediaLibraryContext.Provider value={value}>{children}</MediaLibraryContext.Provider>

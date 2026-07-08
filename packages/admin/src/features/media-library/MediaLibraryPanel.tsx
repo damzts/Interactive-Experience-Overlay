@@ -1,17 +1,10 @@
-﻿import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { EventsTabContent, EventsTabSidebar } from './EventsTab'
 import { SourcesTabContent, SourcesTabSidebar } from './SourcesTab'
-import { TRANSITION_ICONS, getMediaTransitionLabel } from '../../shared/transitionLibrary'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
-import { ConfigPanel } from '../../components/organisms'
-import { MediaSelectionInput } from './MediaLibrary'
-import { socket } from '../../socket/client'
-import { encodeMediaTransitionValue, strToStep } from '../../shared/transitionLibrary'
 import { useMediaLibrary } from './MediaLibraryContext'
 import type { MediaLibraryTab } from './MediaLibraryContext'
-import { SidebarBtn, SectionLabel } from '../dashboard/NavListBox'
 import { ConfigNotice } from '../../shared/ui'
 import type { MediaRecord } from '../../shared/catalog'
 
@@ -21,7 +14,6 @@ const LIBRARY_TABS: Array<{ tab: MediaLibraryTab; icon: string; label: string }>
   { tab: 'catalog',     icon: '🖼', label: 'Gallery' },
   { tab: 'events',      icon: '⚡', label: 'Effects' },
   { tab: 'sources',     icon: '📺', label: 'Renders' },
-  { tab: 'transitions', icon: '✨', label: 'Transitions' },
 ]
 
 // ── Search input ───────────────────────────────────────────────────
@@ -174,47 +166,6 @@ function CatalogGridView() {
   )
 }
 
-// ── Transitions tab sidebar ────────────────────────────────────────
-
-function TransitionsTabSidebar() {
-  const {
-    transitionSearch, setTransitionSearch,
-    filteredSystemTransitions, filteredTransitionLibrary,
-    selectedTransition, setSelectedTransitionKey,
-  } = useMediaLibrary()
-
-  return (
-    <>
-      <MediaSearchInput value={transitionSearch} onChange={setTransitionSearch} placeholder="Search transitions…" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <SectionLabel first>System</SectionLabel>
-        {filteredSystemTransitions.map((t) => (
-          <SidebarBtn
-            key={t.id}
-            icon={TRANSITION_ICONS[t.id] ?? '✨'}
-            label={t.label}
-            active={selectedTransition?.kind === 'system' && selectedTransition.entry.id === t.id}
-            onClick={() => setSelectedTransitionKey(`system:${t.id}`)}
-          />
-        ))}
-        <SectionLabel>Saved</SectionLabel>
-        {filteredTransitionLibrary.length === 0 && (
-          <div className="px-2.5 text-[10px] text-zinc-600">No saved transitions yet.</div>
-        )}
-        {filteredTransitionLibrary.map((t) => (
-          <SidebarBtn
-            key={t.id}
-            icon="✨"
-            label={getMediaTransitionLabel(t)}
-            active={selectedTransition?.kind === 'user' && selectedTransition.entry.id === t.id}
-            onClick={() => setSelectedTransitionKey(`user:${t.id}`)}
-          />
-        ))}
-      </div>
-    </>
-  )
-}
-
 // ── Sidebar dispatcher ─────────────────────────────────────────────
 
 function MediaLibrarySidebar() {
@@ -243,7 +194,6 @@ function MediaLibrarySidebar() {
           onSelectSourcePreset={setSelectedSourcePresetId}
         />
       )}
-      {tab === 'transitions' && <TransitionsTabSidebar />}
     </div>
   )
 }
@@ -258,8 +208,6 @@ export function MediaLibraryContent() {
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId, sourceDraftCreatesNewPreset,
     selectedSourceUsageCount, createSourcePresetDraft, patchSourcePresetDraft,
     saveSourcePresetDraft, deleteSourcePresetDraft,
-    selectedTransition, handleDeleteMediaEntry,
-    name, setName, url, setUrl, durStr, setDurStr, pendingTransitionKind, resetForm, handleSave,
   } = useMediaLibrary()
 
   return (
@@ -293,114 +241,6 @@ export function MediaLibraryContent() {
         />
       )}
 
-      {/* ── Transitions ── */}
-      {tab === 'transitions' && (
-        <div className="space-y-4 pt-0.5">
-          {selectedTransition ? (
-            <Card variant="elevated" padding="lg" className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-lg font-semibold text-[var(--color-text-primary)]">
-                    {selectedTransition.kind === 'system'
-                      ? selectedTransition.entry.label
-                      : getMediaTransitionLabel(selectedTransition.entry)}
-                  </div>
-                  <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">
-                    {selectedTransition.kind === 'system' ? selectedTransition.entry.id : selectedTransition.entry.url}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    onClick={() =>
-                      selectedTransition.kind === 'system'
-                        ? socket.emit('transition:preview', [{ id: selectedTransition.entry.id }])
-                        : socket.emit('transition:preview', [strToStep(encodeMediaTransitionValue(selectedTransition.entry))])
-                    }
-                  >
-                    Test Transition
-                  </Button>
-                  {selectedTransition.kind === 'user' && (
-                    <Button type="button" variant="danger" size="md" onClick={() => { void handleDeleteMediaEntry(selectedTransition.entry.id) }}>
-                      Delete
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Card variant="default" padding="sm" className="text-left">
-                  <MetaRow label="Type">{selectedTransition.kind === 'system' ? 'System' : selectedTransition.entry.type}</MetaRow>
-                </Card>
-                <Card variant="default" padding="sm" className="text-left">
-                  <MetaRow label="Origin">{selectedTransition.kind === 'system' ? 'Built-in transition' : 'Saved media entry'}</MetaRow>
-                </Card>
-                <Card variant="default" padding="sm" className="text-left">
-                  <MetaRow label="Duration">
-                    {selectedTransition.kind === 'user' && selectedTransition.entry.duration != null
-                      ? `${selectedTransition.entry.duration}s`
-                      : 'Default'}
-                  </MetaRow>
-                </Card>
-              </div>
-            </Card>
-          ) : (
-            <ConfigNotice tone="info" className="py-6 text-center">Select a transition from the left column.</ConfigNotice>
-          )}
-
-          <ConfigPanel title="Create User Transition">
-            <div className="space-y-3">
-              <ConfigNotice>Save an image or video as a reusable user transition.</ConfigNotice>
-              <Card variant="default" padding="md" className="space-y-3">
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" className="w-full text-sm" />
-                <MediaSelectionInput
-                  value={url}
-                  onChange={setUrl}
-                  kinds={['image', 'video']}
-                  modalTitle="User Transition Asset"
-                  placeholder="/assets/images/transition.png or /assets/video/transition.mp4"
-                  buttonLabel="Choose Asset"
-                  previewKind="auto"
-                  showPreview={false}
-                />
-                {url && pendingTransitionKind === 'image' && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={0.1} max={120} step={0.5}
-                      value={durStr}
-                      onChange={(e) => setDurStr(e.target.value)}
-                      placeholder="4.0"
-                      className="w-28 font-mono text-sm"
-                    />
-                    <span className="text-xs text-[var(--color-text-muted)]">sec display duration</span>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Button type="button" variant="primary" size="md" onClick={() => void handleSave()} disabled={!url} fullWidth>
-                    Save Transition
-                  </Button>
-                  {(name || url || durStr) && (
-                    <Button type="button" variant="ghost" size="md" onClick={resetForm}>Reset</Button>
-                  )}
-                </div>
-              </Card>
-            </div>
-          </ConfigPanel>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Shared mini helper ─────────────────────────────────────────────
-
-function MetaRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">{label}</div>
-      <div className="mt-1 text-sm text-[var(--color-text-primary)]">{children}</div>
     </div>
   )
 }

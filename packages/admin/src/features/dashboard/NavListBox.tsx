@@ -1,12 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { STATE, withDesktopConfigDefaults, getWidgetSource } from '@ieomlabs/shared'
-import type { Application, Scene } from '@ieomlabs/shared'
+import type { Application, Scene, Sequence } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { IconGlyph } from '../../shared/ui'
 import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
 import type { MediaRecord } from '../../shared/catalog'
+import { fetchSequences, createSequence } from '../../api/sequencesApi'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -115,16 +117,33 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
   const persistedWidgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const userWidgetLayouts      = persistedWidgetLayouts.filter((layout) => layout.source === 'user')
 
-  const addNewLayout = () => {
+  const addNewLayout = async () => {
     if (applications.length === 0) return
     const nextLayout = createWidgetLayoutFromCurrentState(`Layout ${userWidgetLayouts.length + 1}`, applications, desktopConfig, [])
     const nextLayouts = [...persistedWidgetLayouts, nextLayout]
     patchConfig({ widgetLayouts: nextLayouts })
     onSelect({ kind: 'widget-layout', layoutId: nextLayout.id })
-    void saveConfig({ widgetLayouts: nextLayouts })
+    try {
+      await saveConfig({ widgetLayouts: nextLayouts })
+    } catch {
+      // saveConfig already records the error (store.lastError) — just roll
+      // back the optimistic local update so a failed save doesn't look saved.
+      patchConfig({ widgetLayouts: persistedWidgetLayouts })
+    }
   }
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
+
+  const [sequences, setSequences] = useState<Sequence[]>([])
+  useEffect(() => {
+    if (activeSection === 'sequences') void fetchSequences().then(setSequences)
+  }, [activeSection, selected])
+
+  const addNewSequence = async () => {
+    const seq = await createSequence(`Sequence ${sequences.length + 1}`, [])
+    setSequences((prev) => [seq, ...prev])
+    onSelect({ kind: 'sequence', sequenceId: seq.id })
+  }
 
   return (
     <div className="flex w-[240px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4">
@@ -196,6 +215,16 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
               onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })} />
           ))}
           <AddBtn label="Add New Layout" onClick={() => { void addNewLayout() }} />
+        </>}
+
+        {activeSection === 'sequences' && <>
+          <SectionLabel first>Sequences</SectionLabel>
+          {sequences.map((seq) => (
+            <SidebarBtn key={seq.id} icon="🎞" label={seq.label}
+              active={isActive({ kind: 'sequence', sequenceId: seq.id })}
+              onClick={() => onSelect({ kind: 'sequence', sequenceId: seq.id })} />
+          ))}
+          <AddBtn label="New Blank Sequence" onClick={() => { void addNewSequence() }} />
         </>}
 
       </div>

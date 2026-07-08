@@ -12,6 +12,8 @@
  * derived from the catalog — no admin code, ever.
  */
 import { registerEffect } from './registry'
+import { runSequence } from './runSequence'
+import type { SequenceEffectConfig } from '@ieomlabs/shared'
 
 import {
   type AimMessageConfig,
@@ -93,6 +95,14 @@ import {
   type SignOnPingConfig,
   type NextEpisodeConfig,
   type PodiumTakeConfig,
+  type FadeTransitionConfig,
+  type GlitchBurstTransitionConfig,
+  type WipeLeftConfig,
+  type WipeRightConfig,
+  type BootSequenceConfig,
+  type Win98LoadingConfig,
+  type CrtWipeConfig,
+  type ChannelSweepConfig,
 } from '@ieomlabs/shared'
 
 import { runAimMessage }            from '../transitions/AimMessage'
@@ -174,6 +184,14 @@ import { runSavePointChime }        from '../transitions/SavePointChime'
 import { runSignOnPing }            from '../transitions/SignOnPing'
 import { runNextEpisode }           from '../transitions/NextEpisode'
 import { runPodiumTake }            from '../transitions/PodiumTake'
+import { runFadeTransition }        from '../transitions/Fade'
+import { runGlitchBurst }           from '../transitions/GlitchBurst'
+import { runWipeLeft }              from '../transitions/WipeLeft'
+import { runWipeRight }             from '../transitions/WipeRight'
+import { runBootSequence }          from '../transitions/BootSequence'
+import { runWin98Loading }          from '../transitions/Win98Loading'
+import { runCrtWipe }               from '../transitions/CrtWipe'
+import { runChannelSweep }          from '../transitions/ChannelSweep'
 
 // ── Original effects ──────────────────────────────────────────────
 registerEffect('death-overlay',    (cfg) => runDeathOverlay(cfg as DeathOverlayConfig))
@@ -269,3 +287,16 @@ registerEffect('save-point-chime',  (cfg) => runSavePointChime(cfg as SavePointC
 registerEffect('sign-on-ping',      (cfg) => runSignOnPing(cfg as SignOnPingConfig))
 registerEffect('next-episode',      (cfg) => runNextEpisode(cfg as NextEpisodeConfig))
 registerEffect('podium-take',       (cfg) => runPodiumTake(cfg as PodiumTakeConfig))
+
+// ── Screen transitions (ported from the old built-in transition catalog) ──
+registerEffect('fade',           (cfg) => runFadeTransition(cfg as FadeTransitionConfig))
+registerEffect('glitch-burst',   (cfg) => runGlitchBurst(cfg as GlitchBurstTransitionConfig))
+registerEffect('wipe-left',      (cfg) => runWipeLeft(cfg as WipeLeftConfig))
+registerEffect('wipe-right',     (cfg) => runWipeRight(cfg as WipeRightConfig))
+registerEffect('boot-sequence',  (cfg) => runBootSequence(cfg as BootSequenceConfig))
+registerEffect('win98-loading',  (cfg) => runWin98Loading(cfg as Win98LoadingConfig))
+registerEffect('crt-wipe',       (cfg) => runCrtWipe(cfg as CrtWipeConfig))
+registerEffect('channel-sweep',  (cfg) => runChannelSweep(cfg as ChannelSweepConfig))
+
+// ── Sequential / exclusive ─────────────────────────────────────────
+registerEffect('sequence', (cfg) => runSequence(cfg as SequenceEffectConfig), { exclusive: true })

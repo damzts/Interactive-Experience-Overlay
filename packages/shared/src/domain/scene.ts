@@ -91,40 +91,6 @@ export interface LobbyConfig {
   skyColor?: string
 }
 
-// ── Transition pipeline ──────────────────────────────────────────
-
-/** All built-in named transition animations. Single source of truth for overlay, admin, and server. */
-export const BUILT_IN_TRANSITIONS = [
-  { id: 'fade',          label: 'Fade' },
-  { id: 'glitch-burst',  label: 'Glitch Burst' },
-  { id: 'static-burst',  label: 'Static Burst' },
-  { id: 'wipe-left',     label: 'Wipe Left' },
-  { id: 'wipe-right',    label: 'Wipe Right' },
-  { id: 'zoom-in',       label: 'Zoom In' },
-  { id: 'zoom-out',      label: 'Zoom Out' },
-  { id: 'boot-sequence', label: 'Boot Sequence' },
-  { id: 'win98-loading', label: 'Win98 Loading' },
-  { id: 'crt-wipe',      label: 'CRT Wipe' },
-  { id: 'channel-sweep', label: 'Channel Sweep' },
-] as const
-
-export type BuiltInTransitionId = typeof BUILT_IN_TRANSITIONS[number]['id']
-
-/**
- * One step in a transition pipeline.
- * `id` is either a BuiltInTransitionId ('fade', 'zoom-in', …) or a media specifier
- * ('media:video:/assets/video/file.mp4||Name||dur=3').
- * `duration` overrides the animation's built-in speed (seconds).
- * `renderer` spawns an ephemeral renderer in the transition tier instead.
- */
-export interface TransitionStep {
-  id: string
-  duration?: number
-  /** Renderer key to spawn as an ephemeral transition window (auto-unmounts after duration) */
-  renderer?: string
-  rendererConfig?: Record<string, unknown>
-}
-
 // ── Scene snapshot ───────────────────────────────────────────────
 
 export interface SceneDefaultSnapshot {
@@ -133,8 +99,8 @@ export interface SceneDefaultSnapshot {
   windows: WindowInstance[]
   style?: OverlayStyle
   lobbyConfig?: LobbyConfig
-  onEntry?: string[]
-  onExit?: string[]
+  introSequenceId?: string
+  exitSequenceId?: string
   ambientTrack?: string
 }
 
@@ -162,10 +128,10 @@ export interface Scene {
   style?: OverlayStyle
   /** 3D room configuration. Used by LOBBY scene. */
   lobbyConfig?: LobbyConfig
-  /** Ordered list of named transition IDs to play when entering this scene. */
-  onEntry?: string[]
-  /** Ordered list of named transition IDs to play when leaving this scene. */
-  onExit?: string[]
+  /** Sequence to play when entering this scene. */
+  introSequenceId?: string
+  /** Sequence to play when leaving this scene. */
+  exitSequenceId?: string
   /** Independent ambient audio track URL (crowd noise, room tone, etc.).
    *  Persists across scene changes — only replaced when ambientTrack itself changes. */
   ambientTrack?: string

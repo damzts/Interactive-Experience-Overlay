@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import type { ChatReactionRule, ChatReactionMatch, EventAction, EffectConfig, TwitchEventReaction, TwitchEventKind } from '@ieomlabs/shared'
+import { useEffect, useState } from 'react'
+import type { ChatReactionRule, ChatReactionMatch, EventAction, EffectConfig, Sequence, TwitchEventReaction, TwitchEventKind } from '@ieomlabs/shared'
 import type { EffectType } from '@ieomlabs/shared'
-import { STATE, BUILT_IN_TRANSITIONS } from '@ieomlabs/shared'
+import { STATE } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, Btn, Field } from '../../shared/ui'
 import { createEffectDraft, EVENT_EFFECT_TYPES } from '../media-library/eventPresets'
+import { fetchSequences } from '../../api/sequencesApi'
 
 // ── Shared style constants ────────────────────────────────────────
 
@@ -72,6 +73,8 @@ interface ActionsEditorProps {
 }
 
 function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps) {
+  const [sequences, setSequences] = useState<Sequence[]>([])
+  useEffect(() => { void fetchSequences().then(setSequences) }, [])
   const applications = useAdminStore((s) => s.config.applications)
   const userScenes   = useAdminStore((s) =>
     Object.values(s.config.scenes ?? {}).filter((sc) => sc.id !== STATE.LOBBY && sc.id !== STATE.DESKTOP)
@@ -88,7 +91,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
     let blank: EventAction
     if (kind === 'widget-command') blank = { kind, widgetId: applications[0]?.id ?? '', action: 'toggle' }
     else if (kind === 'scene-change') blank = { kind, target: userScenes[0]?.id ?? '' }
-    else blank = { kind: 'transition', transitionId: 'fade' }
+    else blank = { kind: 'transition', sequenceId: sequences[0]?.id ?? '' }
     onChange({ actions: [...actions, blank] })
   }
 
@@ -156,10 +159,11 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
           )}
           {action.kind === 'transition' && (
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-zinc-500 shrink-0">Transition</span>
-              <select value={action.transitionId} onChange={(e) => updateAction(i, { transitionId: e.target.value } as Partial<EventAction>)}
+              <span className="text-[10px] text-zinc-500 shrink-0">Sequence</span>
+              <select value={action.sequenceId} onChange={(e) => updateAction(i, { sequenceId: e.target.value } as Partial<EventAction>)}
                 className="flex-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
-                {BUILT_IN_TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                {sequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.label}</option>)}
+                {sequences.length === 0 && <option disabled value="">No sequences</option>}
               </select>
               <button type="button" onClick={() => removeAction(i)} className="text-zinc-600 hover:text-red-400 transition-colors text-xs">✕</button>
             </div>

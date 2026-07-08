@@ -84,8 +84,8 @@ export interface EventSceneChangeAction {
 
 export interface EventTransitionAction {
   kind: 'transition'
-  /** Transition ID — a key from the overlay TRANSITION_MAP or a sourceTransition id */
-  transitionId: string
+  /** Sequence id (Sequences tab, `sequences` table) to play as an exit pipeline. */
+  sequenceId: string
 }
 
 export interface EventPresetApplyAction {

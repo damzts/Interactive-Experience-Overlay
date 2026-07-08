@@ -122,15 +122,6 @@ export interface StickyNotesSettings {
   color: string
 }
 
-// ── Transition asset ──────────────────────────────────────────────
-
-export interface TransitionDefinition {
-  id: string
-  label: string
-  type: string
-  params?: Record<string, unknown>
-}
-
 // ── Widget entity ─────────────────────────────────────────────────
 
 /** A desktop widget — opens as a stacking window on the Win98 desktop */

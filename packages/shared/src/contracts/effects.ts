@@ -3,6 +3,7 @@
  *  that fire together (each with an optional delay).
  *  All events are uniform: no "built-in" vs custom distinction.
  */
+import type { SequenceStep } from '../domain/sequence.js'
 
 /** Maps each effect type name to its config shape. This is the single
  *  source of truth for effect types: `EffectType` and the `EffectConfig`
@@ -103,6 +104,17 @@ export interface EffectConfigMap {
   'sign-on-ping': SignOnPingConfig            // Dial Tone Dream — Y2K buddy-list sign-on card + door chime
   'next-episode': NextEpisodeConfig           // Signal Ghost — VHS-tracking anime bumper title card
   'podium-take': PodiumTakeConfig             // Podium Chrome — glass medal-ceremony podium card + confetti chrome
+  // ── Sequential / exclusive ─────────────────────────────────────
+  'sequence': SequenceEffectConfig            // Ordered step pipeline (built-in animation, media, or renderer); never dropped, cancels its own prior run
+  // ── Screen transitions (ported from the old built-in transition catalog) ─
+  'fade': FadeTransitionConfig                // Cross-fade through black
+  'glitch-burst': GlitchBurstTransitionConfig // Rapid chromatic-shift flash cut
+  'wipe-left': WipeLeftConfig                 // Black panel sweeps in from the right, cuts, exits left
+  'wipe-right': WipeRightConfig               // Black panel sweeps in from the left, cuts, exits right
+  'boot-sequence': BootSequenceConfig         // BIOS POST text → progress bar → fade
+  'win98-loading': Win98LoadingConfig         // Win98 "Loading…" dialog + progress bar, flash cut
+  'crt-wipe': CrtWipeConfig                   // CRT static floods the screen, fades to reveal content
+  'channel-sweep': ChannelSweepConfig         // Horizontal scan-line sweep, like changing a TV channel
 }
 
 export type EffectType = keyof EffectConfigMap
@@ -229,6 +241,18 @@ export interface BuiltInOverlayTimingConfig {
 export interface DeathOverlayConfig extends BuiltInOverlayTimingConfig {}
 export interface VictoryOverlayConfig extends BuiltInOverlayTimingConfig {}
 export interface ReviveOverlayConfig extends BuiltInOverlayTimingConfig {}
+
+// ── Screen transition configs (ported from the old built-in transition
+// catalog — same BuiltInOverlayTimingConfig speed-multiplier pattern) ──
+
+export interface FadeTransitionConfig extends BuiltInOverlayTimingConfig {}
+export interface GlitchBurstTransitionConfig extends BuiltInOverlayTimingConfig {}
+export interface WipeLeftConfig extends BuiltInOverlayTimingConfig {}
+export interface WipeRightConfig extends BuiltInOverlayTimingConfig {}
+export interface BootSequenceConfig extends BuiltInOverlayTimingConfig {}
+export interface Win98LoadingConfig extends BuiltInOverlayTimingConfig {}
+export interface CrtWipeConfig extends BuiltInOverlayTimingConfig {}
+export interface ChannelSweepConfig extends BuiltInOverlayTimingConfig {}
 
 // ── New effect configs ──────────────────────────────────────────
 
@@ -700,6 +724,20 @@ export interface PodiumTakeConfig {
   metric?: string
   /** Duration in seconds */
   duration: number
+}
+
+// ── Sequential / exclusive config ────────────────────────────────
+
+/** Config for the 'sequence' effect type — the generic ordered-pipeline
+ *  primitive. Registered as exclusive: dispatching a new sequence cancels
+ *  any run of 'sequence' still in flight, and it is never dropped for
+ *  budget reasons. Reuses SequenceStep so a scene's intro/exit Sequence
+ *  (resolved server-side from its introSequenceId/exitSequenceId) can
+ *  dispatch through this unchanged. */
+export interface SequenceEffectConfig {
+  steps: SequenceStep[]
+  /** Called once all steps have finished (or the sequence was empty). */
+  onComplete?: () => void
 }
 
 // ── Overlay trigger payload (admin → server → overlay) ──────────

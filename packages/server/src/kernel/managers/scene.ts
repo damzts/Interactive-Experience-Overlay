@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import {
   STATE,
-  type TransitionStep,
+  type SequenceStep,
   type OverlayTriggerPayload,
   type Manager,
   type ManagerStatus,
@@ -16,8 +16,8 @@ interface MachineSnapshot {
 export interface TransitionStartPayload {
   from: STATE
   to: STATE
-  exit: TransitionStep[]
-  intro: TransitionStep[]
+  exit: SequenceStep[]
+  intro: SequenceStep[]
 }
 
 export class SceneManager extends EventEmitter implements Manager {
@@ -43,7 +43,7 @@ export class SceneManager extends EventEmitter implements Manager {
   /** Attempt a transition. State updates immediately — overlay is eventually consistent. */
   transition(
     target: STATE,
-    options?: { exit?: TransitionStep[]; intro?: TransitionStep[] },
+    options?: { exit?: SequenceStep[]; intro?: SequenceStep[] },
   ): { ok: boolean; error?: string } {
     if (target === STATE.TRANSITIONING) {
       return { ok: false, error: 'Cannot navigate to TRANSITIONING state' }

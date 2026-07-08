@@ -593,6 +593,64 @@ export const EFFECT_CATALOG: { readonly [K in EffectType]: EffectManifest<K> } =
     defaults: { username: 'topGifter', place: 1, metric: '', duration: 4 },
     fields: [text('username', 'Username', true), slider('place', 'Place', 1, 3, 1), text('metric', 'Metric Label', true), dur(2, 8)],
   },
+
+  // ── Screen transitions (ported from the old built-in transition catalog) ─
+  'fade': {
+    label: 'Fade', category: 'Transitions', defaultSfx: 'transition',
+    desc: 'Cross-fade through black',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'glitch-burst': {
+    label: 'Glitch Burst', category: 'Transitions', defaultSfx: 'glitch',
+    desc: 'Rapid chromatic-shift flash cut',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'wipe-left': {
+    label: 'Wipe Left', category: 'Transitions', defaultSfx: 'transition',
+    desc: 'Black panel sweeps in from the right, cuts, exits left',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'wipe-right': {
+    label: 'Wipe Right', category: 'Transitions', defaultSfx: 'transition',
+    desc: 'Black panel sweeps in from the left, cuts, exits right',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'boot-sequence': {
+    label: 'Boot Sequence', category: 'Transitions', defaultSfx: 'startup',
+    desc: 'BIOS POST text → progress bar → fade',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'win98-loading': {
+    label: 'Win98 Loading', category: 'Transitions', defaultSfx: 'transition',
+    desc: 'Win98 "Loading…" dialog + progress bar, flash cut',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'crt-wipe': {
+    label: 'CRT Wipe', category: 'Transitions', defaultSfx: 'glitch',
+    desc: 'CRT static floods the screen, fades to reveal content',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+  'channel-sweep': {
+    label: 'Channel Sweep', category: 'Transitions',
+    desc: 'Horizontal scan-line sweep, like changing a TV channel',
+    defaults: { speed: 1 },
+    fields: [slider('speed', 'Speed', 0.25, 3, 0.05, 'x')],
+  },
+
+  // ── Sequential / exclusive ────────────────────────────────────────
+  'sequence': {
+    label: 'Sequence', category: 'Transitions',
+    desc: 'Generic ordered step pipeline (effect or renderer). Used internally by a scene’s intro/exit Sequence; steps are authored in the Sequences tab, not this generic field editor.',
+    defaults: { steps: [] },
+    fields: [],
+  },
 }
 
 // ── Derived helpers ───────────────────────────────────────────────

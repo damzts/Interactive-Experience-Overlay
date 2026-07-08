@@ -1,13 +1,13 @@
 import { STATE } from '@ieomlabs/shared'
-import type { TransitionStep } from '@ieomlabs/shared'
+import type { SequenceStep } from '@ieomlabs/shared'
 
 type VisualState = Exclude<STATE, typeof STATE.TRANSITIONING>
 
 export interface PendingTransition {
   from: STATE
   to: STATE
-  exit: TransitionStep[]
-  intro: TransitionStep[]
+  exit: SequenceStep[]
+  intro: SequenceStep[]
 }
 
 export interface SceneSlice {

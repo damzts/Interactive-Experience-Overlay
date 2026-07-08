@@ -12,7 +12,7 @@ import type { STATE } from './state.js'
 import type { OverlayTriggerPayload } from './effects.js'
 import type { RTCIceCandidateInit } from './webrtc-types.js'
 import type { EventConfig } from '../domain/event.js'
-import type { TransitionStep } from '../domain/scene.js'
+import type { SequenceStep } from '../domain/sequence.js'
 import type { WidgetLayoutItem } from '../domain/application.js'
 import type { AppConfig } from '../domain/config.js'
 import type {
@@ -126,7 +126,7 @@ export interface ClientToServerEvents {
   /** Preview a screen saver preset */
   'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   /** Preview a transition pipeline (admin use) */
-  'transition:preview': (steps: TransitionStep[]) => void
+  'transition:preview': (steps: SequenceStep[]) => void
   // ── State reports ─────────────────────────────────────────────────
   /** Report the overlay's runtime status to the kernel */
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void

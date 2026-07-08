@@ -28,6 +28,7 @@ import { ScenePanel } from './ScenePanel'
 import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 import { SettingsPanel } from './SettingsPanel'
 import { SidebarBtn, SectionLabel, NavListBox } from './NavListBox'
+import { SequencesHost } from '../sequences/SequencesHost'
 
 // ── RightPaneErrorBoundary ─────────────────────────────────────────
 
@@ -125,7 +126,7 @@ if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'media-gallery')     return <MediaLibraryPanel tab="catalog" />
   if (selected.kind === 'media-effects')     return <MediaLibraryPanel tab="events" />
   if (selected.kind === 'media-renders')     return <MediaLibraryPanel tab="sources" />
-  if (selected.kind === 'media-transitions') return <MediaLibraryPanel tab="transitions" />
+  if (selected.kind === 'sequence') return <SequencesHost key={selected.sequenceId} sequenceId={selected.sequenceId} onDeleted={onDeleted} />
 
   return null
 }
@@ -136,7 +137,6 @@ const MEDIA_TABS: Array<{ kind: SelectedItem['kind']; icon: string; label: strin
   { kind: 'media-gallery',     icon: '🖼', label: 'Gallery' },
   { kind: 'media-effects',     icon: '⚡', label: 'Effects' },
   { kind: 'media-renders',     icon: '📺', label: 'Renders' },
-  { kind: 'media-transitions', icon: '✨', label: 'Transitions' },
 ]
 
 // ── SystemSidebar ──────────────────────────────────────────────────
@@ -176,7 +176,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
   }
 
-  const showNavList = activeSection === 'scenes' || activeSection === 'widgets' || activeSection === 'layouts'
+  const showNavList = activeSection === 'scenes' || activeSection === 'widgets' || activeSection === 'layouts' || activeSection === 'sequences'
 
   // ── Header metadata (only used when selected is non-null) ──────────
   let headerIcon: React.ReactNode = ''
@@ -233,6 +233,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'shows')             { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Integration'; headerMeta = 'Engine' }
     else if (selected.kind === 'presets')            { headerIcon = '💾'; headerLabel = 'Presets';           headerMeta = 'System' }
+    else if (selected.kind === 'sequence')          { headerIcon = '🎞'; headerLabel = 'Sequence';         headerMeta = 'Effect Pipeline' }
     else {
       const mediaTab = MEDIA_TABS.find((t) => t.kind === selected.kind)
       if (mediaTab) { headerIcon = mediaTab.icon; headerLabel = mediaTab.label; headerMeta = 'Media Library' }
