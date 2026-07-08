@@ -64,6 +64,11 @@ function Notice({ tone = 'info', children, className = '' }: { tone?: 'info' | '
 
 // ── AppForm ───────────────────────────────────────────────────────────
 
+const APP_FORM_TABS = [
+  { id: 'general' as const, label: 'General' },
+  { id: 'window-defaults' as const, label: 'Window Defaults' },
+]
+
 export type AppFormHandle = { apply: () => Promise<void>; reset: () => void; dirty: boolean }
 
 export const AppForm = forwardRef<AppFormHandle, { app: Application; onDelete: () => void; embedded?: boolean; onDirtyChange?: (dirty: boolean) => void }>(
@@ -81,6 +86,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const runtimeWidgetTheme  = runtimeConfig.desktopConfig?.widgetThemes?.[app.id]
   const sourceWidgetTheme   = resolveWidgetThemeFromConfig(persistedApp)
 
+  const [activeTab,                 setActiveTab]                 = useState<'general' | 'window-defaults'>('general')
   const [form,                      setForm]                      = useState<Application>(app)
   const [widgetSize,                setWidgetSize]                = useState(() => resolveWidgetSizeFromConfig(persistedApp))
   const [widgetPosition,            setWidgetPosition]            = useState(() => resolveWidgetPositionFromConfig(persistedApp))
@@ -247,8 +253,18 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
 
   return (
     <div className="space-y-3">
+      <div className="flex gap-1">
+        {APP_FORM_TABS.map((tab) => (
+          <ConfigChoiceButton key={tab.id} type="button" selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)} className="flex-1 text-[11px]">
+            {tab.label}
+          </ConfigChoiceButton>
+        ))}
+      </div>
+
       <div className="space-y-0 pt-3">
 
+        {activeTab === 'general' && <>
         <ConfigPanel title="Runtime State" className="mb-4">
             <div className="space-y-3">
 
@@ -390,7 +406,9 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
             </div>
           </div>
         </ConfigPanel>
+        </>}
 
+        {activeTab === 'window-defaults' && (
         <ConfigPanel title="Widget Window Defaults" className="mb-4">
             {/* Visual drag+resize preview — same canvas as Scene windows */}
             <OverlayCanvas
@@ -505,7 +523,9 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
               </div>
             </div>
           </ConfigPanel>
+        )}
 
+        {activeTab === 'general' && <>
         {isStickyNotesWidget && (
           <StickyNotesConfigSection value={stickyNotesConfig} onChange={updateStickyNotesConfig} />
         )}
@@ -622,6 +642,7 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
             </div>
           </ConfigPanel>
         )}
+        </>}
       </div>
 
       <button onClick={onDelete} disabled={isProtectedSystemWidget}

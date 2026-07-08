@@ -185,8 +185,10 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
               onDoubleClick={() => onActivate({ kind: 'app', appId: app.id })} />
           ))}
           <AddBtn label="New Widget" onClick={() => onSelect({ kind: 'widget-create' })} />
+        </>}
 
-          <SectionLabel>Widget Layouts</SectionLabel>
+        {activeSection === 'layouts' && <>
+          <SectionLabel first>Layouts</SectionLabel>
           {userWidgetLayouts.map((layout) => (
             <SidebarBtn key={layout.id} icon={layout.icon || '📐'} label={layout.label}
               active={isActive({ kind: 'widget-layout', layoutId: layout.id })}
@@ -195,7 +197,6 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
           ))}
           <AddBtn label="Add New Layout" onClick={() => { void addNewLayout() }} />
         </>}
-
 
       </div>
     </div>

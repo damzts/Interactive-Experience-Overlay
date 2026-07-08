@@ -91,8 +91,17 @@ export function WidgetLayoutPanel({ layoutId, onDeleted }: { layoutId: string; o
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    setLayout(sourceLayout ? structuredClone(sourceLayout) : null)
-    setSaved(false)
+    // Only backfill when we don't yet have a draft for this layout (e.g. config
+    // was still loading on mount). Do NOT reset on every sourceLayout reference
+    // change — normalizeWidgetLayoutsForEditor rebuilds fresh objects whenever
+    // config.applications changes (e.g. runtime widget-position broadcasts over
+    // the socket), which would otherwise clobber an in-progress drag back to
+    // the last-saved position.
+    if (layout === null && sourceLayout !== null) {
+      setLayout(structuredClone(sourceLayout))
+      setSaved(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceLayout])
 
   useEffect(() => () => {

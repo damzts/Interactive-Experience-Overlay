@@ -108,7 +108,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   }
 
   if (selected.kind === 'widget-layout') {
-    return <WidgetLayoutPanel layoutId={selected.layoutId} onDeleted={onDeleted} />
+    return <WidgetLayoutPanel key={selected.layoutId} layoutId={selected.layoutId} onDeleted={onDeleted} />
   }
 
   if (selected.kind === 'audio')    return <AudioPanel />
@@ -176,7 +176,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
   }
 
-  const showNavList = activeSection === 'scenes' || activeSection === 'widgets'
+  const showNavList = activeSection === 'scenes' || activeSection === 'widgets' || activeSection === 'layouts'
 
   // ── Header metadata (only used when selected is non-null) ──────────
   let headerIcon: React.ReactNode = ''
