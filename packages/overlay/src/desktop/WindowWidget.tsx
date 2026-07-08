@@ -122,11 +122,6 @@ function SceneSource({ scene, windowPresets }: { scene: Scene; windowPresets?: W
     [scene, windowPresets],
   )
 
-  const background = scene.style?.background
-  const stageBackground = background?.type === 'gradient'
-    ? background.gradient
-    : background?.color ?? '#000'
-
   return (
     <div ref={ref} className="widget-panel widget-source-canvas" style={{ position: 'relative', overflow: 'hidden', background: '#000' }}>
       {scale > 0 ? (
@@ -138,7 +133,7 @@ function SceneSource({ scene, windowPresets }: { scene: Scene; windowPresets?: W
             width: STAGE_W,
             height: STAGE_H,
             transform: `translate(-50%, -50%) scale(${scale})`,
-            background: stageBackground,
+            background: '#000',
             overflow: 'hidden',
           }}
         >

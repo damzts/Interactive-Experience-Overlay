@@ -52,45 +52,6 @@ export interface TierConfig {
   windows: WindowInstance[]
 }
 
-// ── Lobby 3D environment ─────────────────────────────────────────
-
-/** Configurable 3D environment for the Lobby scene */
-export interface LobbyConfig {
-  ambientColor: string
-  ambientIntensity: number
-  fogColor: string
-  fogNear: number
-  fogFar: number
-  skyTopColor: string
-  skyHorizonColor: string
-  floorColor: string
-  floorReflectivity: number
-  crtGlowColor: string
-  dustMotes: boolean
-  cameraFov: number
-  starsCount: number
-  virtualPet: {
-    enabled: boolean
-    color: string
-    accessoryColor: string
-  }
-  lavaLamp: {
-    enabled: boolean
-    glassColor: string
-    liquidColor: string
-    glowColor: string
-  }
-  fishTank: {
-    enabled: boolean
-    glassColor: string
-    waterColor: string
-    fishColor: string
-    fishCount: number
-  }
-  /** @deprecated legacy flat-sky migration field */
-  skyColor?: string
-}
-
 // ── Scene snapshot ───────────────────────────────────────────────
 
 export interface SceneDefaultSnapshot {
@@ -98,7 +59,6 @@ export interface SceneDefaultSnapshot {
   backgroundOpaque: boolean
   windows: WindowInstance[]
   style?: OverlayStyle
-  lobbyConfig?: LobbyConfig
   introSequenceId?: string
   exitSequenceId?: string
   ambientTrack?: string
@@ -124,10 +84,8 @@ export interface Scene {
   label: string
   backgroundOpaque: boolean
   windows: WindowInstance[]
-  /** Visual style: background, particles, typography. Effects are now explicit windows. */
+  /** Scene-level typography. Background/effects/particles are explicit windows. */
   style?: OverlayStyle
-  /** 3D room configuration. Used by LOBBY scene. */
-  lobbyConfig?: LobbyConfig
   /** Sequence to play when entering this scene. */
   introSequenceId?: string
   /** Sequence to play when leaving this scene. */

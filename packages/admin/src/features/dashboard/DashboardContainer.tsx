@@ -44,14 +44,11 @@ export function DashboardContainer() {
   const onlineRoomCount = clientCount;
 
   const scenes = useMemo(() => {
-    const custom = Object.values(scenesConfig ?? {}).filter(
-      (s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP,
-    );
-    return [
-      { id: STATE.LOBBY, label: 'Lobby', icon: '🌐' },
-      { id: STATE.DESKTOP, label: 'Desktop', icon: '🖥' },
-      ...custom.map((s) => ({ id: s.id, label: s.label, icon: '🎬' })),
-    ];
+    return Object.values(scenesConfig ?? {}).map((s) => ({
+      id: s.id,
+      label: s.label,
+      icon: s.id === STATE.DESKTOP ? '🖥' : '🎬',
+    }));
   }, [scenesConfig]);
 
   const aiAmbianceEnabled = withDesktopAmbianceDefaults(rawDesktopAmbiance).widgetSimulation.enabled;

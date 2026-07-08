@@ -39,7 +39,7 @@ export function Taskbar({ startMenuOpen, onStartClick, onWidgetTaskbarClick }: T
     return () => clearTimeout(id)
   }, [lastSocketActivityAt])
 
-  const activeApp = visualState !== STATE.DESKTOP && visualState !== STATE.LOBBY
+  const activeApp = visualState !== STATE.DESKTOP
     ? config.applications.find((a) => a.targetSceneId === visualState) ?? null
     : null
 

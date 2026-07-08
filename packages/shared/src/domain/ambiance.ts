@@ -58,7 +58,7 @@ export interface AmbianceWidgetSimulationConfig {
   behaviors: Record<string, AmbianceWidgetBehavior>
   /** Per-layout navigation behaviors (keyed by layout ID). */
   layoutBehaviors?: Record<string, AmbianceNavBehavior>
-  /** Per-scene navigation behaviors (keyed by scene ID, including STATE.LOBBY / STATE.DESKTOP). */
+  /** Per-scene navigation behaviors (keyed by scene ID, including the built-in DESKTOP). */
   sceneBehaviors?: Record<string, AmbianceNavBehavior>
 }
 

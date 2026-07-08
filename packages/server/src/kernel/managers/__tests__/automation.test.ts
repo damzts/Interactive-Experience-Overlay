@@ -141,7 +141,7 @@ describe('AutomationManager widget-trigger rules', () => {
 
   it('enforces the sceneIs gate against the current machine state', () => {
     const rules = [
-      makeRule({ id: 'r1', trigger: { source: 'widget', event: 'quest:complete', sceneIs: [STATE.LOBBY] } }),
+      makeRule({ id: 'r1', trigger: { source: 'widget', event: 'quest:complete', sceneIs: ['CUSTOM_SCENE'] } }),
     ]
     const { bus, io, manager } = setup(rules, STATE.DESKTOP)
     manager.start()

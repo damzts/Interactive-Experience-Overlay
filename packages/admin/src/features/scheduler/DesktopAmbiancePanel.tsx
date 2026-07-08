@@ -38,13 +38,8 @@ export function DesktopAmbiancePanel() {
   const ambianceDiag       = useAdminStore((s) => s.runtimeDiagnostics.ambiance)
 
   const userLayouts = allLayouts.filter((l) => l.source === 'user')
-  const sceneEntries: Array<{ id: string; label: string; icon: string }> = [
-    { id: STATE.LOBBY,   label: 'Lobby',   icon: '🌐' },
-    { id: STATE.DESKTOP, label: 'Desktop', icon: '🖥' },
-    ...Object.values(allScenes)
-      .filter((s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP)
-      .map((s) => ({ id: s.id, label: s.label, icon: '🎬' })),
-  ]
+  const sceneEntries: Array<{ id: string; label: string; icon: string }> = Object.values(allScenes)
+    .map((s) => ({ id: s.id, label: s.label, icon: s.id === STATE.DESKTOP ? '🖥' : '🎬' }))
 
   const sourceConfig = withDesktopAmbianceDefaults(rawDesktopAmbiance)
 

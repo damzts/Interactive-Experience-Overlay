@@ -170,7 +170,7 @@ export function AudioPanel() {
                 </thead>
                 <tbody>
                   {[
-                    ['LOBBY', 'chill', 'Lo-fi, liquid, ambient'],
+                    ['DESKTOP', 'chill', 'Lo-fi, liquid, ambient'],
                     ['GAMEPLAY', 'suspense', 'Tense, rhythmic'],
                     ['TV', 'broadcast', 'Retro TV feel'],
                     ['MUSIC', 'featured', 'Featured music'],

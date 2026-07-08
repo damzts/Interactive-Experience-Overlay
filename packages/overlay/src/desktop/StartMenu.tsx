@@ -40,9 +40,7 @@ export function StartMenu({
     (app) => app.widgetComponent !== undefined || app.widgetSource !== undefined,
   )
   const layouts = (config.widgetLayouts ?? []).filter((l) => l.source === 'user')
-  const customScenes = Object.values(config.scenes ?? {}).filter(
-    (s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP,
-  )
+  const scenes = Object.values(config.scenes ?? {})
 
   return (
     <div className="start-menu" onMouseDown={(e) => e.stopPropagation()}>
@@ -114,20 +112,10 @@ export function StartMenu({
           <span className="start-menu-item-label">Scenes</span>
           <span className="start-menu-item-arrow">▶</span>
           <div className="start-menu-sub">
-            <button className="start-menu-sub-item"
-              onClick={() => { socket.emit('scene:change', STATE.LOBBY); onClose() }}>
-              <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>🌐</span>
-              <span>Lobby</span>
-            </button>
-            <button className="start-menu-sub-item"
-              onClick={() => { socket.emit('scene:change', STATE.DESKTOP); onClose() }}>
-              <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>🖥</span>
-              <span>Desktop</span>
-            </button>
-            {customScenes.map((scene) => (
+            {scenes.map((scene) => (
               <button key={scene.id} className="start-menu-sub-item"
-                onClick={() => { socket.emit('scene:change', scene.id as unknown as STATE); onClose() }}>
-                <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>🎬</span>
+                onClick={() => { socket.emit('scene:change', scene.id); onClose() }}>
+                <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{scene.id === STATE.DESKTOP ? '🖥' : '🎬'}</span>
                 <span>{scene.label}</span>
               </button>
             ))}

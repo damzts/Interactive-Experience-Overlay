@@ -235,8 +235,10 @@ Sources within a tier support: `blendMode`, `opacity`, `maskSourceId`,
 `showDesktop` on a `Scene` drives a `data-desktop` attribute on `#overlay-root`.
 CSS gates the desktop layer on this attribute — no scene-level style override needed.
 
-The `LobbyScene` (Three.js 3D room) is a special-case render for the LOBBY
-runtime, rendered inside a content-tier source.
+DESKTOP is a seeded built-in `Scene` row like any other — it carries no
+special renderer path. It's identified only by `showDesktop: true` on its
+`Scene` row (which any scene can set) and by being the kernel's boot/fallback
+scene id.
 
 ### State in Userspace
 

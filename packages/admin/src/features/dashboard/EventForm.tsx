@@ -3,7 +3,6 @@ import {
   DEFAULT_WIDGET_THEME_PRESETS,
   EFFECT_CATALOG,
   getEffectLabel,
-  STATE,
   withDesktopConfigDefaults,
 } from '@ieomlabs/shared'
 import type {
@@ -218,7 +217,7 @@ export function EventForm({
                 <div>
                   <div className="text-[10px] text-zinc-400 mb-1">Allowed states</div>
                   <div className="flex gap-2">
-                    {[STATE.DESKTOP, STATE.LOBBY].map((stateId) => {
+                    {Object.keys(config.scenes ?? {}).map((stateId) => {
                       const selected = (def.auto.allowedStates ?? []).includes(stateId)
                       return (
                         <ConfigChoiceButton key={stateId} type="button" selected={selected}

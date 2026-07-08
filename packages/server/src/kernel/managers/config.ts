@@ -17,7 +17,6 @@ import {
   withDesktopAmbianceDefaults,
   withDesktopConfigDefaults,
   withEventListDefaults,
-  withLobbyConfigDefaults,
   withOverlayStyleDefaults,
 } from '@ieomlabs/shared'
 import type {
@@ -73,7 +72,6 @@ function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<S
     backgroundOpaque: source.backgroundOpaque,
     windows: clone(source.windows ?? []),
     style: source.style ? clone(source.style) : undefined,
-    lobbyConfig: source.lobbyConfig ? clone(source.lobbyConfig) : undefined,
     introSequenceId: source.introSequenceId,
     exitSequenceId: source.exitSequenceId,
   }
@@ -565,7 +563,6 @@ export class DesktopConfigService implements Manager, IConfigService {
   private withConfigDefaults(next: AppConfig): AppConfig {
     const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
     let applications = [...(next.applications ?? [])]
-    const lobbyScene   = next.scenes[STATE.LOBBY]   ?? DEFAULT_CONFIG.scenes[STATE.LOBBY]
     const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
 
     for (const app of requiredApps) {
@@ -579,12 +576,6 @@ export class DesktopConfigService implements Manager, IConfigService {
 
     const scenes: AppConfig['scenes'] = {
       ...next.scenes,
-      [STATE.LOBBY]: {
-        ...DEFAULT_CONFIG.scenes[STATE.LOBBY],
-        ...lobbyScene,
-        style: withOverlayStyleDefaults(lobbyScene.style),
-        lobbyConfig: withLobbyConfigDefaults(lobbyScene.lobbyConfig),
-      },
       [STATE.DESKTOP]: {
         ...DEFAULT_CONFIG.scenes[STATE.DESKTOP],
         ...desktopScene,
@@ -619,13 +610,13 @@ export class DesktopConfigService implements Manager, IConfigService {
   createScene(_app: Application, scene: Scene): AppConfig {
     this.db.transaction(() => {
       this.db.prepare(`
-        INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, lobby_config_json, intro_sequence_id, exit_sequence_id, music_track, show_desktop)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, intro_sequence_id, exit_sequence_id, ambient_track, show_desktop)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         scene.id, scene.label, boolToInt(scene.backgroundOpaque),
         JSON.stringify(scene.windows ?? []),
         scene.style ? JSON.stringify(scene.style) : null,
-        null, null, null, null, 0,
+        null, null, null, 0,
       )
     })()
     this._cachedConfig = null

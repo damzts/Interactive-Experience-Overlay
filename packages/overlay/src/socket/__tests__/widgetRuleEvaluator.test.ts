@@ -39,9 +39,9 @@ describe('evaluateWidgetRules', () => {
   })
 
   it('enforces sceneIs and payload match gates', () => {
-    const gated = [rule({ trigger: { source: 'widget', event: 'weather:storm', sceneIs: [STATE.LOBBY] } })]
+    const gated = [rule({ trigger: { source: 'widget', event: 'weather:storm', sceneIs: ['CUSTOM_SCENE'] } })]
     expect(evaluateWidgetRules(gated, storm, STATE.DESKTOP)).toEqual([])
-    expect(evaluateWidgetRules(gated, storm, STATE.LOBBY)).toHaveLength(1)
+    expect(evaluateWidgetRules(gated, storm, 'CUSTOM_SCENE')).toHaveLength(1)
 
     const matched = [rule({ trigger: { source: 'widget', event: 'weather:storm', match: { severity: 'high' } } })]
     expect(evaluateWidgetRules(matched, storm, STATE.DESKTOP)).toEqual([])

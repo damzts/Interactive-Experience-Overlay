@@ -150,23 +150,10 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
       <div className="flex-1 overflow-y-auto pb-2 pr-1">
 
         {activeSection === 'scenes' && <>
-          <SectionLabel first>Runtimes</SectionLabel>
-          <SidebarBtn icon="🌐" label="Lobby"
-            live={currentState === STATE.LOBBY}
-            active={isActive({ kind: 'env', envState: STATE.LOBBY })}
-            onClick={() => onSelect({ kind: 'env', envState: STATE.LOBBY })}
-            onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.LOBBY })} />
-          <SidebarBtn icon="🖥" label="Desktop"
-            live={currentState === STATE.DESKTOP}
-            active={isActive({ kind: 'env', envState: STATE.DESKTOP })}
-            onClick={() => onSelect({ kind: 'env', envState: STATE.DESKTOP })}
-            onDoubleClick={() => onActivate({ kind: 'env', envState: STATE.DESKTOP })} />
-
-          <SectionLabel>Scenes</SectionLabel>
+          <SectionLabel first>Scenes</SectionLabel>
           {Object.values(scenes)
-            .filter((s) => s.id !== STATE.LOBBY && s.id !== STATE.DESKTOP)
             .map((scene) => (
-              <SidebarBtn key={scene.id} icon="🎬" label={scene.label}
+              <SidebarBtn key={scene.id} icon={scene.id === STATE.DESKTOP ? '🖥' : '🎬'} label={scene.label}
                 live={currentState === scene.id}
                 active={isActive({ kind: 'scene', sceneState: scene.id })}
                 onClick={() => onSelect({ kind: 'scene', sceneState: scene.id })}

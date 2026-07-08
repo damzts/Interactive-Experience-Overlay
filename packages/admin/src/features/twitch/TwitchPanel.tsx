@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ChatReactionRule, ChatReactionMatch, EventAction, EffectConfig, Sequence, TwitchEventReaction, TwitchEventKind } from '@ieomlabs/shared'
 import type { EffectType } from '@ieomlabs/shared'
-import { STATE } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, Btn, Field } from '../../shared/ui'
@@ -76,9 +75,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
   const [sequences, setSequences] = useState<Sequence[]>([])
   useEffect(() => { void fetchSequences().then(setSequences) }, [])
   const applications = useAdminStore((s) => s.config.applications)
-  const userScenes   = useAdminStore((s) =>
-    Object.values(s.config.scenes ?? {}).filter((sc) => sc.id !== STATE.LOBBY && sc.id !== STATE.DESKTOP)
-  )
+  const scenes = useAdminStore((s) => Object.values(s.config.scenes ?? {}))
 
   const updateEffectCfg = (i: number, patch: Partial<Record<string, unknown>>) => {
     const next = [...effects]
@@ -90,7 +87,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
   const addAction = (kind: EventAction['kind']) => {
     let blank: EventAction
     if (kind === 'widget-command') blank = { kind, widgetId: applications[0]?.id ?? '', action: 'toggle' }
-    else if (kind === 'scene-change') blank = { kind, target: userScenes[0]?.id ?? '' }
+    else if (kind === 'scene-change') blank = { kind, target: scenes[0]?.id ?? '' }
     else blank = { kind: 'transition', sequenceId: sequences[0]?.id ?? '' }
     onChange({ actions: [...actions, blank] })
   }
@@ -151,8 +148,8 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
               <span className="text-[10px] text-zinc-500 shrink-0">Scene</span>
               <select value={action.target} onChange={(e) => updateAction(i, { target: e.target.value } as Partial<EventAction>)}
                 className="flex-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
-                {userScenes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                {userScenes.length === 0 && <option disabled value="">No user scenes</option>}
+                {scenes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {scenes.length === 0 && <option disabled value="">No scenes</option>}
               </select>
               <button type="button" onClick={() => removeAction(i)} className="text-zinc-600 hover:text-red-400 transition-colors text-xs">✕</button>
             </div>
@@ -183,7 +180,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
             + Widget command
           </button>
         )}
-        {userScenes.length > 0 && (
+        {scenes.length > 0 && (
           <button type="button" onClick={() => addAction('scene-change')}
             className="rounded-full border border-zinc-700/60 bg-zinc-900/60 px-2.5 py-1 text-[10px] font-semibold text-zinc-400 transition hover:border-cyan-400/40 hover:text-cyan-200">
             + Scene change

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { STATE, withPersonaDefaults } from '@ieomlabs/shared'
+import { withPersonaDefaults } from '@ieomlabs/shared'
 import { useAppStore } from './store/useAppStore'
 import { useSocket } from './socket/useSocket'
 import { onKernelSignal } from './socket/kernelSignals'
@@ -13,8 +13,6 @@ import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
 import { RtcStreamProvider } from './rtc/RtcStreamContext'
 import { runChatBubble } from './transitions/ChatBubble'
-
-const LobbyScene = React.lazy(() => import('./lobby/LobbyScene').then(m => ({ default: m.LobbyScene })))
 
 export default function App() {
   const visualState = useAppStore((s) => s.visualState)
@@ -83,24 +81,13 @@ export default function App() {
         <LayerErrorBoundary name="scene">
           <SceneCompositor
             windows={visibleWindows}
-            overlayStyle={overlayStyle}
             sceneAge={sceneAge}
           />
         </LayerErrorBoundary>
 
-        <div id="lobby-layer">
-          <LayerErrorBoundary name="lobby">
-            {visualState === STATE.LOBBY && (
-              <React.Suspense fallback={null}>
-                <LobbyScene />
-              </React.Suspense>
-            )}
-          </LayerErrorBoundary>
-        </div>
-
         <div id="desktop-layer">
           <LayerErrorBoundary name="desktop">
-            <Desktop apps={config.applications} />
+            <Desktop apps={config.applications} overlayStyle={overlayStyle} />
           </LayerErrorBoundary>
         </div>
 

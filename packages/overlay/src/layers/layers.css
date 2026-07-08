@@ -19,7 +19,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 #background-layer,
 #particles-layer,
 #sources-layer,
-#lobby-layer,
 #desktop-layer,
 #effects-layer,
 #transition-layer {
@@ -44,17 +43,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 /* Sources layer: z=5 */
 #sources-layer { z-index: 5; }
 
-/* Lobby 3D canvas: z=10, hidden by default, only mounted in LOBBY state */
-#lobby-layer {
-  z-index: 10;
-  opacity: 0;
-  pointer-events: none;
-}
-.state-lobby #lobby-layer {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* Desktop: z=20, hidden by default */
 #desktop-layer {
   z-index: 20;
@@ -75,11 +63,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
 }
 
 /* â”€â”€ Desktop visibility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* LOBBY = 3D room â€” background darkens to deep space */
-.state-lobby {
-  background: #05050f;
-}
-
 /* Desktop (Win98 2D layer) is visible when scene sets showDesktop: true */
 #overlay-root[data-desktop="true"] #desktop-layer {
   opacity: 1;

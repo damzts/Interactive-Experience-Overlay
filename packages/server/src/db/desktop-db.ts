@@ -19,7 +19,6 @@ const SCHEMA = `
     background_opaque INTEGER NOT NULL DEFAULT 0,
     windows_json TEXT NOT NULL DEFAULT '[]',
     style_json TEXT,
-    lobby_config_json TEXT,
     intro_sequence_id TEXT,
     exit_sequence_id TEXT,
     music_track TEXT,

@@ -72,9 +72,7 @@ export function Dashboard() {
 
   const handleActivate = (item: SelectedItem) => {
     setSelected(item)
-    if (item.kind === 'env') {
-      socket.emit('scene:change', item.envState)
-    } else if (item.kind === 'scene') {
+    if (item.kind === 'scene') {
       socket.emit('scene:change', item.sceneState)
     } else if (item.kind === 'app') {
       const app = applications.find((a) => a.id === item.appId)

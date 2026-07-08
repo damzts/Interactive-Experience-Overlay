@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieomlabs/shared'
 import type { EventConfig, AutoTrigger, ConfigPreset } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
@@ -28,8 +27,6 @@ function formatAgo(ts: number | null): string {
   if (s < 60) return `${s}s ago`
   return `${Math.round(s / 60)}m ago`
 }
-
-const ALL_STATES: STATE[] = [STATE.LOBBY, STATE.DESKTOP]
 
 /** A sourceEvents entry created by the Preset Rotation quick-create form —
  *  its only action is swapping the whole config to a saved preset. */
@@ -66,6 +63,7 @@ function EventRow({
   const [expanded, setExpanded] = useState(false)
   const auto = event.auto
   const hasWork = event.effects.length > 0 || (event.actions?.length ?? 0) > 0
+  const sceneIds = useAdminStore((s) => Object.keys(s.config.scenes ?? {}))
 
   return (
     <ConfigCard>
@@ -153,7 +151,7 @@ function EventRow({
               Allowed scenes <span className="font-normal text-zinc-600">(empty = any)</span>
             </div>
             <div className="flex gap-1.5">
-              {ALL_STATES.map((s) => {
+              {sceneIds.map((s) => {
                 const active = (auto.allowedStates ?? []).includes(s)
                 return (
                   <ConfigChoiceButton key={s} selected={active} onClick={() => {

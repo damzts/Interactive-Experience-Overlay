@@ -12,8 +12,8 @@
  */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { STATE, getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
-import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
+import { getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload, OverlayStyle } from '@ieomlabs/shared'
 import type { DesktopStartMenuSimulationPhasePayload } from './simulationTypes'
 import { useAppStore } from '../store/useAppStore'
 import { Taskbar } from './Taskbar'
@@ -31,7 +31,6 @@ import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWid
 import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
 import { warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets, getDesktopWidgetRenderer, isWidgetRegistered } from './widgetRegistry'
 import React from 'react';
-import { resolveSceneStyle } from '../services/SceneResolver.js'
 
 function resolveWidgetComponent(app: Application) {
   return getDesktopWidgetRenderer(getWidgetComponent(app))
@@ -61,6 +60,7 @@ const THEME_CLASSNAME: Record<DesktopTheme, string> = {
 
 interface DesktopProps {
   apps: Application[]
+  overlayStyle: OverlayStyle
 }
 
 type IconSize = NonNullable<Application['iconSize']>
@@ -247,7 +247,7 @@ function computeGridPositions(
 }
 
 /** Fallback draggable window for any widget without a registered runtime component. */
-export function Desktop({ apps }: DesktopProps) {
+export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
   const [selectedId, setSelectedId]       = useState<string | null>(null)
   const [startMenuOpen, setStartMenuOpen] = useState(false)
   const [startMenuActiveRoot, setStartMenuActiveRoot] = useState<DesktopStartMenuRoot>(null)
@@ -294,7 +294,6 @@ export function Desktop({ apps }: DesktopProps) {
   desktopConfigRef.current = desktopConfig
   const applicationsRef = useRef(config.applications)
   applicationsRef.current = config.applications
-  const desktopStyle = resolveSceneStyle(config, STATE.DESKTOP)
   const supportedApps = useMemo(() => apps, [apps])
   const cameraPermissionState = useAppStore((s) => s.cameraPermissionState)
   const setCameraPermissionState = useAppStore((s) => s.setCameraPermissionState)
@@ -467,7 +466,7 @@ export function Desktop({ apps }: DesktopProps) {
             if (payload.targetKind === 'layout') {
               socket.emit('widget:layout:apply', payload.widgetId);
             } else if (payload.targetKind === 'scene') {
-              socket.emit('scene:change', payload.widgetId as unknown as STATE);
+              socket.emit('scene:change', payload.widgetId);
             }
             ok = true;
           } finally {

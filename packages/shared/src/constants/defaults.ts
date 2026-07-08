@@ -21,44 +21,10 @@ import type { PersonaConfig } from '../domain/persona.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
-import type { LobbyConfig, WindowInstance, WindowPreset } from '../domain/scene.js'
+import type { WindowInstance, WindowPreset } from '../domain/scene.js'
 import type { OverlayStyle } from '../domain/overlay.js'
 import type { RuntimeConfig } from '../contracts/socket.js'
 import { STATE, OVERLAY_EVENT } from '../contracts/state.js'
-
-export const DEFAULT_LOBBY_CONFIG: LobbyConfig = {
-  ambientColor: '#f8fbff',
-  ambientIntensity: 0.85,
-  fogColor: '#edf3ff',
-  fogNear: 10,
-  fogFar: 30,
-  skyTopColor: '#dceeff',
-  skyHorizonColor: '#f8fbff',
-  floorColor: '#eef2f9',
-  floorReflectivity: 0.28,
-  crtGlowColor: '#6cb6ff',
-  dustMotes: true,
-  cameraFov: 56,
-  starsCount: 0,
-  virtualPet: {
-    enabled: true,
-    color: '#7fd0ff',
-    accessoryColor: '#ffe27a',
-  },
-  lavaLamp: {
-    enabled: true,
-    glassColor: '#eff6ff',
-    liquidColor: '#7ec8ff',
-    glowColor: '#9be7ff',
-  },
-  fishTank: {
-    enabled: true,
-    glassColor: '#e9f7ff',
-    waterColor: '#dcf6ff',
-    fishColor: '#ffb347',
-    fishCount: 4,
-  },
-}
 
 function normalizeDesktopTheme(theme?: DesktopTheme | 'win vista'): DesktopTheme {
   if (theme === 'win vista') return 'frutiger aero'
@@ -401,10 +367,6 @@ function normalizeWidgetThemes(value?: DesktopConfig['widgetThemes']) {
   return Object.keys(entries).length ? entries : undefined
 }
 
-function buildSolidGradient(color: string) {
-  return `linear-gradient(180deg, ${color} 0%, ${color} 100%)`
-}
-
 export const DEFAULT_STICKY_NOTES_SETTINGS: StickyNotesSettings = {
   text: 'Reminder:\n- queue scenes\n- test alerts\n- hydrate',
   color: '#fff2a8',
@@ -442,86 +404,15 @@ export const DEFAULT_WIDGET_THEME_PRESETS: Record<WidgetSkinTheme, WidgetThemeCo
 }
 
 const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
-  background: {
-    type: 'none',
-    color: '#000000',
-    gradient: 'linear-gradient(135deg, #0c0c1e 0%, #1a0533 50%, #0c0c1e 100%)',
-    imageUrl: '',
-    videoUrl: '',
-    pattern: 'none',
-    opacity: 0,
-    blur: 0,
-  },
-  effects: {
-    crt: true,
-    noise: false,
-    vignette: true,
-    flicker: false,
-    chromatic: false,
-    scanlineOpacity: 0.18,
-    noiseOpacity: 0.06,
-    vignetteStrength: 0.65,
-  },
-  particles: {
-    enabled: false,
-    preset: 'none',
-    density: 0.5,
-    speed: 0.4,
-  },
   fontFamily: 'default',
   accentColor: '#00ff41',
   textColor: '#ffffff',
 }
 
 export function withOverlayStyleDefaults(style: OverlayStyle | null | undefined, fallback: OverlayStyle = DEFAULT_OVERLAY_STYLE): OverlayStyle {
-  const nextStyle: OverlayStyle = {
+  return {
     ...fallback,
     ...style,
-    background: {
-      ...fallback.background,
-      ...style?.background,
-    },
-    effects: {
-      ...fallback.effects,
-      ...style?.effects,
-    },
-    particles: {
-      ...fallback.particles,
-      ...style?.particles,
-    },
-  }
-
-  if (!nextStyle.background.gradient) {
-    nextStyle.background.gradient = buildSolidGradient(nextStyle.background.color)
-  }
-
-  if (nextStyle.background.type === 'color') {
-    nextStyle.background.type = 'gradient'
-    nextStyle.background.gradient = buildSolidGradient(nextStyle.background.color)
-  }
-
-  return nextStyle
-}
-
-export function withLobbyConfigDefaults(config?: Partial<LobbyConfig> | null): LobbyConfig {
-  const legacySkyColor = config?.skyColor
-  return {
-    ...DEFAULT_LOBBY_CONFIG,
-    ...config,
-    skyTopColor: config?.skyTopColor ?? legacySkyColor ?? DEFAULT_LOBBY_CONFIG.skyTopColor,
-    skyHorizonColor: config?.skyHorizonColor ?? legacySkyColor ?? DEFAULT_LOBBY_CONFIG.skyHorizonColor,
-    virtualPet: {
-      ...DEFAULT_LOBBY_CONFIG.virtualPet,
-      ...config?.virtualPet,
-    },
-    lavaLamp: {
-      ...DEFAULT_LOBBY_CONFIG.lavaLamp,
-      ...config?.lavaLamp,
-    },
-    fishTank: {
-      ...DEFAULT_LOBBY_CONFIG.fishTank,
-      ...config?.fishTank,
-    },
   }
 }
 
@@ -1017,50 +908,9 @@ export function applyRuntimeConfig(base: AppConfig, runtimeConfig: RuntimeConfig
 export const DEFAULT_CONFIG: AppConfig = {
   windowPresets: [],
   scenes: {
-    LOBBY: {
-      id: 'LOBBY',
-      label: 'LOBBY',
-      backgroundOpaque: true,
-      // Lobby = 3D room (R3F ThreeBackground renderer — NOT the Win98 desktop).
-      // The desktop layer is hidden in LOBBY state; only the 3D room renders here.
-      windows: [],
-      style: {
-        background: {
-          type: 'gradient',
-          color: '#f8fbff',
-          gradient: 'linear-gradient(180deg, #ffffff 0%, #edf3ff 100%)',
-          imageUrl: '',
-          videoUrl: '',
-          pattern: 'none',
-          opacity: 1,
-          blur: 0,
-        },
-        effects: {
-          crt: false,
-          noise: false,
-          vignette: false,
-          flicker: false,
-          chromatic: false,
-          scanlineOpacity: 0,
-          noiseOpacity: 0,
-          vignetteStrength: 0,
-        },
-        particles: {
-          enabled: false,
-          preset: 'none',
-          density: 0.25,
-          speed: 0.25,
-        },
-        fontFamily: 'default',
-        accentColor: '#7fd0ff',
-        textColor: '#18314d',
-      },
-      lobbyConfig: DEFAULT_LOBBY_CONFIG,
-    },
-
     DESKTOP: {
       id: 'DESKTOP',
-      label: 'DESKTOP',
+      label: 'Desktop',
       backgroundOpaque: true,
       showDesktop: true,
       // Desktop = Win98 OS widget lifecycle manager.
@@ -1109,15 +959,13 @@ export const DEFAULT_CONFIG: AppConfig = {
       F2: 'overlay:death',
       F3: 'overlay:revive',
       F4: 'overlay:victory',
-      F6: 'scene:desktop',
-      F7: 'scene:lobby',
+      F6: 'scene:DESKTOP',
     },
     admin: {
       F2: 'overlay:death',
       F3: 'overlay:revive',
       F4: 'overlay:victory',
-      F6: 'scene:desktop',
-      F7: 'scene:lobby',
+      F6: 'scene:DESKTOP',
     },
   },
 

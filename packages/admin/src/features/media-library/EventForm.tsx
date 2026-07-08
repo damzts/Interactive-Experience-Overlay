@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_WIDGET_THEME_PRESETS, EFFECT_CATALOG, getEffectLabel, NAVIGABLE_STATES, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import { DEFAULT_WIDGET_THEME_PRESETS, EFFECT_CATALOG, getEffectLabel, withDesktopConfigDefaults } from '@ieomlabs/shared'
 import type {
   DesktopConfig,
   EffectType,
@@ -53,8 +53,8 @@ export function EventForm({
   const [collapsedActionIndexes, setCollapsedActionIndexes] = useState<number[]>([])
   const [collapsedEffectIndexes, setCollapsedEffectIndexes] = useState<number[]>([])
   const normalizedEffects = useMemo(() => def.effects.map((effect) => normalizeEventEffectConfig(effect)), [def.effects])
-  // Scene ids are data-driven: built-ins plus every scene defined in config.
-  const sceneIds = useMemo(() => [...new Set([...NAVIGABLE_STATES, ...Object.keys(config.scenes ?? {})])], [config.scenes])
+  // Scene ids are data-driven: every scene defined in config, including the built-in DESKTOP.
+  const sceneIds = useMemo(() => Object.keys(config.scenes ?? {}), [config.scenes])
 
   const update = (fn: (d: EventDef) => void) => {
     const next: EventDef = {

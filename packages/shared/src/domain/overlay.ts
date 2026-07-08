@@ -37,10 +37,10 @@ export interface OverlayParticles {
   speed: number
 }
 
+/** Scene-level typography. Background/effects/particles are explicit
+ *  `builtin:background` / `builtin:effects` / `builtin:particles` windows
+ *  in the scene's windows array, not style fields. */
 export interface OverlayStyle {
-  background: OverlayBackground
-  effects: OverlayEffects
-  particles: OverlayParticles
   /** Google Font name, or 'default' */
   fontFamily: string
   accentColor: string

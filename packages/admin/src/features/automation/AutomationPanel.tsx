@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { AutomationRule, AutomationActionKind, AutomationTrigger, WidgetIntentManifest, EffectType } from '@ieomlabs/shared'
-import { STATE, NAVIGABLE_STATES, findRendererCatalogEntry, PUBLIC_KERNEL_SIGNALS } from '@ieomlabs/shared'
+import { STATE, findRendererCatalogEntry, PUBLIC_KERNEL_SIGNALS } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   fetchAutomationRules, fetchAutomationManifests,
@@ -84,7 +84,7 @@ export function AutomationPanel() {
   const [widgetId, setWidgetId] = useState('')
   const [dstWidgetId, setDstWidgetId] = useState('')
   const [dstAction, setDstAction] = useState('')
-  const [sceneId, setSceneId] = useState<string>(NAVIGABLE_STATES[0] ?? '')
+  const [sceneId, setSceneId] = useState<string>(STATE.DESKTOP)
 
   const [notifyTitle, setNotifyTitle] = useState('')
   const [notifyBody, setNotifyBody] = useState('')
@@ -93,8 +93,8 @@ export function AutomationPanel() {
 
   const manifestByType = new Map(manifests.map((m) => [m.componentType, m]))
 
-  // Scene ids are data-driven: built-ins plus every scene in config.
-  const navigableSceneIds = [...new Set([...NAVIGABLE_STATES, ...Object.keys(scenes ?? {})])]
+  // Scene ids are data-driven: every scene in config, including the built-in DESKTOP.
+  const navigableSceneIds = Object.keys(scenes ?? {})
 
   // Widgets and scene-renderer instances form one flat list of signal peers.
   const peers: SignalPeer[] = [

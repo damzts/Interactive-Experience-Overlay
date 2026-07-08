@@ -159,22 +159,29 @@ cursor-timeline signals move out of the shared ABI into overlay-internal concern
 > (open/closed + active root) is still a shared signal — that's the one to re-examine against
 > the online-rooms mirroring question above, not the phase timeline.
 
-### P5 — Two competing scene concepts
+### P5 — Two competing scene concepts — ✅ SHIPPED (verified 2026-07-08), scoped down
 
-**Evidence:** a data-driven `scenes` table (with renderers, tiers, transitions, ambient
-tracks) coexists with a compile-time `enum STATE { LOBBY, DESKTOP, TRANSITIONING }` in
-`shared/src/contracts/state.ts`, baked into `AutomationTrigger.sceneIs`, `SceneMachine`,
-`TransitionPlayPayload`, and the overlay's visual-state store.
+**Original evidence (2026-07-05):** a data-driven `scenes` table (with renderers, tiers,
+transitions, ambient tracks) coexisted with a compile-time-privileged `STATE.LOBBY` (a
+hand-built react-three-fiber 3D room, `overlay/src/lobby/LobbyScene.tsx`) and `STATE.DESKTOP`,
+baked into `AutomationTrigger.sceneIs`, `SceneMachine`, `TransitionPlayPayload`, and the
+overlay's visual-state store, plus a dual-path scene-target validation bug in
+`server/src/transport/socket/handlers/scene.ts` (the `scene:` action prefix only accepted
+LOBBY/DESKTOP; the `scene-change` action kind only accepted non-built-in scenes).
 
-**Why it fights the vision:** "unique interactive experiences" implies inventing new top-level
-scenes as *data* — a third scene today requires recompiling the shared contract and touching
-the state machine.
-
-**Fix direction:** scene identity = string id from the DB. LOBBY and DESKTOP become two
-built-in scene rows (the R3F lobby is just a scene whose content source is the lobby
-renderer; the desktop is a scene with `showDesktop`). `SceneMachine` validates against the
-scene table instead of an enum; `TRANSITIONING` becomes a machine phase, not a scene.
-`sceneIs` in automation rules widens to string ids.
+**Current state:** the LOBBY runtime is deleted outright (component, `LobbyConfig`, DB
+column, admin panels, every `STATE.LOBBY` branch) rather than generalized — it was dev-only
+and not worth preserving as a renderer plugin. DESKTOP is now an ordinary seeded `Scene` row:
+it's edited through the same `ScenePanel` as any custom scene (windows, style, `showDesktop`,
+and intro/exit Sequence pickers — previously only available to custom scenes), with a
+Desktop-only "Desktop OS" tab for the Win98 chrome settings that don't belong on `Scene`.
+`isNavigableState`/`NAVIGABLE_STATES` are deleted; both scene-target validation paths now
+just check `target in config.scenes`. `Desktop.tsx` no longer re-resolves its own style via
+a hardcoded `STATE.DESKTOP` lookup — it receives the actually-active scene's `overlayStyle`
+as a prop from `App.tsx`, fixing a desync when a non-DESKTOP scene sets `showDesktop: true`.
+`STATE` keeps `DESKTOP` (boot/fallback scene id) and `TRANSITIONING` (machine phase, not a
+scene) as named string constants — full mechanical rename to a `SceneId`-only API was judged
+not worth the churn since `type STATE = string` already.
 
 ---
 
@@ -231,16 +238,12 @@ All domain events flow kernel→overlay through the generic `kernel:signal` BusF
   online-rooms mirroring question (⚠️ above) first. Ship behind side-by-side testing of the
   simulation loop.
 
-### Phase 5 — Data-driven scenes (P5)
+### Phase 5 — Data-driven scenes (P5) — ✅ DONE (scoped down, 2026-07-08)
 
-- **Goal:** scenes are DB rows identified by string ids; `STATE` enum retired.
-- **Touches:** `shared/src/contracts/state.ts`, `SceneMachine`, `TransitionPlayPayload`,
-  `AutomationTrigger.sceneIs`, overlay `sceneSlice` visual-state typing, admin scene pickers;
-  seed LOBBY/DESKTOP as built-in rows.
-- **Done when:** a third top-level scene can be created entirely from the admin panel and
-  automation rules can gate on it.
-- **Risk:** highest blast radius (touches state machine, store typing, and every `STATE`
-  import) — hence last. Mechanically simple though: enum → string union → string.
+LOBBY runtime deleted rather than generalized; DESKTOP normalized to an ordinary `Scene` row
+edited via `ScenePanel`; scene-target validation unified against `config.scenes`. See the P5
+section above for what shipped and what was deliberately left as-is (`STATE.DESKTOP`/
+`STATE.TRANSITIONING` remain named string constants rather than a full `SceneId` rename).
 
 ---
 

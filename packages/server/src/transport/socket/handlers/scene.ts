@@ -47,10 +47,6 @@ export function resolveRuntimeWidgetThemePatch(patch?: EventWidgetThemePatch): P
   return { ...structuredClone(DEFAULT_WIDGET_THEME_PRESETS[resolvedSkin]), ...patch, skin: resolvedSkin }
 }
 
-export function isNavigableState(value: string): value is STATE {
-  return value === STATE.LOBBY || value === STATE.DESKTOP
-}
-
 function sequenceLookup(ctx: HandlerContext): (id: string) => { steps: SequenceStep[] } | undefined {
   return (id) => ctx.configService?.getSequence(id)
 }
@@ -160,8 +156,8 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
 
     if (action.kind === 'scene-change') {
       const scene = (ctx.cachedUserConfig.scenes ?? {})[action.target]
-      if (scene && !isNavigableState(action.target)) {
-        const target = action.target as STATE
+      if (scene) {
+        const target = action.target
         const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
         ctx.machine.transition(target, { exit, intro })
       }
@@ -210,7 +206,7 @@ export function runConfiguredAction(ctx: HandlerContext, action: string): { ok: 
 
   if (action.startsWith('scene:')) {
     const target = action.slice(6).trim()
-    if (!isNavigableState(target)) return { ok: false, error: `Unknown scene target: ${target}` }
+    if (!(ctx.cachedUserConfig.scenes ?? {})[target]) return { ok: false, error: `Unknown scene target: ${target}` }
     const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
     return ctx.machine.transition(target, { exit, intro })
   }

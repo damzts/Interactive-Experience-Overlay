@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE, withOverlayStyleDefaults } from '@ieomlabs/shared'
-import type { OverlayStyle, Scene, Sequence, WindowInstance } from '@ieomlabs/shared'
+import { STATE } from '@ieomlabs/shared'
+import type { Scene, Sequence, WindowInstance } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
 import { SourcesEditor } from './SceneConfig'
 import { ScenePreview } from './ScenePreview'
+import { DesktopThemeEditor } from './DesktopThemePanel'
 import { fetchSequences } from '../../api/sequencesApi'
 
 type ScenePanelDraft = {
   label:           string
   introSequenceId: string | undefined
   exitSequenceId:  string | undefined
-  style:       OverlayStyle
   windows:     WindowInstance[]
   showDesktop: boolean
 }
@@ -26,7 +26,6 @@ function buildDraft(
     label:           scene?.label ?? sceneId,
     introSequenceId: scene?.introSequenceId,
     exitSequenceId:  scene?.exitSequenceId,
-    style:       structuredClone(withOverlayStyleDefaults(scene?.style)),
     windows:     structuredClone(scene?.windows ?? []),
     showDesktop: scene?.showDesktop ?? false,
   }
@@ -36,15 +35,15 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
   const config        = useAdminStore((s) => s.config)
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const isDesktop     = sceneId === STATE.DESKTOP
-  const isUser        = sceneId !== STATE.LOBBY && sceneId !== STATE.DESKTOP
-  const isSystemScene = !isUser
+  const isUser        = !isDesktop
+  const isSystemScene = isDesktop
   const windowPresets = config.windowPresets ?? []
 
   const baseDraft = buildDraft(sceneId, config)
   const [draft,  setDraft]  = useState<ScenePanelDraft>(baseDraft)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
-  const [tab,    setTab]    = useState<'windows' | 'settings'>('windows')
+  const [tab,    setTab]    = useState<'windows' | 'settings' | 'desktop-os'>('windows')
   const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null)
   const [sequences, setSequences] = useState<Sequence[]>([])
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -77,7 +76,6 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
         showDesktop: draft.showDesktop,
         introSequenceId: draft.introSequenceId,
         exitSequenceId:  draft.exitSequenceId,
-        ...(isDesktop ? {} : { style: draft.style }),
       }
       await saveConfig({ scenes: { ...config.scenes, [sceneId]: nextScene } })
       if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -86,24 +84,26 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
     } finally {
       setSaving(false)
     }
-  }, [config, draft, sceneId, saveConfig, isDesktop])
+  }, [config, draft, sceneId, saveConfig])
 
   const reset = useCallback(() => {
     setDraft(buildDraft(sceneId, config))
     setSaved(false)
   }, [sceneId, config])
 
-  const label = isDesktop ? 'Desktop' : sceneId === STATE.LOBBY ? 'Lobby' : 'Scene'
+  const label = isDesktop ? 'Desktop' : 'Scene'
+  const tabs = isDesktop ? (['windows', 'settings', 'desktop-os'] as const) : (['windows', 'settings'] as const)
+  const tabLabels: Record<typeof tabs[number], string> = { windows: 'Windows', settings: 'Settings', 'desktop-os': 'Desktop OS' }
 
   return (
     <div className="space-y-3">
       {/* Tab bar */}
       <div className="flex gap-1 rounded-xl bg-white/[0.04] p-1">
-        {(['windows', 'settings'] as const).map((t) => (
+        {tabs.map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={'flex-1 rounded-lg py-1.5 text-xs font-medium capitalize transition-colors ' +
               (tab === t ? 'bg-white/10 text-white shadow' : 'text-zinc-500 hover:text-zinc-300')}>
-            {t === 'windows' ? 'Windows' : 'Settings'}
+            {tabLabels[t]}
           </button>
         ))}
       </div>
@@ -173,10 +173,16 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
             </div>
           </ConfigPanel>
 
+          <div className="text-[10px] text-zinc-500 leading-relaxed px-1">
+            Background, particles, and effects are renderer windows now — add them from the Windows tab (e.g. `builtin:background`, `builtin:particles`, `builtin:effects`) instead of a style panel.
+          </div>
         </div>
       )}
 
-      {isUser && (
+      {/* ── Desktop OS tab ───────────────────────────────── */}
+      {tab === 'desktop-os' && isDesktop && <DesktopThemeEditor />}
+
+      {tab !== 'desktop-os' && isUser && (
         <button onClick={async () => {
           const sceneIdToDelete = sceneId
           const updatedScenes = Object.fromEntries(
@@ -194,7 +200,9 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
         </button>
       )}
 
-      <ConfigApplyBar label={label} dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
+      {tab !== 'desktop-os' && (
+        <ConfigApplyBar label={label} dirty={dirty} saving={saving} saved={saved} onApply={apply} onReset={reset} alwaysShow />
+      )}
     </div>
   )
 }

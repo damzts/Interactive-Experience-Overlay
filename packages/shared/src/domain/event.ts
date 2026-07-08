@@ -78,7 +78,7 @@ export interface EventObsStreamAction {
 
 export interface EventSceneChangeAction {
   kind: 'scene-change'
-  /** ID of a user-created scene (never a system STATE like LOBBY or DESKTOP) */
+  /** ID of any scene in config.scenes, including the built-in DESKTOP */
   target: string
 }
 

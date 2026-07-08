@@ -363,7 +363,6 @@ export class AmbianceManager implements Manager {
     }
 
     const sceneLabel = (id: string): string => {
-      if (id === STATE.LOBBY) return 'Lobby'
       if (id === STATE.DESKTOP) return 'Desktop'
       return scenes[id]?.label ?? id
     }

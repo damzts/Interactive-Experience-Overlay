@@ -1,9 +1,7 @@
 ﻿import { Component, type ReactNode } from 'react'
-import { withDesktopConfigDefaults, isSystemWidget, STATE } from '@ieomlabs/shared'
+import { withDesktopConfigDefaults, isSystemWidget } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
-import { LobbyRuntimePanel } from './LobbyRuntimePanel'
-import { DesktopRuntimePanel } from './DesktopRuntimePanel'
 import {
   Btn, ConfigCard, ConfigNotice,
   IconGlyph,
@@ -80,12 +78,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
 }) {
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const applications  = useAdminStore((s) => s.config.applications)
-
-  if (selected.kind === 'env') {
-    return selected.envState === STATE.LOBBY
-      ? <LobbyRuntimePanel />
-      : <DesktopRuntimePanel />
-  }
 
   if (selected.kind === 'scene') {
     return <ScenePanel sceneId={selected.sceneState} onDeleted={onDeleted} />
@@ -188,14 +180,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   let isLive = false
 
   if (selected) {
-    if (selected.kind === 'env') {
-      headerIcon  = selected.envState === STATE.LOBBY ? '🖥' : '💾'
-      headerLabel = selected.envState === STATE.LOBBY ? 'Lobby' : 'Desktop'
-      headerMeta  = 'Scene'
-      isLive      = currentState === selected.envState
-      actionLabel = isLive ? '● Live' : '▶ Go Live'
-      actionFn    = () => triggerScene(selected.envState)
-    } else if (selected.kind === 'scene') {
+    if (selected.kind === 'scene') {
       const app   = applications.find((a) => a.targetSceneId === selected.sceneState)
       const scene = scenes[selected.sceneState]
       headerIcon  = app ? <IconGlyph icon={app.icon} label={app.label} /> : '🎮'
@@ -221,9 +206,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
       headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
       actionLabel = '▶ Test'
       actionFn    = () => socket.emit('widget:layout:apply', selected.layoutId)
-    } else if (selected.kind === 'lobby-theme')    { headerIcon = '🖥'; headerLabel = 'Lobby Theme';    headerMeta = 'Utility' }
-    else if (selected.kind === 'desktop-theme')     { headerIcon = '🎨'; headerLabel = 'Desktop Theme';  headerMeta = 'Utility' }
-    else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
+    } else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
     else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Engine' }
@@ -266,7 +249,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
             <ConfigCard className="text-left">
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
               <div className="text-[10px] text-zinc-400 leading-relaxed">
-                Scene = compositor content. Widget = desktop window. Runtime = lifecycle manager (Lobby, Desktop).
+                Scene = compositor content. Widget = desktop window. Desktop is the built-in boot scene.
               </div>
             </ConfigCard>
           </div>

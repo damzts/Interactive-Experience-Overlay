@@ -1,16 +1,12 @@
 import type { OverlayStyle } from '@ieomlabs/shared'
-import type { STATE } from '@ieomlabs/shared'
 
 export type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
 
 export type SelectedItem =
-  | { kind: 'env';   envState: STATE }
   | { kind: 'scene'; sceneState: string }
   | { kind: 'app';   appId: string }
   | { kind: 'widget-create' }
   | { kind: 'widget-layout'; layoutId: string }
-  | { kind: 'lobby-theme' }
-  | { kind: 'desktop-theme' }
   | { kind: 'audio' }
   | { kind: 'keybinds' }
   | { kind: 'settings' }
@@ -28,7 +24,6 @@ export type SelectedItem =
   | { kind: 'sequence'; sequenceId: string }
 
 export function itemKey(item: SelectedItem): string {
-  if (item.kind === 'env')   return 'env-' + item.envState
   if (item.kind === 'scene') return 'scene-' + item.sceneState
   if (item.kind === 'app')   return 'app-' + item.appId
   if (item.kind === 'widget-create') return 'widget-create'
