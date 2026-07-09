@@ -936,6 +936,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
     { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
+    { id: 'persona-avatar',       label: 'PERSONA.exe',          icon: '✦',    widgetSource: 'system' as const, widgetComponent: 'persona-avatar' as const },
   ],
 
   keybinds: {

@@ -34,6 +34,7 @@ const widgetManifest: Record<RegisteredWidgetComponentType, WidgetManifestEntry>
   'lcd-dolphins':        { load: () => import('./LCDDolphinsWidget').then((m) => m.LCDDolphinsWidget),               defaultPosition: { x: 540,  y: 220 }, defaultSize: { width: 320, height: 240 } },
   'music':               { load: () => import('./MusicWidget').then((m) => m.MusicWidget),                           defaultPosition: { x: 60,   y: 120 }, defaultSize: { width: 300, height: 320 } },
   'net-meter':           { load: () => import('./NetMeterWidget').then((m) => m.NetMeterWidget),                     defaultPosition: { x: 320,  y: 270 }, defaultSize: { width: 280              } },
+  'persona-avatar':      { load: () => import('./PersonaAvatarWidget').then((m) => m.PersonaAvatarWidget),           defaultPosition: { x: 1300, y: 420 }, defaultSize: { width: 240, height: 280 } },
   'newswire-desk':       { load: () => import('./NewswireDeskWidget').then((m) => m.NewswireDeskWidget),             defaultPosition: { x: 428,  y: 152 }, defaultSize: { width: 430              } },
   'playlist-deck':       { load: () => import('./PlaylistDeckWidget').then((m) => m.PlaylistDeckWidget),             defaultPosition: { x: 284,  y: 232 }, defaultSize: { width: 300              } },
   'signal-lab':          { load: () => import('./SignalLabWidget').then((m) => m.SignalLabWidget),                   defaultPosition: { x: 270,  y: 152 }, defaultSize: { width: 410              } },

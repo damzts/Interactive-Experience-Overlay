@@ -57,6 +57,10 @@ class AudioEngine {
   private _duckFactor = 1
   private _duckCount = 0
 
+  // Persona speech tap — an analyser the avatar widget reads for its
+  // amplitude-driven mouth flap. Fed by playPersonaLine's dry+wet gains.
+  private _personaAnalyser: AnalyserNode | null = null
+
   init() {
     // AudioContext creation is deferred until first use to comply with browser autoplay policies
   }
@@ -381,10 +385,12 @@ class AudioEngine {
       src.playbackRate.value = 2 ** (voice.pitchSemitones / 12)
 
       const intensity = Math.max(0, Math.min(1, voice.roboticIntensity))
+      const analyser = this.ensurePersonaAnalyser(ctx)
       const dryGain = ctx.createGain()
       dryGain.gain.value = 1 - intensity
       src.connect(dryGain)
       dryGain.connect(out)
+      dryGain.connect(analyser)
 
       // Ring modulation: an LFO's output drives the gain AudioParam of a node
       // the dry signal passes through, multiplying the two signals together —
@@ -401,6 +407,7 @@ class AudioEngine {
       carrier.connect(ringGain.gain)
       ringGain.connect(wetGain)
       wetGain.connect(out)
+      wetGain.connect(analyser)
 
       if (duckAmount > 0) {
         this.beginDuck(duckAmount)
@@ -545,6 +552,23 @@ class AudioEngine {
   setAmbientVolume(v: number) {
     this._ambientVolume = Math.max(0, Math.min(1, v))
     if (this._ambientGain) this._ambientGain.gain.value = this._ambientVolume * this._duckFactor
+  }
+
+  /** Analyser fed by persona speech only (not music/SFX) — the avatar
+   *  widget reads its time-domain RMS for the mouth flap. Null until the
+   *  first persona line plays. */
+  getPersonaAnalyser(): AnalyserNode | null {
+    return this._personaAnalyser
+  }
+
+  private ensurePersonaAnalyser(ctx: AudioContext): AnalyserNode {
+    if (!this._personaAnalyser) {
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 512
+      analyser.smoothingTimeConstant = 0.5
+      this._personaAnalyser = analyser
+    }
+    return this._personaAnalyser
   }
 
   // ── Ducking ─────────────────────────────────────────────────────
