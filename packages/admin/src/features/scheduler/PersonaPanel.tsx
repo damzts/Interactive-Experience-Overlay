@@ -72,6 +72,7 @@ function PersonaSection({
 
       <Slider label="Cooldown" value={config.cooldownMs} min={0} max={120_000} step={1000} unit="ms" onChange={(v) => onChange({ cooldownMs: v })} />
       <Slider label="Max characters" value={config.maxChars} min={20} max={500} step={10} onChange={(v) => onChange({ maxChars: v })} />
+      <Slider label="Duck music while speaking" value={config.duckAmount} min={0} max={1} step={0.05} onChange={(v) => onChange({ duckAmount: v })} />
 
       <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 space-y-2">
         <div className="text-[11px] font-semibold text-zinc-300">Voice</div>

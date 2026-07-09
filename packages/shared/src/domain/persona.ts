@@ -46,6 +46,8 @@ export interface PersonaConfig {
   cooldownMs: number
   /** Chat messages longer than this are truncated before synthesis. */
   maxChars: number
+  /** How much to attenuate music/ambient layers while speaking (0 = none, 1 = silence). */
+  duckAmount: number
   /** TTS backend id ('sapi' built-in; others register via TtsService). Omit = 'sapi'. */
   ttsProvider?: string
   /** Spoken reactions to kernel events (independent of chat triggerMode;

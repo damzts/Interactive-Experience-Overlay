@@ -766,6 +766,7 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
   chance: 0.05,
   cooldownMs: 30_000,
   maxChars: 200,
+  duckAmount: 0.5,
   eventLines: [],
   voice: {
     pitchSemitones: 3,

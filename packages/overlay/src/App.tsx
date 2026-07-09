@@ -61,8 +61,8 @@ export default function App() {
   // open widget, so it's wired globally here rather than in ChatWidget.
   useEffect(() => {
     return onKernelSignal('persona:speak', ({ user, text, audioUrl }) => {
-      const voice = withPersonaDefaults(useAppStore.getState().config.persona).voice
-      void audioEngine.playPersonaLine(audioUrl, voice)
+      const persona = withPersonaDefaults(useAppStore.getState().config.persona)
+      void audioEngine.playPersonaLine(audioUrl, persona.voice, persona.duckAmount)
       runChatBubble({ author: user, text, duration: 5, position: 'bottom' })
     })
   }, [])

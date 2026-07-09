@@ -50,6 +50,12 @@ class AudioEngine {
   private _synthAmbientNodes: AudioNode[] = []
   private _synthAmbientGain: GainNode | null = null
   private _synthAmbientTimer: ReturnType<typeof setInterval> | null = null
+  private _synthAmbientVolume = 0.15
+
+  // Ducking: music/ambient layers are attenuated while the persona speaks.
+  // Factor multiplies the layer volumes; count handles overlapping lines.
+  private _duckFactor = 1
+  private _duckCount = 0
 
   init() {
     // AudioContext creation is deferred until first use to comply with browser autoplay policies
@@ -352,13 +358,19 @@ class AudioEngine {
 
   /** Play a one-shot Persona TTS line through a ring-modulated "robotic" filter.
    *  Not cached (URLs are one-shot, generated per chat line) — dry/wet blend
-   *  and pitch are live-tunable per call via `voice`. */
-  async playPersonaLine(url: string, voice: { pitchSemitones: number; roboticIntensity: number }): Promise<void> {
+   *  and pitch are live-tunable per call via `voice`. `duckAmount` (0-1)
+   *  attenuates music/ambient layers for the duration of the line. */
+  async playPersonaLine(
+    url: string,
+    voice: { pitchSemitones: number; roboticIntensity: number },
+    duckAmount = 0,
+  ): Promise<void> {
     this.initContext()
     const ctx = this.ctx
     const out = this.masterGain
     if (!ctx || !out) return
     this.unlockContext()
+    let ducked = false
     try {
       const res = await fetch(url)
       if (!res.ok) return
@@ -390,11 +402,19 @@ class AudioEngine {
       ringGain.connect(wetGain)
       wetGain.connect(out)
 
+      if (duckAmount > 0) {
+        this.beginDuck(duckAmount)
+        ducked = true
+      }
       carrier.start()
       src.start()
-      src.onended = () => { try { carrier.stop() } catch { /* already stopped */ } }
+      src.onended = () => {
+        try { carrier.stop() } catch { /* already stopped */ }
+        if (ducked) { this.endDuck(); ducked = false }
+      }
     } catch {
       // Ignore — bad URL or decode failure
+      if (ducked) this.endDuck()
     }
   }
 
@@ -462,7 +482,7 @@ class AudioEngine {
 
   setMusicVolume(v: number) {
     this._musicVolume = Math.max(0, Math.min(1, v))
-    if (this._musicGain) this._musicGain.gain.value = this._musicVolume
+    if (this._musicGain) this._musicGain.gain.value = this._musicVolume * this._duckFactor
   }
 
   // ── Ambient track ────────────────────────────────────────────────
@@ -515,7 +535,7 @@ class AudioEngine {
 
     const endTime = this.ctx.currentTime + crossfadeMs / 1000
     gainNode.gain.setValueAtTime(0, this.ctx.currentTime)
-    gainNode.gain.linearRampToValueAtTime(this._ambientVolume, endTime)
+    gainNode.gain.linearRampToValueAtTime(this._ambientVolume * this._duckFactor, endTime)
 
     this._ambientEl = el
     this._ambientSource = source
@@ -524,7 +544,40 @@ class AudioEngine {
 
   setAmbientVolume(v: number) {
     this._ambientVolume = Math.max(0, Math.min(1, v))
-    if (this._ambientGain) this._ambientGain.gain.value = this._ambientVolume
+    if (this._ambientGain) this._ambientGain.gain.value = this._ambientVolume * this._duckFactor
+  }
+
+  // ── Ducking ─────────────────────────────────────────────────────
+
+  /** Attenuate music/ambient layers (0 = no duck, 1 = fully silent) while
+   *  speech plays. Re-entrant: overlapping lines keep the duck until the
+   *  last endDuck. SFX and the persona line itself are unaffected. */
+  beginDuck(amount: number, rampMs = 150) {
+    this._duckCount += 1
+    this.applyDuckFactor(Math.max(0, Math.min(1, 1 - amount)), rampMs)
+  }
+
+  endDuck(rampMs = 400) {
+    this._duckCount = Math.max(0, this._duckCount - 1)
+    if (this._duckCount === 0) this.applyDuckFactor(1, rampMs)
+  }
+
+  private applyDuckFactor(factor: number, rampMs: number) {
+    this._duckFactor = factor
+    const ctx = this.ctx
+    if (!ctx) return
+    const targets: Array<[GainNode | null, number]> = [
+      [this._musicGain, this._musicVolume],
+      [this._ambientGain, this._ambientVolume],
+      [this._synthAmbientGain, this._synthAmbientVolume],
+    ]
+    for (const [node, base] of targets) {
+      if (!node) continue
+      const t = ctx.currentTime
+      node.gain.cancelScheduledValues(t)
+      node.gain.setValueAtTime(node.gain.value, t)
+      node.gain.linearRampToValueAtTime(base * factor, t + rampMs / 1000)
+    }
   }
 
   // ── Synthetic ambient layer (procedural — no audio asset required) ─
@@ -540,9 +593,10 @@ class AudioEngine {
     this.stopSyntheticAmbient()
     if (!kind) return
 
+    this._synthAmbientVolume = volume
     const gain = ctx.createGain()
     gain.gain.setValueAtTime(0, ctx.currentTime)
-    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 1.5)
+    gain.gain.linearRampToValueAtTime(volume * this._duckFactor, ctx.currentTime + 1.5)
     gain.connect(out)
     this._synthAmbientGain = gain
     this._synthAmbientNodes.push(gain)
