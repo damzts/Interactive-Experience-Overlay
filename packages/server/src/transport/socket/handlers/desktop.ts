@@ -1,9 +1,7 @@
 import type {
   DesktopNotificationPayload,
-  DesktopRecycleBinPayload,
-  DesktopScreenSaverPreviewPayload,
-  DesktopStartMenuStatePayload,
   DesktopRuntimeStatePayload,
+  PresentationStateReportPayload,
 } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 import { applyRuntimeConfig } from './runtimeConfig.js'
@@ -11,8 +9,7 @@ import { applyRuntimeConfig } from './runtimeConfig.js'
 export function getDesktopRuntimeState(ctx: HandlerContext): DesktopRuntimeStatePayload {
   return {
     openWidgetIds: [...ctx.runtimeState.openWidgetIds],
-    recycleBinFull: ctx.runtimeState.recycleBinFull,
-    startMenuState: ctx.runtimeState.startMenuState,
+    presentation: ctx.runtimeState.presentationState,
   }
 }
 
@@ -55,21 +52,11 @@ export function registerDesktopHandlers(ctx: HandlerContext, socket: AppSocket):
     ctx.io.emit('desktop:notify', payload)
   })
 
-  socket.on('desktop:recycle-bin', (payload: DesktopRecycleBinPayload) => {
-    ctx.scheduler?.noteActivity()
-    ctx.runtimeState.setRecycleBinFull(payload.full)
-    ctx.io.emit('desktop:recycle-bin', payload)
-  })
-
-  socket.on('desktop:start-menu:state', (payload: DesktopStartMenuStatePayload) => {
-    if (payload.open) ctx.scheduler?.noteActivity()
-    ctx.runtimeState.setStartMenuState(payload.open, payload.open ? payload.activeRoot : null)
-    ctx.io.emit('desktop:start-menu:state', ctx.runtimeState.startMenuState)
-  })
-
-  socket.on('desktop:screen-saver:test', (payload: DesktopScreenSaverPreviewPayload) => {
-    ctx.scheduler?.noteActivity()
-    ctx.io.emit('desktop:screen-saver:test', payload)
+  socket.on('presentation:state', (payload: PresentationStateReportPayload) => {
+    if (typeof payload?.key !== 'string' || payload.key.length === 0) return
+    if (payload.activity) ctx.scheduler?.noteActivity()
+    ctx.runtimeState.setPresentationState(payload.key, payload.value)
+    ctx.io.emit('presentation:state', { key: payload.key, value: payload.value })
   })
 }
 

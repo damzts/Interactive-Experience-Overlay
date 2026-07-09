@@ -106,6 +106,7 @@ export interface EffectConfigMap {
   'podium-take': PodiumTakeConfig             // Podium Chrome — glass medal-ceremony podium card + confetti chrome
   // ── Sequential / exclusive ─────────────────────────────────────
   'sequence': SequenceEffectConfig            // Ordered step pipeline (built-in animation, media, or renderer); never dropped, cancels its own prior run
+  'screensaver': ScreenSaverConfig            // Full-screen idle takeover; runs until dismissed, cancels its own prior run
   // ── Screen transitions (ported from the old built-in transition catalog) ─
   'fade': FadeTransitionConfig                // Cross-fade through black
   'glitch-burst': GlitchBurstTransitionConfig // Rapid chromatic-shift flash cut
@@ -372,6 +373,13 @@ export interface DvdBounceConfig {
   text?: string
   /** Duration in seconds */
   duration: number
+}
+
+/** Config for the 'screensaver' effect type — a full-viewport idle takeover.
+ *  No duration: it runs until dismissed by activity (click/keydown) or by
+ *  the next exclusive-effect dispatch, same lifecycle as 'sequence'. */
+export interface ScreenSaverConfig {
+  preset: 'flying-windows' | 'starfield' | 'marquee' | 'pipes' | 'blank' | 'gallery-scroll'
 }
 
 export interface LevelUpConfig {

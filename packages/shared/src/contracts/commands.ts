@@ -18,11 +18,9 @@ import type { AppConfig } from '../domain/config.js'
 import type {
   DesktopIconDragPayload,
   DesktopNotificationPayload,
-  DesktopRecycleBinPayload,
-  DesktopScreenSaverPreviewPayload,
-  DesktopStartMenuStatePayload,
   DesktopWidgetDragPayload,
   DesktopWidgetResizePayload,
+  PresentationStateReportPayload,
   WidgetSimulationCommandPayload,
   WidgetSimulationIntentPayload,
   AudioBeatPayload,
@@ -68,8 +66,9 @@ export interface OverlayRuntimeStatusPayload {
 
 export interface DesktopRuntimeStatePayload {
   openWidgetIds: string[]
-  recycleBinFull: boolean
-  startMenuState?: DesktopStartMenuStatePayload
+  /** Latest client-reported presentation facts, keyed by skin-defined key.
+   *  Opaque to the kernel — see PresentationStatePayload. */
+  presentation: Record<string, unknown>
 }
 
 export interface OverlaySyncSnapshot {
@@ -90,8 +89,8 @@ export interface OverlaySyncSnapshot {
  * Categories:
  *   Syscalls      — scene:change, widget:toggle, overlay:trigger, keybind:execute,
  *                   widget:layout:apply*, event:preview, transition:preview,
- *                   desktop:notify, desktop:screen-saver:test, runtime:config:reset, runtime:config:widget:reset, runtime:config:widget-layout:reset
- *   State reports — desktop:recycle-bin, desktop:start-menu:state, overlay:runtime:status,
+ *                   desktop:notify, runtime:config:reset, runtime:config:widget:reset, runtime:config:widget-layout:reset
+ *   State reports — presentation:state, overlay:runtime:status,
  *                   desktop:icon:drag, desktop:widget:drag, desktop:widget:resize
  *   Ambiance      — ambiance:simulate:accepted/started/done, widget:simulate:intent,
  *                   widget:simulate, widget:simulate:action, widget:signal
@@ -123,17 +122,13 @@ export interface ClientToServerEvents {
   'widget:layout:apply:items': (items: WidgetLayoutItem[]) => void
   /** Trigger a desktop notification */
   'desktop:notify': (payload: DesktopNotificationPayload) => void
-  /** Preview a screen saver preset */
-  'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
   /** Preview a transition pipeline (admin use) */
   'transition:preview': (steps: SequenceStep[]) => void
   // ── State reports ─────────────────────────────────────────────────
   /** Report the overlay's runtime status to the kernel */
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void
-  /** Set recycle bin fill state */
-  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
-  /** Update start menu visibility state */
-  'desktop:start-menu:state': (payload: DesktopStartMenuStatePayload) => void
+  /** Report a named presentation fact (skin-defined key/value; kernel stores + rebroadcasts) */
+  'presentation:state': (payload: PresentationStateReportPayload) => void
   /** Desktop icon drag event */
   'desktop:icon:drag': (payload: DesktopIconDragPayload) => void
   /** Desktop widget drag event */

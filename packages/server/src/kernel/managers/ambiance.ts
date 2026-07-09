@@ -11,7 +11,6 @@ import type {
   AmbianceWidgetBehavior,
   AmbianceNavBehavior,
 } from '@ieomlabs/shared'
-import { STATE } from '@ieomlabs/shared'
 
 const SIMULATION_PENDING_TIMEOUT_MS = 5000    // "if no ack in 5s, cancel"
 const SIMULATION_FALLBACK_TIMEOUT_MS = 30000
@@ -24,7 +23,6 @@ const DEFAULT_BEHAVIOR: AmbianceWidgetBehavior = {
 }
 type AmbianceCandidateAction = Pick<AmbianceSimulationPayload, 'widgetId' | 'action'> & {
   targetKind?: AmbianceSimulationPayload['targetKind']
-  menuPath?: string[]
 }
 
 function shouldTrigger(chance: number): boolean {
@@ -352,23 +350,17 @@ export class AmbianceManager implements Manager {
     const appConfig = this.getConfig()
     const simConfig = withDesktopAmbianceDefaults(appConfig.desktopAmbiance).widgetSimulation
     const layouts = appConfig.widgetLayouts ?? []
-    const scenes = appConfig.scenes ?? {}
     const candidates: AmbianceCandidateAction[] = []
 
     for (const [layoutId, behavior] of Object.entries(simConfig.layoutBehaviors ?? {})) {
       if (!behavior?.enabled) continue
-      const layout = layouts.find((l) => l.id === layoutId)
-      if (!layout) continue
-      candidates.push({ widgetId: layoutId, action: 'select', targetKind: 'layout', menuPath: ['Layouts', layout.label] })
+      if (!layouts.some((l) => l.id === layoutId)) continue
+      candidates.push({ widgetId: layoutId, action: 'select', targetKind: 'layout' })
     }
 
-    const sceneLabel = (id: string): string => {
-      if (id === STATE.DESKTOP) return 'Desktop'
-      return scenes[id]?.label ?? id
-    }
     for (const [sceneId, behavior] of Object.entries(simConfig.sceneBehaviors ?? {})) {
       if (!behavior?.enabled) continue
-      candidates.push({ widgetId: sceneId, action: 'select', targetKind: 'scene', menuPath: ['Scenes', sceneLabel(sceneId)] })
+      candidates.push({ widgetId: sceneId, action: 'select', targetKind: 'scene' })
     }
 
     return candidates
@@ -501,7 +493,6 @@ export class AmbianceManager implements Manager {
       widgetId: picked.widgetId,
       action: picked.action,
       ...(picked.targetKind ? { targetKind: picked.targetKind } : {}),
-      ...(picked.menuPath ? { menuPath: picked.menuPath } : {}),
       actionId,
       mirrorPolicy,
       sharedIntent,

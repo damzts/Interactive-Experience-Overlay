@@ -38,7 +38,6 @@ export interface EventDesktopConfigAction {
     iconArrangement?: DesktopConfig['iconArrangement']
     iconArrangementMotion?: number
     widgetTheme?: EventWidgetThemePatch
-    screenSaver?: Partial<DesktopConfig['screenSaver']>
   }
 }
 

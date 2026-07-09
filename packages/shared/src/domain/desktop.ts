@@ -80,14 +80,6 @@ export interface DesktopConfig {
   recycleBin: {
     fullOnStart: boolean
   }
-  /** Screen saver settings */
-  screenSaver: {
-    enabled: boolean
-    /** Minutes of idle before activating */
-    timeoutMinutes: number
-    /** Animation preset */
-    preset: 'flying-windows' | 'starfield' | 'marquee' | 'pipes' | 'blank' | 'gallery-scroll'
-  }
   /** System sound SFX file paths (relative to ieom/assets/sfx/system/) */
   systemSounds: {
     startup: string

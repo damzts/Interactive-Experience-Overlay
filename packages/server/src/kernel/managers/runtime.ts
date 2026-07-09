@@ -1,11 +1,9 @@
 import { STATE } from '@ieomlabs/shared'
-import type { Manager, ManagerStatus, DesktopStartMenuRoot } from '@ieomlabs/shared'
+import type { Manager, ManagerStatus } from '@ieomlabs/shared'
 
 export interface WidgetRuntimeState {
   openWidgetIds: ReadonlySet<string>
-  recycleBinFull: boolean
-  startMenuOpen: boolean
-  startMenuActiveRoot: DesktopStartMenuRoot
+  presentation: Record<string, unknown>
 }
 
 export interface OverlayRuntimeState {
@@ -37,9 +35,7 @@ export class RuntimeStateStore implements Manager {
   private _overlaySocketId: string | null = null
   private _ambianceLeaderSocketId: string | null = null
   private _openWidgetIds = new Set<string>()
-  private _recycleBinFull = false
-  private _startMenuOpen = false
-  private _startMenuActiveRoot: DesktopStartMenuRoot = null
+  private _presentationState = new Map<string, unknown>()
   private _acceptedSimulatedToggles = 0
   private _rejectedSimulatedToggles = 0
 
@@ -77,18 +73,12 @@ export class RuntimeStateStore implements Manager {
     for (const id of ids) this._openWidgetIds.add(id)
   }
 
-  get recycleBinFull(): boolean { return this._recycleBinFull }
-  setRecycleBinFull(v: boolean): void { this._recycleBinFull = v }
-
-  get startMenuOpen(): boolean { return this._startMenuOpen }
-  get startMenuActiveRoot(): DesktopStartMenuRoot { return this._startMenuActiveRoot }
-
-  get startMenuState(): { open: boolean; activeRoot: DesktopStartMenuRoot } {
-    return { open: this._startMenuOpen, activeRoot: this._startMenuActiveRoot }
+  /** Latest client-reported presentation facts (opaque to the kernel). */
+  get presentationState(): Record<string, unknown> {
+    return Object.fromEntries(this._presentationState)
   }
-  setStartMenuState(open: boolean, activeRoot: DesktopStartMenuRoot): void {
-    this._startMenuOpen = open
-    this._startMenuActiveRoot = open ? activeRoot : null
+  setPresentationState(key: string, value: unknown): void {
+    this._presentationState.set(key, value)
   }
 
   // ── Simulation metrics ────────────────────────────────────────
@@ -106,9 +96,7 @@ export class RuntimeStateStore implements Manager {
     return {
       widget: {
         openWidgetIds: new Set(this._openWidgetIds),
-        recycleBinFull: this._recycleBinFull,
-        startMenuOpen: this._startMenuOpen,
-        startMenuActiveRoot: this._startMenuActiveRoot,
+        presentation: this.presentationState,
       },
       overlay: {
         currentScene: this._currentScene,

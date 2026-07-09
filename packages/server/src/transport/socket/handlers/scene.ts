@@ -92,7 +92,6 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
         ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
         ...(action.patch.iconArrangement !== undefined ? { iconArrangement: action.patch.iconArrangement } : {}),
         ...(action.patch.iconArrangementMotion !== undefined ? { iconArrangementMotion: action.patch.iconArrangementMotion } : {}),
-        ...(action.patch.screenSaver ? { screenSaver: action.patch.screenSaver } : {}),
       }
       applyRuntimeConfig(ctx, { desktopConfig: desktopPatch as typeof ctx.runtimeConfig['desktopConfig'] })
       if (!action.persistent) {
@@ -102,7 +101,6 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
         if (desktopPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
         if (desktopPatch.iconArrangement !== undefined) resetScopes.push('desktop.iconArrangement')
         if (desktopPatch.iconArrangementMotion !== undefined) resetScopes.push('desktop.iconArrangementMotion')
-        if (desktopPatch.screenSaver) resetScopes.push('desktop.screenSaver')
         if (resetScopes.length) scheduleRuntimeConfigReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
       }
       // persistent actions (e.g. ThemeDriftManager) skip reset scheduling —

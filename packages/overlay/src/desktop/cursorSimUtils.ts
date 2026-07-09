@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { CursorOverlayController } from './CursorOverlay';
+import { cursorSim } from './cursorService';
 import type { DesktopStartMenuSimulationPhasePayload, MenuPathTimingStep, OpenWidgetMenuTimelinePayload } from './simulationTypes';
 
 function randomRange(min: number, max: number) {
@@ -166,9 +167,9 @@ export async function openMenuPath(
   let success = true;
   const simOpenedMenus: HTMLElement[] = [];
   const simHighlightedItems: HTMLElement[] = [];
-  (window as any).__simulatingCursorClick = true;
+  cursorSim.simulatingClick = true;
   if (visualOnly) {
-    (window as any).__cursorMirrorVisualOnly = true;
+    cursorSim.mirrorVisualOnly = true;
   }
   try {
     if (startMenu) {
@@ -357,9 +358,9 @@ export async function openMenuPath(
       }
     }
     if (visualOnly) {
-      (window as any).__cursorMirrorVisualOnly = false;
+      cursorSim.mirrorVisualOnly = false;
     }
-    (window as any).__simulatingCursorClick = false;
+    cursorSim.simulatingClick = false;
   }
   debugMenuSim(debugTag, 'menu path finished', { success });
   return success;
@@ -451,12 +452,12 @@ export async function focusWidgetWindow(cursor: CursorOverlayController, widgetI
   const rect = target.getBoundingClientRect();
   const x = rect.left + rect.width / 2;
   const y = rect.top + rect.height / 2;
-  (window as any).__simulatingWidgetFocus = true;
+  cursorSim.simulatingWidgetFocus = true;
   try {
     dispatchMouse(root, 'mousedown', x, y, 1);
     dispatchMouse(window, 'mouseup', x, y, 0);
   } finally {
-    (window as any).__simulatingWidgetFocus = false;
+    cursorSim.simulatingWidgetFocus = false;
   }
   target.click();
 

@@ -13,7 +13,7 @@
  */
 import { registerEffect } from './registry'
 import { runSequence } from './runSequence'
-import type { SequenceEffectConfig } from '@ieomlabs/shared'
+import type { SequenceEffectConfig, ScreenSaverConfig } from '@ieomlabs/shared'
 
 import {
   type AimMessageConfig,
@@ -163,6 +163,7 @@ import { runConfettiBurst }         from '../transitions/ConfettiBurst'
 import { runXpGain }                from '../transitions/XpGain'
 import { runFireworks }             from '../transitions/Fireworks'
 import { runDvdBounce }             from '../transitions/DvdBounce'
+import { runScreenSaver }           from '../transitions/ScreenSaver'
 import { runLevelUp }               from '../transitions/LevelUp'
 import { runAudioSfx }              from '../transitions/AudioSfx'
 import { runItemPickup }            from '../transitions/ItemPickup'
@@ -300,3 +301,4 @@ registerEffect('channel-sweep',  (cfg) => runChannelSweep(cfg as ChannelSweepCon
 
 // ── Sequential / exclusive ─────────────────────────────────────────
 registerEffect('sequence', (cfg) => runSequence(cfg as SequenceEffectConfig), { exclusive: true })
+registerEffect('screensaver', (cfg) => runScreenSaver(cfg as ScreenSaverConfig), { exclusive: true })

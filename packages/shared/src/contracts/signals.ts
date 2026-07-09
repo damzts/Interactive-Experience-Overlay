@@ -146,24 +146,29 @@ export interface DesktopNotificationPayload {
   durationMs?: number
 }
 
-export interface DesktopRecycleBinPayload {
-  full: boolean
+/**
+ * Generic presentation-state relay. The overlay (as the owner of the skin)
+ * reports named presentation facts (`key` is skin-defined, e.g. a menu or
+ * bin state); the kernel stores the latest value per key opaquely and
+ * rebroadcasts so other clients (admin mirrors, future follower overlays)
+ * stay in sync and reconnects can resync. The kernel never interprets
+ * keys or values — skin concepts do not enter the ABI.
+ */
+export interface PresentationStatePayload {
+  key: string
+  value: unknown
 }
 
-export interface DesktopScreenSaverPreviewPayload {
-  preset: DesktopConfig['screenSaver']['preset']
+/** Client → server report variant: `activity` marks the change as user-visible
+ *  activity for the idle scheduler (e.g. a menu opening). */
+export interface PresentationStateReportPayload extends PresentationStatePayload {
+  activity?: boolean
 }
 
-export interface DesktopStartMenuStatePayload {
-  open: boolean
-  activeRoot: 'programs' | 'widget-layouts' | 'layouts' | 'scenes' | null
-}
-
-export type DesktopStartMenuRoot = 'programs' | 'widget-layouts' | 'layouts' | 'scenes' | null
-
-// Start-menu simulation phases, cursor mirroring, and menu timelines are
-// overlay presentation concerns — their types live in the overlay
-// (desktop/simulationTypes.ts), not in the kernel ABI.
+// Start-menu simulation phases, cursor mirroring, menu timelines, and the
+// start-menu/recycle-bin state shapes are overlay presentation concerns —
+// their types live in the overlay (desktop/simulationTypes.ts,
+// desktop/presentationState.ts), not in the kernel ABI.
 
 // ── Desktop drag/resize signal payloads ───────────────────────────
 
@@ -237,8 +242,6 @@ export interface AmbianceSimulationPayload {
   action: 'open' | 'close' | 'interact' | 'select'
   /** Discriminates the target type. Absent means 'widget' for backward compatibility. */
   targetKind?: 'widget' | 'layout' | 'scene'
-  /** Explicit start-menu navigation path for layout/scene select actions, e.g. ['Layouts', 'My Layout']. */
-  menuPath?: string[]
   mirrorPolicy: AmbianceMirrorPolicy
   sharedIntent: WidgetSimulationIntentPayload | null
 }
@@ -325,7 +328,7 @@ export function isPublicKernelSignal(event: string): event is KernelSignalEvent 
 // ── Runtime config ────────────────────────────────────────────────
 
 export interface RuntimeConfig {
-  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemes' | 'iconAnimation' | 'iconMotion' | 'iconArrangement' | 'iconArrangementMotion' | 'screenSaver'>
+  desktopConfig?: Pick<Partial<DesktopConfig>, 'globalThemeDefault' | 'widgetThemes' | 'iconAnimation' | 'iconMotion' | 'iconArrangement' | 'iconArrangementMotion'>
   /** Transient per-widget positions (not persisted — runtime state only) */
   widgetPositions?: Record<string, { x: number; y: number }>
   /** Transient per-widget sizes (not persisted — runtime state only) */
@@ -378,12 +381,8 @@ export interface ServerToClientEvents {
   'widget:layout:apply:items': (items: WidgetLayoutItem[]) => void
   /** OS-style desktop notification */
   'desktop:notify': (payload: DesktopNotificationPayload) => void
-  /** Recycle bin fill state changed */
-  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload) => void
-  /** Start menu visibility / active root changed */
-  'desktop:start-menu:state': (payload: DesktopStartMenuStatePayload) => void
-  /** Screen saver preview command */
-  'desktop:screen-saver:test': (payload: DesktopScreenSaverPreviewPayload) => void
+  /** Generic presentation-state relay — a client-reported skin fact changed */
+  'presentation:state': (payload: PresentationStatePayload) => void
   /** Widget wire triggered a widget action */
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }) => void
   /** Server-produced widget-style signal (signal:emit automation action) — overlay re-enters it on the DOM bus */

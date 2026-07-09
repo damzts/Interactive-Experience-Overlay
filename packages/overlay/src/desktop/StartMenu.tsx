@@ -1,5 +1,6 @@
-import type { Application, DesktopStartMenuRoot } from '@ieomlabs/shared'
+import type { Application } from '@ieomlabs/shared'
 import type { DesktopStartMenuSimulationPhasePayload } from './simulationTypes'
+import type { StartMenuRoot } from './presentationState'
 import { STATE } from '@ieomlabs/shared'
 import { AppGlyph } from './AppGlyph'
 import { socket } from '../socket/client'
@@ -8,10 +9,10 @@ import './styles/start-menu.css'
 
 interface StartMenuProps {
   open: boolean
-  activeRoot: DesktopStartMenuRoot
+  activeRoot: StartMenuRoot
   simulationPhase: DesktopStartMenuSimulationPhasePayload | null
   launchableApps: Application[]
-  onEmitState: (open: boolean, activeRoot: DesktopStartMenuRoot) => void
+  onEmitState: (open: boolean, activeRoot: StartMenuRoot) => void
   onLaunch: (app: Application) => void
   onClose: () => void
 }

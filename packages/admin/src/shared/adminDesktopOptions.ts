@@ -30,15 +30,6 @@ export const GOOGLE_FONTS = [
   { name: 'Electrolize', css: 'Electrolize' },
 ]
 
-export const SCREENSAVER_PRESETS: { id: DesktopConfig['screenSaver']['preset']; label: string }[] = [
-  { id: 'starfield', label: 'Starfield' },
-  { id: 'flying-windows', label: 'Flying Windows' },
-  { id: 'marquee', label: 'Marquee Text' },
-  { id: 'pipes', label: 'Pipes 3D' },
-  { id: 'gallery-scroll', label: 'Game Gallery' },
-  { id: 'blank', label: 'Black Screen' },
-]
-
 const DESKTOP_THEME_COPY: Record<DesktopTheme, { label: string; description: string }> = {
   win98: { label: 'Win98', description: 'Classic desktop chrome with utilitarian bevels, neutral panels, and retro shell clarity.' },
   'frutiger aero': { label: 'Frutiger Aero', description: 'Glossy glass surfaces, aquatic light, and soft optimistic UI polish.' },

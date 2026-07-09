@@ -51,7 +51,6 @@ const SCHEMA = `
     default_icon_size TEXT,
     auto_arrange_icons INTEGER,
     recycle_bin_json TEXT,
-    screen_saver_json TEXT,
     system_sounds_json TEXT
   );
 

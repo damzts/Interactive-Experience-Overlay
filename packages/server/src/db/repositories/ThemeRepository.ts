@@ -15,7 +15,7 @@ export class ThemeRepository {
       icon_arrangement: string | null; icon_motion: number | null;
       icon_arrangement_motion: number | null; default_icon_size: string | null;
       auto_arrange_icons: number | null; recycle_bin_json: string | null;
-      screen_saver_json: string | null; system_sounds_json: string | null;
+      system_sounds_json: string | null;
     } | undefined
     if (!row) return undefined
     return {
@@ -27,7 +27,6 @@ export class ThemeRepository {
       defaultIconSize: row.default_icon_size ?? undefined,
       autoArrangeIcons: row.auto_arrange_icons != null ? row.auto_arrange_icons === 1 : undefined,
       recycleBin: parseJson(row.recycle_bin_json, undefined),
-      screenSaver: parseJson(row.screen_saver_json, undefined),
       systemSounds: parseJson(row.system_sounds_json, undefined),
     } as unknown as DesktopConfig
   }
@@ -36,8 +35,8 @@ export class ThemeRepository {
     this.db.prepare(`
       INSERT OR REPLACE INTO desktop_config (id, global_theme_json, icon_animation, icon_arrangement,
         icon_motion, icon_arrangement_motion, default_icon_size, auto_arrange_icons,
-        recycle_bin_json, screen_saver_json, system_sounds_json)
-      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        recycle_bin_json, system_sounds_json)
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       dc.globalThemeDefault ? JSON.stringify(dc.globalThemeDefault) : null,
       dc.iconAnimation ?? null, dc.iconArrangement ?? null,
@@ -45,7 +44,6 @@ export class ThemeRepository {
       dc.defaultIconSize ?? null,
       dc.autoArrangeIcons != null ? boolToInt(dc.autoArrangeIcons) : null,
       dc.recycleBin ? JSON.stringify(dc.recycleBin) : null,
-      dc.screenSaver ? JSON.stringify(dc.screenSaver) : null,
       dc.systemSounds ? JSON.stringify(dc.systemSounds) : null,
     )
   }

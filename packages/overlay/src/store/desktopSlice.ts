@@ -1,5 +1,6 @@
 import { DEFAULT_DESKTOP_NOTIFICATION_MAX_VISIBLE } from '@ieomlabs/shared'
 import type { DesktopNotificationPayload, DesktopRuntimeStatePayload } from '@ieomlabs/shared'
+import { readRecycleBinState } from '../desktop/presentationState'
 
 const WINDOW_CLOSE_MS = 180
 const widgetCloseTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -131,11 +132,13 @@ export const createDesktopSlice = (set: (fn: (state: any) => Partial<any>) => vo
 
   syncDesktopRuntimeState: (payload) => {
     clearAllWidgetCloseTimers()
-    set(() => ({
+    const bin = readRecycleBinState(payload.presentation)
+    set((s) => ({
       openWidgets: new Set(payload.openWidgetIds),
       minimizedWidgets: new Set<string>(),
       closingWidgets: new Set<string>(),
-      recycleBinFull: payload.recycleBinFull,
+      // Kernel has no recycle-bin fact yet (fresh boot) → keep the local value.
+      recycleBinFull: bin ? bin.full : s.recycleBinFull,
     }))
   },
 })

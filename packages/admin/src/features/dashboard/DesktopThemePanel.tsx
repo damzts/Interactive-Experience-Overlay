@@ -4,7 +4,6 @@ import {
   withDesktopConfigDefaults,
 } from '@ieomlabs/shared'
 import type { DesktopConfig, DesktopTheme, WidgetThemeConfig } from '@ieomlabs/shared'
-import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { ConfigApplyBar, ConfigChoiceButton, isSameDraft, Slider } from '../../shared/ui'
 import { Toggle } from '../../components/atoms'
@@ -13,7 +12,6 @@ import {
   DESKTOP_THEMES,
   ICON_ANIMATIONS,
   ICON_ARRANGEMENTS,
-  SCREENSAVER_PRESETS,
   WIDGET_SHAPES,
   WIDGET_SKINS,
   WIDGET_THEME_ANIMATIONS,
@@ -80,31 +78,6 @@ function DesktopConfigSections({ form, update }: {
             </div>
           </div>
         </div>
-      </ConfigPanel>
-      <ConfigPanel title="Screen Saver" className="mb-4">
-        <Toggle checked={form.screenSaver.enabled} onChange={(v) => update((d) => { d.screenSaver.enabled = v })} size="sm" label="Enable" />
-        {form.screenSaver.enabled && (
-          <div className="mt-2 grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-end">
-            <div>
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Idle timeout (min)</div>
-              <input type="number" min={1} max={60} value={form.screenSaver.timeoutMinutes}
-                onChange={(e) => update((d) => { d.screenSaver.timeoutMinutes = Number(e.target.value) })}
-                className="w-20 font-mono text-xs" />
-            </div>
-            <div>
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Preset</div>
-              <select value={form.screenSaver.preset}
-                onChange={(e) => update((d) => { d.screenSaver.preset = e.target.value as DesktopConfig['screenSaver']['preset'] })}
-                className="w-full text-xs">
-                {SCREENSAVER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-              </select>
-            </div>
-            <button onClick={() => socket.emit('desktop:screen-saver:test', { preset: form.screenSaver.preset })}
-              className="rounded border border-[var(--color-border-strong)] bg-[var(--color-bg-elevated)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] sm:self-end">
-              Test
-            </button>
-          </div>
-        )}
       </ConfigPanel>
       <ConfigPanel title="System Sounds" className="mb-4">
         <div className="text-[10px] text-[var(--color-text-muted)] mb-2">Relative to <span className="font-mono text-[var(--color-text-secondary)]">assets/sfx/system/</span></div>

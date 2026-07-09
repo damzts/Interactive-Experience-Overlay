@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import { dispatchEffect } from '../effects/registry'
 import { sequenceRendererBus, type ActiveSequenceRenderer } from '../effects/runSequence'
 import { resolveRenderer } from '../renderers/registry'
+import { ScreenSaverHost } from '../transitions/ScreenSaver'
 import type { SequenceEffectConfig } from '@ieomlabs/shared'
 
 /** Watches pendingTransition (set from the kernel's SceneManager.transition()
@@ -46,7 +47,12 @@ export function TransitionEngine() {
     dispatchEffect('sequence', runExit)
   }, [pendingTransition])
 
-  return <SequenceRendererHost />
+  return (
+    <>
+      <SequenceRendererHost />
+      <ScreenSaverHost />
+    </>
+  )
 }
 
 /** Renders whichever renderer-based step the 'sequence' effect handler

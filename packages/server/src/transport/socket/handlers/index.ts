@@ -7,7 +7,6 @@
 import logger from '../../../lib/logger.js'
 import {
   DEFAULT_CONFIG,
-  withDesktopConfigDefaults,
   type AppConfig,
   type ObsStatusPayload,
 } from '@ieomlabs/shared'
@@ -40,11 +39,6 @@ export function setupSocketHandlers(
     obsBridge?: import('../../../kernel/managers/obs.js').ObsBridgeManager
   },
 ): { isOverlaySlotTaken: () => boolean } {
-  if (options?.runtimeState) {
-    const defaultFull = withDesktopConfigDefaults(DEFAULT_CONFIG.desktopConfig).recycleBin.fullOnStart
-    options.runtimeState.setRecycleBinFull(defaultFull)
-  }
-
   const ctx: HandlerContext = {
     io,
     machine,

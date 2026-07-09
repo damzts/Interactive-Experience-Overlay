@@ -18,7 +18,6 @@ describe('withDesktopConfigDefaults', () => {
     const result = withDesktopConfigDefaults(undefined)
     expect(result.globalThemeDefault).toBeDefined()
     expect(result.recycleBin).toBeDefined()
-    expect(result.screenSaver).toBeDefined()
     expect(result.systemSounds).toBeDefined()
   })
 
@@ -26,7 +25,6 @@ describe('withDesktopConfigDefaults', () => {
     const base = withDesktopConfigDefaults(undefined)
     const result = withDesktopConfigDefaults({ recycleBin: { ...base.recycleBin, fullOnStart: !base.recycleBin.fullOnStart } })
     expect(result.recycleBin.fullOnStart).toBe(!base.recycleBin.fullOnStart)
-    expect(result.screenSaver).toEqual(base.screenSaver)
   })
 
   it('is idempotent', () => {
@@ -94,12 +92,12 @@ describe('mergeAppConfig', () => {
 
   it('deep-merges a partial desktopConfig update without dropping siblings', () => {
     const base = mergeAppConfig(clone(DEFAULT_CONFIG), {})
-    const screenSaver = base.desktopConfig!.screenSaver
+    const globalThemeDefault = base.desktopConfig!.globalThemeDefault
     const merged = mergeAppConfig(base, {
       desktopConfig: { recycleBin: { ...base.desktopConfig!.recycleBin, fullOnStart: true } } as never,
     })
     expect(merged.desktopConfig?.recycleBin.fullOnStart).toBe(true)
-    expect(merged.desktopConfig?.screenSaver).toEqual(screenSaver)
+    expect(merged.desktopConfig?.globalThemeDefault).toEqual(globalThemeDefault)
   })
 
   it('preserves unknown/passthrough sections from base via spread', () => {

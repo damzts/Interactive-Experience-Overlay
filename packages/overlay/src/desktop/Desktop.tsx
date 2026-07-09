@@ -12,12 +12,20 @@
  */
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { socket } from '../socket/client'
-import { getWidgetComponent, withDesktopConfigDefaults } from '@ieomlabs/shared'
-import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopStartMenuRoot, DesktopStartMenuStatePayload, DesktopTheme, OverlayRuntimeStatusPayload, OverlayStyle } from '@ieomlabs/shared'
+import { getWidgetComponent, withDesktopConfigDefaults, STATE } from '@ieomlabs/shared'
+import type { AmbianceSimulationPayload, AppConfig, Application, DesktopIconDragPayload, DesktopRuntimeStatePayload, DesktopTheme, OverlayRuntimeStatusPayload, OverlayStyle, PresentationStatePayload } from '@ieomlabs/shared'
 import type { DesktopStartMenuSimulationPhasePayload } from './simulationTypes'
+import {
+  PRESENTATION_KEY_RECYCLE_BIN,
+  PRESENTATION_KEY_START_MENU,
+  readRecycleBinState,
+  readStartMenuState,
+  type StartMenuRoot,
+  type StartMenuStateValue,
+} from './presentationState'
+import { cursorSim } from './cursorService'
 import { useAppStore } from '../store/useAppStore'
 import { Taskbar } from './Taskbar'
-import { ScreenSaver } from './ScreenSaver'
 import { DesktopNotifications } from './DesktopNotifications'
 import { IconGrid } from './IconGrid'
 import { StartMenu } from './StartMenu'
@@ -250,7 +258,7 @@ function computeGridPositions(
 export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
   const [selectedId, setSelectedId]       = useState<string | null>(null)
   const [startMenuOpen, setStartMenuOpen] = useState(false)
-  const [startMenuActiveRoot, setStartMenuActiveRoot] = useState<DesktopStartMenuRoot>(null)
+  const [startMenuActiveRoot, setStartMenuActiveRoot] = useState<StartMenuRoot>(null)
   const [startMenuSimulationPhase, setStartMenuSimulationPhase] = useState<DesktopStartMenuSimulationPhasePayload | null>(null)
   const [contextMenu, setContextMenu]     = useState<ContextMenu | null>(null)
   const [windowOrder, setWindowOrder]     = useState<string[]>([])
@@ -342,9 +350,9 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
     const emitRuntimeStatus = (force = false) => {
       const nextStatus: OverlayRuntimeStatusPayload = {
         mounted: true,
-        cursorReady: !!(window as any).__cursorOverlayController,
+        cursorReady: !!cursorSim.controller,
         widgetRegistryReady: supportedApps.length > 0,
-        ready: !!(window as any).__cursorOverlayController && supportedApps.length > 0,
+        ready: !!cursorSim.controller && supportedApps.length > 0,
         cameraPermission: cameraPermissionState,
       }
       const signature = JSON.stringify(nextStatus)
@@ -375,33 +383,53 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
   }, [cameraPermissionState, overlayRuntimeReady, supportedApps])
 
   useEffect(() => {
-    const applyStartMenuState = (payload: DesktopStartMenuStatePayload) => {
-      setStartMenuOpen(payload.open)
-      setStartMenuActiveRoot(payload.open ? payload.activeRoot : null)
-      if (!payload.open) {
+    const applyStartMenuState = (state: StartMenuStateValue) => {
+      setStartMenuOpen(state.open)
+      setStartMenuActiveRoot(state.open ? state.activeRoot : null)
+      if (!state.open) {
         setStartMenuSimulationPhase(null)
         setContextMenu(null)
       }
     }
 
-    socket.on('desktop:start-menu:state', applyStartMenuState)
+    const onPresentationState = (payload: PresentationStatePayload) => {
+      if (payload.key !== PRESENTATION_KEY_START_MENU) return
+      const state = readStartMenuState({ [PRESENTATION_KEY_START_MENU]: payload.value })
+      if (state) applyStartMenuState(state)
+    }
+
+    socket.on('presentation:state', onPresentationState)
     return () => {
-      socket.off('desktop:start-menu:state', applyStartMenuState)
+      socket.off('presentation:state', onPresentationState)
     }
   }, [])
 
-  const emitStartMenuState = useCallback((payload: DesktopStartMenuStatePayload) => {
+  const emitStartMenuState = useCallback((payload: StartMenuStateValue) => {
     setStartMenuOpen(payload.open)
     setStartMenuActiveRoot(payload.open ? payload.activeRoot : null)
-    socket.emit('desktop:start-menu:state', payload)
+    socket.emit('presentation:state', {
+      key: PRESENTATION_KEY_START_MENU,
+      value: payload,
+      activity: payload.open,
+    })
   }, [])
 
   useEffect(() => {
     const requestDesktopRuntimeState = () => {
       socket.emit('desktop:state:request', (payload: DesktopRuntimeStatePayload) => {
-        const nextState = payload.startMenuState ?? { open: false, activeRoot: null }
+        const nextState = readStartMenuState(payload.presentation) ?? { open: false, activeRoot: null }
         setStartMenuOpen(nextState.open)
         setStartMenuActiveRoot(nextState.open ? nextState.activeRoot : null)
+
+        // The kernel never seeds skin state — if it has no recycle-bin fact
+        // yet (fresh boot), the overlay reports its configured initial state.
+        if (!readRecycleBinState(payload.presentation)) {
+          const desktopCfg = withDesktopConfigDefaults(useAppStore.getState().config?.desktopConfig)
+          socket.emit('presentation:state', {
+            key: PRESENTATION_KEY_RECYCLE_BIN,
+            value: { full: !!desktopCfg.recycleBin.fullOnStart },
+          })
+        }
       })
     }
 
@@ -429,7 +457,7 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
       const timelineOpts = { speedMultiplier, moveJitter }
 
       try {
-        const cursor = (window as any).__cursorOverlayController;
+        const cursor = cursorSim.controller;
         if (!cursor) return;
 
         socket.emit('ambiance:simulate:started', {
@@ -440,8 +468,16 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
         })
 
         // ── Layout / Scene nav select ────────────────────────────────
-        if (payload.action === 'select' && payload.targetKind && payload.menuPath?.length) {
-          const menuPath = payload.menuPath;
+        // The kernel sends only the abstract target (kind + id); the skin
+        // resolves how that target is reached through its own menus.
+        if (payload.action === 'select' && payload.targetKind && payload.targetKind !== 'widget') {
+          const cfg = useAppStore.getState().config
+          const targetLabel = payload.targetKind === 'layout'
+            ? (cfg?.widgetLayouts?.find((l) => l.id === payload.widgetId)?.label ?? payload.widgetId)
+            : payload.widgetId === STATE.DESKTOP
+              ? 'Desktop'
+              : (cfg?.scenes?.[payload.widgetId]?.label ?? payload.widgetId)
+          const menuPath = [payload.targetKind === 'layout' ? 'Layouts' : 'Scenes', targetLabel];
           const timeline = buildOpenWidgetMenuTimeline(menuPath[1] ?? '', menuPath, payload.widgetId, timelineOpts);
           simEmittingRef.current = true;
           try {
@@ -625,10 +661,7 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
       ambianceRunningRef.current = false
       simEmittingRef.current = false;
       emitStartMenuState({ open: false, activeRoot: null });
-      const cursor = (window as any).__cursorOverlayController;
-      if (cursor) {
-        cursor.setVisible(false);
-      }
+      cursorSim.controller?.setVisible(false);
     };
   }, [emitStartMenuState, overlayRuntimeReady, supportedApps]);
 
@@ -836,8 +869,6 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
     focusWidget(widgetId)
   }, [closingWidgets, focusWidget, minimizeWidget, minimizedWidgets, openWidgets, restoreWidget, windowOrder])
 
-  const ss = desktopConfig.screenSaver
-
   const clearDragOverride = useCallback((appId: string) => {
     setDragPositions((prev) => {
       if (!(appId in prev)) return prev
@@ -1017,7 +1048,7 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
     setSelectedId(null)
     emitStartMenuState({ open: false, activeRoot: null })
 
-    if ((window as any).__cursorMirrorVisualOnly) {
+    if (cursorSim.mirrorVisualOnly) {
       return
     }
 
@@ -1029,8 +1060,8 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
   }
 
   const handleDesktopMouseDown = () => {
-    if ((window as any).__simulatingCursorClick) return
-    if ((window as any).__simulatingWidgetFocus) return
+    if (cursorSim.simulatingClick) return
+    if (cursorSim.simulatingWidgetFocus) return
     setSelectedId(null)
     emitStartMenuState({ open: false, activeRoot: null })
     setContextMenu(null)
@@ -1313,15 +1344,6 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
           onWidgetTaskbarClick={handleTaskbarWidgetClick}
         />
 
-        {/* Screen saver — activates after idle timeout if enabled */}
-        {ss && (
-          <ScreenSaver
-            enabled={ss.enabled}
-            timeoutMinutes={ss.timeoutMinutes}
-            preset={ss.preset}
-          />
-        )}
-
         {/* Widget windows */}
         <WindowManager
           visibleWidgets={visibleWidgets}
@@ -1331,7 +1353,7 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
           focusWidget={focusWidget}
           getWidgetZIndex={getWidgetZIndex}
           onWidgetClose={(widgetId) => {
-            if ((window as any).__cursorMirrorVisualOnly) return
+            if (cursorSim.mirrorVisualOnly) return
             if (simEmittingRef.current) socket.emit('widget:simulate:action', { widgetId, action: 'toggle' })
             else socket.emit('widget:toggle', widgetId)
           }}

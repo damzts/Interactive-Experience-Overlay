@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import type { DesktopScreenSaverPreviewPayload } from '@ieomlabs/shared'
-import { socket } from '../socket/client'
-import { useAppStore } from '../store/useAppStore'
+import { useState, useEffect, useRef } from 'react'
+import type { ScreenSaverConfig } from '@ieomlabs/shared'
 
-type Preset = DesktopScreenSaverPreviewPayload['preset']
+type Preset = ScreenSaverConfig['preset']
 
 // ── Starfield preset ──────────────────────────────────────────────────────
 interface Star { x: number; y: number; vx: number; vy: number; size: number }
@@ -329,99 +327,79 @@ function GalleryScrollPreset() {
   )
 }
 
-// ── Screen saver root ─────────────────────────────────────────────────────
-interface ScreenSaverProps {
-  timeoutMinutes: number
-  preset: Preset
-  enabled: boolean
+// ── Bus — dispatch/cancel drives this; <ScreenSaverHost/> renders it ──────
+// runScreenSaver is a plain function (an effect handler), not a React
+// component, but it needs to mount an actual React preset. Same pattern as
+// effects/runSequence.ts's sequenceRendererBus: a tiny pub-sub bus hands the
+// active preset to <ScreenSaverHost/>, mounted once in TransitionEngine.
+
+type ScreenSaverBusListener = (preset: Preset | null) => void
+
+class ScreenSaverBus {
+  private active: Preset | null = null
+  private listeners = new Set<ScreenSaverBusListener>()
+
+  subscribe(listener: ScreenSaverBusListener): () => void {
+    this.listeners.add(listener)
+    listener(this.active)
+    return () => { this.listeners.delete(listener) }
+  }
+
+  private notify() {
+    for (const l of this.listeners) l(this.active)
+  }
+
+  show(preset: Preset) {
+    this.active = preset
+    this.notify()
+  }
+
+  hide() {
+    this.active = null
+    this.notify()
+  }
 }
 
-const SCREEN_SAVER_PREVIEW_DURATION_MS = 15000
+export const screenSaverBus = new ScreenSaverBus()
 
-export function ScreenSaver({ timeoutMinutes, preset, enabled }: ScreenSaverProps) {
-  const [active, setActive] = useState(false)
-  const [previewPreset, setPreviewPreset] = useState<Preset | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const previewActiveRef = useRef(false)
-  const visualState = useAppStore((s) => s.visualState)
+/** Renders whichever preset the 'screensaver' effect handler currently has
+ *  active, at z:90 (above desktop, below the GSAP transition layer). Mount
+ *  once, e.g. in TransitionEngine's output. */
+export function ScreenSaverHost() {
+  const [preset, setPreset] = useState<Preset | null>(null)
 
-  const resetTimer = useCallback(() => {
-    previewActiveRef.current = false
-    setPreviewPreset(null)
-    setActive(false)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
-    if (!enabled) return
-    timerRef.current = setTimeout(() => setActive(true), timeoutMinutes * 60 * 1000)
-  }, [enabled, timeoutMinutes])
+  useEffect(() => screenSaverBus.subscribe(setPreset), [])
 
-  // Reset on any state change (scene switch = activity)
-  useEffect(() => {
-    if (previewActiveRef.current) return
-    resetTimer()
-  }, [visualState, resetTimer])
-
-  // Reset on server socket messages (any admin action counts as activity)
-  useEffect(() => {
-    const onAny = (eventName: string) => {
-      if (eventName === 'desktop:screen-saver:test' || previewActiveRef.current) return
-      resetTimer()
-    }
-    socket.onAny(onAny)
-    return () => { socket.offAny(onAny) }
-  }, [resetTimer])
-
-  useEffect(() => {
-    const onPreview = (payload: DesktopScreenSaverPreviewPayload) => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
-      previewActiveRef.current = true
-      setPreviewPreset(payload.preset)
-      setActive(true)
-      previewTimerRef.current = setTimeout(() => {
-        previewActiveRef.current = false
-        resetTimer()
-      }, SCREEN_SAVER_PREVIEW_DURATION_MS)
-    }
-
-    socket.on('desktop:screen-saver:test', onPreview)
-    return () => {
-      socket.off('desktop:screen-saver:test', onPreview)
-    }
-  }, [])
-
-  // Dismiss on any click/keypress
-  useEffect(() => {
-    if (!active) return
-    const dismiss = () => resetTimer()
-    window.addEventListener('click', dismiss)
-    window.addEventListener('keydown', dismiss)
-    return () => {
-      window.removeEventListener('click', dismiss)
-      window.removeEventListener('keydown', dismiss)
-    }
-  }, [active, resetTimer])
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
-    }
-  }, [])
-
-  const effectivePreset = previewPreset ?? preset
-
-  if (!active || (!enabled && !previewPreset)) return null
+  if (!preset) return null
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 90, cursor: 'none' }}>
-      {effectivePreset === 'starfield'      && <Starfield />}
-      {effectivePreset === 'marquee'        && <MarqueePreset />}
-      {effectivePreset === 'flying-windows' && <FlyingWindows />}
-      {effectivePreset === 'pipes'          && <PipesPreset />}
-      {effectivePreset === 'blank'          && <BlankPreset />}
-      {effectivePreset === 'gallery-scroll' && <GalleryScrollPreset />}
+      {preset === 'starfield'      && <Starfield />}
+      {preset === 'marquee'        && <MarqueePreset />}
+      {preset === 'flying-windows' && <FlyingWindows />}
+      {preset === 'pipes'          && <PipesPreset />}
+      {preset === 'blank'          && <BlankPreset />}
+      {preset === 'gallery-scroll' && <GalleryScrollPreset />}
     </div>
   )
+}
+
+/** SCREENSAVER — full-viewport idle takeover. No duration: it shows the
+ *  chosen preset until dismissed by user activity (click/keydown) or the
+ *  next exclusive-effect dispatch cancels this run. Trigger it from an
+ *  idle-mode event (AutoTrigger.mode = 'idle') rather than a bespoke timer. */
+export function runScreenSaver(cfg: ScreenSaverConfig): () => void {
+  screenSaverBus.show(cfg.preset)
+
+  const cancel = () => {
+    window.removeEventListener('click', dismiss)
+    window.removeEventListener('keydown', dismiss)
+    screenSaverBus.hide()
+  }
+  const dismiss = () => cancel()
+
+  window.addEventListener('click', dismiss)
+  window.addEventListener('keydown', dismiss)
+
+  return cancel
 }

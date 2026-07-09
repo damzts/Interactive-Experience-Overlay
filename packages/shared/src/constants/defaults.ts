@@ -170,13 +170,6 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     if (action.patch.widgetTheme) {
       patch.widgetTheme = normalizeEventWidgetThemePatch(action.patch.widgetTheme)
     }
-    if (action.patch.screenSaver) {
-      patch.screenSaver = {
-        enabled: action.patch.screenSaver.enabled ?? false,
-        timeoutMinutes: Math.max(1, Math.round(action.patch.screenSaver.timeoutMinutes ?? 5)),
-        preset: action.patch.screenSaver.preset ?? 'starfield',
-      }
-    }
     return { kind: 'desktop-config', patch, timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds) }
   }
 
@@ -451,11 +444,6 @@ export const DEFAULT_DESKTOP_CONFIG: DesktopConfig = {
   recycleBin: {
     fullOnStart: false,
   },
-  screenSaver: {
-    enabled: false,
-    timeoutMinutes: 5,
-    preset: 'starfield',
-  },
   systemSounds: {
     startup: '',
     error: '',
@@ -716,10 +704,6 @@ export function withDesktopConfigDefaults(config?: Partial<DesktopConfig> | null
       ...DEFAULT_DESKTOP_CONFIG.recycleBin,
       ...recycleBin,
     },
-    screenSaver: {
-      ...DEFAULT_DESKTOP_CONFIG.screenSaver,
-      ...source.screenSaver,
-    },
     systemSounds: {
       ...DEFAULT_DESKTOP_CONFIG.systemSounds,
       ...source.systemSounds,
@@ -833,9 +817,6 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
         recycleBin: updates.desktopConfig.recycleBin
           ? { ...currentDesktopConfig.recycleBin, ...updates.desktopConfig.recycleBin }
           : currentDesktopConfig.recycleBin,
-        screenSaver: updates.desktopConfig.screenSaver
-          ? { ...currentDesktopConfig.screenSaver, ...updates.desktopConfig.screenSaver }
-          : currentDesktopConfig.screenSaver,
         systemSounds: updates.desktopConfig.systemSounds
           ? { ...currentDesktopConfig.systemSounds, ...updates.desktopConfig.systemSounds }
           : currentDesktopConfig.systemSounds,

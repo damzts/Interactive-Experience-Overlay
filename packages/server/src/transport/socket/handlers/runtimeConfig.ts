@@ -16,7 +16,6 @@ export const RUNTIME_CONFIG_RESET_SCOPES = [
   'desktop.iconMotion',
   'desktop.iconArrangement',
   'desktop.iconArrangementMotion',
-  'desktop.screenSaver',
   'desktop.widgetThemes',
   'ambiance.widgetSimulation',
 ] as const
@@ -61,9 +60,6 @@ export function mergeRuntimeConfig(
           widgetThemes: updates.desktopConfig.widgetThemes
             ? { ...(base.desktopConfig?.widgetThemes ?? {}), ...updates.desktopConfig.widgetThemes }
             : base.desktopConfig?.widgetThemes,
-          screenSaver: updates.desktopConfig.screenSaver
-            ? { ...(base.desktopConfig?.screenSaver ?? {}), ...updates.desktopConfig.screenSaver } as NonNullable<RuntimeConfig['desktopConfig']>['screenSaver']
-            : base.desktopConfig?.screenSaver,
         } as RuntimeConfig['desktopConfig']
       : base.desktopConfig,
     desktopAmbiance: updates.desktopAmbiance
@@ -131,7 +127,6 @@ export function clearRuntimeConfigScopes(ctx: HandlerContext, scopes: RuntimeCon
     if (scope === 'desktop.iconMotion') delete nextDesktop.iconMotion
     if (scope === 'desktop.iconArrangement') delete nextDesktop.iconArrangement
     if (scope === 'desktop.iconArrangementMotion') delete nextDesktop.iconArrangementMotion
-    if (scope === 'desktop.screenSaver') delete nextDesktop.screenSaver
     if (scope === 'desktop.widgetThemes') delete nextDesktop.widgetThemes
     if (scope === 'ambiance.widgetSimulation') delete nextAmbiance.widgetSimulation
   }

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_WIDGET_THEME_PRESETS, EFFECT_CATALOG, getEffectLabel, withDesktopConfigDefaults } from '@ieomlabs/shared'
+import { DEFAULT_WIDGET_THEME_PRESETS, EFFECT_CATALOG, getEffectLabel } from '@ieomlabs/shared'
 import type {
   DesktopConfig,
   EffectType,
@@ -14,7 +14,6 @@ import {
   DESKTOP_THEMES,
   GOOGLE_FONTS,
   ICON_ANIMATIONS,
-  SCREENSAVER_PRESETS,
   WIDGET_SKINS,
   WIDGET_THEME_ANIMATIONS,
   WIDGET_THEME_ATMOSPHERES,
@@ -47,7 +46,6 @@ export function EventForm({
   layout?: 'default' | 'flat-grid'
 }) {
   const config = useAdminStore((s) => s.config)
-  const desktopConfig = withDesktopConfigDefaults(config.desktopConfig)
   const widgetApps = useMemo(() => config.applications, [config.applications])
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const [collapsedActionIndexes, setCollapsedActionIndexes] = useState<number[]>([])
@@ -438,19 +436,6 @@ export function EventForm({
                           if (draft.kind !== 'desktop-config') return
                           draft.patch.iconMotion = value
                         })} />
-                        <div>
-                          <div className="mb-1 text-[10px] text-zinc-500">Screen saver</div>
-                          <select value={action.patch.screenSaver?.preset ?? desktopConfig.screenSaver.preset} onChange={(event) => updateAction(index, (draft) => {
-                            if (draft.kind !== 'desktop-config') return
-                            draft.patch.screenSaver = {
-                              enabled: draft.patch.screenSaver?.enabled ?? desktopConfig.screenSaver.enabled,
-                              timeoutMinutes: draft.patch.screenSaver?.timeoutMinutes ?? desktopConfig.screenSaver.timeoutMinutes,
-                              preset: event.target.value as DesktopConfig['screenSaver']['preset'],
-                            }
-                          })} className="w-full text-xs">
-                            {SCREENSAVER_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-                          </select>
-                        </div>
                       </div>
                       <div className="rounded border border-zinc-800/70 bg-zinc-900/45 py-2">
                         <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-zinc-500">Global Widget Theme</div>

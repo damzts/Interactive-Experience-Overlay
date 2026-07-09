@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import winCursor from './assets/win98-cursor.svg';
+import { cursorSim } from './cursorService';
 
 export interface CursorOverlayController {
   moveTo: (x: number, y: number, options?: { duration?: number }) => Promise<void>;
@@ -57,9 +58,9 @@ export function CursorOverlayProvider({ children }: { children: React.ReactNode 
   });
 
   useEffect(() => {
-    (window as any).__cursorOverlayController = controller.current
+    cursorSim.setController(controller.current)
     return () => {
-      delete (window as any).__cursorOverlayController
+      cursorSim.setController(null)
     }
   }, [])
 

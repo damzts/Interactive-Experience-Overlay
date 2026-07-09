@@ -11,8 +11,8 @@
 import { withDesktopConfigDefaults, DEFAULT_DESKTOP_NOTIFICATION_DURATION_MS, EFFECT_CATALOG } from '@ieomlabs/shared'
 import type {
   DesktopNotificationPayload,
-  DesktopRecycleBinPayload,
   ObsStatusPayload,
+  PresentationStatePayload,
   RuntimeConfig,
   TransitionPlayPayload,
   WidgetSimulationIntentPayload,
@@ -25,6 +25,7 @@ import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
 import { dispatchWidgetSimulationIntent, dispatchWidgetChainAction, dispatchWidgetSignal } from '../desktop/widgetSimulationEvents'
+import { PRESENTATION_KEY_RECYCLE_BIN, readRecycleBinState } from '../desktop/presentationState'
 import { socket } from './client'
 import type { AppStore } from '../store/useAppStore'
 
@@ -163,8 +164,11 @@ export const signalHandlers: SignalHandlerMap = {
     })
   },
 
-  'desktop:recycle-bin': (payload: DesktopRecycleBinPayload, store) => {
-    store.setRecycleBinFull(payload.full)
+  // Generic presentation relay — this map handles the recycle-bin key;
+  // Desktop.tsx owns the start-menu key (it holds that state locally).
+  'presentation:state': (payload: PresentationStatePayload, store) => {
+    const bin = readRecycleBinState({ [PRESENTATION_KEY_RECYCLE_BIN]: payload.value })
+    if (payload.key === PRESENTATION_KEY_RECYCLE_BIN && bin) store.setRecycleBinFull(bin.full)
   },
 
   'overlay:owner': (payload: { socketId: string | null }, store) => {

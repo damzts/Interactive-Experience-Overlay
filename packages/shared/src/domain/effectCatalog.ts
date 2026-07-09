@@ -31,6 +31,7 @@ export const EFFECT_CATEGORY_ORDER = [
   'Anime',
   'MMORPG / Retro-Futurist',
   'Aesthetic Cartridges',
+  'Screen Saver',
 ] as const
 
 export type EffectCategory = (typeof EFFECT_CATEGORY_ORDER)[number]
@@ -650,6 +651,14 @@ export const EFFECT_CATALOG: { readonly [K in EffectType]: EffectManifest<K> } =
     desc: 'Generic ordered step pipeline (effect or renderer). Used internally by a scene’s intro/exit Sequence; steps are authored in the Sequences tab, not this generic field editor.',
     defaults: { steps: [] },
     fields: [],
+  },
+
+  // ── Screen Saver (exclusive, idle-triggered) ───────────────────────
+  'screensaver': {
+    label: 'Screen Saver', category: 'Screen Saver',
+    desc: 'Full-screen idle takeover, classic OS screensaver style. Runs until dismissed by activity (click/keydown) — trigger it from an idle-mode event.',
+    defaults: { preset: 'starfield' },
+    fields: [sel('preset', 'Preset', ['starfield', 'marquee', 'flying-windows', 'pipes', 'blank', 'gallery-scroll'])],
   },
 }
 
