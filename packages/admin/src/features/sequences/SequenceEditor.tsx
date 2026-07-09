@@ -12,6 +12,15 @@ function createStepDraft(type: EffectType): SequenceStep {
   return { effect: createEffectDraft(type) }
 }
 
+function stepKindLabel(step: SequenceStep): string {
+  if (step.effect) return getEffectLabel(step.effect.type)
+  if (step.renderer) return step.renderer
+  if (step.waitForSignal) return `⏸ wait for signal`
+  if (step.emitSignal) return `📡 emit signal`
+  if (step.parallel) return `⫲ parallel group (${step.parallel.length})`
+  return '—'
+}
+
 export function SequenceEditor({ sequence, onSaved, onDeleted }: {
   sequence: Sequence
   onSaved?: (next: Sequence) => void
@@ -64,6 +73,10 @@ export function SequenceEditor({ sequence, onSaved, onDeleted }: {
     setSteps((prev) => prev.map((step, i) => i === idx ? { ...step, waitMs } : step))
   }
 
+  const updateStep = (idx: number, patch: Partial<SequenceStep>) => {
+    setSteps((prev) => prev.map((step, i) => i === idx ? { ...step, ...patch } : step))
+  }
+
   const testSequence = () => {
     if (steps.length) socket.emit('transition:preview', steps)
   }
@@ -106,6 +119,23 @@ export function SequenceEditor({ sequence, onSaved, onDeleted }: {
                 </optgroup>
               ))}
             </select>
+            <div className="mt-2 flex items-center gap-2">
+              <button type="button"
+                onClick={() => setSteps((prev) => [...prev, { waitForSignal: { event: '', timeoutMs: 30000 } }])}
+                className="rounded-md border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-1 text-[11px] text-zinc-300 hover:border-zinc-500">
+                + Wait for signal
+              </button>
+              <button type="button"
+                onClick={() => setSteps((prev) => [...prev, { emitSignal: { event: '' } }])}
+                className="rounded-md border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-1 text-[11px] text-zinc-300 hover:border-zinc-500">
+                + Emit signal
+              </button>
+              <button type="button"
+                onClick={() => setSteps((prev) => [...prev, { parallel: [] }])}
+                className="rounded-md border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-1 text-[11px] text-zinc-300 hover:border-zinc-500">
+                + Parallel group
+              </button>
+            </div>
           </div>
 
           {steps.length === 0 && <div className="text-[10px] italic text-zinc-600">No steps yet — add an effect above.</div>}
@@ -119,7 +149,7 @@ export function SequenceEditor({ sequence, onSaved, onDeleted }: {
                   <div className="flex items-start gap-2 border-b border-zinc-800/80 pb-2">
                     <div className="min-w-0 flex-1">
                       <div className="text-[10px] uppercase tracking-[0.14em] text-cyan-300/80">Step {idx + 1}</div>
-                      <div className="mt-1 font-mono text-xs text-zinc-300">{type ? getEffectLabel(type) : step.renderer ?? '—'}</div>
+                      <div className="mt-1 font-mono text-xs text-zinc-300">{stepKindLabel(step)}</div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0}
@@ -137,18 +167,71 @@ export function SequenceEditor({ sequence, onSaved, onDeleted }: {
 
                   {!collapsed.includes(idx) && (
                     <div className="space-y-3">
-                      <label className="block text-[10px] text-zinc-500">
-                        Wait before next step (ms) <span className="normal-case font-normal text-zinc-600">(blank = use effect's own duration)</span>
-                        <input type="number" min={0} step={100} value={step.waitMs ?? ''}
-                          onChange={(e) => updateStepWaitMs(idx, e.target.value === '' ? undefined : Number(e.target.value))}
-                          className="mt-1 w-full text-xs" />
-                      </label>
+                      {!step.waitForSignal && (
+                        <label className="block text-[10px] text-zinc-500">
+                          {step.parallel
+                            ? <>Fixed group duration (ms) <span className="normal-case font-normal text-zinc-600">(blank = wait for all sub-steps; set = cut off stragglers)</span></>
+                            : <>Wait before next step (ms) <span className="normal-case font-normal text-zinc-600">(blank = use effect's own duration)</span></>}
+                          <input type="number" min={0} step={100} value={step.waitMs ?? ''}
+                            onChange={(e) => updateStepWaitMs(idx, e.target.value === '' ? undefined : Number(e.target.value))}
+                            className="mt-1 w-full text-xs" />
+                        </label>
+                      )}
                       {type && fields.length > 0 && (
                         <SchemaForm
                           fields={fields}
                           values={step.effect!.cfg as Record<string, unknown>}
                           onChange={(key, value) => updateStepCfg(idx, key, value)}
                         />
+                      )}
+                      {step.waitForSignal && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block text-[10px] text-zinc-500">
+                            Signal event <span className="normal-case font-normal text-zinc-600">(kernel or widget, e.g. twitch:follow)</span>
+                            <input type="text" value={step.waitForSignal.event}
+                              onChange={(e) => updateStep(idx, { waitForSignal: { ...step.waitForSignal!, event: e.target.value } })}
+                              placeholder="e.g. audio:beat" className="mt-1 w-full text-xs font-mono" />
+                          </label>
+                          <label className="block text-[10px] text-zinc-500">
+                            Timeout (ms) <span className="normal-case font-normal text-zinc-600">(advance anyway after)</span>
+                            <input type="number" min={0} step={500} value={step.waitForSignal.timeoutMs ?? 30000}
+                              onChange={(e) => updateStep(idx, { waitForSignal: { ...step.waitForSignal!, timeoutMs: Number(e.target.value) || 30000 } })}
+                              className="mt-1 w-full text-xs" />
+                          </label>
+                        </div>
+                      )}
+                      {step.emitSignal && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block text-[10px] text-zinc-500">
+                            Signal event <span className="normal-case font-normal text-zinc-600">(widgets + automation rules react)</span>
+                            <input type="text" value={step.emitSignal.event}
+                              onChange={(e) => updateStep(idx, { emitSignal: { ...step.emitSignal!, event: e.target.value } })}
+                              placeholder="e.g. show:hype-done" className="mt-1 w-full text-xs font-mono" />
+                          </label>
+                          <label className="block text-[10px] text-zinc-500">
+                            Payload JSON <span className="normal-case font-normal text-zinc-600">(optional)</span>
+                            <input type="text" defaultValue={step.emitSignal.payload ? JSON.stringify(step.emitSignal.payload) : ''}
+                              onBlur={(e) => {
+                                let payload: Record<string, unknown> | undefined
+                                try { payload = e.target.value.trim() ? JSON.parse(e.target.value) : undefined } catch { payload = undefined }
+                                updateStep(idx, { emitSignal: { ...step.emitSignal!, payload } })
+                              }}
+                              placeholder='{"mood":"hype"}' className="mt-1 w-full text-xs font-mono" />
+                          </label>
+                        </div>
+                      )}
+                      {step.parallel && (
+                        <label className="block text-[10px] text-zinc-500">
+                          Sub-steps JSON <span className="normal-case font-normal text-zinc-600">(array of steps run concurrently — same shape as sequence steps)</span>
+                          <textarea rows={5} defaultValue={JSON.stringify(step.parallel, null, 2)}
+                            onBlur={(e) => {
+                              try {
+                                const parsed = JSON.parse(e.target.value)
+                                if (Array.isArray(parsed)) updateStep(idx, { parallel: parsed })
+                              } catch { /* keep previous on invalid JSON */ }
+                            }}
+                            className="mt-1 w-full text-xs font-mono" />
+                        </label>
                       )}
                     </div>
                   )}
