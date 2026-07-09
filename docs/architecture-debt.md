@@ -71,7 +71,19 @@ deleted. A new manager event then costs **zero** transport changes and is instan
 by automation rules, widgets, and renderers.
 </details>
 
-### P2 — Effects are the least-lego subsystem, and they're the main creative currency
+### P2 — Effects are the least-lego subsystem — ✅ SHIPPED (verified 2026-07-08)
+
+**Current state:** `EFFECT_CATALOG` in `shared/src/domain/effectCatalog.ts` is the single
+source of truth (label, category, `defaults`, `fields` schema, `defaultSfx`). Derived from it:
+admin `EFFECT_CATEGORIES` + draft defaults (`eventPresets.ts` is now derivations), the
+generated schema editor in `EventForm.tsx`/`SequenceEditor.tsx` (via `EFFECT_CATALOG[type].fields`),
+and the effect→sound default in the overlay's `signalMap.ts` (`SFX_MAP` is gone). A new effect =
+**3 files**: `EffectConfigMap` entry + config interface in `contracts/effects.ts` (kept for
+payload typing — accepted deviation from the "2 files" goal), catalog entry (compiler-enforced
+total record), and the overlay run function + `registerEffect` call.
+
+<details>
+<summary>Original evidence (2026-07-05, kept for history)</summary>
 
 **Evidence (2026-07-05):** a new effect touches **6 files** across 3 packages:
 
@@ -99,7 +111,22 @@ effects that genuinely need custom UI), and the SFX default. Per-effect TS confi
 in shared go away; a run function declares its own local cfg type. New effect = **2 files**
 (catalog entry + run function). The dispatch registry and concurrency budget stay as-is.
 
-### P3 — Three plugin systems, three shapes
+</details>
+
+### P3 — Three plugin systems, three shapes — ✅ SHIPPED (verified 2026-07-08)
+
+**Current state:** one manifest shape exists — `PluginManifestBase` + unified `FieldDef` in
+`shared/src/domain/fields.ts` (`label/icon/desc/fields/emits/accepts`), extended by
+`RendererCatalogEntry` (`domain/plugin.ts`), `EffectManifest` (`domain/effectCatalog.ts`), and
+`WidgetDefinition` (`contracts/widget.ts`). Admin has the shared `SchemaForm` component
+(`admin/src/features/media-library/SchemaForm.tsx`) rendering any `fields` schema.
+`WidgetComponentType` is **derived** from widget definitions
+(`DefinedWidgetComponentType = (typeof WIDGET_DEFINITIONS)[number]['componentType']` in
+`widgets/index.ts`; `application.ts` only appends the `'window' | 'generic'` fallbacks) —
+adding a widget never edits `application.ts`.
+
+<details>
+<summary>Original evidence (2026-07-05, kept for history)</summary>
 
 **Evidence:** the same concept — "a thing with an id, a config schema, signals it emits,
 actions it accepts" — is expressed three ways:
@@ -120,6 +147,8 @@ but a shared schema-form generator in admin (one `SchemaForm` component). Derive
 `WidgetComponentType` from the definitions so adding a widget never edits
 `application.ts`. Registration stays build-time (an `import.meta.glob` sweep is a nice-to-have,
 not the point).
+
+</details>
 
 ### P4 — Presentation leaked into the kernel ABI — ✅ SHIPPED (2026-07-08)
 
@@ -225,6 +254,9 @@ not worth the churn since `type STATE = string` already.
 
 ## 3. Phased roadmap
 
+> **Status 2026-07-08: all five phases are shipped.** This doc is now a record of the
+> consolidation, not a work queue. Remaining opportunistic cleanups live in §4.
+
 Each phase is independently shippable and leaves the system fully working. Order is by
 leverage ÷ risk. Breaking persisted data is acceptable in every phase.
 
@@ -233,31 +265,16 @@ leverage ÷ risk. Breaking persisted data is acceptable in every phase.
 All domain events flow kernel→overlay through the generic `kernel:signal` BusFrame channel;
 `managers.ts` is deleted. See the P1 section above for the current shape.
 
-### Phase 2 — Effect manifests (P2)
+### Phase 2 — Effect manifests (P2) — ✅ DONE (verified 2026-07-08)
 
-- **Goal:** new effect = catalog entry + run function.
-- **Touches:** new `EFFECT_CATALOG` in shared (data only); rewrite
-  `admin/.../eventPresets.ts` as derivations; replace most of `EventForm.tsx`'s per-type
-  blocks with the schema form; move `SFX_MAP` into manifests as `defaultSfx`; delete
-  per-effect config interfaces from `shared/src/contracts/effects.ts` (keep
-  `OverlayTriggerPayload` and the `EffectConfig` envelope with `cfg: Record<string,
-  unknown>`).
-- **Done when:** the 6-file checklist in the memory/README is obsolete; one existing effect
-  ported end-to-end proves the path, then bulk-port the rest.
-- **Risk:** medium — 75 types to port (mechanical), loss of per-effect TS narrowing in admin
-  (acceptable; run functions keep local types). Field schema must express everything the
-  hand-written editors did; keep custom editor escape hatch.
+`EFFECT_CATALOG` shipped; admin categories/drafts/editors and the SFX default all derive
+from it. Accepted deviation: per-effect config interfaces remain in `contracts/effects.ts`
+(payload typing), so a new effect is 3 files, not 2. See the P2 section above.
 
-### Phase 3 — Unified plugin shape + SchemaForm (P3)
+### Phase 3 — Unified plugin shape + SchemaForm (P3) — ✅ DONE (verified 2026-07-08)
 
-- **Goal:** widgets, renderers, effects share one manifest shape; one `SchemaForm` in admin;
-  `WidgetComponentType` derived, never hand-edited.
-- **Touches:** `shared/src/contracts/widget.ts` / `domain/plugin.ts` (common base type),
-  `shared/src/domain/application.ts` (derive union), admin form components (renderer editor +
-  effect editor + widget settings converge on `SchemaForm`).
-- **Done when:** adding any brick kind uses the same mental model and the admin renders its
-  settings without new form code.
-- **Risk:** low-medium; mostly type plumbing and admin convergence.
+`PluginManifestBase` + unified `FieldDef` shipped; `SchemaForm` renders any brick's fields;
+`WidgetComponentType` is derived from widget definitions. See the P3 section above.
 
 ### Phase 4 — Kernel presentation purge (P4) — ✅ DONE (2026-07-08)
 
