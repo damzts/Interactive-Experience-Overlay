@@ -36,4 +36,7 @@ export interface HandlerContext {
   cachedUserConfig: AppConfig
 
   socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>
+
+  /** Last render-performance sample from the connected overlay (RAM-only). */
+  lastOverlayPerf?: import('@ieomlabs/shared').OverlayPerfPayload | null
 }

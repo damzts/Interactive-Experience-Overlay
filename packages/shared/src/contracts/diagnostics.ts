@@ -117,6 +117,22 @@ export interface AmbianceDiagnosticsPayload {
   lastSkipReason: string | null
 }
 
+// ── Overlay render performance ────────────────────────────────────
+
+/** Rolling render-performance sample reported by the overlay (the OBS
+ *  browser source has a hard GPU budget — this is the early-warning
+ *  signal when effect/renderer stacking starts dropping frames). */
+export interface OverlayPerfPayload {
+  /** Average frames per second over the sample window. */
+  fps: number
+  /** Frames longer than 50ms in the window (visible hitches). */
+  longFrames: number
+  /** Worst single frame time in the window (ms). */
+  worstFrameMs: number
+  /** Actual sample window length (ms). */
+  windowMs: number
+}
+
 // ── Combined runtime diagnostics ─────────────────────────────────
 
 export interface RuntimeDiagnosticsPayload {
@@ -124,4 +140,6 @@ export interface RuntimeDiagnosticsPayload {
   ambiance: AmbianceDiagnosticsPayload
   /** Lifecycle status of each registered kernel manager, keyed by manager.name */
   managers?: Record<string, import('./manager.js').ManagerStatus>
+  /** Last render-performance sample from the connected overlay. */
+  overlayPerf?: OverlayPerfPayload | null
 }

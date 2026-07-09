@@ -1,4 +1,4 @@
-import type { OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
+import type { OverlayPerfPayload, OverlayRuntimeStatusPayload } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 
 // ── Diagnostics throttle state ────────────────────────────────────
@@ -16,6 +16,7 @@ export function emitRuntimeDiagnostics(ctx: HandlerContext): void {
     scheduler: ctx.scheduler.getDiagnostics(),
     ambiance: ctx.ambianceManager.getDiagnostics(),
     managers: ctx.getManagerStatuses?.(),
+    overlayPerf: ctx.lastOverlayPerf ?? null,
   })
 }
 
@@ -32,6 +33,12 @@ export function registerDiagnosticsHandlers(ctx: HandlerContext, socket: AppSock
   socket.on('overlay:runtime:status', (payload: OverlayRuntimeStatusPayload) => {
     if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.ambianceManager.setOverlayReady(payload.ready)
+    queueRuntimeDiagnosticsEmit(ctx)
+  })
+
+  socket.on('overlay:perf', (payload: OverlayPerfPayload) => {
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
+    ctx.lastOverlayPerf = payload
     queueRuntimeDiagnosticsEmit(ctx)
   })
 

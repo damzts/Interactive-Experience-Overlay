@@ -36,6 +36,25 @@ export const EFFECT_CATEGORY_ORDER = [
 
 export type EffectCategory = (typeof EFFECT_CATEGORY_ORDER)[number]
 
+/** Render cost class — drives the overlay's weighted concurrency budget
+ *  (light=1, medium=2, heavy=4 budget units). Unset falls back to the
+ *  category default, then 'light'. */
+export type EffectCost = 'light' | 'medium' | 'heavy'
+
+export const EFFECT_COST_WEIGHT: Record<EffectCost, number> = {
+  light: 1,
+  medium: 2,
+  heavy: 4,
+}
+
+/** Categories whose effects tend to run persistent full-screen canvas/rAF
+ *  loops — costed heavier by default unless an entry overrides `cost`. */
+const CATEGORY_DEFAULT_COST: Partial<Record<EffectCategory, EffectCost>> = {
+  'Particles & Ambient': 'medium',
+  'Screen Distortion': 'medium',
+  'Cinematic': 'medium',
+}
+
 /** Effect manifest — extends the unified PluginManifestBase (label, icon,
  *  desc, fields) with effect-specific defaults and sound. */
 export interface EffectManifest<K extends EffectType = EffectType> extends PluginManifestBase {
@@ -47,6 +66,17 @@ export interface EffectManifest<K extends EffectType = EffectType> extends Plugi
   fields: FieldDef[]
   /** Built-in sound played when the effect fires and no per-instance sfx is set */
   defaultSfx?: string
+  /** Render cost class (see EffectCost). Omit to use the category default. */
+  cost?: EffectCost
+}
+
+/** Budget weight for an effect type: per-entry `cost`, else its category's
+ *  default, else light. Unknown types (not in the catalog) are light. */
+export function getEffectWeight(type: string): number {
+  const manifest = (EFFECT_CATALOG as Record<string, EffectManifest | undefined>)[type]
+  if (!manifest) return EFFECT_COST_WEIGHT.light
+  const cost = manifest.cost ?? CATEGORY_DEFAULT_COST[manifest.category] ?? 'light'
+  return EFFECT_COST_WEIGHT[cost]
 }
 
 // ── Field shorthands ──────────────────────────────────────────────

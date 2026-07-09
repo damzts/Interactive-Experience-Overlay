@@ -22,6 +22,8 @@
  * transitions and any other ordered, must-play pipeline).
  */
 
+import { getEffectWeight } from '@ieomlabs/shared'
+
 export type EffectHandler = (cfg: unknown) => void
 
 /** Exclusive handlers may return a canceller for the run they just started —
@@ -37,15 +39,25 @@ const activeCancellers = new Map<string, () => void>()
 
 /** Max simultaneously-active instances of one effect type. */
 const MAX_CONCURRENT_PER_TYPE = 3
-/** Max simultaneously-active instances across all effect types. */
-const MAX_CONCURRENT_TOTAL = 12
+/** Max total budget weight across all active effects. Weight per instance
+ *  comes from the effect manifest's cost class (light=1, medium=2,
+ *  heavy=4 — see EFFECT_CATALOG), so 12 = a dozen light toasts, or six
+ *  medium particle fields, or three heavy full-screen loops. */
+const MAX_TOTAL_WEIGHT = 12
 /** Assumed lifetime when cfg carries no numeric duration (seconds). */
 const DEFAULT_DURATION_S = 4
 /** Ceiling so a bad config value can't pin the budget forever (seconds). */
 const MAX_TRACKED_DURATION_S = 30
 
-/** Per-type list of expiry timestamps (ms epoch) for presumed-active instances. */
-const activeInstances = new Map<string, number[]>()
+interface ActiveInstance {
+  /** ms-epoch timestamp when this instance is presumed finished */
+  expiresAt: number
+  /** budget weight from the effect's manifest cost class */
+  weight: number
+}
+
+/** Per-type list of presumed-active instances. */
+const activeInstances = new Map<string, ActiveInstance[]>()
 
 /** Estimate an effect's on-screen lifetime from its cfg (checks `duration`
  *  in seconds, then `durationMs`), falling back to a default. Used both for
@@ -62,20 +74,20 @@ export function estimateDurationMs(cfg: unknown): number {
   return DEFAULT_DURATION_S * 1000
 }
 
-/** Drop expired instances for one type; returns the still-active expiries. */
-function pruneActive(type: string, now: number): number[] {
-  const expiries = activeInstances.get(type)
-  if (!expiries) return []
-  const live = expiries.filter((t) => t > now)
+/** Drop expired instances for one type; returns the still-active instances. */
+function pruneActive(type: string, now: number): ActiveInstance[] {
+  const instances = activeInstances.get(type)
+  if (!instances) return []
+  const live = instances.filter((i) => i.expiresAt > now)
   if (live.length) activeInstances.set(type, live)
   else activeInstances.delete(type)
   return live
 }
 
-function totalActive(now: number): number {
+function totalActiveWeight(now: number): number {
   let total = 0
   for (const type of [...activeInstances.keys()]) {
-    total += pruneActive(type, now).length
+    for (const instance of pruneActive(type, now)) total += instance.weight
   }
   return total
 }
@@ -131,11 +143,12 @@ export function dispatchEffect(type: string, cfg: unknown): void {
     console.warn(`[effects] skipped "${type}": ${liveForType.length} instances already active (per-type cap ${MAX_CONCURRENT_PER_TYPE})`)
     return
   }
-  if (totalActive(now) >= MAX_CONCURRENT_TOTAL) {
-    console.warn(`[effects] skipped "${type}": global effect budget reached (${MAX_CONCURRENT_TOTAL})`)
+  const weight = getEffectWeight(type)
+  if (totalActiveWeight(now) + weight > MAX_TOTAL_WEIGHT) {
+    console.warn(`[effects] skipped "${type}": global effect budget reached (weight ${weight} over ${MAX_TOTAL_WEIGHT})`)
     return
   }
 
-  activeInstances.set(type, [...liveForType, now + estimateDurationMs(cfg)])
+  activeInstances.set(type, [...liveForType, { expiresAt: now + estimateDurationMs(cfg), weight }])
   handler(cfg)
 }

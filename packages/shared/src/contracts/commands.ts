@@ -128,6 +128,8 @@ export interface ClientToServerEvents {
   // ── State reports ─────────────────────────────────────────────────
   /** Report the overlay's runtime status to the kernel */
   'overlay:runtime:status': (payload: OverlayRuntimeStatusPayload) => void
+  /** Rolling render-performance sample (fps, long frames) from the overlay */
+  'overlay:perf': (payload: import('./diagnostics.js').OverlayPerfPayload) => void
   /** Report a named presentation fact (skin-defined key/value; kernel stores + rebroadcasts) */
   'presentation:state': (payload: PresentationStateReportPayload) => void
   /** Desktop icon drag event */

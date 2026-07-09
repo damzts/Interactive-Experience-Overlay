@@ -5,6 +5,7 @@ import { useSocket } from './socket/useSocket'
 import { onKernelSignal } from './socket/kernelSignals'
 import { audioEngine } from './engine/AudioEngine'
 import { startAudioReactivityMonitor } from './engine/audioReactivityMonitor'
+import { startPerfMonitor } from './engine/perfMonitor'
 import { TransitionEngine } from './engine/TransitionEngine'
 import { SceneCompositor } from './layers/SceneCompositor'
 import { TransitionLayer } from './layers/TransitionLayer'
@@ -30,6 +31,9 @@ export default function App() {
 
   useSocket()
   useEffect(() => { audioEngine.init() }, [])
+  // Render-performance telemetry — always on; reports fps/long-frame
+  // samples to kernel diagnostics every few seconds.
+  useEffect(() => startPerfMonitor(), [])
   useEffect(() => {
     audioEngine.setMasterVolume(config.audio.masterVolume)
     audioEngine.setMusicVolume(config.audio.musicVolume)
