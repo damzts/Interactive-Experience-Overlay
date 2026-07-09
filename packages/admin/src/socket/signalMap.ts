@@ -26,8 +26,11 @@ export const adminSignalHandlers: AdminSignalHandlerMap = {
     store.toggleWidgetRuntimeState(widgetId)
   },
 
-  'desktop:recycle-bin': ({ full }: { full: boolean }, store) => {
-    store.setRecycleBinFull(full)
+  // Generic presentation relay — the admin mirrors the overlay skin's
+  // 'recycle-bin' fact for the desktop status display; other keys are ignored.
+  'presentation:state': ({ key, value }, store) => {
+    if (key !== 'recycle-bin') return
+    store.setRecycleBinFull(!!(value as { full?: boolean } | undefined)?.full)
   },
 
   'obs:status': (payload: ObsStatusPayload, store) => {

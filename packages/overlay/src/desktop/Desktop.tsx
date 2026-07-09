@@ -266,7 +266,7 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
   const [draggingId, setDraggingId]       = useState<string | null>(null)
   const [overlayRuntimeStatus, setOverlayRuntimeStatus] = useState<OverlayRuntimeStatusPayload>({
     mounted: false,
-    cursorReady: false,
+    simulatorReady: false,
     widgetRegistryReady: false,
     ready: false,
     cameraPermission: 'unknown',
@@ -350,7 +350,7 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
     const emitRuntimeStatus = (force = false) => {
       const nextStatus: OverlayRuntimeStatusPayload = {
         mounted: true,
-        cursorReady: !!cursorSim.controller,
+        simulatorReady: !!cursorSim.controller,
         widgetRegistryReady: supportedApps.length > 0,
         ready: !!cursorSim.controller && supportedApps.length > 0,
         cameraPermission: cameraPermissionState,

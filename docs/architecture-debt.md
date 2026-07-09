@@ -121,7 +121,43 @@ but a shared schema-form generator in admin (one `SchemaForm` component). Derive
 `application.ts`. Registration stays build-time (an `import.meta.glob` sweep is a nice-to-have,
 not the point).
 
-### P4 — Presentation leaked into the kernel ABI (this is what blocks art-style pivots)
+### P4 — Presentation leaked into the kernel ABI — ✅ SHIPPED (2026-07-08)
+
+**Current state:** the shared ABI contains no Win98 skin concepts.
+
+- **Mirroring question resolved:** the start-menu/recycle-bin rebroadcasts ARE consumed
+  cross-client (admin mirrors recycle-bin state; kernel stores both for reconnect resync),
+  so the capability was kept via the contingency path: a **generic presentation relay**.
+  One `presentation:state { key, value, activity? }` client→server command; the kernel
+  stores latest value per key opaquely (`RuntimeStateStore.presentationState`, a
+  `Map<string, unknown>`) and rebroadcasts `presentation:state { key, value }`. The
+  `activity` flag replaces the handler's hardcoded "menu open = scheduler activity" logic.
+  `desktop:start-menu:state`, `desktop:recycle-bin`, `DesktopStartMenuStatePayload`,
+  `DesktopRecycleBinPayload`, and `DesktopStartMenuRoot` are deleted from shared.
+  Key/value shapes live in `overlay/src/desktop/presentationState.ts` (skin vocabulary).
+- **`menuPath` removed from `AmbianceSimulationPayload`:** the kernel now sends only the
+  abstract target (`targetKind` + id) for nav selects; `Desktop.tsx` resolves the start-menu
+  path from its own config (labels for layouts/scenes). The kernel no longer knows menus exist.
+- **`WidgetSimulationIntentSeed` union:** was already manifest-driven before this pass
+  (`ambianceSimulation.ts` picks from widget `accepts` entries with `simulate` hints;
+  `WidgetSimulationIntentPayload.kind` is an opaque string) — the original evidence below
+  was stale on this point.
+- **Globals killed:** `window.__cursorOverlayController`, `__cursorMirrorVisualOnly`,
+  `__simulatingCursorClick`, `__simulatingWidgetFocus` replaced by the module-scoped
+  `cursorSim` service (`overlay/src/desktop/cursorService.ts`).
+- **`cursorReady` → `simulatorReady`** in `OverlayRuntimeStatusPayload` /
+  `OverlayClientDiagnostics` (abstract "the skin's ambient performer is ready").
+- **Side-effect fix:** `desktopConfig.recycleBin.fullOnStart` previously seeded server-side
+  from compile-time `DEFAULT_CONFIG` (ignoring user config); the overlay now reports the
+  configured initial state when the kernel has no recycle-bin fact yet.
+- **Deliberately left:** presentation *config data* in shared (`domain/desktop.ts`,
+  `recycleBinSettings` on `Application`, desktopConfig defaults in `constants/defaults.ts`) —
+  the kernel persists/serves config opaquely; that's data, not behavior.
+  `desktop:notify` stays (generic notification). `desktop:screen-saver:test` is an
+  admin→overlay preview command tied to the desktop config section.
+
+<details>
+<summary>Original evidence (2026-07-05, kept for history)</summary>
 
 **Evidence:**
 
@@ -158,6 +194,8 @@ cursor-timeline signals move out of the shared ABI into overlay-internal concern
 > overlay-internally (`cursorSimUtils.ts`, `Desktop.tsx`, `StartMenu.tsx`). `desktop:start-menu:state`
 > (open/closed + active root) is still a shared signal — that's the one to re-examine against
 > the online-rooms mirroring question above, not the phase timeline.
+
+</details>
 
 ### P5 — Two competing scene concepts — ✅ SHIPPED (verified 2026-07-08), scoped down
 
@@ -221,22 +259,11 @@ All domain events flow kernel→overlay through the generic `kernel:signal` BusF
   settings without new form code.
 - **Risk:** low-medium; mostly type plumbing and admin convergence.
 
-### Phase 4 — Kernel presentation purge (P4)
+### Phase 4 — Kernel presentation purge (P4) — ✅ DONE (2026-07-08)
 
-- **Goal:** the shared ABI contains no Win98/desktop-skin concepts; ambiance drives
-  interactions from widget manifests.
-- **Touches:** delete `WidgetSimulationIntentSeed` union in
-  `shared/src/constants/ambianceSimulation.ts` (manifest-driven picks, optional per-`accepts`
-  simulation hints in definitions); move start-menu/cursor choreography computation from
-  `server/src/kernel/managers/ambiance.ts` (and related) into the overlay; replace
-  start-menu/cursor-timeline signals with abstract intents; kill `window.__cursor*` globals
-  behind a proper overlay service.
-- **Done when:** grep of `shared/src/contracts` + `shared/src/constants` finds no start-menu,
-  cursor-path, recycle-bin, or per-widget-verb strings; ambiance still visibly "plays" the
-  desktop.
-- **Risk:** medium-high — the ambiance/cursor pipeline is behaviorally rich; verify the
-  online-rooms mirroring question (⚠️ above) first. Ship behind side-by-side testing of the
-  simulation loop.
+Shipped via the generic `presentation:state` relay (mirroring capability kept), abstract
+nav-select intents (no kernel-computed `menuPath`), and the `cursorSim` overlay service.
+See the P4 section above for what shipped and what was deliberately left as config data.
 
 ### Phase 5 — Data-driven scenes (P5) — ✅ DONE (scoped down, 2026-07-08)
 

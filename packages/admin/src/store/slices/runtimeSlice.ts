@@ -93,7 +93,15 @@ export const createRuntimeSlice: StateCreator<RuntimeSlice, [], [], RuntimeSlice
   setClientCount: (n) => set({ clientCount: n }),
   setOverlayOwnerSocketId: (overlayOwnerSocketId) => set({ overlayOwnerSocketId }),
   syncDesktopRuntimeState: (payload) =>
-    set({ openWidgetIds: payload.openWidgetIds, recycleBinFull: payload.recycleBinFull }),
+    set((state) => {
+      // 'recycle-bin' is an overlay-skin presentation key relayed opaquely by
+      // the kernel; the admin mirrors it for the desktop status display.
+      const bin = payload.presentation?.['recycle-bin'] as { full?: boolean } | undefined
+      return {
+        openWidgetIds: payload.openWidgetIds,
+        recycleBinFull: bin ? !!bin.full : state.recycleBinFull,
+      }
+    }),
   toggleWidgetRuntimeState: (widgetId) =>
     set((state) => ({
       openWidgetIds: state.openWidgetIds.includes(widgetId)

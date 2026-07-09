@@ -13,7 +13,8 @@ export interface OverlayClientDiagnostics {
   port: string | null
   label: string
   mounted: boolean
-  cursorReady: boolean
+  /** The overlay's ambient-simulation performer is ready (skin-defined machinery). */
+  simulatorReady: boolean
   widgetRegistryReady: boolean
   ready: boolean
   readyAt: number | null

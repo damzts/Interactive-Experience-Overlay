@@ -58,7 +58,8 @@ export interface AmbianceSimulationDonePayload {
 
 export interface OverlayRuntimeStatusPayload {
   mounted: boolean
-  cursorReady: boolean
+  /** The overlay's ambient-simulation performer is ready (skin-defined machinery). */
+  simulatorReady: boolean
   widgetRegistryReady: boolean
   ready: boolean
   cameraPermission: import('./diagnostics.js').CameraPermissionState
