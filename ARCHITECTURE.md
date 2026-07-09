@@ -97,6 +97,12 @@ The kernel handles multiple concerns through specialized **managers**. Each mana
 | **POVOrchestrator** | Video switching | Picks which camera feed to show on stream. Audio-reactive scoring + manual override. |
 | **RoomHub** | WebRTC SFU | werift-based hub that receives participant video tracks and relays them. |
 | **AutomationManager** | Rules engine | Evaluates persisted "when event X → do Y" rules against every KernelBus event. Field-match conditions only; no scripting. `bootPriority=100` — boots last. |
+| **TwitchIntegrationManager** | Twitch bridge | IRC chat (`chat:message`) + EventSub channel events (`twitch:*`) onto the KernelBus. |
+| **ChatReactionManager** | Chat reactions | Keyword/command/regex rules over chat → configured effects/actions. |
+| **ShowSequencer** | Scripted shows | Ordered `ShowStep` pipelines fired through `scheduler:fired`. |
+| **EffectAmbianceManager** | Ambient effects | Fires configured effects on a jittered random loop. |
+| **ThemeDriftManager** | Art-style drift | Ambiently varies desktop theme/colors/motion as runtime overrides. |
+| **PersonaManager** | Voiced companion | Speaks chat/event lines via `TtsService` and emits `persona:speak`; with the LLM brain enabled (`services/LlmService.ts` — Anthropic via `ANTHROPIC_API_KEY` env var, or local Ollama) it also summarizes chat for the streamer, converses through the admin console, and writes in-character replies to viewers. Identity (voice + avatar art + TTS backend) is a switchable `PersonaProfile`; the overlay renders the active profile's character art via the `persona-avatar` effect, animated by live voice amplitude. |
 
 ### Manager Plugin Interface
 
@@ -168,8 +174,9 @@ The system has two distinct communication planes that must not be confused:
         │  internal bus — managers talk to each other
         │  never crosses a network boundary
         ▼
-  transport/socket/handlers/managers.ts  ← explicit per-event bridge
-        │  bus.on('chat:message', ...) → io.emit('chat:message', ...)
+  transport/socket/handlers/kernelSignal.ts  ← generic allowlist bridge
+        │  onAny(frame) → isPublicKernelSignal(frame.event)
+        │              → io.emit('kernel:signal', frame)
         ▼
   Socket.IO
         │  external ABI — contract between server and clients
@@ -181,7 +188,7 @@ overlay / admin / future clients
 
 **Socket.IO** is the external ABI — the contract between server and clients. Every event in `@ieom/shared/contracts/` defines part of this contract.
 
-The bridge between the two planes is **explicit and per-event**: `handlers/managers.ts` contains one `bus.on(X) → io.emit(X)` line per event that managers need to push to clients. Adding a signal requires adding a line there; nothing is forwarded automatically.
+The bridge between the two planes is **generic and allowlisted**: `KernelSignalMap` in `shared/src/contracts/signals.ts` declares which bus events are public and what they carry (a compiler-enforced total record against `PUBLIC_KERNEL_SIGNAL_FLAGS`). `handlers/kernelSignal.ts` forwards every allowlisted event as a `BusFrame` envelope over the single `kernel:signal` socket event — making a manager event visible to clients is one map entry, zero transport code. Overlay clients subscribe with the typed `onKernelSignal('some:event', ...)` helper. Bespoke `ServerToClientEvents` entries remain only for protocol/lifecycle concerns (state/config sync, slot ownership, WebRTC signaling, diagnostics).
 
 `KernelBus.onAny(handler)` fires for every typed bus event as a `BusFrame` envelope `{ event, payload, source?, t, seq }`. It is used by `AutomationManager` (rule evaluation against every event) and `BusHistoryRecorder` (diagnostics ring buffer, 500-entry capacity, exposed via `GET /api/diagnostics/bus-history` and the `bus:trace` Socket.IO room).
 
@@ -196,8 +203,10 @@ SceneMachine transitions            →  state:update
 Admin triggers a scene event        →  overlay:show (effects, SFX)
 Widget toggled                      →  widget:toggle
 Config changed                      →  config:patch (delta) or config:update (full save)
-Runtime override applied            →  runtime:config:override
-Ambiance picks a widget             →  simulation:intent (to leader)
+Runtime override applied            →  runtime:config
+Ambiance picks a widget             →  ambiance:simulate (to leader)
+Manager domain event (chat, twitch,
+  obs, audio, persona:speak, ...)   →  kernel:signal (BusFrame envelope)
 Transition fired                    →  transition:play
 Panic button                        →  state:update (immediate reset)
 ```

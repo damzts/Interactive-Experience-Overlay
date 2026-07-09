@@ -16,9 +16,10 @@ The split is into domain-scoped modules, each owning a coherent set of events:
 - **Scene** — scene changes, transition previews, event execution, machine listeners
 - **Widget** — widget toggle, simulate, layout apply
 - **Ambiance** — simulation lifecycle, cursor mirror, leader management
-- **Desktop** — icon and window drag/resize, notifications, start menu, screen saver
+- **Desktop** — icon and window drag/resize, notifications, the generic `presentation:state` relay (start menu, recycle bin, any skin fact), screen saver
 - **Config** — runtime override clears, keybind execution
-- **Diagnostics** — overlay runtime status, throttled diagnostics broadcast
+- **Persona** — the streamer's side of the persona brain: `persona:console` (ack carries the LLM reply) and `persona:summarize`, both admin-slot-only; reaches the manager through the narrow `ctx.personaBrain` interface rather than importing `PersonaManager`
+- **Diagnostics** — overlay runtime status, `overlay:perf` samples, throttled diagnostics broadcast
 - **Runtime override** — the shared logic for merging, applying, and scheduling resets of temporary config overrides
 
 An orchestrator module owns the overlay slot gate (one overlay at a time), connection/disconnection lifecycle, and initial state push on connect. It composes all domain modules.

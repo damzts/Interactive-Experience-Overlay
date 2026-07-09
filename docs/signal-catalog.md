@@ -44,8 +44,7 @@ Two planes, both defined in `packages/shared/src/contracts/signals.ts`:
 | `widget:layout:apply` | `layoutId: string` | Layout preset activated | Apply named widget layout |
 | `widget:layout:apply:items` | `WidgetLayoutItem[]` | Layout items applied | Apply raw widget positions/sizes |
 | `desktop:notify` | `DesktopNotificationPayload` | Server wants to notify user | Show OS-style notification toast |
-| `desktop:recycle-bin` | `DesktopRecycleBinPayload` | Recycle bin state changes | Update bin icon appearance |
-| `desktop:start-menu:state` | `DesktopStartMenuStatePayload` | Start menu visibility changes | Sync start menu open/closed state |
+| `presentation:state` | `PresentationStatePayload` | A reported skin presentation fact changes | Skin-defined — overlay/admin mirror the opaque `{ key, value }` fact (start-menu, recycle-bin, …) |
 | `desktop:screen-saver:test` | `DesktopScreenSaverPreviewPayload` | Admin previews screen saver | Activate screen saver temporarily |
 | `widget:chain:action` | `{ targetWidgetId, action, sourceSignal }` | Automation rule fires a custom widget action | Widget receives the action |
 | `widget:signal` | `{ source, event, payload }` | Server-originated automation `signal:emit` action | Overlay re-enters it on the widget DOM signal bus |
@@ -71,7 +70,7 @@ Two planes, both defined in `packages/shared/src/contracts/signals.ts`:
 | `audio:beat` | `AudioBeatPayload` | Overlay's audio-reactivity monitor detects a beat |
 | `audio:energy:high` / `audio:energy:low` | `AudioEnergyPayload` | Audio level crosses a reactivity threshold |
 | `audio:silence` | `{}` | Audio-reactivity monitor detects silence |
-| `persona:speak` | `PersonaSpeakPayload` | PersonaManager selects and synthesizes a chat line |
+| `persona:speak` | `PersonaSpeakPayload` | PersonaManager speaks — the optional `kind` tags the source: echoed `chat`, an `event` reaction line, a chat `summary` for the streamer, a `console` reply, or an LLM viewer `reply`. Overlay plays the wav (robotic filter + ducking), shows the caption bubble, and pops in the avatar art |
 
 Ground truth for this table is `KernelSignalMap` in `signals.ts` — it's a compiler-enforced total record against `PUBLIC_KERNEL_SIGNAL_FLAGS`, so it can never drift out of sync with the allowlist itself (only with this doc).
 
@@ -94,22 +93,24 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `widget:layout:apply` | `layoutId` | Admin layout button | Apply named layout preset |
 | `widget:layout:apply:items` | `WidgetLayoutItem[]` | Admin layout editor | Save + apply raw layout |
 | `keybind:execute` | `KeybindExecutionPayload` | Keyboard shortcut | Execute configured keybind action |
-| `runtime:config:override:clear` | — | Admin clear override | Remove all runtime overrides |
-| `runtime:config:override:widget:clear` | `widgetId` | Widget drag/resize end | Remove override for one widget |
-| `runtime:config:override:widget-layout:clear` | `widgetId[]` | Layout reset | Remove overrides for a set of widgets |
+| `persona:console` | `{ text }` + ack `(reply \| null)` | Admin persona Console (admin-only) | PersonaManager.converse() — LLM reply in character, spoken via `persona:speak`, returned in the ack |
+| `persona:summarize` | ack `(err \| null)` | Admin "Summarize chat now" (admin-only); also triggerable as a bus event via automation `signal:emit` | PersonaManager.summarizeNow() — speaks a chat summary to the streamer |
+| `runtime:config:reset` | ack `(err \| null)` | Admin clear override (admin-only) | Remove all runtime overrides |
+| `runtime:config:widget:reset` | `widgetId` + ack | Widget drag/resize end (admin-only) | Remove override for one widget |
+| `runtime:config:widget-layout:reset` | `widgetId[]` + ack | Layout reset (admin-only) | Remove overrides for a set of widgets |
 | `ambiance:history:clear` | — | Admin diagnostics | Clear ambiance history log |
 | `ambiance:simulate:accepted` | `AmbianceSimulationAcceptedPayload` | Overlay leader accepts | Kernel records accept, clears pending timeout |
 | `ambiance:simulate:done` | `AmbianceSimulationDonePayload` | Overlay finishes simulation | Kernel records outcome, updates metrics |
 | `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Widget interaction | Kernel broadcasts to all clients |
 | `widget:signal` | `{ source, event, payload }` | Widget/renderer emits a signal | Forwarded to the kernel; both sides evaluate automation rules |
 | `desktop:notify` | `DesktopNotificationPayload` | Admin send notification | Broadcast notification to overlay |
-| `desktop:recycle-bin` | `{ full }` | Overlay state change | Update runtime state |
-| `desktop:start-menu:state` | `DesktopStartMenuStatePayload` | Overlay start menu toggle | Update runtime state |
+| `presentation:state` | `PresentationStateReportPayload` | Overlay reports a skin fact (start menu, recycle bin, …) | Store opaquely in RuntimeStateStore + rebroadcast; `activity: true` also pings the idle scheduler |
 | `desktop:screen-saver:test` | `{ preset }` | Admin preview button | Emit to overlay |
 | `desktop:icon:drag` | `DesktopIconDragPayload` | Overlay drag event | Forward to all clients |
 | `desktop:widget:drag` | `DesktopWidgetDragPayload` | Overlay drag event | Update runtime widget position |
 | `desktop:widget:resize` | `DesktopWidgetResizePayload` | Overlay resize event | Update runtime widget size |
 | `overlay:runtime:status` | `OverlayRuntimeStatusPayload` | Overlay on mount | Kernel records overlay readiness |
+| `overlay:perf` | `OverlayPerfPayload` | Overlay perf monitor, every ~5s (overlay slot only) | Stored on the handler context; surfaces as `runtime:diagnostics.overlayPerf` |
 | `bus:trace:subscribe` | — | Admin diagnostics panel | Join `bus:trace` Socket.IO room; receive `bus:trace:frames` |
 | `bus:trace:unsubscribe` | — | Admin diagnostics panel | Leave `bus:trace` room |
 | `pov-online:relay:subscribe` | — | POVStreamWidget / PovStream plugin on connect | Server begins relay; creates offer for this overlay client |

@@ -22,6 +22,7 @@ Each right-pane panel in the admin is responsible for exactly one DB table. A pa
 | Asset Library: Sources | `asset-sources` | `AssetLibraryPanel` | `source_presets` | `sourcePresets` |
 | Asset Library: Transitions | `asset-transitions` | `AssetLibraryPanel` | `source_transitions` | `sourceTransitions` |
 | Scheduler | `scheduler` | `SchedulerPanel` | `source_events` (auto fields only) | `sourceEvents` |
+| Ambience: Persona | (Ambience tab) | `PersonaPanel` | `desktop_persona` (JSON blob) | `persona` — trigger/cooldown, switchable `profiles` (voice + avatar art), `avatar`, `brain` (LLM), event lines; the Console section talks to the live kernel (`persona:console` / `persona:summarize`), not to config |
 
 ---
 
@@ -37,6 +38,7 @@ All tables currently in the DB:
 | `widget_layouts` + `widget_layout_items` | `WidgetLayoutPanel` | Named layout presets. Independent of `desktop_config`. |
 | `automation_rules` | — (Automation panel → `/api/automation/rules`) | Unified any-signal → any-action rules. Each row: trigger (kernel event or widget signal) → action. |
 | `desktop_ambiance` | `AmbiancePanel` | Widget simulation config |
+| `desktop_persona` | `PersonaPanel` | Persona config JSON blob (single row id=1): trigger, profiles, avatar, brain. The Anthropic API key is NOT here — it's the `ANTHROPIC_API_KEY` env var. |
 | `audio_config` | `AudioPanel` | Master/SFX/music volumes |
 | `obs_config` | `ObsPanel` | WebSocket URL and password |
 | `keybinds` | `KeybindEditor` | OBS and admin key→action mappings |

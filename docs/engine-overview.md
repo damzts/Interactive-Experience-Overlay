@@ -96,7 +96,7 @@ The engine has these distinct responsibilities:
 
 **Theme drift** — `ThemeDriftManager` ambiently varies the desktop art style (theme/skin, colors, motion, atmosphere) over time as a non-reverting runtime override — see `desktopThemeDrift` in `AppConfig`.
 
-**Persona** — `PersonaManager` picks a chat message (command/keyword/chance-triggered), synthesizes it to speech (Windows SAPI via `TtsService`), and emits `persona:speak` so the overlay can play it through a robotic voice filter with a caption bubble.
+**Persona** — `PersonaManager` is the stream's voiced companion. Speech sources: chat messages picked per trigger mode (command/keyword/chance/all), templated reactions to any bus event (`eventLines`), and — with the LLM brain enabled (`PersonaBrainConfig`, providers in `services/LlmService.ts`: Anthropic via the `ANTHROPIC_API_KEY` env var, or local Ollama) — spoken chat summaries for the streamer (admin button, interval, or a `persona:summarize` bus event), a streamer↔persona admin console (`persona:console` ack), and in-character replies to viewers instead of echoes (`brain.replyToViewers`). Everything funnels through one path: `TtsService` (pluggable providers, content-hash wav cache) synthesizes, `persona:speak` (with a `kind` tag) reaches the overlay, which plays it through the robotic voice filter, ducks music/ambient layers, shows a caption bubble, and pops in the avatar — the active profile's character art (`PersonaConfig.avatar`), rendered by the `persona-avatar` effect with motion driven by the live voice amplitude. Identity (voice + art + TTS backend) is a named `PersonaProfile`; one is active, switchable in admin.
 
 ## What the engine exposes
 
@@ -131,7 +131,7 @@ packages/server/src/
 │       ├── chatReactions.ts         # ChatReactionManager — keyword/command/regex → effects/actions
 │       ├── effectAmbiance.ts        # EffectAmbianceManager — ambient random effect loop
 │       ├── themeDrift.ts            # ThemeDriftManager — ambient art-style drift
-│       ├── persona.ts               # PersonaManager — chat-to-voice companion (TTS + robotic filter)
+│       ├── persona.ts               # PersonaManager — voiced companion (chat/event speech, LLM summaries/console/replies)
 │       └── pov.ts          # POVOrchestrator — video switching
 # All manager-private bus events (ambiance:tick, scheduler:fired, config:changed, ...) live in a
 # co-located `<manager>.signals.ts` next to the manager that owns them — see manager-authoring.md.
@@ -152,6 +152,11 @@ packages/server/src/
 │   └── repositories/       # Focused CRUD: SceneRepository, WidgetRepository,
 │                           #   EventRepository, ThemeRepository, UserRepository,
 │                           #   AutomationRuleRepository
+├── services/
+│   ├── TtsService.ts       # Speech synthesis — pluggable TtsProviders (SAPI built-in), content-hash wav cache
+│   ├── TtsProvider.ts      # Provider interface + SapiTtsProvider (injection-safe PowerShell; also lists installed voices)
+│   ├── LlmService.ts       # Persona brain — pluggable LlmProviders (Anthropic via env key, Ollama local)
+│   └── MediaService.ts     # assets/ scanning (media catalog, games, persona avatar images)
 ├── lib/
 │   ├── defaults.ts         # loadDefaultConfig() — returns bootstrapConfig()
 │   └── bootstrapConfig.ts  # bootstrapConfig() — assembles AppConfig from WIDGET_DEFINITIONS
@@ -177,6 +182,8 @@ packages/server/src/
 - "Connect Twitch chat / EventSub" → `kernel/managers/twitch.ts` (config: `AppConfig.twitch`)
 - "React to chat messages" → `kernel/managers/chatReactions.ts` (config: `AppConfig.chatReactions`)
 - "Speak a chat message aloud" → `kernel/managers/persona.ts`, `services/TtsService.ts` (config: `AppConfig.persona`)
+- "Give the persona a brain / summaries / console" → `services/LlmService.ts`, `PersonaConfig.brain` (Anthropic needs the `ANTHROPIC_API_KEY` env var; Ollama runs local)
+- "Change the persona's on-screen character art" → `PersonaConfig.avatar` + `overlay/src/transitions/PersonaAvatar.ts` (art scanned from `assets/persona/` via `GET /api/persona/avatar-images`)
 - "React to OBS stream/record events" → `obs:*` entries in `shared/src/contracts/signals.ts` (`KernelSignalMap`) + automation rules
 - "See OBS streaming/recording/vcam status in admin" → `features/obs/ObsPanel.tsx` (status badges shown when connected)
 - "Make a manager event visible to clients" → add it to `KernelSignalMap` in `shared/src/contracts/signals.ts`, see `docs/manager-authoring.md`
