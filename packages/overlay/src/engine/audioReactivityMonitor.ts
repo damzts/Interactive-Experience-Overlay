@@ -1,5 +1,6 @@
 import { audioEngine } from './AudioEngine'
 import { socket } from '../socket/client'
+import { bandAverage, computeBandLevels } from './audioBands'
 
 /**
  * Generalizes the beat/energy logic that used to live only inline in
@@ -21,12 +22,6 @@ const ENERGY_LOW_THRESHOLD = 0.15
 const ENERGY_HYSTERESIS_MS = 1000
 const SILENCE_THRESHOLD = 0.03
 const SILENCE_HOLD_MS = 3000
-
-function bandAverage(freq: Uint8Array, from: number, to: number): number {
-  let sum = 0
-  for (let i = from; i < to; i += 1) sum += freq[i]
-  return sum / (to - from) / 255
-}
 
 let running = false
 let raf = 0
@@ -51,7 +46,8 @@ export function startAudioReactivityMonitor(): () => void {
       }
       analyser.getByteFrequencyData(freqData)
 
-      const bass = bandAverage(freqData, 0, Math.min(12, freqData.length))
+      const bands = computeBandLevels(freqData)
+      const bass = bands.bass
       const energy = bandAverage(freqData, 0, freqData.length)
       const now = performance.now()
 
@@ -59,20 +55,20 @@ export function startAudioReactivityMonitor(): () => void {
 
       if (bass > bassAvg * 1.4 && bass > 0.28 && now - lastBeatAt > BEAT_REFRACTORY_MS) {
         lastBeatAt = now
-        socket.emit('audio:beat', { energy, bass })
+        socket.emit('audio:beat', { energy, bass, bands })
       }
 
       if (energy > ENERGY_HIGH_THRESHOLD) {
         if (energyState !== 'high' && now - energyStateSince > ENERGY_HYSTERESIS_MS) {
           energyState = 'high'
           energyStateSince = now
-          socket.emit('audio:energy:high', { energy })
+          socket.emit('audio:energy:high', { energy, bands })
         }
       } else if (energy < ENERGY_LOW_THRESHOLD) {
         if (energyState !== 'low' && now - energyStateSince > ENERGY_HYSTERESIS_MS) {
           energyState = 'low'
           energyStateSince = now
-          socket.emit('audio:energy:low', { energy })
+          socket.emit('audio:energy:low', { energy, bands })
         }
       }
 

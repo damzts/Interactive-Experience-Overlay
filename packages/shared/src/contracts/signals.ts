@@ -223,16 +223,30 @@ export type WidgetSimulationIntentSeed = Omit<WidgetSimulationIntentPayload, 'ac
 // ClientToServerEvents, then re-broadcast here as public kernel signals —
 // same shape as a manager-originated event like twitch:follow.
 
+/** Frequency-band snapshot (0-1 per band) taken at the moment an audio
+ *  event fired. Bands are fractions of the analyser's frequency range:
+ *  bass = lowest bins (kick/bass), mid = low-mids through vocals,
+ *  treble = upper quarter (hats/air). */
+export interface AudioBandLevels {
+  bass: number
+  mid: number
+  treble: number
+}
+
 export interface AudioBeatPayload {
   /** Overall smoothed RMS level (0-1) at the moment of the beat. */
   energy: number
   /** Bass-band average (0-1) that triggered the beat. */
   bass: number
+  /** Per-band levels at the moment of the beat. */
+  bands: AudioBandLevels
 }
 
 export interface AudioEnergyPayload {
   /** Smoothed RMS level (0-1) at the moment of the threshold crossing. */
   energy: number
+  /** Per-band levels at the moment of the crossing. */
+  bands: AudioBandLevels
 }
 
 export interface AmbianceSimulationPayload {
