@@ -1,6 +1,8 @@
 ﻿node_modules/
 assets/images/
 assets/tts/
+assets/persona/*
+!assets/persona/.gitkeep
 dist/
 .env
 *.db

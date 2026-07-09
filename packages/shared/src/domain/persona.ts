@@ -19,6 +19,22 @@ export interface PersonaVoiceConfig {
   ttsVoice?: string
 }
 
+/** On-screen character art for the persona — a transparent png/webp that
+ *  appears on the overlay and moves with the live voice amplitude. */
+export interface PersonaAvatarConfig {
+  enabled: boolean
+  /** 'pop-in': slides in while speaking, lingers, leaves. 'persistent': always on screen. */
+  mode: 'pop-in' | 'persistent'
+  /** Root-relative image URLs (e.g. '/assets/persona/ene/Ene_Anime.webp').
+   *  A random pose is picked per appearance. Empty = avatar never shows. */
+  images: string[]
+  corner: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+  /** Rendered image width in pixels. */
+  widthPx: number
+  /** Pop-in mode: how long she stays after speech ends, in milliseconds. */
+  lingerMs: number
+}
+
 /** A spoken reaction to a kernel event — the persona announces raids,
  *  scene changes, silence, anything on the bus. */
 export interface PersonaEventLine {
@@ -54,4 +70,6 @@ export interface PersonaConfig {
    *  shares the same cooldown). */
   eventLines: PersonaEventLine[]
   voice: PersonaVoiceConfig
+  /** On-screen character art shown while the persona speaks. */
+  avatar: PersonaAvatarConfig
 }

@@ -14,6 +14,7 @@ import { LayerErrorBoundary } from './components/LayerErrorBoundary'
 import { resolveScene } from './services/SceneResolver.js'
 import { RtcStreamProvider } from './rtc/RtcStreamContext'
 import { runChatBubble } from './transitions/ChatBubble'
+import { runPersonaAvatar, ensurePersonaAvatar, retirePersistentAvatar } from './transitions/PersonaAvatar'
 
 export default function App() {
   const visualState = useAppStore((s) => s.visualState)
@@ -64,8 +65,22 @@ export default function App() {
       const persona = withPersonaDefaults(useAppStore.getState().config.persona)
       void audioEngine.playPersonaLine(audioUrl, persona.voice, persona.duckAmount)
       runChatBubble({ author: user, text, duration: 5, position: 'bottom' })
+      if (persona.avatar.enabled) {
+        runPersonaAvatar({ duration: 8, ...persona.avatar })
+      }
     })
   }, [])
+
+  // Persona avatar in persistent mode lives on screen independent of speech.
+  const personaAvatar = withPersonaDefaults(config.persona).avatar
+  const personaAvatarKey = JSON.stringify(personaAvatar)
+  useEffect(() => {
+    if (personaAvatar.enabled && personaAvatar.mode === 'persistent' && personaAvatar.images.length) {
+      ensurePersonaAvatar(personaAvatar)
+    } else {
+      retirePersistentAvatar()
+    }
+  }, [personaAvatarKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
 

@@ -25,6 +25,12 @@ export async function getMediaCatalog(): Promise<MediaRecord[]> {
   return Array.isArray(json.assets) ? json.assets : []
 }
 
+/** Character art available under assets/persona/ for the avatar picker. */
+export async function getPersonaAvatarImages(): Promise<string[]> {
+  const json = await apiFetch<{ images: string[] }>('/api/persona/avatar-images')
+  return Array.isArray(json.images) ? json.images : []
+}
+
 export async function uploadMedia(file: File): Promise<{ url: string; kind: MediaKind }> {
   const form = new FormData()
   form.append('file', file)

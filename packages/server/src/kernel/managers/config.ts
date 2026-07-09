@@ -562,7 +562,10 @@ export class DesktopConfigService implements Manager, IConfigService {
 
   private withConfigDefaults(next: AppConfig): AppConfig {
     const requiredApps = DEFAULT_CONFIG.applications.filter((app) => REQUIRED_DESKTOP_APP_IDS.has(app.id))
-    let applications = [...(next.applications ?? [])]
+    // Retired widgets: drop persisted app entries whose component no longer exists.
+    let applications = [...(next.applications ?? [])].filter(
+      (app) => (app.widgetComponent as string | undefined) !== 'persona-avatar',
+    )
     const desktopScene = next.scenes[STATE.DESKTOP] ?? DEFAULT_CONFIG.scenes[STATE.DESKTOP]
 
     for (const app of requiredApps) {

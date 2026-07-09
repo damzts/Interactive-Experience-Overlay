@@ -448,6 +448,12 @@ export const EFFECT_CATALOG: { readonly [K in EffectType]: EffectManifest<K> } =
     defaults: { text: 'Hello chat!', author: '', duration: 4, position: 'bottom' },
     fields: [textarea('text', 'Text'), text('author', 'Author', true), dur(1, 10), sel('position', 'Position', ['top', 'center', 'bottom'])],
   },
+  'persona-avatar': {
+    label: 'Persona Avatar', category: 'Cinematic', cost: 'light',
+    desc: 'Persona character art pops in and moves with the live voice',
+    defaults: { duration: 8, corner: 'bottom-right', widthPx: 260, lingerMs: 4000 },
+    fields: [dur(2, 30, 1), sel('corner', 'Corner', ['bottom-right', 'bottom-left', 'top-right', 'top-left']), slider('widthPx', 'Width', 120, 520, 10, 'px'), slider('lingerMs', 'Linger', 0, 10000, 500, 'ms')],
+  },
 
   // ── 2000s Internet ──────────────────────────────────────────────
   'aim-message': {

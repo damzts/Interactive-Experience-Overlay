@@ -42,6 +42,7 @@ import {
   type CountdownBurstConfig,
   type SpotlightConfig,
   type ChatBubbleConfig,
+  type PersonaAvatarEffectConfig,
   type DeathOverlayConfig,
   type DesktopNotificationEffectConfig,
   type NotificationBoxConfig,
@@ -131,6 +132,7 @@ import { runHypePulse }             from '../transitions/HypePulse'
 import { runCountdownBurst }        from '../transitions/CountdownBurst'
 import { runSpotlight }             from '../transitions/Spotlight'
 import { runChatBubble }            from '../transitions/ChatBubble'
+import { runPersonaAvatar }         from '../transitions/PersonaAvatar'
 import { runDeathOverlay }          from '../transitions/DeathOverlay'
 import { runDesktopNotification }   from '../transitions/DesktopNotification'
 import { runVictoryOverlay }        from '../transitions/VictoryOverlay'
@@ -263,6 +265,7 @@ registerEffect('hype-pulse',       (cfg) => runHypePulse(cfg as HypePulseConfig)
 registerEffect('countdown-burst',  (cfg) => runCountdownBurst(cfg as CountdownBurstConfig))
 registerEffect('spotlight',        (cfg) => runSpotlight(cfg as SpotlightConfig))
 registerEffect('chat-bubble',      (cfg) => runChatBubble(cfg as ChatBubbleConfig))
+registerEffect('persona-avatar',   (cfg) => runPersonaAvatar(cfg as PersonaAvatarEffectConfig))
 
 // ── MMORPG / Retro-Futurist effects ────────────────────────────────
 registerEffect('item-pickup',      (cfg) => runItemPickup(cfg as ItemPickupConfig))

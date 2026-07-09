@@ -19,6 +19,12 @@ export async function mediaRoute(app: FastifyInstance) {
     }
   })
 
+  /** Character art available for the persona avatar picker */
+  app.get('/api/persona/avatar-images', async (req, _reply) => {
+    const _userId = req.userId
+    return { images: mediaService.getPersonaAvatarImages() }
+  })
+
   /** Return a random single image URL */
   app.get('/api/media/random', async (req, _reply) => {
     const _userId = req.userId

@@ -773,6 +773,14 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
     roboticIntensity: 0.5,
     rate: 0,
   },
+  avatar: {
+    enabled: true,
+    mode: 'pop-in',
+    images: [],
+    corner: 'bottom-right',
+    widthPx: 260,
+    lingerMs: 4000,
+  },
 }
 
 export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): PersonaConfig {
@@ -783,6 +791,11 @@ export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): Per
     voice: {
       ...DEFAULT_PERSONA_CONFIG.voice,
       ...config?.voice,
+    },
+    avatar: {
+      ...DEFAULT_PERSONA_CONFIG.avatar,
+      ...config?.avatar,
+      images: config?.avatar?.images ?? DEFAULT_PERSONA_CONFIG.avatar.images,
     },
   }
 }
@@ -936,7 +949,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'newswire-desk',        label: 'Newswire Desk',        icon: '📰',   widgetSource: 'system' as const, widgetComponent: 'newswire-desk' as const },
     { id: 'city-nav',             label: 'City Navigator',       icon: '🗺️',  widgetSource: 'system' as const, widgetComponent: 'city-navigator' as const },
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
-    { id: 'persona-avatar',       label: 'PERSONA.exe',          icon: '✦',    widgetSource: 'system' as const, widgetComponent: 'persona-avatar' as const },
   ],
 
   keybinds: {

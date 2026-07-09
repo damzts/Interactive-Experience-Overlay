@@ -19,8 +19,6 @@ import { equalizerRackDefinition } from './equalizer-rack/definition.js'
 import { waveScopeDefinition } from './wave-scope/definition.js'
 import { playlistDeckDefinition } from './playlist-deck/definition.js'
 import { netMeterDefinition } from './net-meter/definition.js'
-import { personaAvatarDefinition } from './persona-avatar/definition.js'
-export { AVATAR_EMOTIONS, type AvatarEmotion } from './persona-avatar/definition.js'
 export type { WidgetDefinition }
 
 export const WIDGET_DEFINITIONS = [
@@ -43,7 +41,6 @@ export const WIDGET_DEFINITIONS = [
   waveScopeDefinition,
   playlistDeckDefinition,
   netMeterDefinition,
-  personaAvatarDefinition,
 ] as const satisfies readonly WidgetDefinition[]
 
 /**

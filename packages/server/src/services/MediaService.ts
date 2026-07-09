@@ -123,6 +123,31 @@ export class MediaService {
     return (this.mediaCache = { games, total })
   }
 
+  /** Character art for the persona avatar — every image under assets/persona/,
+   *  recursively, as servable /assets/ URLs. Scanned fresh (small tree). */
+  getPersonaAvatarImages(): string[] {
+    const urls: string[] = []
+    const walk = (dir: string, parts: string[]) => {
+      if (!existsSync(dir)) return
+      for (const name of readdirSync(dir).sort()) {
+        const full = join(dir, name)
+        let isDir: boolean
+        try {
+          isDir = statSync(full).isDirectory()
+        } catch {
+          continue
+        }
+        if (isDir) {
+          walk(full, [...parts, name])
+        } else if (IMAGE_EXTS.has(extname(name).toLowerCase())) {
+          urls.push(`/assets/persona/${[...parts, name].map(encodeURIComponent).join('/')}`)
+        }
+      }
+    }
+    walk(join(MEDIA_ROOT, 'persona'), [])
+    return urls
+  }
+
   resolveMediaPath(assetUrl: string): string | null {
     if (!assetUrl.startsWith('/assets/')) return null
 

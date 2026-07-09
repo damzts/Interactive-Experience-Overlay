@@ -23,6 +23,7 @@ export interface EffectConfigMap {
   'countdown-burst': CountdownBurstConfig     // 3 → 2 → 1 number slams to screen
   'spotlight': SpotlightConfig                // Dark radial mask with moving light circle
   'chat-bubble': ChatBubbleConfig             // Pinned speech bubble with text
+  'persona-avatar': PersonaAvatarEffectConfig // Persona character art pops in, moves with the voice
   // ── Original effects ──────────────────────────────────────────
   'desktop-notification': DesktopNotificationEffectConfig // Desktop taskbar/toast notification
   'notification-box': NotificationBoxConfig   // Win98 dialog window(s), cascade via flex stack
@@ -507,6 +508,21 @@ export interface ChatBubbleConfig {
   /** Duration in seconds */
   duration: number
   position?: 'top' | 'center' | 'bottom'
+}
+
+export interface PersonaAvatarEffectConfig {
+  /** Lifetime estimate in seconds (concurrency budget); the pop-in actually
+   *  ends when the persona's voice goes silent + linger. */
+  duration: number
+  /** Root-relative image URLs; one is picked at random per appearance.
+   *  Omit/empty = fall back to the persona config's avatar images. */
+  images?: string[]
+  /** 'pop-in' (default) or 'persistent'. */
+  mode?: 'pop-in' | 'persistent'
+  corner?: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+  widthPx?: number
+  /** Pop-in: linger after speech ends, in milliseconds. */
+  lingerMs?: number
 }
 
 // ── 2000s Internet Nostalgia configs ────────────────────────────
