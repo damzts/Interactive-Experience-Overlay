@@ -44,6 +44,18 @@ export class TtsService {
     this.providers.set(provider.id, provider)
   }
 
+  /** Voice names a provider can speak with, [] if it can't enumerate them. */
+  async listVoices(providerId?: string): Promise<string[]> {
+    const provider = this.providers.get(providerId ?? 'sapi') ?? this.providers.get('sapi')
+    if (!provider?.listVoices) return []
+    try {
+      return await provider.listVoices()
+    } catch (err) {
+      logger.warn(`[tts] voice enumeration failed (${provider.id}): ${(err as Error).message}`)
+      return []
+    }
+  }
+
   /** Synthesizes text to a wav under assets/tts/ (cache-first), returns its
    *  servable URL, or null on failure. */
   async synthesize(text: string, opts: TtsRequestOptions): Promise<string | null> {

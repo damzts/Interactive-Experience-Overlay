@@ -23,6 +23,9 @@ export interface TtsProvider {
   readonly id: string
   /** Synthesize `text` into a wav file at `outWavPath`. Throws on failure. */
   synthesize(text: string, opts: TtsSynthesisOptions, outWavPath: string): Promise<void>
+  /** Names of the voices this backend can speak with (for the admin picker).
+   *  Optional — providers without discoverable voices omit it. */
+  listVoices?(): Promise<string[]>
 }
 
 // ── SAPI (Windows System.Speech) ──────────────────────────────────
@@ -45,16 +48,49 @@ $synth.Speak($text)
 $synth.Dispose()
 `
 
+const VOICES_SCRIPT = `Add-Type -AssemblyName System.Speech
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$synth.GetInstalledVoices() | Where-Object { $_.Enabled } | ForEach-Object { $_.VoiceInfo.Name }
+$synth.Dispose()
+`
+
 export class SapiTtsProvider implements TtsProvider {
   readonly id = 'sapi'
   private readonly scriptPath: string
+  private readonly voicesScriptPath: string
+  private voicesCache: string[] | null = null
 
   constructor(private workDir: string) {
     this.scriptPath = join(workDir, '_synth.ps1')
-    // (Re)write the script whenever its content is stale — the file ships
+    this.voicesScriptPath = join(workDir, '_voices.ps1')
+    // (Re)write the scripts whenever their content is stale — the files ship
     // with the repo state, not the user's old copy.
-    const current = existsSync(this.scriptPath) ? readFileSync(this.scriptPath, 'utf8') : ''
-    if (current !== SYNTH_SCRIPT) writeFileSync(this.scriptPath, SYNTH_SCRIPT, 'utf8')
+    for (const [path, content] of [[this.scriptPath, SYNTH_SCRIPT], [this.voicesScriptPath, VOICES_SCRIPT]] as const) {
+      const current = existsSync(path) ? readFileSync(path, 'utf8') : ''
+      if (current !== content) writeFileSync(path, content, 'utf8')
+    }
+  }
+
+  /** Installed SAPI voice names, enumerated once and RAM-cached. */
+  async listVoices(): Promise<string[]> {
+    if (this.voicesCache) return this.voicesCache
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const proc = spawn('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', this.voicesScriptPath,
+      ])
+      let out = ''
+      let stderr = ''
+      proc.stdout?.on('data', (d) => { out += d.toString() })
+      proc.stderr?.on('data', (d) => { stderr += d.toString() })
+      proc.on('error', reject)
+      proc.on('exit', (code) => {
+        if (code === 0) resolve(out)
+        else reject(new Error(`powershell exited ${code}: ${stderr.trim()}`))
+      })
+    })
+    this.voicesCache = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    return this.voicesCache
   }
 
   async synthesize(text: string, opts: TtsSynthesisOptions, outWavPath: string): Promise<void> {

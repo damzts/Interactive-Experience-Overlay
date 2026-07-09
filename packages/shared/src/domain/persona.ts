@@ -49,6 +49,18 @@ export interface PersonaEventLine {
   enabled?: boolean
 }
 
+/** A named persona identity — who she is (voice + art). One profile is
+ *  active at a time; behavioral settings (trigger, cooldown, event lines…)
+ *  are shared across profiles. */
+export interface PersonaProfile {
+  id: string
+  name: string
+  /** TTS backend id ('sapi' built-in). Omit = 'sapi'. */
+  ttsProvider?: string
+  voice: PersonaVoiceConfig
+  avatar: PersonaAvatarConfig
+}
+
 export interface PersonaConfig {
   enabled: boolean
   /** 'all': every message is a candidate. 'keyword'/'command': only matching messages.
@@ -69,7 +81,15 @@ export interface PersonaConfig {
   /** Spoken reactions to kernel events (independent of chat triggerMode;
    *  shares the same cooldown). */
   eventLines: PersonaEventLine[]
+  /** Resolved identity of the ACTIVE profile — withPersonaDefaults flattens
+   *  the active profile onto voice/avatar/ttsProvider, so consumers read
+   *  these flat fields and never touch profiles directly. */
   voice: PersonaVoiceConfig
-  /** On-screen character art shown while the persona speaks. */
+  /** On-screen character art shown while the persona speaks (active profile's). */
   avatar: PersonaAvatarConfig
+  /** Named identities. Empty = a 'default' profile is synthesized from the
+   *  legacy flat voice/avatar fields on resolution. */
+  profiles: PersonaProfile[]
+  /** Which profile is live. */
+  activeProfileId: string
 }

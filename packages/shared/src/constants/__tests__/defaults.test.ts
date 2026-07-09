@@ -6,6 +6,7 @@ import {
   applyRuntimeConfig,
   withDesktopConfigDefaults,
   withDesktopAmbianceDefaults,
+  withPersonaDefaults,
 } from '../defaults.js'
 import type { AppConfig } from '../../domain/config.js'
 
@@ -124,5 +125,51 @@ describe('applyRuntimeConfig', () => {
       const original = base.applications.find((a) => a.id === app.id)
       expect(app.windowPosition).toEqual(original?.windowPosition)
     }
+  })
+})
+
+describe('withPersonaDefaults profiles', () => {
+  it('synthesizes a default profile from legacy flat fields', () => {
+    const result = withPersonaDefaults({
+      voice: { pitchSemitones: 7, roboticIntensity: 0.2, rate: 1, ttsVoice: 'Zira' },
+    })
+    expect(result.profiles).toHaveLength(1)
+    expect(result.profiles[0].id).toBe('default')
+    expect(result.profiles[0].voice.pitchSemitones).toBe(7)
+    expect(result.activeProfileId).toBe('default')
+    expect(result.voice.ttsVoice).toBe('Zira')
+  })
+
+  it('flattens the active profile onto voice/avatar/ttsProvider', () => {
+    const result = withPersonaDefaults({
+      voice: { pitchSemitones: 0, roboticIntensity: 0, rate: 0 },
+      profiles: [
+        { id: 'a', name: 'A', voice: { pitchSemitones: 1, roboticIntensity: 0.1, rate: 0 }, avatar: { enabled: true, mode: 'pop-in', images: ['/assets/persona/a.webp'], corner: 'bottom-left', widthPx: 200, lingerMs: 1000 } },
+        { id: 'b', name: 'B', ttsProvider: 'piper', voice: { pitchSemitones: -2, roboticIntensity: 0.9, rate: 3, ttsVoice: 'David' }, avatar: { enabled: false, mode: 'persistent', images: [], corner: 'top-right', widthPx: 300, lingerMs: 0 } },
+      ],
+      activeProfileId: 'b',
+    })
+    expect(result.voice.pitchSemitones).toBe(-2)
+    expect(result.voice.ttsVoice).toBe('David')
+    expect(result.ttsProvider).toBe('piper')
+    expect(result.avatar.mode).toBe('persistent')
+    expect(result.avatar.corner).toBe('top-right')
+  })
+
+  it('falls back to the first profile when activeProfileId is stale', () => {
+    const result = withPersonaDefaults({
+      profiles: [
+        { id: 'only', name: 'Only', voice: { pitchSemitones: 5, roboticIntensity: 0.5, rate: 0 }, avatar: { enabled: true, mode: 'pop-in', images: [], corner: 'bottom-right', widthPx: 260, lingerMs: 4000 } },
+      ],
+      activeProfileId: 'deleted-profile',
+    })
+    expect(result.activeProfileId).toBe('only')
+    expect(result.voice.pitchSemitones).toBe(5)
+  })
+
+  it('is idempotent', () => {
+    const once = withPersonaDefaults({ activeProfileId: 'default' })
+    const twice = withPersonaDefaults(once)
+    expect(twice).toEqual(once)
   })
 })

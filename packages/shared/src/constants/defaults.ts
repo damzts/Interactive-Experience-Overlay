@@ -781,10 +781,12 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
     widthPx: 260,
     lingerMs: 4000,
   },
+  profiles: [],
+  activeProfileId: 'default',
 }
 
 export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): PersonaConfig {
-  return {
+  const base: PersonaConfig = {
     ...DEFAULT_PERSONA_CONFIG,
     ...config,
     eventLines: config?.eventLines ?? DEFAULT_PERSONA_CONFIG.eventLines,
@@ -797,7 +799,32 @@ export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): Per
       ...config?.avatar,
       images: config?.avatar?.images ?? DEFAULT_PERSONA_CONFIG.avatar.images,
     },
+    profiles: config?.profiles ?? [],
+    activeProfileId: config?.activeProfileId ?? DEFAULT_PERSONA_CONFIG.activeProfileId,
   }
+
+  // Profiles: pre-profile configs get a 'default' identity synthesized from
+  // the legacy flat fields; then the ACTIVE profile is flattened back onto
+  // voice/avatar/ttsProvider so consumers only ever read the flat fields.
+  if (base.profiles.length === 0) {
+    base.profiles = [{
+      id: 'default',
+      name: 'Default',
+      ttsProvider: base.ttsProvider,
+      voice: { ...base.voice },
+      avatar: { ...base.avatar, images: [...base.avatar.images] },
+    }]
+  }
+  const active = base.profiles.find((p) => p.id === base.activeProfileId) ?? base.profiles[0]
+  base.activeProfileId = active.id
+  base.ttsProvider = active.ttsProvider
+  base.voice = { ...DEFAULT_PERSONA_CONFIG.voice, ...active.voice }
+  base.avatar = {
+    ...DEFAULT_PERSONA_CONFIG.avatar,
+    ...active.avatar,
+    images: active.avatar?.images ?? [],
+  }
+  return base
 }
 
 export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): AppConfig {

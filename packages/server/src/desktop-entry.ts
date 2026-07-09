@@ -311,10 +311,11 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   )
   kernel.register(themeDriftManager, { after: ['DesktopConfigService'] })
 
+  const ttsService = new TtsService()
   const personaManager = new PersonaManager(
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
     kernel.bus,
-    new TtsService(),
+    ttsService,
   )
   kernel.register(personaManager, { after: ['DesktopConfigService', 'TwitchIntegrationManager'] })
 
@@ -350,6 +351,9 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/overlay/status', async () => ({ slotTaken: isOverlaySlotTaken() }))
   app.get('/api/defaults', async () => loadDefaultConfig())
+  app.get('/api/tts/voices', async (req) => ({
+    voices: await ttsService.listVoices((req.query as { provider?: string })?.provider),
+  }))
   await app.register(authRoutes, { userRepository })
   await app.register(configRoute, { machine, configService })
   await app.register(mediaRoute)

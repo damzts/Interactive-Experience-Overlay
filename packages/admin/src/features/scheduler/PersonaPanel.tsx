@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { withPersonaDefaults } from '@ieomlabs/shared'
-import type { PersonaAvatarConfig, PersonaConfig, PersonaEventLine } from '@ieomlabs/shared'
+import type { PersonaAvatarConfig, PersonaConfig, PersonaEventLine, PersonaProfile } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { getPersonaAvatarImages } from '../../api/mediaApi'
+import { getTtsVoices } from '../../api/ttsApi'
 import {
   ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel,
   Toggle, Slider, ConfigChoiceButton, isSameDraft,
@@ -27,6 +28,20 @@ function PersonaSection({
   const setVoice = (patch: Partial<PersonaConfig['voice']>) => {
     onChange({ voice: { ...config.voice, ...patch } })
   }
+
+  const [voices, setVoices] = useState<string[]>([])
+  useEffect(() => {
+    let cancelled = false
+    getTtsVoices(config.ttsProvider)
+      .then((names) => { if (!cancelled) setVoices(names) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [config.ttsProvider])
+
+  // Keep a configured-but-uninstalled voice selectable so it isn't silently lost.
+  const voiceOptions = config.voice.ttsVoice && !voices.includes(config.voice.ttsVoice)
+    ? [config.voice.ttsVoice, ...voices]
+    : voices
 
   return (
     <div className="space-y-4">
@@ -82,15 +97,18 @@ function PersonaSection({
         <Slider label="Speech rate" value={config.voice.rate} min={-10} max={10} step={1} onChange={(v) => setVoice({ rate: v })} />
         <div>
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            TTS voice name <span className="normal-case font-normal text-zinc-600">(installed SAPI voice, blank = system default)</span>
+            TTS voice <span className="normal-case font-normal text-zinc-600">(installed on this machine)</span>
           </div>
-          <input
-            type="text"
+          <select
             value={config.voice.ttsVoice ?? ''}
             onChange={(e) => setVoice({ ttsVoice: e.target.value || undefined })}
-            placeholder="e.g. Microsoft Zira Desktop"
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
-          />
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25 [&>option]:bg-zinc-900"
+          >
+            <option value="">(system default)</option>
+            {voiceOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -169,6 +187,73 @@ function EventLinesSection({
           </button>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Profiles ─────────────────────────────────────────────────────────
+
+function ProfilesSection({
+  profiles,
+  activeId,
+  onSwitch,
+  onRename,
+  onAdd,
+  onDelete,
+}: {
+  profiles: PersonaProfile[]
+  activeId: string
+  onSwitch: (id: string) => void
+  onRename: (name: string) => void
+  onAdd: () => void
+  onDelete: () => void
+}) {
+  const active = profiles.find((p) => p.id === activeId) ?? profiles[0]
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="text-xs font-semibold text-zinc-200">Active persona</div>
+        <div className="text-[10px] text-zinc-500 mt-0.5">
+          A profile is who the persona is — voice and character art. Behavior (trigger, cooldown,
+          event reactions) is shared. Switch here to swap identities; voice and avatar below edit
+          the selected profile.
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <select
+          value={active?.id ?? ''}
+          onChange={(e) => onSwitch(e.target.value)}
+          className="w-44 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25 [&>option]:bg-zinc-900"
+        >
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={active?.name ?? ''}
+          onChange={(e) => onRename(e.target.value)}
+          placeholder="Profile name"
+          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+        />
+        <button
+          type="button"
+          onClick={onAdd}
+          className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-white/25"
+        >
+          + New
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={profiles.length <= 1}
+          className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-red-400/50 hover:text-red-400 disabled:opacity-40 disabled:hover:border-white/10 disabled:hover:text-zinc-300"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   )
 }
@@ -343,8 +428,73 @@ export function PersonaPanel() {
   const handleChange = (patch: Partial<PersonaConfig>) => {
     setDraft((prev) => {
       const next = { ...prev, ...patch }
+      // Identity edits also land on the active profile — the flat
+      // voice/avatar/ttsProvider fields are just its resolved view.
+      if (patch.voice || patch.avatar || 'ttsProvider' in patch) {
+        next.profiles = next.profiles.map((p) =>
+          p.id === next.activeProfileId
+            ? {
+                ...p,
+                ...(patch.voice ? { voice: patch.voice } : null),
+                ...(patch.avatar ? { avatar: patch.avatar } : null),
+                ...('ttsProvider' in patch ? { ttsProvider: patch.ttsProvider } : null),
+              }
+            : p,
+        )
+      }
       setSaved(false)
       return next
+    })
+  }
+
+  // Profile ops — switching flattens the chosen profile onto the flat fields
+  // so every section below immediately edits/reflects the new identity.
+  const flattenProfile = (cfg: PersonaConfig, profile: PersonaProfile): PersonaConfig => ({
+    ...cfg,
+    activeProfileId: profile.id,
+    ttsProvider: profile.ttsProvider,
+    voice: structuredClone(profile.voice),
+    avatar: structuredClone(profile.avatar),
+  })
+
+  const switchProfile = (id: string) => {
+    setDraft((prev) => {
+      const profile = prev.profiles.find((p) => p.id === id)
+      if (!profile) return prev
+      setSaved(false)
+      return flattenProfile(prev, profile)
+    })
+  }
+
+  const renameProfile = (name: string) => {
+    setDraft((prev) => {
+      setSaved(false)
+      return {
+        ...prev,
+        profiles: prev.profiles.map((p) => (p.id === prev.activeProfileId ? { ...p, name } : p)),
+      }
+    })
+  }
+
+  const addProfile = () => {
+    setDraft((prev) => {
+      const src = prev.profiles.find((p) => p.id === prev.activeProfileId) ?? prev.profiles[0]
+      const profile: PersonaProfile = {
+        ...structuredClone(src),
+        id: `profile-${Date.now().toString(36)}`,
+        name: `${src.name} copy`,
+      }
+      setSaved(false)
+      return flattenProfile({ ...prev, profiles: [...prev.profiles, profile] }, profile)
+    })
+  }
+
+  const deleteProfile = () => {
+    setDraft((prev) => {
+      if (prev.profiles.length <= 1) return prev
+      const profiles = prev.profiles.filter((p) => p.id !== prev.activeProfileId)
+      setSaved(false)
+      return flattenProfile({ ...prev, profiles }, profiles[0])
     })
   }
 
@@ -368,6 +518,17 @@ export function PersonaPanel() {
       <ConfigPageIntro title="Persona">
         A chat-to-voice companion — picks chat messages and speaks them in the overlay.
       </ConfigPageIntro>
+
+      <ConfigSectionPanel label="Profiles">
+        <ProfilesSection
+          profiles={draft.profiles}
+          activeId={draft.activeProfileId}
+          onSwitch={switchProfile}
+          onRename={renameProfile}
+          onAdd={addProfile}
+          onDelete={deleteProfile}
+        />
+      </ConfigSectionPanel>
 
       <ConfigSectionPanel label="Persona">
         <PersonaSection config={draft} onChange={handleChange} />
