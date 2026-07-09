@@ -21,6 +21,7 @@ import { registerAmbianceHandlers } from './ambiance.js'
 import { registerAudioHandlers } from './audio.js'
 import { registerDesktopHandlers, getDesktopRuntimeState } from './desktop.js'
 import { registerConfigHandlers } from './config.js'
+import { registerPersonaHandlers } from './persona.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
 import { registerKernelSignalBridge, makeKernelSignalFrame } from './kernelSignal.js'
 
@@ -37,6 +38,7 @@ export function setupSocketHandlers(
     runtimeState?: import('../../../kernel/managers/runtime.js').RuntimeStateStore
     configService?: import('../../../kernel/managers/config.js').IConfigService
     obsBridge?: import('../../../kernel/managers/obs.js').ObsBridgeManager
+    personaBrain?: HandlerContext['personaBrain']
   },
 ): { isOverlaySlotTaken: () => boolean } {
   const ctx: HandlerContext = {
@@ -50,6 +52,7 @@ export function setupSocketHandlers(
     getManagerStatuses: options?.getManagerStatuses,
     bus: options?.bus ?? (() => { throw new Error('[kernel] bus required') })(),
     obsBridge: options?.obsBridge,
+    personaBrain: options?.personaBrain,
 
     runtimeConfig: {},
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,
@@ -140,6 +143,7 @@ export function setupSocketHandlers(
     registerAudioHandlers(ctx, socket)
     registerDesktopHandlers(ctx, socket)
     registerConfigHandlers(ctx, socket)
+    registerPersonaHandlers(ctx, socket)
     registerDiagnosticsHandlers(ctx, socket)
 
 

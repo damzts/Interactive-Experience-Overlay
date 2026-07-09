@@ -39,4 +39,11 @@ export interface HandlerContext {
 
   /** Last render-performance sample from the connected overlay (RAM-only). */
   lastOverlayPerf?: import('@ieomlabs/shared').OverlayPerfPayload | null
+
+  /** Persona brain surface (streamer console + manual summaries) — a narrow
+   *  interface instead of the whole PersonaManager to keep handlers decoupled. */
+  personaBrain?: {
+    converse(text: string): Promise<string | null>
+    summarizeNow(reason: 'manual' | 'interval'): Promise<string | null>
+  }
 }

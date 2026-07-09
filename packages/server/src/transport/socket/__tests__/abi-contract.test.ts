@@ -200,3 +200,28 @@ describe('single-overlay slot rule', () => {
     expect(runtimeState.overlaySocketId).toBe('overlay-1')
   })
 })
+
+describe('persona brain handlers', () => {
+  it('rejects persona:console and persona:summarize from non-admin slots', () => {
+    const { connect } = setup()
+    const overlay = connect('overlay-1', 'overlay')
+
+    const consoleAck = vi.fn()
+    overlay.invoke('persona:console', { text: 'hi' }, consoleAck)
+    expect(consoleAck).toHaveBeenCalledWith(null)
+
+    const summarizeAck = vi.fn()
+    overlay.invoke('persona:summarize', summarizeAck)
+    expect(summarizeAck).toHaveBeenCalledWith(expect.stringContaining('admin'))
+  })
+
+  it('routes admin console messages to the persona brain', async () => {
+    const { connect } = setup()
+    const admin = connect('admin-1', 'admin')
+
+    const ack = vi.fn()
+    admin.invoke('persona:console', { text: 'hello' }, ack)
+    // No personaBrain wired in this harness → clean null, no throw.
+    expect(ack).toHaveBeenCalledWith(null)
+  })
+})

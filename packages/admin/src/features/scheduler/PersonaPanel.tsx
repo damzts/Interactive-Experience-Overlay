@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { withPersonaDefaults } from '@ieomlabs/shared'
-import type { PersonaAvatarConfig, PersonaConfig, PersonaEventLine, PersonaProfile } from '@ieomlabs/shared'
+import type { PersonaAvatarConfig, PersonaBrainConfig, PersonaConfig, PersonaEventLine, PersonaProfile } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
+import { socket } from '../../socket/client'
 import { getPersonaAvatarImages } from '../../api/mediaApi'
 import { getTtsVoices } from '../../api/ttsApi'
 import {
@@ -403,6 +404,209 @@ function AvatarSection({
   )
 }
 
+// ── Brain (LLM) ──────────────────────────────────────────────────────
+
+const BRAIN_PROVIDERS: Array<{ id: PersonaBrainConfig['provider']; label: string }> = [
+  { id: 'anthropic', label: 'Haiku (Anthropic)' },
+  { id: 'ollama',    label: 'Ollama (local)' },
+]
+
+function BrainSection({
+  brain,
+  onChange,
+}: {
+  brain: PersonaBrainConfig
+  onChange: (patch: Partial<PersonaBrainConfig>) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-semibold text-zinc-200">Brain</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            An LLM behind the persona — she summarizes what chat is saying, talks with you in the
+            console below, and can write real replies to viewers instead of echoing them.
+          </div>
+        </div>
+        <Toggle checked={brain.enabled} onChange={(v) => onChange({ enabled: v })} />
+      </div>
+
+      <div>
+        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Provider</div>
+        <div className="flex gap-1.5">
+          {BRAIN_PROVIDERS.map((p) => (
+            <ConfigChoiceButton key={p.id} selected={brain.provider === p.id} onClick={() => onChange({ provider: p.id })}>
+              {p.label}
+            </ConfigChoiceButton>
+          ))}
+        </div>
+        <div className="mt-1 text-[10px] text-zinc-600">
+          {brain.provider === 'anthropic'
+            ? 'Needs the ANTHROPIC_API_KEY environment variable set for the server (never stored in config).'
+            : 'Needs Ollama running locally with the model pulled (e.g. `ollama pull llama3.2`).'}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Model</div>
+          <input
+            type="text"
+            value={brain.model}
+            onChange={(e) => onChange({ model: e.target.value })}
+            placeholder={brain.provider === 'anthropic' ? 'claude-haiku-4-5 (default)' : 'llama3.2 (default)'}
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
+          />
+        </div>
+        {brain.provider === 'ollama' && (
+          <div className="flex-1">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Ollama URL</div>
+            <input
+              type="text"
+              value={brain.ollamaUrl}
+              onChange={(e) => onChange({ ollamaUrl: e.target.value })}
+              placeholder="http://localhost:11434"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Personality</div>
+        <textarea
+          value={brain.personality}
+          onChange={(e) => onChange({ personality: e.target.value })}
+          rows={4}
+          className="w-full resize-y rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-semibold text-zinc-300">Reply to viewers</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            Trigger-selected chat (see Trigger above, e.g. <span className="font-mono">!say</span>) gets an
+            in-character LLM reply instead of an echo. Voice/overlay only — never posted to Twitch chat.
+          </div>
+        </div>
+        <Toggle checked={brain.replyToViewers} onChange={(v) => onChange({ replyToViewers: v })} />
+      </div>
+
+      <Slider label="Max reply length" value={brain.maxReplyChars} min={60} max={500} step={10} unit=" ch" onChange={(v) => onChange({ maxReplyChars: v })} />
+      <Slider label="Auto-summary interval (0 = off)" value={brain.summaryIntervalMin} min={0} max={60} step={1} unit=" min" onChange={(v) => onChange({ summaryIntervalMin: v })} />
+      {brain.summaryIntervalMin > 0 && (
+        <Slider label="Skip summary under N new messages" value={brain.summaryMinMessages} min={1} max={50} step={1} onChange={(v) => onChange({ summaryMinMessages: v })} />
+      )}
+    </div>
+  )
+}
+
+// ── Console (streamer ↔ persona) ─────────────────────────────────────
+
+function ConsoleSection() {
+  const [entries, setEntries] = useState<Array<{ role: 'you' | 'persona'; text: string }>>([])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [summarizing, setSummarizing] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
+  }, [entries])
+
+  const send = () => {
+    const text = input.trim()
+    if (!text || busy) return
+    setEntries((prev) => [...prev, { role: 'you', text }])
+    setInput('')
+    setBusy(true)
+    setNotice(null)
+    socket.emit('persona:console', { text }, (reply: string | null) => {
+      setBusy(false)
+      if (reply) setEntries((prev) => [...prev, { role: 'persona', text: reply }])
+      else setNotice('No reply — apply the config with the brain enabled and check the provider (ANTHROPIC_API_KEY set / Ollama running).')
+    })
+  }
+
+  const summarize = () => {
+    if (summarizing) return
+    setSummarizing(true)
+    setNotice(null)
+    socket.emit('persona:summarize', (err: string | null) => {
+      setSummarizing(false)
+      setNotice(err ?? 'Summary spoken on the overlay.')
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-semibold text-zinc-200">Console</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            Talk with the persona. Replies show here and are spoken on the overlay; she knows what
+            chat has been saying. Uses the applied (saved) config.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={summarize}
+          disabled={summarizing}
+          className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-white/25 disabled:opacity-40"
+        >
+          {summarizing ? 'Summarizing…' : '🗣 Summarize chat now'}
+        </button>
+      </div>
+
+      <div
+        ref={listRef}
+        className="h-56 space-y-2 overflow-y-auto rounded-xl border border-white/6 bg-white/[0.02] px-3 py-3"
+      >
+        {entries.length === 0 && (
+          <div className="text-[10px] italic text-zinc-600">Say hi — e.g. “what's chat talking about?”</div>
+        )}
+        {entries.map((entry, idx) => (
+          <div key={idx} className={`flex ${entry.role === 'you' ? 'justify-end' : 'justify-start'}`}>
+            <div
+              className={`max-w-[80%] rounded-lg px-3 py-1.5 text-[11px] leading-relaxed ${
+                entry.role === 'you'
+                  ? 'bg-sky-400/15 text-sky-100 border border-sky-400/20'
+                  : 'bg-white/5 text-zinc-200 border border-white/10'
+              }`}
+            >
+              {entry.text}
+            </div>
+          </div>
+        ))}
+        {busy && <div className="text-[10px] italic text-zinc-500">persona is thinking…</div>}
+      </div>
+
+      {notice && <div className="text-[10px] text-amber-300/80">{notice}</div>}
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') send() }}
+          placeholder="Message the persona…"
+          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+        />
+        <button
+          type="button"
+          onClick={send}
+          disabled={busy || input.trim().length === 0}
+          className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-zinc-300 hover:border-white/25 disabled:opacity-40"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── PersonaPanel ─────────────────────────────────────────────────────
 
 export function PersonaPanel() {
@@ -539,6 +743,17 @@ export function PersonaPanel() {
           avatar={draft.avatar}
           onChange={(patch) => handleChange({ avatar: { ...draft.avatar, ...patch } })}
         />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Brain">
+        <BrainSection
+          brain={draft.brain}
+          onChange={(patch) => handleChange({ brain: { ...draft.brain, ...patch } })}
+        />
+      </ConfigSectionPanel>
+
+      <ConfigSectionPanel label="Console">
+        <ConsoleSection />
       </ConfigSectionPanel>
 
       <ConfigApplyBar

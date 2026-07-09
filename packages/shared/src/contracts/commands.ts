@@ -115,6 +115,11 @@ export interface ClientToServerEvents {
   'runtime:config:widget-layout:reset': (widgetIds: string[], callback?: (err: string | null) => void) => void
   /** Execute a keybind action */
   'keybind:execute': (payload: KeybindExecutionPayload, callback?: (err: string | null) => void) => void
+  /** Streamer ↔ persona console message (admin); ack carries the persona's
+   *  reply (also spoken via persona:speak) or null when the brain can't answer */
+  'persona:console': (payload: { text: string }, callback: (reply: string | null) => void) => void
+  /** Ask the persona to summarize recent chat out loud (admin) */
+  'persona:summarize': (callback?: (err: string | null) => void) => void
   /** Toggle a widget open/closed */
   'widget:toggle': (widgetId: string) => void
   /** Apply a named widget layout preset */

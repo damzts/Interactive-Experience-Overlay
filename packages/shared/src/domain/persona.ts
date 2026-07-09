@@ -61,6 +61,29 @@ export interface PersonaProfile {
   avatar: PersonaAvatarConfig
 }
 
+/** The persona's brain — an LLM that summarizes chat for the streamer,
+ *  chats with the streamer (admin console), and can generate real replies
+ *  to viewers. The Anthropic API key lives in the ANTHROPIC_API_KEY env
+ *  var, never in config (config is broadcast to clients). */
+export interface PersonaBrainConfig {
+  enabled: boolean
+  /** 'anthropic' (cloud, needs ANTHROPIC_API_KEY) or 'ollama' (local). */
+  provider: 'anthropic' | 'ollama'
+  /** Model name; '' = provider default (claude-haiku-4-5 / llama3.2). */
+  model: string
+  ollamaUrl: string
+  /** System-prompt personality description. */
+  personality: string
+  /** Trigger-selected chat goes through the LLM instead of being echoed. */
+  replyToViewers: boolean
+  /** Spoken replies/summaries are truncated to this length. */
+  maxReplyChars: number
+  /** Speak a chat summary every N minutes. 0 = off. */
+  summaryIntervalMin: number
+  /** Skip interval summaries when fewer new messages arrived. */
+  summaryMinMessages: number
+}
+
 export interface PersonaConfig {
   enabled: boolean
   /** 'all': every message is a candidate. 'keyword'/'command': only matching messages.
@@ -92,4 +115,6 @@ export interface PersonaConfig {
   profiles: PersonaProfile[]
   /** Which profile is live. */
   activeProfileId: string
+  /** LLM brain (summaries, console, viewer replies). */
+  brain: PersonaBrainConfig
 }

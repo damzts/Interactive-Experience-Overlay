@@ -783,6 +783,20 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
   },
   profiles: [],
   activeProfileId: 'default',
+  brain: {
+    enabled: false,
+    provider: 'anthropic',
+    model: '',
+    ollamaUrl: 'http://localhost:11434',
+    personality:
+      'You are a playful digital sprite who lives inside a Windows 98 desktop shown on a livestream. ' +
+      'You are cheeky but kind, love the streamer and their chat, and keep replies to one or two short ' +
+      'spoken sentences — no emoji, no markdown, no stage directions.',
+    replyToViewers: false,
+    maxReplyChars: 220,
+    summaryIntervalMin: 0,
+    summaryMinMessages: 8,
+  },
 }
 
 export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): PersonaConfig {
@@ -801,6 +815,10 @@ export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): Per
     },
     profiles: config?.profiles ?? [],
     activeProfileId: config?.activeProfileId ?? DEFAULT_PERSONA_CONFIG.activeProfileId,
+    brain: {
+      ...DEFAULT_PERSONA_CONFIG.brain,
+      ...config?.brain,
+    },
   }
 
   // Profiles: pre-profile configs get a 'default' identity synthesized from

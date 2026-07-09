@@ -47,6 +47,7 @@ import { EffectAmbianceManager } from './kernel/managers/effectAmbiance.js'
 import { ThemeDriftManager } from './kernel/managers/themeDrift.js'
 import { PersonaManager } from './kernel/managers/persona.js'
 import { TtsService } from './services/TtsService.js'
+import { LlmService } from './services/LlmService.js'
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
 import { showsRoute } from './transport/http/shows.js'
@@ -291,6 +292,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     twitchManager.onConfigChange(config)
     effectAmbianceManager.onConfigChange()
     themeDriftManager.onConfigChange()
+    personaManager.onConfigChange()
   })
 
   const chatReactionManager = new ChatReactionManager(
@@ -316,6 +318,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
     kernel.bus,
     ttsService,
+    new LlmService(),
   )
   kernel.register(personaManager, { after: ['DesktopConfigService', 'TwitchIntegrationManager'] })
 
@@ -339,6 +342,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     runtimeState,
     configService,
     obsBridge,
+    personaBrain: personaManager,
   })
 
   // Authoritative widget open-state mutations for automation rules

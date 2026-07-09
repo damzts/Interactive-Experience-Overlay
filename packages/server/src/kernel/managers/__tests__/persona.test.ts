@@ -114,3 +114,114 @@ describe('PersonaManager event lines', () => {
     manager.stop()
   })
 })
+
+// ── Brain (LLM) ──────────────────────────────────────────────────────
+
+import type { LlmService } from '../../../services/LlmService.js'
+
+function setupBrain(persona: Partial<PersonaConfig>, llmReply: string | null = 'a witty reply') {
+  const bus = new KernelBus()
+  const tts = { synthesize: vi.fn(async () => '/assets/tts/x.wav') } as unknown as TtsService
+  const llm = { complete: vi.fn(async () => llmReply) } as unknown as LlmService & { complete: ReturnType<typeof vi.fn> }
+  const manager = new PersonaManager(() => makeConfig(persona), bus, tts, llm)
+  const spoken: Array<{ user: string; text: string; kind?: string }> = []
+  ;(bus.on as (e: string, cb: (p: { user: string; text: string; kind?: string }) => void) => void)(
+    'persona:speak', (p) => spoken.push({ user: p.user, text: p.text, kind: p.kind }),
+  )
+  manager.init()
+  manager.start()
+  return { bus, llm, manager, spoken }
+}
+
+const brainOn = (patch?: Partial<PersonaConfig['brain']>): PersonaConfig['brain'] => ({
+  ...DEFAULT_PERSONA_CONFIG.brain,
+  enabled: true,
+  ...patch,
+})
+
+describe('PersonaManager brain', () => {
+  it('LLM-replies to trigger-selected chat when replyToViewers is on', async () => {
+    const { bus, llm, manager, spoken } = setupBrain({
+      triggerMode: 'all', cooldownMs: 0,
+      brain: brainOn({ replyToViewers: true }),
+    })
+
+    emit(bus, 'chat:message', { user: 'viewer', text: 'hello ene!' })
+    await flush()
+
+    expect(llm.complete).toHaveBeenCalledOnce()
+    expect(spoken).toEqual([{ user: 'viewer', text: 'a witty reply', kind: 'reply' }])
+    manager.stop()
+  })
+
+  it('echoes chat unchanged when the brain is disabled', async () => {
+    const { bus, llm, manager, spoken } = setupBrain({
+      triggerMode: 'all', cooldownMs: 0,
+      brain: brainOn({ enabled: false, replyToViewers: true }),
+    })
+
+    emit(bus, 'chat:message', { user: 'viewer', text: 'hello ene!' })
+    await flush()
+
+    expect(llm.complete).not.toHaveBeenCalled()
+    expect(spoken).toEqual([{ user: 'viewer', text: 'hello ene!', kind: 'chat' }])
+    manager.stop()
+  })
+
+  it('converse() replies in character, speaks, and keeps conversation memory', async () => {
+    const { llm, manager, spoken } = setupBrain({ brain: brainOn() })
+
+    const first = await manager.converse('how are you?')
+    expect(first).toBe('a witty reply')
+    expect(spoken).toEqual([expect.objectContaining({ text: 'a witty reply', kind: 'console' })])
+
+    await manager.converse('and now?')
+    const secondCall = llm.complete.mock.calls[1][0] as { messages: Array<{ role: string; content: string }> }
+    // prior exchange (user+assistant) + the new user message
+    expect(secondCall.messages).toHaveLength(3)
+    expect(secondCall.messages[0]).toEqual({ role: 'user', content: 'how are you?' })
+    expect(secondCall.messages[1]).toEqual({ role: 'assistant', content: 'a witty reply' })
+    manager.stop()
+  })
+
+  it('summarizeNow("manual") speaks a summary of the chat log', async () => {
+    const { bus, llm, manager, spoken } = setupBrain({ enabled: false, brain: brainOn() })
+
+    emit(bus, 'chat:message', { user: 'a', text: 'poggers' })
+    emit(bus, 'chat:message', { user: 'b', text: 'that clip was wild' })
+    await flush()
+
+    const summary = await manager.summarizeNow('manual')
+    expect(summary).toBe('a witty reply')
+    expect(llm.complete).toHaveBeenCalledOnce()
+    expect(spoken).toEqual([expect.objectContaining({ kind: 'summary' })])
+    manager.stop()
+  })
+
+  it('interval summaries respect summaryMinMessages', async () => {
+    const { bus, llm, manager } = setupBrain({
+      enabled: false,
+      brain: brainOn({ summaryMinMessages: 5 }),
+    })
+
+    emit(bus, 'chat:message', { user: 'a', text: 'only one message' })
+    await flush()
+
+    expect(await manager.summarizeNow('interval')).toBeNull()
+    expect(llm.complete).not.toHaveBeenCalled()
+    manager.stop()
+  })
+
+  it('a persona:summarize bus event triggers a manual summary', async () => {
+    const { bus, llm, manager, spoken } = setupBrain({ enabled: false, brain: brainOn() })
+
+    emit(bus, 'chat:message', { user: 'a', text: 'hi' })
+    emit(bus, 'persona:summarize', {})
+    await flush()
+    await flush()
+
+    expect(llm.complete).toHaveBeenCalledOnce()
+    expect(spoken).toEqual([expect.objectContaining({ kind: 'summary' })])
+    manager.stop()
+  })
+})

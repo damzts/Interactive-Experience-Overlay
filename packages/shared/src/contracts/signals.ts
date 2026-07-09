@@ -43,6 +43,9 @@ export interface PersonaSpeakPayload {
   /** URL to the synthesized wav, servable under /assets/. */
   audioUrl: string
   t: number
+  /** What prompted the line — echoed chat, an event reaction, a chat
+   *  summary for the streamer, a console reply, or an LLM viewer reply. */
+  kind?: 'chat' | 'event' | 'summary' | 'console' | 'reply'
 }
 
 export interface ChatMessagePayload {
