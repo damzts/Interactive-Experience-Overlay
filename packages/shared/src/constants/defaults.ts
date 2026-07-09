@@ -766,6 +766,7 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
   chance: 0.05,
   cooldownMs: 30_000,
   maxChars: 200,
+  eventLines: [],
   voice: {
     pitchSemitones: 3,
     roboticIntensity: 0.5,
@@ -777,6 +778,7 @@ export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): Per
   return {
     ...DEFAULT_PERSONA_CONFIG,
     ...config,
+    eventLines: config?.eventLines ?? DEFAULT_PERSONA_CONFIG.eventLines,
     voice: {
       ...DEFAULT_PERSONA_CONFIG.voice,
       ...config?.voice,

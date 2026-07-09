@@ -19,6 +19,20 @@ export interface PersonaVoiceConfig {
   ttsVoice?: string
 }
 
+/** A spoken reaction to a kernel event — the persona announces raids,
+ *  scene changes, silence, anything on the bus. */
+export interface PersonaEventLine {
+  /** Kernel bus event to react to (e.g. 'twitch:raid', 'scene:changed', 'audio:silence'). */
+  event: string
+  /** Spoken template. {field} placeholders resolve from the event payload,
+   *  e.g. "welcome raiders from {from}!" */
+  template: string
+  /** Probability 0–1 of speaking when the event fires. Default 1. */
+  chance?: number
+  /** Default true. */
+  enabled?: boolean
+}
+
 export interface PersonaConfig {
   enabled: boolean
   /** 'all': every message is a candidate. 'keyword'/'command': only matching messages.
@@ -34,5 +48,8 @@ export interface PersonaConfig {
   maxChars: number
   /** TTS backend id ('sapi' built-in; others register via TtsService). Omit = 'sapi'. */
   ttsProvider?: string
+  /** Spoken reactions to kernel events (independent of chat triggerMode;
+   *  shares the same cooldown). */
+  eventLines: PersonaEventLine[]
   voice: PersonaVoiceConfig
 }

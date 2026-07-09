@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { withPersonaDefaults } from '@ieomlabs/shared'
-import type { PersonaConfig } from '@ieomlabs/shared'
+import type { PersonaConfig, PersonaEventLine } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel,
@@ -78,7 +78,95 @@ function PersonaSection({
         <Slider label="Pitch" value={config.voice.pitchSemitones} min={-12} max={12} step={1} unit=" st" onChange={(v) => setVoice({ pitchSemitones: v })} />
         <Slider label="Robotic intensity" value={config.voice.roboticIntensity} min={0} max={1} step={0.05} onChange={(v) => setVoice({ roboticIntensity: v })} />
         <Slider label="Speech rate" value={config.voice.rate} min={-10} max={10} step={1} onChange={(v) => setVoice({ rate: v })} />
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            TTS voice name <span className="normal-case font-normal text-zinc-600">(installed SAPI voice, blank = system default)</span>
+          </div>
+          <input
+            type="text"
+            value={config.voice.ttsVoice ?? ''}
+            onChange={(e) => setVoice({ ttsVoice: e.target.value || undefined })}
+            placeholder="e.g. Microsoft Zira Desktop"
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+          />
+        </div>
       </div>
+
+      <EventLinesSection lines={config.eventLines} onChange={(eventLines) => onChange({ eventLines })} />
+    </div>
+  )
+}
+
+// ── Event reactions ──────────────────────────────────────────────────
+
+function EventLinesSection({
+  lines,
+  onChange,
+}: {
+  lines: PersonaEventLine[]
+  onChange: (lines: PersonaEventLine[]) => void
+}) {
+  const update = (idx: number, patch: Partial<PersonaEventLine>) =>
+    onChange(lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
+
+  return (
+    <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-semibold text-zinc-300">Event reactions</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            Spoken lines for kernel events (raids, scene changes, silence…). {'{field}'} placeholders
+            resolve from the event payload — e.g. <span className="font-mono">welcome raiders from {'{from}'}!</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange([...lines, { event: '', template: '', chance: 1, enabled: true }])}
+          className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:border-white/25"
+        >
+          + Add
+        </button>
+      </div>
+
+      {lines.length === 0 && (
+        <div className="text-[10px] italic text-zinc-600">No event reactions yet.</div>
+      )}
+
+      {lines.map((line, idx) => (
+        <div key={idx} className="flex items-center gap-2">
+          <Toggle checked={line.enabled ?? true} onChange={(v) => update(idx, { enabled: v })} />
+          <input
+            type="text"
+            value={line.event}
+            onChange={(e) => update(idx, { event: e.target.value })}
+            placeholder="twitch:raid"
+            className="w-40 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
+          />
+          <input
+            type="text"
+            value={line.template}
+            onChange={(e) => update(idx, { template: e.target.value })}
+            placeholder="welcome raiders from {from}!"
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+          />
+          <input
+            type="number"
+            min={0} max={1} step={0.05}
+            value={line.chance ?? 1}
+            onChange={(e) => update(idx, { chance: Math.max(0, Math.min(1, Number(e.target.value))) })}
+            title="Chance 0–1"
+            className="w-16 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
+          />
+          <button
+            type="button"
+            aria-label="Delete event reaction"
+            onClick={() => onChange(lines.filter((_, i) => i !== idx))}
+            className="text-zinc-600 hover:text-red-400 transition-colors text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
     </div>
   )
 }
