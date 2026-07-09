@@ -1,4 +1,4 @@
-import type { AutomationRule, STATE } from '@ieomlabs/shared'
+import type { AutomationGate, AutomationRule, STATE } from '@ieomlabs/shared'
 
 export interface WidgetSignalLike {
   source: string
@@ -32,6 +32,10 @@ export function evaluateWidgetRules(
   rules: AutomationRule[],
   signal: WidgetSignalLike,
   currentState: STATE,
+  /** Stateful firing gate (cooldown / everyN / window). Only consulted for
+   *  rules this evaluator executes — server-executed rules are gated by the
+   *  server's own gate instance. Omit for stateless evaluation. */
+  gate?: AutomationGate,
 ): LocalWidgetAction[] {
   const actions: LocalWidgetAction[] = []
   for (const rule of rules) {
@@ -48,6 +52,7 @@ export function evaluateWidgetRules(
     const action = rule.action.params['action']
     if (typeof targetWidgetId !== 'string' || typeof action !== 'string') continue
     if (AUTHORITATIVE_ACTIONS.has(action)) continue
+    if (gate && !gate(rule)) continue
     actions.push({ targetWidgetId, action })
   }
   return actions

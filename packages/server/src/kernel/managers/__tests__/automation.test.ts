@@ -213,3 +213,59 @@ describe('AutomationManager widget-trigger rules', () => {
     manager.stop()
   })
 })
+
+describe('AutomationManager stateful conditions', () => {
+  it('cooldownMs suppresses immediate refires of the same rule', () => {
+    const rules = [makeRule({ trigger: { source: 'kernel', event: 'scene:changed', cooldownMs: 60_000 } })]
+    const { bus, io, manager } = setup(rules)
+    manager.start()
+
+    bus.emit('scene:changed', { from: 'A', to: 'B' })
+    bus.emit('scene:changed', { from: 'B', to: 'A' })
+    bus.emit('scene:changed', { from: 'A', to: 'B' })
+
+    expect(io.emit).toHaveBeenCalledTimes(1)
+    manager.stop()
+  })
+
+  it('everyN fires only on every Nth match', () => {
+    const rules = [makeRule({ trigger: { source: 'kernel', event: 'scene:changed', everyN: 3 } })]
+    const { bus, io, manager } = setup(rules)
+    manager.start()
+
+    for (let i = 0; i < 7; i++) bus.emit('scene:changed', { from: 'A', to: 'B' })
+
+    expect(io.emit).toHaveBeenCalledTimes(2) // 3rd and 6th
+    manager.stop()
+  })
+
+  it('windowCount fires once N matches land inside the window, then restarts', () => {
+    const rules = [makeRule({ trigger: { source: 'kernel', event: 'scene:changed', windowCount: 3, windowMs: 60_000 } })]
+    const { bus, io, manager } = setup(rules)
+    manager.start()
+
+    for (let i = 0; i < 5; i++) bus.emit('scene:changed', { from: 'A', to: 'B' })
+
+    // fires on the 3rd (window clears), not yet again by the 5th
+    expect(io.emit).toHaveBeenCalledTimes(1)
+    bus.emit('scene:changed', { from: 'A', to: 'B' })
+    expect(io.emit).toHaveBeenCalledTimes(2)
+    manager.stop()
+  })
+
+  it('stateful conditions on one rule never affect another rule', () => {
+    const rules = [
+      makeRule({ id: 'gated', trigger: { source: 'kernel', event: 'scene:changed', cooldownMs: 60_000 } }),
+      makeRule({ id: 'free', trigger: { source: 'kernel', event: 'scene:changed' } }),
+    ]
+    const { bus, io, manager } = setup(rules)
+    manager.start()
+
+    bus.emit('scene:changed', { from: 'A', to: 'B' })
+    bus.emit('scene:changed', { from: 'B', to: 'A' })
+
+    // gated fired once, free fired twice
+    expect(io.emit).toHaveBeenCalledTimes(3)
+    manager.stop()
+  })
+})

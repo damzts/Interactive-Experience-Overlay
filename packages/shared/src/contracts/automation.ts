@@ -29,6 +29,22 @@ export interface AutomationTrigger {
   match?: Record<string, unknown>
   /** Rule only fires while the current visual state is in this list. Omit = any scene. */
   sceneIs?: STATE[]
+
+  // ── Stateful conditions ─────────────────────────────────────────
+  // Evaluated by createAutomationGate (constants/automationGate.ts).
+  // State is RAM-only and lives in whichever evaluator executes the rule
+  // (server AutomationManager, or the overlay for custom widget:action
+  // rules) — the action-kind split guarantees a rule runs in one place.
+
+  /** Minimum ms between firings of this rule. Omit/0 = no cooldown. */
+  cooldownMs?: number
+  /** Fire only on every Nth match (2 = every other match). Omit/1 = every match. */
+  everyN?: number
+  /** Fire when this many matches arrive within windowMs (rolling window;
+   *  the window clears after firing). Omit/1 = no window condition. */
+  windowCount?: number
+  /** Window size for windowCount, in ms. Default 60000. */
+  windowMs?: number
 }
 
 export type AutomationActionKind =

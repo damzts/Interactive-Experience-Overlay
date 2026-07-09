@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { STATE, isSyntheticSignalPayload } from '@ieomlabs/shared'
+import { STATE, isSyntheticSignalPayload, createAutomationGate } from '@ieomlabs/shared'
 import type { OverlaySyncSnapshot } from '@ieomlabs/shared'
 import { socket } from './client'
 import { useAppStore } from '../store/useAppStore'
@@ -7,6 +7,10 @@ import { useSignalReceiver } from './useSignalReceiver'
 import { addWidgetSignalListener, dispatchWidgetChainAction } from '../desktop/widgetSimulationEvents'
 import { evaluateWidgetRules } from './widgetRuleEvaluator'
 import { initRendererSignalBridge } from '../renderers/rendererSignals'
+
+// Stateful firing gate for overlay-executed rules (cooldown / everyN / window).
+// Module-scoped: rule state survives re-renders, resets on page reload.
+const widgetRuleGate = createAutomationGate()
 
 /** Connects all socket events to the app store. Mount once — inside App. */
 export function useSocket() {
@@ -25,7 +29,7 @@ export function useSocket() {
     return addWidgetSignalListener((detail) => {
       const store = useAppStore.getState()
       const rules = store.config.automationRules ?? []
-      const localActions = evaluateWidgetRules(rules, detail, store.visualState as STATE)
+      const localActions = evaluateWidgetRules(rules, detail, store.visualState as STATE, widgetRuleGate)
       for (const { targetWidgetId, action } of localActions) {
         dispatchWidgetChainAction({ targetWidgetId, action, sourceSignal: detail })
       }

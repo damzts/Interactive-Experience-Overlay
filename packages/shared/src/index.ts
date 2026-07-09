@@ -34,5 +34,6 @@ export * from './widgets/index.js'
 
 // Constants and utilities
 export * from './constants/ambianceSimulation.js'
+export * from './constants/automationGate.js'
 export * from './constants/defaults.js'
 export * from './constants/widgetIntentManifests.js'

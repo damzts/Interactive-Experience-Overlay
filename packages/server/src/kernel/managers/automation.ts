@@ -13,8 +13,8 @@
  * (emitted by the HTTP CRUD route) so evaluation never touches disk.
  * Boot after all other managers (bootPriority: 100).
  */
-import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload } from '@ieomlabs/shared'
-import { STATE, SYNTHETIC_SIGNAL_KEY, isSyntheticSignalPayload } from '@ieomlabs/shared'
+import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload, AutomationGate } from '@ieomlabs/shared'
+import { STATE, SYNTHETIC_SIGNAL_KEY, isSyntheticSignalPayload, createAutomationGate } from '@ieomlabs/shared'
 import type { KernelBus, BusFrame } from '../bus.js'
 import type { SceneManager } from './scene.js'
 import type { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
@@ -40,6 +40,8 @@ export class AutomationManager implements Manager {
   private _unsubConfigChanged: (() => void) | null = null
   private rules: AutomationRule[] = []
   private widgetRuntime: WidgetRuntimeDelegate | null = null
+  /** Stateful firing gate (cooldown / everyN / window). RAM-only, keyed by rule id. */
+  private gate: AutomationGate = createAutomationGate()
 
   constructor(
     private repo: AutomationRuleRepository,
@@ -104,6 +106,7 @@ export class AutomationManager implements Manager {
         if (!this.matches(t.match, payload)) continue
       }
       if (t.sceneIs?.length && !t.sceneIs.includes(this.machine.currentState as STATE)) continue
+      if (!this.gate(rule)) continue
       this.execute(rule, signal)
     }
   }

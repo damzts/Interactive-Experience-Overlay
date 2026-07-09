@@ -76,6 +76,11 @@ export function AutomationPanel() {
   const [srcWidgetId, setSrcWidgetId] = useState('')
   const [srcEvent, setSrcEvent] = useState('')
   const [sceneFilter, setSceneFilter] = useState<STATE[]>([])
+  // Stateful conditions (all optional; empty = off)
+  const [cooldownSec, setCooldownSec] = useState('')
+  const [everyN, setEveryN] = useState('')
+  const [windowCount, setWindowCount] = useState('')
+  const [windowSec, setWindowSec] = useState('')
 
   // ── Action state ─────────────────────────────────────────────────
   const [actionKind, setActionKind] = useState<AutomationActionKind>('overlay:show')
@@ -174,9 +179,16 @@ export function AutomationPanel() {
       }
 
       const match = matchKey.trim() ? { [matchKey.trim()]: matchValue } : undefined
+      const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : undefined }
+      const stateful = {
+        cooldownMs: num(cooldownSec) ? num(cooldownSec)! * 1000 : undefined,
+        everyN: num(everyN),
+        windowCount: num(windowCount),
+        windowMs: num(windowCount) && num(windowSec) ? num(windowSec)! * 1000 : undefined,
+      }
       const trigger: AutomationTrigger = triggerSource === 'kernel'
-        ? { source: 'kernel', event: event.trim(), match, sceneIs: sceneFilter.length ? sceneFilter : undefined }
-        : { source: 'widget', event: srcEvent.trim(), widgetId: srcWidgetId || undefined, match, sceneIs: sceneFilter.length ? sceneFilter : undefined }
+        ? { source: 'kernel', event: event.trim(), match, sceneIs: sceneFilter.length ? sceneFilter : undefined, ...stateful }
+        : { source: 'widget', event: srcEvent.trim(), widgetId: srcWidgetId || undefined, match, sceneIs: sceneFilter.length ? sceneFilter : undefined, ...stateful }
 
       const rule = await createAutomationRule({
         enabled: true,
@@ -186,6 +198,7 @@ export function AutomationPanel() {
       setRules((prev) => [...prev, rule])
       setEvent(''); setMatchKey(''); setMatchValue('')
       setSrcWidgetId(''); setSrcEvent(''); setSceneFilter([])
+      setCooldownSec(''); setEveryN(''); setWindowCount(''); setWindowSec('')
       setWidgetId(''); setDstWidgetId(''); setDstAction('')
       setNotifyTitle(''); setNotifyBody(''); setEmitEvent(''); setEmitPayloadJson('')
     } finally { setAdding(false) }
@@ -313,6 +326,34 @@ export function AutomationPanel() {
                   clear
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* ── Stateful conditions ── */}
+          <div className="grid grid-cols-4 gap-2">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                Cooldown <span className="normal-case font-normal text-zinc-600">(s)</span>
+              </div>
+              <input value={cooldownSec} onChange={(e) => setCooldownSec(e.target.value)} placeholder="off" inputMode="numeric" className="w-full text-xs font-mono" />
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                Every Nth
+              </div>
+              <input value={everyN} onChange={(e) => setEveryN(e.target.value)} placeholder="off" inputMode="numeric" className="w-full text-xs font-mono" />
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                N within…
+              </div>
+              <input value={windowCount} onChange={(e) => setWindowCount(e.target.value)} placeholder="off" inputMode="numeric" className="w-full text-xs font-mono" />
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                …window <span className="normal-case font-normal text-zinc-600">(s)</span>
+              </div>
+              <input value={windowSec} onChange={(e) => setWindowSec(e.target.value)} placeholder="60" inputMode="numeric" className="w-full text-xs font-mono" disabled={!windowCount.trim()} />
             </div>
           </div>
 
@@ -461,6 +502,15 @@ export function AutomationPanel() {
                     )}
                     {rule.trigger.sceneIs && rule.trigger.sceneIs.length > 0 && (
                       <span className="font-mono text-[9px] text-cyan-500/80 shrink-0">[{rule.trigger.sceneIs.join(', ')}]</span>
+                    )}
+                    {(rule.trigger.cooldownMs || rule.trigger.everyN || rule.trigger.windowCount) && (
+                      <span className="font-mono text-[9px] text-amber-500/80 shrink-0">
+                        [{[
+                          rule.trigger.cooldownMs ? `cd ${rule.trigger.cooldownMs / 1000}s` : null,
+                          rule.trigger.everyN ? `every ${rule.trigger.everyN}` : null,
+                          rule.trigger.windowCount ? `${rule.trigger.windowCount} in ${(rule.trigger.windowMs ?? 60000) / 1000}s` : null,
+                        ].filter(Boolean).join(', ')}]
+                      </span>
                     )}
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-zinc-500">
