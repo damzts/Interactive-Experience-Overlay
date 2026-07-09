@@ -58,7 +58,11 @@ export class PersonaManager implements Manager {
     this.lastSpokenAt = Date.now()
     const truncated = text.length > persona.maxChars ? text.slice(0, persona.maxChars) : text
 
-    const audioUrl = await this.tts.synthesize(truncated, persona.voice.rate)
+    const audioUrl = await this.tts.synthesize(truncated, {
+      rate: persona.voice.rate,
+      voice: persona.voice.ttsVoice,
+      provider: persona.ttsProvider,
+    })
     if (!audioUrl) return
 
     logger.info(`[persona] speaking (user: ${msg.user}, text: "${truncated}")`)

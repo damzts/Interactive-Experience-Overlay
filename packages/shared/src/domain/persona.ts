@@ -15,6 +15,8 @@ export interface PersonaVoiceConfig {
   roboticIntensity: number
   /** Speech rate passed to the synthesizer, -10..10 (SAPI convention, 0 = normal). */
   rate: number
+  /** Provider-specific voice name (e.g. an installed SAPI voice). Omit = provider default. */
+  ttsVoice?: string
 }
 
 export interface PersonaConfig {
@@ -30,5 +32,7 @@ export interface PersonaConfig {
   cooldownMs: number
   /** Chat messages longer than this are truncated before synthesis. */
   maxChars: number
+  /** TTS backend id ('sapi' built-in; others register via TtsService). Omit = 'sapi'. */
+  ttsProvider?: string
   voice: PersonaVoiceConfig
 }

@@ -1,77 +1,80 @@
 /**
- * TtsService — synthesizes chat text to speech for the Persona feature.
+ * TtsService — synthesizes persona text to speech through pluggable
+ * providers (see TtsProvider.ts; SAPI is the built-in default).
  *
- * Windows-only: shells out to PowerShell's System.Speech SAPI synthesizer
- * (built into Windows, no API key / network dependency). The "robotic /
- * vocaloid" character is deliberately NOT applied here — this produces a
- * plain flat voice; the overlay's AudioEngine applies the ring-mod/pitch
- * filter client-side (see playPersonaLine), which keeps that knob live-
- * tunable without re-synthesizing audio.
- *
- * Chat text is untrusted input, so it is written to a temp file and passed
- * to a fixed .ps1 script via -File + positional args (never interpolated
- * into a -Command string) to avoid command/script injection.
+ * Output wavs are cached by content hash of (provider, voice, rate, text),
+ * so repeated lines — greetings, alert phrases, event reactions — cost one
+ * synthesis ever. The cache is LRU-pruned by mtime; hits touch the file to
+ * stay hot.
  */
-import { spawn } from 'child_process'
-import { mkdirSync, writeFileSync, unlinkSync, readdirSync, statSync, existsSync } from 'fs'
+import { mkdirSync, unlinkSync, readdirSync, statSync, existsSync, utimesSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { randomUUID } from 'crypto'
+import { createHash } from 'crypto'
 import logger from '../lib/logger.js'
+import { SapiTtsProvider, type TtsProvider } from './TtsProvider.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 // Resolve monorepo root from packages/server/dist/services/ (compiled output)
 const MONO_ROOT = join(__dirname, '../../../..')
 const TTS_ROOT = join(MONO_ROOT, 'assets/tts')
-const SYNTH_SCRIPT_PATH = join(TTS_ROOT, '_synth.ps1')
-const MAX_CACHED_FILES = 50
+const MAX_CACHED_FILES = 200
 
-const SYNTH_SCRIPT = `param([string]$TextPath, [string]$WavPath, [int]$Rate)
-Add-Type -AssemblyName System.Speech
-$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$synth.Rate = $Rate
-$synth.SetOutputToWaveFile($WavPath)
-$text = Get-Content -LiteralPath $TextPath -Raw -Encoding UTF8
-$synth.Speak($text)
-$synth.Dispose()
-`
+export interface TtsRequestOptions {
+  /** Speech rate, -10..10 (SAPI convention). */
+  rate: number
+  /** Provider-specific voice name. Omit for the provider's default voice. */
+  voice?: string
+  /** Provider id. Omit for 'sapi'. Unknown ids fall back to 'sapi'. */
+  provider?: string
+}
 
 export class TtsService {
-  constructor() {
+  private providers = new Map<string, TtsProvider>()
+
+  constructor(providers?: TtsProvider[]) {
     mkdirSync(TTS_ROOT, { recursive: true })
-    if (!existsSync(SYNTH_SCRIPT_PATH)) {
-      writeFileSync(SYNTH_SCRIPT_PATH, SYNTH_SCRIPT, 'utf8')
+    for (const p of providers ?? [new SapiTtsProvider(TTS_ROOT)]) {
+      this.providers.set(p.id, p)
     }
   }
 
-  /** Synthesizes text to a wav file under assets/tts/, returns its servable URL, or null on failure. */
-  async synthesize(text: string, rate: number): Promise<string | null> {
-    const id = randomUUID()
-    const textPath = join(TTS_ROOT, `${id}.txt`)
-    const wavPath = join(TTS_ROOT, `${id}.wav`)
-    writeFileSync(textPath, text, 'utf8')
+  /** Add another synthesis backend (e.g. Piper) at boot. */
+  registerProvider(provider: TtsProvider): void {
+    this.providers.set(provider.id, provider)
+  }
+
+  /** Synthesizes text to a wav under assets/tts/ (cache-first), returns its
+   *  servable URL, or null on failure. */
+  async synthesize(text: string, opts: TtsRequestOptions): Promise<string | null> {
+    const provider = this.providers.get(opts.provider ?? 'sapi') ?? this.providers.get('sapi')
+    if (!provider) {
+      logger.warn('[tts] no synthesis provider registered')
+      return null
+    }
+
+    const rate = Math.round(opts.rate)
+    const key = createHash('sha256')
+      .update(`${provider.id}|${opts.voice ?? ''}|${rate}|${text}`)
+      .digest('hex')
+      .slice(0, 24)
+    const wavPath = join(TTS_ROOT, `${key}.wav`)
+    const url = `/assets/tts/${key}.wav`
+
+    if (existsSync(wavPath)) {
+      // Cache hit — touch so LRU pruning keeps frequently spoken lines.
+      try { const now = new Date(); utimesSync(wavPath, now, now) } catch { /* non-fatal */ }
+      return url
+    }
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn('powershell.exe', [
-          '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-          '-File', SYNTH_SCRIPT_PATH, textPath, wavPath, String(Math.round(rate)),
-        ])
-        let stderr = ''
-        proc.stderr?.on('data', (d) => { stderr += d.toString() })
-        proc.on('error', reject)
-        proc.on('exit', (code) => {
-          if (code === 0) resolve()
-          else reject(new Error(`powershell exited ${code}: ${stderr.trim()}`))
-        })
-      })
+      await provider.synthesize(text, { rate, voice: opts.voice }, wavPath)
       this.pruneOldFiles()
-      return `/assets/tts/${id}.wav`
+      return url
     } catch (err) {
-      logger.warn(`[tts] synthesis failed: ${(err as Error).message}`)
+      logger.warn(`[tts] synthesis failed (${provider.id}): ${(err as Error).message}`)
+      try { unlinkSync(wavPath) } catch { /* may not exist */ }
       return null
-    } finally {
-      try { unlinkSync(textPath) } catch { /* best-effort cleanup */ }
     }
   }
 
