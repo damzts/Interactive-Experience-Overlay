@@ -75,6 +75,8 @@ function buildSceneDefaultSnapshot(sceneId: string, scene: Scene): NonNullable<S
     style: source.style ? clone(source.style) : undefined,
     introSequenceId: source.introSequenceId,
     exitSequenceId: source.exitSequenceId,
+    introSteps: source.introSteps ? clone(source.introSteps) : undefined,
+    exitSteps: source.exitSteps ? clone(source.exitSteps) : undefined,
   }
 }
 

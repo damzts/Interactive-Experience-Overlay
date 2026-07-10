@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3'
-import type { Scene } from '@ieomlabs/shared'
+import type { Scene, SequenceStep } from '@ieomlabs/shared'
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback
@@ -16,6 +16,8 @@ export class SceneRepository {
       windows_json: string | null; style_json: string | null;
       intro_sequence_id: string | null;
       exit_sequence_id: string | null;
+      intro_steps_json: string | null;
+      exit_steps_json: string | null;
       ambient_track: string | null; show_desktop: number | null;
     }>
     const scenes: Record<string, Scene> = {}
@@ -26,6 +28,8 @@ export class SceneRepository {
         style: parseJson(row.style_json, undefined),
         introSequenceId: row.intro_sequence_id ?? undefined,
         exitSequenceId: row.exit_sequence_id ?? undefined,
+        introSteps: row.intro_steps_json ? parseJson<SequenceStep[]>(row.intro_steps_json, []) : undefined,
+        exitSteps: row.exit_steps_json ? parseJson<SequenceStep[]>(row.exit_steps_json, []) : undefined,
         ambientTrack: row.ambient_track ?? undefined,
         showDesktop: row.show_desktop === 1,
       }
@@ -36,8 +40,8 @@ export class SceneRepository {
   save(scenes: Record<string, Scene>): void {
     this.db.prepare('DELETE FROM scenes').run()
     const insert = this.db.prepare(`
-      INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, intro_sequence_id, exit_sequence_id, ambient_track, show_desktop)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO scenes (id, label, background_opaque, windows_json, style_json, intro_sequence_id, exit_sequence_id, intro_steps_json, exit_steps_json, ambient_track, show_desktop)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     for (const scene of Object.values(scenes)) {
       insert.run(scene.id, scene.label, boolToInt(scene.backgroundOpaque),
@@ -45,20 +49,24 @@ export class SceneRepository {
         scene.style ? JSON.stringify(scene.style) : null,
         scene.introSequenceId ?? null,
         scene.exitSequenceId ?? null,
+        scene.introSteps ? JSON.stringify(scene.introSteps) : null,
+        scene.exitSteps ? JSON.stringify(scene.exitSteps) : null,
         scene.ambientTrack ?? null, boolToInt(scene.showDesktop ?? false))
     }
   }
 
   upsert(scene: Scene): void {
     this.db.prepare(`
-      INSERT OR REPLACE INTO scenes (id, label, background_opaque, windows_json, style_json, intro_sequence_id, exit_sequence_id, ambient_track, show_desktop)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO scenes (id, label, background_opaque, windows_json, style_json, intro_sequence_id, exit_sequence_id, intro_steps_json, exit_steps_json, ambient_track, show_desktop)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       scene.id, scene.label, boolToInt(scene.backgroundOpaque),
       JSON.stringify(scene.windows ?? []),
       scene.style ? JSON.stringify(scene.style) : null,
       scene.introSequenceId ?? null,
       scene.exitSequenceId ?? null,
+      scene.introSteps ? JSON.stringify(scene.introSteps) : null,
+      scene.exitSteps ? JSON.stringify(scene.exitSteps) : null,
       scene.ambientTrack ?? null, boolToInt(scene.showDesktop ?? false),
     )
   }

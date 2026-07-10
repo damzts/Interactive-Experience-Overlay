@@ -1,5 +1,6 @@
 import type { Rect } from './geometry.js'
 import type { OverlayStyle } from './overlay.js'
+import type { SequenceStep } from './sequence.js'
 
 // ── Window preset and instance ───────────────────────────────────
 
@@ -63,6 +64,10 @@ export interface SceneDefaultSnapshot {
   style?: OverlayStyle
   introSequenceId?: string
   exitSequenceId?: string
+  /** Scene-specific inline steps, used when introSequenceId is unset. */
+  introSteps?: SequenceStep[]
+  /** Scene-specific inline steps, used when exitSequenceId is unset. */
+  exitSteps?: SequenceStep[]
   ambientTrack?: string
 }
 
@@ -92,6 +97,14 @@ export interface Scene {
   introSequenceId?: string
   /** Sequence to play when leaving this scene. */
   exitSequenceId?: string
+  /** Scene-specific inline steps to play when entering this scene, authored
+   *  directly in Scene Settings rather than as a reusable Sequence. Only
+   *  used as a fallback when introSequenceId is unset — an existing
+   *  Sequence always takes priority. */
+  introSteps?: SequenceStep[]
+  /** Scene-specific inline steps to play when leaving this scene. Only
+   *  used as a fallback when exitSequenceId is unset. */
+  exitSteps?: SequenceStep[]
   /** Independent ambient audio track URL (crowd noise, room tone, etc.).
    *  Persists across scene changes — only replaced when ambientTrack itself changes. */
   ambientTrack?: string

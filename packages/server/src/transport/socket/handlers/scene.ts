@@ -53,7 +53,10 @@ function sequenceLookup(ctx: HandlerContext): (id: string) => { steps: SequenceS
 }
 
 /** Resolve a scene pair's exit/intro Sequences into their step lists.
- *  `getSequence` looks up a Sequence by id (ctx.configService.getSequence). */
+ *  `getSequence` looks up a Sequence by id (ctx.configService.getSequence).
+ *  An existing Sequence (introSequenceId/exitSequenceId) always takes
+ *  priority; a scene's own inline introSteps/exitSteps are only used as a
+ *  fallback when no Sequence id is set for that slot. */
 export function resolvePipelines(
   cfg: AppConfig,
   getSequence: (id: string) => { steps: SequenceStep[] } | undefined,
@@ -63,8 +66,12 @@ export function resolvePipelines(
   const targetScene = cfg.scenes[toState]
   const fromScene = cfg.scenes[fromState]
 
-  const intro = targetScene?.introSequenceId ? getSequence(targetScene.introSequenceId)?.steps : undefined
-  const exit = fromScene?.exitSequenceId ? getSequence(fromScene.exitSequenceId)?.steps : undefined
+  const intro = targetScene?.introSequenceId
+    ? getSequence(targetScene.introSequenceId)?.steps
+    : targetScene?.introSteps
+  const exit = fromScene?.exitSequenceId
+    ? getSequence(fromScene.exitSequenceId)?.steps
+    : fromScene?.exitSteps
 
   return { exit: exit ?? [], intro: intro ?? [] }
 }

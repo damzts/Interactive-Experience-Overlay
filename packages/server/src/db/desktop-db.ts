@@ -21,6 +21,8 @@ const SCHEMA = `
     style_json TEXT,
     intro_sequence_id TEXT,
     exit_sequence_id TEXT,
+    intro_steps_json TEXT,
+    exit_steps_json TEXT,
     music_track TEXT,
     ambient_track TEXT,
     show_desktop INTEGER NOT NULL DEFAULT 0
@@ -253,6 +255,8 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   addColumn('scenes', 'ambient_track', 'TEXT')
   addColumn('scenes', 'intro_sequence_id', 'TEXT')
   addColumn('scenes', 'exit_sequence_id', 'TEXT')
+  addColumn('scenes', 'intro_steps_json', 'TEXT')
+  addColumn('scenes', 'exit_steps_json', 'TEXT')
   addColumn('audio_config', 'ambient_track', 'TEXT')
   addColumn('audio_config', 'ambient_volume', 'REAL')
   addColumn('twitch_config', 'client_id', 'TEXT')

@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE } from '@ieomlabs/shared'
-import type { Scene, Sequence, WindowInstance } from '@ieomlabs/shared'
+import type { Scene, Sequence, SequenceStep, WindowInstance } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { ConfigApplyBar, isSameDraft } from '../../shared/ui'
+import { Btn, ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
 import { SourcesEditor } from './SceneConfig'
 import { ScenePreview } from './ScenePreview'
 import { DesktopThemeEditor } from './DesktopThemePanel'
 import { fetchSequences } from '../../api/sequencesApi'
+import { StepListEditor } from '../sequences/StepListEditor'
+import { socket } from '../../socket/client'
 
 type ScenePanelDraft = {
   label:           string
   introSequenceId: string | undefined
   exitSequenceId:  string | undefined
+  introSteps:  SequenceStep[]
+  exitSteps:   SequenceStep[]
   windows:     WindowInstance[]
   showDesktop: boolean
 }
@@ -26,6 +30,8 @@ function buildDraft(
     label:           scene?.label ?? sceneId,
     introSequenceId: scene?.introSequenceId,
     exitSequenceId:  scene?.exitSequenceId,
+    introSteps:  structuredClone(scene?.introSteps ?? []),
+    exitSteps:   structuredClone(scene?.exitSteps ?? []),
     windows:     structuredClone(scene?.windows ?? []),
     showDesktop: scene?.showDesktop ?? false,
   }
@@ -52,6 +58,21 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
 
   const dirty = !isSameDraft(draft, baseDraft)
 
+  // The steps that would actually run for each slot right now — the
+  // selected existing Sequence's steps take priority, falling back to the
+  // drafted scene-specific inline steps. Mirrors resolvePipelines' runtime
+  // priority so "Test" always previews what would really play.
+  const activeIntroSteps = draft.introSequenceId
+    ? sequences.find((s) => s.id === draft.introSequenceId)?.steps ?? []
+    : draft.introSteps
+  const activeExitSteps = draft.exitSequenceId
+    ? sequences.find((s) => s.id === draft.exitSequenceId)?.steps ?? []
+    : draft.exitSteps
+
+  const testSteps = useCallback((steps: SequenceStep[]) => {
+    if (steps.length) socket.emit('transition:preview', steps)
+  }, [])
+
   useEffect(() => {
     setDraft(buildDraft(sceneId, config))
     setSaved(false)
@@ -76,6 +97,11 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
         showDesktop: draft.showDesktop,
         introSequenceId: draft.introSequenceId,
         exitSequenceId:  draft.exitSequenceId,
+        // An existing Sequence always takes priority — never persist both
+        // introSequenceId and introSteps (or exitSequenceId/exitSteps)
+        // populated for the same slot.
+        introSteps: draft.introSequenceId ? undefined : draft.introSteps,
+        exitSteps:  draft.exitSequenceId ? undefined : draft.exitSteps,
       }
       await saveConfig({ scenes: { ...config.scenes, [sceneId]: nextScene } })
       if (savedTimer.current) clearTimeout(savedTimer.current)
@@ -151,25 +177,58 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
             </label>
           )}
 
-          {/* Sequences — two columns */}
-          <ConfigPanel title="Sequences" description="Effect pipelines authored in the Sequences tab">
-            <div className="grid grid-cols-2 gap-4">
+          {/* Sequences — On Entry / On Exit, each with an existing-sequence
+              picker and a fallback inline scene-specific step editor. The
+              existing Sequence always takes priority at runtime/save time. */}
+          <ConfigPanel title="On Entry" description="Runs when entering this scene">
+            <div className="space-y-3">
               <label className="block text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
-                On Entry
+                Existing Sequence
                 <select className="mt-1 w-full text-xs" value={draft.introSequenceId ?? ''}
                   onChange={(e) => update((d) => { d.introSequenceId = e.target.value || undefined })}>
                   <option value="">— none —</option>
                   {sequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.label}</option>)}
                 </select>
               </label>
+
+              <div className={draft.introSequenceId ? 'opacity-40 pointer-events-none' : ''}>
+                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                  Scene-specific Sequence <span className="normal-case font-normal">(used only when no existing Sequence is selected above)</span>
+                </div>
+                <StepListEditor steps={draft.introSteps} onChange={(next) => update((d) => { d.introSteps = next })} />
+              </div>
+
+              {activeIntroSteps.length > 0 && (
+                <div className="flex justify-end">
+                  <Btn variant="ghost" onClick={() => testSteps(activeIntroSteps)}>Test On Entry ▶</Btn>
+                </div>
+              )}
+            </div>
+          </ConfigPanel>
+
+          <ConfigPanel title="On Exit" description="Runs when leaving this scene">
+            <div className="space-y-3">
               <label className="block text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
-                On Exit
+                Existing Sequence
                 <select className="mt-1 w-full text-xs" value={draft.exitSequenceId ?? ''}
                   onChange={(e) => update((d) => { d.exitSequenceId = e.target.value || undefined })}>
                   <option value="">— none —</option>
                   {sequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.label}</option>)}
                 </select>
               </label>
+
+              <div className={draft.exitSequenceId ? 'opacity-40 pointer-events-none' : ''}>
+                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+                  Scene-specific Sequence <span className="normal-case font-normal">(used only when no existing Sequence is selected above)</span>
+                </div>
+                <StepListEditor steps={draft.exitSteps} onChange={(next) => update((d) => { d.exitSteps = next })} />
+              </div>
+
+              {activeExitSteps.length > 0 && (
+                <div className="flex justify-end">
+                  <Btn variant="ghost" onClick={() => testSteps(activeExitSteps)}>Test On Exit ▶</Btn>
+                </div>
+              )}
             </div>
           </ConfigPanel>
 
