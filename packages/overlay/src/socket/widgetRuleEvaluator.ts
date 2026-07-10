@@ -47,10 +47,8 @@ export function evaluateWidgetRules(
     if (t.sceneIs?.length && !t.sceneIs.includes(currentState)) continue
     if (!matchesPayload(t.match, signal.payload)) continue
 
-    if (rule.action.kind !== 'widget:action') continue
-    const targetWidgetId = rule.action.params['targetWidgetId']
-    const action = rule.action.params['action']
-    if (typeof targetWidgetId !== 'string' || typeof action !== 'string') continue
+    if (rule.action.kind !== 'widget-command') continue
+    const { widgetId: targetWidgetId, action } = rule.action
     if (AUTHORITATIVE_ACTIONS.has(action)) continue
     if (gate && !gate(rule)) continue
     actions.push({ targetWidgetId, action })

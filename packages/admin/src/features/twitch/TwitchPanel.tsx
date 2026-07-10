@@ -87,8 +87,8 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
   const addAction = (kind: EventAction['kind']) => {
     let blank: EventAction
     if (kind === 'widget-command') blank = { kind, widgetId: applications[0]?.id ?? '', action: 'toggle' }
-    else if (kind === 'scene-change') blank = { kind, target: scenes[0]?.id ?? '' }
-    else blank = { kind: 'transition', sequenceId: sequences[0]?.id ?? '' }
+    else if (kind === 'scene-change') blank = { kind, cfg: { target: scenes[0]?.id ?? '' } }
+    else blank = { kind: 'transition', cfg: { sequenceId: sequences[0]?.id ?? '' } }
     onChange({ actions: [...actions, blank] })
   }
 
@@ -146,7 +146,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
           {action.kind === 'scene-change' && (
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-zinc-500 shrink-0">Scene</span>
-              <select value={action.target} onChange={(e) => updateAction(i, { target: e.target.value } as Partial<EventAction>)}
+              <select value={action.cfg.target} onChange={(e) => updateAction(i, { cfg: { target: e.target.value } } as Partial<EventAction>)}
                 className="flex-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
                 {scenes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 {scenes.length === 0 && <option disabled value="">No scenes</option>}
@@ -157,7 +157,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
           {action.kind === 'transition' && (
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-zinc-500 shrink-0">Sequence</span>
-              <select value={action.sequenceId} onChange={(e) => updateAction(i, { sequenceId: e.target.value } as Partial<EventAction>)}
+              <select value={action.cfg.sequenceId} onChange={(e) => updateAction(i, { cfg: { sequenceId: e.target.value } } as Partial<EventAction>)}
                 className="flex-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
                 {sequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.label}</option>)}
                 {sequences.length === 0 && <option disabled value="">No sequences</option>}

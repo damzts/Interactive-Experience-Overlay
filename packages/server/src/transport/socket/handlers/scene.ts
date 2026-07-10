@@ -25,6 +25,7 @@ import {
   type RuntimeConfigResetScope,
 } from './runtimeConfig.js'
 import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout } from './widget.js'
+import { dispatchCatalogAction } from '../../../kernel/actions/registry.js'
 
 const RANDOMIZABLE_WIDGET_SKINS = Object.keys(DEFAULT_WIDGET_THEME_PRESETS) as WidgetSkinTheme[]
 
@@ -137,56 +138,29 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
 
     if (action.kind === 'widget-command') {
       if (action.action === 'toggle') toggleWidgetRuntime(ctx, action.widgetId)
-      else setWidgetRuntimeOpenState(ctx, action.widgetId, action.action === 'open')
-      continue
-    }
-
-    if (action.kind === 'obs-stream') {
-      if (ctx.obsBridge) {
-        if (action.action === 'start') {
-          void ctx.obsBridge.startStreaming(action.rtmpUrl, action.streamKey)
-        } else {
-          void ctx.obsBridge.stopStreaming()
-        }
+      else if (action.action === 'open' || action.action === 'close') {
+        setWidgetRuntimeOpenState(ctx, action.widgetId, action.action === 'open')
       }
+      // Any other action string is a custom widget/renderer action, handled
+      // locally by the overlay's DOM-bus evaluator (widgetRuleEvaluator.ts)
+      // — nothing for the server to do.
       continue
     }
 
-    if (action.kind === 'scene-change') {
-      const scene = (ctx.cachedUserConfig.scenes ?? {})[action.target]
-      if (scene) {
-        const target = action.target
-        const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
-        ctx.machine.transition(target, { exit, intro })
-      }
+    if (action.kind === 'ambiance-patch') {
+      applyRuntimeConfig(ctx, {
+        desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
+      })
+      scheduleRuntimeConfigReset(ctx, ['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
       continue
     }
 
-    if (action.kind === 'transition') {
-      const sequence = action.sequenceId ? ctx.configService?.getSequence(action.sequenceId) : undefined
-      if (sequence) {
-        const payload: TransitionPlayPayload = {
-          from: ctx.machine.currentState,
-          to: ctx.machine.currentState,
-          exit: sequence.steps,
-          intro: [],
-        }
-        ctx.io.emit('transition:play', payload)
-      }
-      continue
-    }
-
-    if (action.kind === 'preset-apply') {
-      // Persisted, not a runtime patch — a preset swap is meant to stick,
-      // same as the rest of the config it just overwrote.
-      void ctx.configService?.applyPreset(action.presetId)
-      continue
-    }
-
-    applyRuntimeConfig(ctx, {
-      desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
-    })
-    scheduleRuntimeConfigReset(ctx, ['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
+    // Catalog-driven actions (see @ieomlabs/shared's ACTION_CATALOG and
+    // kernel/actions/registry.ts) — anything not one of the hardcoded kinds
+    // above is dispatched through the action registry. A blank (not-yet-typed
+    // draft) or otherwise unrecognized kind is a no-op there, same as an
+    // unknown effect type in the overlay's dispatchEffect.
+    dispatchCatalogAction(action.kind, ctx, (action as { cfg?: unknown }).cfg)
   }
 
   return { ok: true }

@@ -11,6 +11,7 @@
  * field-match conditions plus a single-hop signal:emit chain.
  */
 import type { STATE } from './state.js'
+import type { EventAction } from '../domain/event.js'
 
 export type AutomationTriggerSource = 'kernel' | 'widget'
 
@@ -47,27 +48,15 @@ export interface AutomationTrigger {
   windowMs?: number
 }
 
-export type AutomationActionKind =
-  /** Invoke a widget/renderer action, params: { targetWidgetId, action } — absorbed from WidgetWire */
-  | 'widget:action'
-  | 'widget:toggle'
-  | 'scene:change'
-  | 'overlay:show'
-  | 'desktop:notify'
-  /** Re-emit as a widget-style signal, params: { event, payload? }. Synthetic signals
-   *  cannot trigger another signal:emit (single-hop guard against loops). */
-  | 'signal:emit'
-
-export interface AutomationRuleAction {
-  kind: AutomationActionKind
-  params: Record<string, unknown>
-}
-
 export interface AutomationRule {
   id: string
   enabled: boolean
   trigger: AutomationTrigger
-  action: AutomationRuleAction
+  /** Same vocabulary Events use — see ACTION_CATALOG (domain/actionCatalog.ts)
+   *  and the hand-coded EventAction kinds (domain/event.ts). Dispatched via
+   *  the shared scheduler:fired/executeConfiguredEvent pipeline, so any
+   *  action reachable from an Event is reachable from an Automation Rule. */
+  action: EventAction
 }
 
 /** Marker key set on payloads produced by signal:emit actions (loop guard). */

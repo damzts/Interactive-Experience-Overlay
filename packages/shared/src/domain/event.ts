@@ -3,6 +3,7 @@ import type { STATE } from '../contracts/state.js'
 import type { EventWidgetThemePatch } from './application.js'
 import type { DesktopIconAnimation, EventDesktopTheme, DesktopConfig } from './desktop.js'
 import type { AmbianceWidgetSimulationConfig } from './ambiance.js'
+import type { ActionConfigMap, CatalogActionKind } from './actionCatalog.js'
 
 // ── Auto-trigger configuration ───────────────────────────────────
 
@@ -58,7 +59,11 @@ export interface EventWidgetLayoutAction {
 export interface EventWidgetCommandAction {
   kind: 'widget-command'
   widgetId: string
-  action: 'open' | 'close' | 'toggle'
+  /** 'open'/'close'/'toggle' mutate authoritative state server-side (see
+   *  scene.ts). Any other value is a custom widget/renderer action handled
+   *  locally by the overlay's DOM-bus evaluator (widgetRuleEvaluator.ts) —
+   *  the server leaves it alone. */
+  action: 'open' | 'close' | 'toggle' | (string & {})
 }
 
 export interface EventAmbiancePatchAction {
@@ -67,31 +72,12 @@ export interface EventAmbiancePatchAction {
   patch: Partial<AmbianceWidgetSimulationConfig>
 }
 
-export interface EventObsStreamAction {
-  kind: 'obs-stream'
-  action: 'start' | 'stop'
-  /** Optional RTMP URL override passed to ObsBridge.startStreaming() */
-  rtmpUrl?: string
-  streamKey?: string
-}
-
-export interface EventSceneChangeAction {
-  kind: 'scene-change'
-  /** ID of any scene in config.scenes, including the built-in DESKTOP */
-  target: string
-}
-
-export interface EventTransitionAction {
-  kind: 'transition'
-  /** Sequence id (Sequences tab, `sequences` table) to play as an exit pipeline. */
-  sequenceId: string
-}
-
-export interface EventPresetApplyAction {
-  kind: 'preset-apply'
-  /** ConfigPreset id (AppConfig.ConfigPreset, saved via the Presets panel) */
-  presetId: string
-}
+/** A catalog-driven action (see actionCatalog.ts) — config schema, defaults,
+ *  and admin editor are all generated from one ACTION_CATALOG entry instead
+ *  of a bespoke interface + editor block per kind. */
+export type EventCatalogAction = {
+  [K in CatalogActionKind]: { kind: K; cfg: ActionConfigMap[K] }
+}[CatalogActionKind]
 
 export type EventAction =
   | EventDesktopConfigAction
@@ -99,10 +85,7 @@ export type EventAction =
   | EventWidgetLayoutAction
   | EventWidgetCommandAction
   | EventAmbiancePatchAction
-  | EventObsStreamAction
-  | EventSceneChangeAction
-  | EventTransitionAction
-  | EventPresetApplyAction
+  | EventCatalogAction
 
 // ── Event entity ─────────────────────────────────────────────────
 

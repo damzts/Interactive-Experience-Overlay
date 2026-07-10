@@ -253,6 +253,7 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   addColumn('twitch_config', 'event_reactions_json', 'TEXT')
 
   migrateAutomationRules(db)
+  migrateAutomationActionShapes(db)
 
   // Remove legacy bus:emit automation rules — replaced by overlay:show and desktop:notify
   try { db.exec("DELETE FROM automation_rules WHERE action_kind = 'bus:emit'") } catch { /* table may not exist yet */ }
@@ -337,7 +338,7 @@ export function migrateAutomationRules(db: DesktopDatabase): void {
       const insert = db.prepare(`
         INSERT OR IGNORE INTO automation_rules
           (id, enabled, trigger_source, trigger_widget_id, trigger_event, trigger_match_json, scene_is_json, action_kind, action_params_json)
-        VALUES (?, ?, 'widget', ?, ?, NULL, ?, 'widget:action', ?)
+        VALUES (?, ?, 'widget', ?, ?, NULL, ?, 'widget-command', ?)
       `)
       for (const w of wires) {
         let sceneIs: string | null = null
@@ -347,13 +348,80 @@ export function migrateAutomationRules(db: DesktopDatabase): void {
         } catch { /* malformed condition — import without a scene gate */ }
         insert.run(
           `wire-${w.id}`, w.enabled, w.trigger_widget_id, w.trigger_event, sceneIs,
-          JSON.stringify({ targetWidgetId: w.target_widget_id, action: w.target_action }),
+          JSON.stringify({ widgetId: w.target_widget_id, action: w.target_action }),
         )
       }
       db.exec('DROP TABLE widget_wires;')
     })()
     logger.info('[desktop-db] imported widget_wires into automation_rules')
   }
+}
+
+/** One-time rewrite of automation_rules.action_kind/action_params_json from the
+ *  old standalone AutomationRuleAction vocabulary (colon-style kinds, untyped
+ *  params) onto the shared EventAction vocabulary Events/Shows/ChatReactions/
+ *  Twitch already use (kebab-case kinds, typed params/cfg). Idempotent — once
+ *  a row's action_kind is rewritten it never matches an old-style kind again,
+ *  so re-running this is a no-op. Exported for tests. */
+export function migrateAutomationActionShapes(db: DesktopDatabase): void {
+  if (!(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='automation_rules'").get())) return
+
+  const rows = db.prepare('SELECT id, action_kind, action_params_json FROM automation_rules').all() as Array<{
+    id: string
+    action_kind: string
+    action_params_json: string
+  }>
+  const update = db.prepare('UPDATE automation_rules SET action_kind=?, action_params_json=? WHERE id=?')
+
+  db.transaction(() => {
+    for (const row of rows) {
+      let params: Record<string, unknown>
+      try { params = JSON.parse(row.action_params_json) as Record<string, unknown> } catch { params = {} }
+
+      let nextKind: string | null = null
+      let nextParams: Record<string, unknown> = {}
+
+      switch (row.action_kind) {
+        case 'desktop:notify':
+          nextKind = 'desktop-notify'
+          nextParams = { title: params['title'] ?? 'Alert', body: params['body'] ?? '' }
+          break
+        case 'signal:emit':
+          nextKind = 'signal-emit'
+          nextParams = {
+            event: params['event'] ?? '',
+            payload: params['payload'] !== undefined ? JSON.stringify(params['payload']) : undefined,
+          }
+          break
+        case 'widget:action':
+          // action may be 'open'/'close' (authoritative, server-side) or a
+          // custom widget/renderer action (handled overlay-side only) —
+          // preserved as-is either way, see EventWidgetCommandAction.
+          nextKind = 'widget-command'
+          nextParams = {
+            widgetId: params['targetWidgetId'] ?? '',
+            action: typeof params['action'] === 'string' && params['action'] ? params['action'] : 'toggle',
+          }
+          break
+        case 'widget:toggle':
+          nextKind = 'widget-command'
+          nextParams = { widgetId: params['widgetId'] ?? '', action: 'toggle' }
+          break
+        case 'scene:change':
+          nextKind = 'scene-change'
+          nextParams = { target: params['sceneId'] ?? '' }
+          break
+        case 'overlay:show':
+          nextKind = 'overlay-trigger'
+          nextParams = { effectsJson: JSON.stringify(params['effects'] ?? []) }
+          break
+        default:
+          continue // already new-shape (or unrecognized) — leave as-is
+      }
+
+      update.run(nextKind, JSON.stringify(nextParams), row.id)
+    }
+  })()
 }
 
 export function closeDesktopDatabase(db: DesktopDatabase): void {

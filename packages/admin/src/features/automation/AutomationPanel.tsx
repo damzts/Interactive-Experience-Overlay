@@ -1,29 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { AutomationRule, AutomationActionKind, AutomationTrigger, WidgetIntentManifest, EffectType } from '@ieomlabs/shared'
+import type { AutomationRule, AutomationTrigger, WidgetIntentManifest } from '@ieomlabs/shared'
 import { STATE, findRendererCatalogEntry, PUBLIC_KERNEL_SIGNALS } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import {
   fetchAutomationRules, fetchAutomationManifests,
   createAutomationRule, patchAutomationRule, deleteAutomationRule,
 } from '../../api/automationApi'
-import { createEffectDraft, EVENT_EFFECT_TYPES } from '../media-library/eventPresets'
+import { getEventActionLabel, isBlankAction, type DraftEventAction } from '../media-library/eventPresets'
 import { ConfigPageIntro, ConfigSectionPanel } from '../../shared/ui'
+import { ActionFields } from '../../shared/ActionFields'
 import { Button, Toggle } from '../../components/atoms'
 
 // Every public kernel event is a valid trigger — derived from the shared
 // allowlist so new manager events show up here automatically.
 const SUGGESTED_EVENTS = [...PUBLIC_KERNEL_SIGNALS, 'scene:changed']
-
-const ACTION_KINDS: AutomationActionKind[] = [
-  'overlay:show', 'widget:action', 'widget:toggle', 'scene:change', 'desktop:notify', 'signal:emit',
-]
-
-/** Actions every widget accepts without declaring them in its manifest */
-const BUILT_IN_ACTIONS = [
-  { action: 'open',   label: 'Open' },
-  { action: 'close',  label: 'Close' },
-  { action: 'toggle', label: 'Toggle' },
-]
 
 function widgetLabel(appId: string, apps: { id: string; label: string }[]): string {
   return apps.find((a) => a.id === appId)?.label ?? appId
@@ -38,17 +28,14 @@ function summarizeTrigger(trigger: AutomationTrigger, apps: { id: string; label:
 }
 
 function summarizeAction(rule: AutomationRule, apps: { id: string; label: string }[]): string {
-  const { kind, params } = rule.action
-  if (kind === 'overlay:show') {
-    const effects = (params['effects'] as { type: string }[] | undefined) ?? []
-    return effects.map((e) => e.type).join(', ') || 'overlay:show'
+  const action = rule.action
+  if (action.kind === 'widget-command') return `${widgetLabel(action.widgetId, apps)} › ${action.action}`
+  if ('cfg' in action) {
+    if (action.kind === 'scene-change') return `→ ${action.cfg.target}`
+    if (action.kind === 'desktop-notify') return action.cfg.title
+    if (action.kind === 'signal-emit') return `emit ${action.cfg.event}`
   }
-  if (kind === 'widget:action') return `${widgetLabel(String(params['targetWidgetId'] ?? '?'), apps)} › ${params['action'] ?? '?'}`
-  if (kind === 'widget:toggle') return `toggle ${widgetLabel(String(params['widgetId'] ?? '?'), apps)}`
-  if (kind === 'scene:change') return `→ ${params['sceneId'] ?? '?'}`
-  if (kind === 'desktop:notify') return String(params['title'] ?? 'notify')
-  if (kind === 'signal:emit') return `emit ${params['event'] ?? '?'}`
-  return kind
+  return getEventActionLabel(action.kind)
 }
 
 /** A signal-capable target: a widget application or a scene-renderer window instance. */
@@ -62,6 +49,7 @@ interface SignalPeer {
 export function AutomationPanel() {
   const applications = useAdminStore((s) => s.config.applications)
   const scenes = useAdminStore((s) => s.config.scenes)
+  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
 
   const [rules, setRules] = useState<AutomationRule[]>([])
   const [manifests, setManifests] = useState<WidgetIntentManifest[]>([])
@@ -82,19 +70,8 @@ export function AutomationPanel() {
   const [windowCount, setWindowCount] = useState('')
   const [windowSec, setWindowSec] = useState('')
 
-  // ── Action state ─────────────────────────────────────────────────
-  const [actionKind, setActionKind] = useState<AutomationActionKind>('overlay:show')
-  const [effectType, setEffectType] = useState<EffectType>('level-up')
-  const [effectCfgJson, setEffectCfgJson] = useState(() => JSON.stringify(createEffectDraft('level-up').cfg, null, 2))
-  const [widgetId, setWidgetId] = useState('')
-  const [dstWidgetId, setDstWidgetId] = useState('')
-  const [dstAction, setDstAction] = useState('')
-  const [sceneId, setSceneId] = useState<string>(STATE.DESKTOP)
-
-  const [notifyTitle, setNotifyTitle] = useState('')
-  const [notifyBody, setNotifyBody] = useState('')
-  const [emitEvent, setEmitEvent] = useState('')
-  const [emitPayloadJson, setEmitPayloadJson] = useState('')
+  // ── Action state — same vocabulary Events use (ActionFields + ACTION_CATALOG) ──
+  const [actionDraft, setActionDraft] = useState<DraftEventAction>({ kind: '' })
 
   const manifestByType = new Map(manifests.map((m) => [m.componentType, m]))
 
@@ -123,13 +100,7 @@ export function AutomationPanel() {
     ),
   ]
   const peerById = new Map(peers.map((p) => [p.id, p]))
-
   const emitterPeers = peers.filter((p) => p.emits.length > 0)
-  const receiverPeers = peers.filter((p) => p.accepts.length > 0)
-  const dstIsWidget = !!applications.find((a) => a.id === dstWidgetId)
-  const dstActions = dstWidgetId
-    ? [...(dstIsWidget ? BUILT_IN_ACTIONS : []), ...(peerById.get(dstWidgetId)?.accepts ?? [])]
-    : []
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -145,39 +116,12 @@ export function AutomationPanel() {
   const triggerReady = triggerSource === 'kernel'
     ? event.trim().length > 0
     : srcEvent.trim().length > 0
-  const actionReady = (
-    (actionKind === 'overlay:show') ||
-    (actionKind === 'widget:action' && dstWidgetId && dstAction) ||
-    (actionKind === 'widget:toggle' && widgetId) ||
-    (actionKind === 'scene:change' && sceneId) ||
-    (actionKind === 'desktop:notify' && notifyTitle.trim().length > 0) ||
-    (actionKind === 'signal:emit' && emitEvent.trim().length > 0)
-  )
-  const canAdd = triggerReady && actionReady
+  const canAdd = triggerReady && !isBlankAction(actionDraft)
 
   async function handleAdd() {
-    if (!canAdd) return
+    if (!canAdd || isBlankAction(actionDraft)) return
     setAdding(true)
     try {
-      let params: Record<string, unknown> = {}
-      if (actionKind === 'overlay:show') {
-        let cfg: Record<string, unknown>
-        try { cfg = JSON.parse(effectCfgJson) } catch { cfg = {} }
-        params = { id: `automation-${Date.now()}`, effects: [{ type: effectType, cfg }] }
-      } else if (actionKind === 'widget:action') {
-        params = { targetWidgetId: dstWidgetId, action: dstAction }
-      } else if (actionKind === 'widget:toggle') {
-        params = { widgetId }
-      } else if (actionKind === 'scene:change') {
-        params = { sceneId }
-      } else if (actionKind === 'desktop:notify') {
-        params = { title: notifyTitle, body: notifyBody }
-      } else if (actionKind === 'signal:emit') {
-        let payload: unknown
-        try { payload = emitPayloadJson.trim() ? JSON.parse(emitPayloadJson) : undefined } catch { payload = undefined }
-        params = payload === undefined ? { event: emitEvent.trim() } : { event: emitEvent.trim(), payload }
-      }
-
       const match = matchKey.trim() ? { [matchKey.trim()]: matchValue } : undefined
       const num = (v: string) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : undefined }
       const stateful = {
@@ -193,14 +137,13 @@ export function AutomationPanel() {
       const rule = await createAutomationRule({
         enabled: true,
         trigger,
-        action: { kind: actionKind, params },
+        action: actionDraft,
       })
       setRules((prev) => [...prev, rule])
       setEvent(''); setMatchKey(''); setMatchValue('')
       setSrcWidgetId(''); setSrcEvent(''); setSceneFilter([])
       setCooldownSec(''); setEveryN(''); setWindowCount(''); setWindowSec('')
-      setWidgetId(''); setDstWidgetId(''); setDstAction('')
-      setNotifyTitle(''); setNotifyBody(''); setEmitEvent(''); setEmitPayloadJson('')
+      setActionDraft({ kind: '' })
     } finally { setAdding(false) }
   }
 
@@ -360,110 +303,13 @@ export function AutomationPanel() {
           {/* ── Action ── */}
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Action</div>
-            <select value={actionKind} onChange={(e) => setActionKind(e.target.value as AutomationActionKind)} className="w-full text-xs">
-              {ACTION_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
+            <ActionFields
+              action={actionDraft}
+              onChange={setActionDraft}
+              widgetApps={applications}
+              widgetLayouts={widgetLayouts}
+            />
           </div>
-
-          {actionKind === 'overlay:show' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Effect</div>
-                <select
-                  value={effectType}
-                  onChange={(e) => {
-                    const t = e.target.value as EffectType
-                    setEffectType(t)
-                    setEffectCfgJson(JSON.stringify(createEffectDraft(t).cfg, null, 2))
-                  }}
-                  className="w-full text-xs"
-                >
-                  {EVENT_EFFECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Config (JSON)</div>
-                <textarea
-                  value={effectCfgJson}
-                  onChange={(e) => setEffectCfgJson(e.target.value)}
-                  rows={4}
-                  className="w-full text-[10px] font-mono"
-                />
-              </div>
-            </div>
-          )}
-
-          {actionKind === 'widget:action' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Target widget / renderer</div>
-                <select value={dstWidgetId} onChange={(e) => { setDstWidgetId(e.target.value); setDstAction('') }} className="w-full text-xs">
-                  <option value="">Select a target…</option>
-                  {applications.map((app) => <option key={app.id} value={app.id}>{app.label}</option>)}
-                  {receiverPeers.filter((p) => !applications.some((a) => a.id === p.id)).map((p) => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Widget action</div>
-                <select value={dstAction} onChange={(e) => setDstAction(e.target.value)} className="w-full text-xs font-mono" disabled={!dstWidgetId}>
-                  <option value="">Select an action…</option>
-                  {dstActions.map((act) => <option key={act.action} value={act.action}>{act.label} ({act.action})</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-
-          {actionKind === 'widget:toggle' && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Widget</div>
-              <select value={widgetId} onChange={(e) => setWidgetId(e.target.value)} className="w-full text-xs">
-                <option value="">Select a widget…</option>
-                {applications.map((app) => <option key={app.id} value={app.id}>{app.label}</option>)}
-              </select>
-            </div>
-          )}
-
-          {actionKind === 'scene:change' && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Scene</div>
-              <select value={sceneId} onChange={(e) => setSceneId(e.target.value)} className="w-full text-xs">
-                {navigableSceneIds.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          )}
-
-          {actionKind === 'desktop:notify' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Title</div>
-                <input value={notifyTitle} onChange={(e) => setNotifyTitle(e.target.value)} className="w-full text-xs" />
-              </div>
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Body</div>
-                <input value={notifyBody} onChange={(e) => setNotifyBody(e.target.value)} className="w-full text-xs" />
-              </div>
-            </div>
-          )}
-
-          {actionKind === 'signal:emit' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">Signal event</div>
-                <input value={emitEvent} onChange={(e) => setEmitEvent(e.target.value)} placeholder="e.g. party:time" className="w-full text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
-                  Payload JSON <span className="normal-case font-normal text-zinc-600">(optional)</span>
-                </div>
-                <input value={emitPayloadJson} onChange={(e) => setEmitPayloadJson(e.target.value)} placeholder='{"mood":"hype"}' className="w-full text-xs font-mono" />
-              </div>
-              <div className="col-span-2 text-[10px] text-zinc-600">
-                The emitted signal re-enters the rule engine once — rules triggered by it can do anything except emit another signal (loop guard).
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center justify-end pt-1">
             <Button variant="primary" size="sm" disabled={!canAdd || adding} loading={adding} onClick={handleAdd}>
@@ -515,7 +361,7 @@ export function AutomationPanel() {
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-zinc-500">
                     <span>→</span>
-                    <span className="text-violet-400 font-medium truncate">{rule.action.kind}</span>
+                    <span className="text-violet-400 font-medium truncate">{getEventActionLabel(rule.action.kind)}</span>
                     <span className="text-zinc-600">›</span>
                     <span className="font-mono text-zinc-400 truncate">{summarizeAction(rule, peers)}</span>
                   </div>

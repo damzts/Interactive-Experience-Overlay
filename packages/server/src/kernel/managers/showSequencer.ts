@@ -6,14 +6,14 @@
  * and are cancellable. Emits 'show:step' on the KernelBus for diagnostics.
  *
  * Reuses the existing executeConfiguredEvent / scheduler:fired path for actions
- * so that all action kinds (desktop-config, widget-command, obs-stream, etc.) work
+ * so that all action kinds (desktop-config, widget-command, obs-stream, etc.,
+ * including any catalog action — see kernel/actions/registry.ts) work
  * without duplicating dispatch logic here.
  */
 
 import type { Manager, ManagerStatus, AppConfig, ShowDefinition, EventAction } from '@ieomlabs/shared'
 import type { KernelBus } from '../bus.js'
 import type { SceneManager } from './scene.js'
-import type { ObsBridgeManager } from './obs.js'
 import logger from '../../lib/logger.js'
 
 export class ShowSequencer implements Manager {
@@ -27,7 +27,6 @@ export class ShowSequencer implements Manager {
     private getConfig: () => AppConfig,
     private bus: KernelBus,
     private machine: SceneManager,
-    private obsBridge?: ObsBridgeManager,
   ) {}
 
   init(): void { this._status = 'idle' }
@@ -84,21 +83,9 @@ export class ShowSequencer implements Manager {
   }
 
   private executeStep(showId: string, action: EventAction): void {
-    if (action.kind === 'obs-stream') {
-      if (!this.obsBridge) {
-        logger.warn(`[show:${showId}] obs-stream action skipped — ObsBridgeManager not available`)
-        return
-      }
-      if (action.action === 'start') {
-        void this.obsBridge.startStreaming(action.rtmpUrl, action.streamKey)
-      } else {
-        void this.obsBridge.stopStreaming()
-      }
-      return
-    }
-
-    // All other action kinds are dispatched via the scheduler:fired bus event,
-    // which the scene handler picks up and routes through executeConfiguredEvent.
+    // Every action kind (including obs-stream, now a catalog action) is
+    // dispatched via the scheduler:fired bus event, which the scene handler
+    // picks up and routes through executeConfiguredEvent.
     this.bus.emit('scheduler:fired', {
       eventId: `${showId}:step`,
       event: {

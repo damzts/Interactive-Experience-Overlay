@@ -8,7 +8,7 @@ function rule(overrides: Partial<AutomationRule>): AutomationRule {
     id: 'r1',
     enabled: true,
     trigger: { source: 'widget', event: 'weather:storm' },
-    action: { kind: 'widget:action', params: { targetWidgetId: 'gallery', action: 'gallery:next' } },
+    action: { kind: 'widget-command', widgetId: 'gallery', action: 'gallery:next' },
     ...overrides,
   }
 }
@@ -48,12 +48,12 @@ describe('evaluateWidgetRules', () => {
     expect(evaluateWidgetRules(matched, { ...storm, payload: { severity: 'high' } }, STATE.DESKTOP)).toHaveLength(1)
   })
 
-  it('never returns authoritative open/close/toggle or non-widget:action kinds', () => {
+  it('never returns authoritative open/close/toggle or non-widget-command kinds', () => {
     const rules = [
-      rule({ id: 'r1', action: { kind: 'widget:action', params: { targetWidgetId: 'g', action: 'open' } } }),
-      rule({ id: 'r2', action: { kind: 'widget:action', params: { targetWidgetId: 'g', action: 'toggle' } } }),
-      rule({ id: 'r3', action: { kind: 'overlay:show', params: {} } }),
-      rule({ id: 'r4', action: { kind: 'signal:emit', params: { event: 'x' } } }),
+      rule({ id: 'r1', action: { kind: 'widget-command', widgetId: 'g', action: 'open' } }),
+      rule({ id: 'r2', action: { kind: 'widget-command', widgetId: 'g', action: 'toggle' } }),
+      rule({ id: 'r3', action: { kind: 'overlay-trigger', cfg: { effectsJson: '[]' } } }),
+      rule({ id: 'r4', action: { kind: 'signal-emit', cfg: { event: 'x' } } }),
     ]
     expect(evaluateWidgetRules(rules, storm, STATE.DESKTOP)).toEqual([])
   })

@@ -1,7 +1,11 @@
 import {
+  ACTION_CATALOG,
   DEFAULT_WIDGET_THEME_PRESETS,
   EFFECT_CATALOG,
+  getActionCategories,
+  getActionLabel,
   getEffectCategories,
+  isCatalogActionKind,
 } from '@ieomlabs/shared'
 import type {
   DesktopNotificationEffectConfig,
@@ -15,6 +19,19 @@ export type EventDef = EventConfig & {
   builtIn?: boolean
 }
 
+/** A runtime action that hasn't had a kind picked yet — a blank row in the editor. */
+export type DraftEventAction = EventAction | { kind: '' }
+
+/** An effect that hasn't had a type picked yet — a blank row in the editor. */
+export type DraftEffectConfig = EffectConfig | { type: '' }
+
+/** What EventForm edits: same as EventDef, but actions/effects may contain blank
+ *  (not-yet-typed) rows. A fully-populated EventDef is always a valid EventDraft. */
+export type EventDraft = Omit<EventDef, 'actions' | 'effects'> & {
+  actions?: DraftEventAction[]
+  effects: DraftEffectConfig[]
+}
+
 export const DEFAULT_EVENT_DEFS: EventDef[] = []
 
 export const COMMON_EVENT_ACTION_KINDS: EventAction['kind'][] = [
@@ -25,6 +42,30 @@ export const COMMON_EVENT_ACTION_KINDS: EventAction['kind'][] = [
   'ambiance-patch',
 ]
 
+/** Category → kinds for the hand-coded (non-catalog) kinds — real categories,
+ *  not a catch-all "Common" bucket. */
+const LEGACY_ACTION_CATEGORIES: { label: string; kinds: EventAction['kind'][] }[] = [
+  { label: 'Desktop', kinds: ['desktop-config'] },
+  { label: 'Widgets', kinds: ['widget-themes', 'widget-layout', 'widget-command'] },
+  { label: 'Ambiance', kinds: ['ambiance-patch'] },
+]
+
+/** Category → kinds for the per-row action type selector: the four
+ *  hand-coded kinds under their real categories, plus every catalog action
+ *  (see @ieomlabs/shared's ACTION_CATALOG) grouped by its own category —
+ *  merged into the legacy group of the same name where one exists (e.g.
+ *  "Ambiance" covers both `ambiance-patch` and `ambiance-clear-history`).
+ *  Adding a catalog action makes it appear here automatically. */
+export const ACTION_CATEGORIES: { label: string; kinds: EventAction['kind'][] }[] = (() => {
+  const groups = LEGACY_ACTION_CATEGORIES.map((cat) => ({ label: cat.label, kinds: [...cat.kinds] }))
+  for (const cat of getActionCategories()) {
+    const existing = groups.find((g) => g.label === cat.label)
+    if (existing) existing.kinds.push(...cat.kinds as EventAction['kind'][])
+    else groups.push({ label: cat.label, kinds: cat.kinds as EventAction['kind'][] })
+  }
+  return groups
+})()
+
 /** Category → effect types, derived from the shared EFFECT_CATALOG.
  *  Adding an effect to the catalog makes it appear here automatically. */
 export const EFFECT_CATEGORIES: { label: string; effects: EffectType[] }[] = getEffectCategories()
@@ -32,6 +73,7 @@ export const EFFECT_CATEGORIES: { label: string; effects: EffectType[] }[] = get
 export const EVENT_EFFECT_TYPES: EffectType[] = EFFECT_CATEGORIES.flatMap(c => c.effects)
 
 export function getEventActionLabel(kind: EventAction['kind']) {
+  if (isCatalogActionKind(kind)) return getActionLabel(kind)
   if (kind === 'desktop-config') return 'Desktop look'
   if (kind === 'widget-themes') return 'Widget mood'
   if (kind === 'widget-layout') return 'Widget layout'
@@ -39,7 +81,7 @@ export function getEventActionLabel(kind: EventAction['kind']) {
   return 'Ambiance'
 }
 
-export function describeEventSetup(def: EventDef) {
+export function describeEventSetup(def: EventDraft) {
   if (def.actions?.length && def.effects.length) return 'Automation + overlay FX'
   if (def.actions?.length) return 'Runtime automation only'
   if (def.effects.length) return 'Overlay FX only'
@@ -73,6 +115,19 @@ export function normalizeEventEffectConfig(effect: EffectConfig): EffectConfig {
   } as unknown as EffectConfig
 }
 
+/** Normalizes a draft effect row, leaving still-blank (no type chosen) rows untouched. */
+export function normalizeDraftEffectConfig(effect: DraftEffectConfig): DraftEffectConfig {
+  return effect.type ? normalizeEventEffectConfig(effect) : effect
+}
+
+export function isBlankAction(action: DraftEventAction): action is { kind: '' } {
+  return action.kind === ''
+}
+
+export function isBlankEffect(effect: DraftEffectConfig): effect is { type: '' } {
+  return effect.type === ''
+}
+
 function createEventDef(): EventDef {
   return {
     id: 'custom-' + Date.now(),
@@ -91,6 +146,10 @@ export function createBlankEventDef(): EventDef {
 }
 
 export function createEventActionDraft(kind: EventAction['kind']): EventAction {
+  if (isCatalogActionKind(kind)) {
+    return { kind, cfg: structuredClone(ACTION_CATALOG[kind].defaults) } as EventAction
+  }
+
   if (kind === 'desktop-config') {
     return {
       kind,
@@ -128,14 +187,6 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
       widgetId: 'music',
       action: 'toggle',
     }
-  }
-
-  if (kind === 'scene-change') {
-    return { kind, target: '' }
-  }
-
-  if (kind === 'transition') {
-    return { kind, sequenceId: '' }
   }
 
   return {

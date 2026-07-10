@@ -28,7 +28,6 @@ import { loadDefaultConfig } from './lib/defaults.js'
 import { SceneManager } from './kernel/managers/scene.js'
 import { RuntimeStateStore } from './kernel/managers/runtime.js'
 import { setupSocketHandlers } from './transport/socket/handlers.js'
-import { setWidgetRuntimeOpenState, toggleWidgetRuntime } from './transport/socket/handlers/widget.js'
 import { ObsBridgeManager } from './kernel/managers/obs.js'
 import { EventScheduler } from './kernel/managers/scheduler.js'
 import { AmbianceManager } from './kernel/managers/ambiance.js'
@@ -48,6 +47,11 @@ import { ThemeDriftManager } from './kernel/managers/themeDrift.js'
 import { PersonaManager } from './kernel/managers/persona.js'
 import { TtsService } from './services/TtsService.js'
 import { LlmService } from './services/LlmService.js'
+import { registerBuiltinActions } from './kernel/actions/builtinActions.js'
+
+// Arms the catalog action registry (see scene.ts's executeConfiguredEvent
+// fallback) before any event can fire.
+registerBuiltinActions()
 import { AutomationRuleRepository } from './db/repositories/AutomationRuleRepository.js'
 import { automationRoute } from './transport/http/automation.js'
 import { showsRoute } from './transport/http/shows.js'
@@ -270,7 +274,6 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig,
     kernel.bus,
     machine,
-    obsBridge,
   )
   kernel.register(configService)
   kernel.register(runtimeState)
@@ -343,12 +346,6 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     configService,
     obsBridge,
     personaBrain: personaManager,
-  })
-
-  // Authoritative widget open-state mutations for automation rules
-  automationManager.setWidgetRuntime({
-    setOpen: (widgetId, open) => setWidgetRuntimeOpenState({ runtimeState, io }, widgetId, open),
-    toggle: (widgetId) => toggleWidgetRuntime({ runtimeState, io }, widgetId),
   })
 
   // ── REST routes ───────────────────────────────────────────────

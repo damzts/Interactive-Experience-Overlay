@@ -1,6 +1,6 @@
-﻿import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel } from '../../shared/ui'
+﻿import { Btn, ConfigNotice } from '../../shared/ui'
 import { EventForm } from './EventForm'
-import { describeEventSetup, type EventDef } from './eventPresets'
+import { describeEventSetup, type EventDef, type EventDraft } from './eventPresets'
 import { LibraryItemBtn } from './mediaLibraryUi'
 import { MediaSearchInput } from './MediaLibraryPanel'
 
@@ -58,103 +58,88 @@ export function EventsTabContent({
   onTriggerEvent,
 }: {
   createEventDraft: () => void
-  editingEvent: EventDef | null
+  editingEvent: EventDraft | null
   eventDraftOriginalId: string | null
-  patchEventDraft: (updated: EventDef) => void
+  patchEventDraft: (updated: EventDraft) => void
   saveEventDraft: () => void
   deleteEventDraft: () => void
-  onTriggerEvent: (def: EventDef) => void
+  onTriggerEvent: (def: EventDraft) => void
 }) {
   const editingEventCreatesNew = !eventDraftOriginalId
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      <ConfigCard className="space-y-4 p-5 sm:p-6">
-        <div className="space-y-3 rounded-2xl border border-dashed border-cyan-500/25 bg-cyan-500/5 px-4 py-4">
-          <div className="space-y-1">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">New Event</div>
-            <div className="text-xs text-zinc-500">Create a blank event, then add effects and actions below.</div>
+      <div className="space-y-3 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
+        <div className="flex flex-wrap items-end gap-2">
+          {editingEvent && !editingEvent.builtIn && (
+            <>
+              <div className="w-14 shrink-0">
+                <div className="mb-1 text-[10px] text-zinc-400">Icon</div>
+                <input
+                  type="text"
+                  value={editingEvent.icon}
+                  onChange={(event) => patchEventDraft({ ...editingEvent, icon: event.target.value })}
+                  className="w-full text-center"
+                  placeholder="⚡"
+                />
+              </div>
+              <div className="min-w-[140px] flex-1">
+                <div className="mb-1 text-[10px] text-zinc-400">Label</div>
+                <input
+                  type="text"
+                  value={editingEvent.label}
+                  onChange={(event) => patchEventDraft({ ...editingEvent, label: event.target.value })}
+                  className="w-full"
+                />
+              </div>
+            </>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn type="button" variant="ghost" onClick={() => createEventDraft()} className="px-4 py-2 text-sm">
+              + New Blank Event
+            </Btn>
+            {editingEvent && (
+              <>
+                <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
+                  {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
+                </Btn>
+                {!editingEventCreatesNew && (
+                  <Btn type="button" variant="primary" onClick={() => onTriggerEvent(editingEvent)} className="px-4 py-2 text-sm">
+                    Test Draft
+                  </Btn>
+                )}
+                <Btn type="button" variant="danger" onClick={deleteEventDraft} className="px-4 py-2 text-sm">
+                  {editingEventCreatesNew ? 'Delete Draft' : 'Delete Event'}
+                </Btn>
+              </>
+            )}
           </div>
-          <Btn type="button" variant="ghost" onClick={() => createEventDraft()} className="w-full justify-center border-zinc-700/80 py-2 text-sm">
-            + New Blank Event
-          </Btn>
         </div>
-      </ConfigCard>
+        {editingEvent && !editingEvent.builtIn && (
+          <div>
+            <div className="mb-1 text-[10px] text-zinc-400">Description</div>
+            <textarea
+              value={editingEvent.desc}
+              onChange={(event) => patchEventDraft({ ...editingEvent, desc: event.target.value })}
+              className="min-h-[56px] w-full text-sm"
+            />
+          </div>
+        )}
+      </div>
 
       {editingEvent ? (
-        <ConfigCard className="space-y-4 p-5 sm:p-6">
-          <div className="space-y-1 rounded-xl border border-zinc-800/80 bg-zinc-950/35 px-5 py-4">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Event Editor</div>
-            <div className="text-xs text-zinc-500">Primary event authoring card.</div>
-          </div>
-
-          <div className="grid items-start gap-4 xl:grid-cols-2">
-            <div className="min-w-0">
-              <ConfigSectionPanel label="Event Summary" first>
-                <div className="space-y-3">
-                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                    <InfoRow label="Label">{editingEvent.label}</InfoRow>
-                    <InfoRow label="Event Id">{eventDraftOriginalId ?? 'Draft until saved'}</InfoRow>
-                    <InfoRow label="Setup">{describeEventSetup(editingEvent)}</InfoRow>
-                    <InfoRow label="Runtime Actions">{editingEvent.actions?.length ?? 0}</InfoRow>
-                    <InfoRow label="Overlay Effects">{editingEvent.effects.length}</InfoRow>
-                  </div>
-                  <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-5 py-4 text-[11px] leading-relaxed text-zinc-500">
-                    Create or refine event identity, trigger rules, runtime actions, and overlay effects below.
-                  </div>
-                </div>
-              </ConfigSectionPanel>
-            </div>
-
-            <div className="min-w-0">
-              <ConfigSectionPanel label="Actions" first>
-                <div className="space-y-3">
-                  <div className="space-y-1.5 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-5 py-4">
-                    <InfoRow label="Editing">{editingEventCreatesNew ? 'New event draft' : editingEvent.label}</InfoRow>
-                    <InfoRow label="Save Action">{editingEventCreatesNew ? 'Save Event' : 'Update Event'}</InfoRow>
-                  </div>
-                  <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/55 px-3 py-3">
-                    <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
-                      {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
-                    </Btn>
-                    {!editingEventCreatesNew && (
-                      <Btn type="button" variant="primary" onClick={() => onTriggerEvent(editingEvent)} className="px-4 py-2 text-sm">
-                        Test Draft
-                      </Btn>
-                    )}
-                    <Btn type="button" variant="danger" onClick={deleteEventDraft} className="px-4 py-2 text-sm">
-                      {editingEventCreatesNew ? 'Delete Draft' : 'Delete Event'}
-                    </Btn>
-                  </div>
-                </div>
-              </ConfigSectionPanel>
-            </div>
-
-            <div className="min-w-0 xl:col-span-2">
-              <EventForm
-                def={editingEvent}
-                onUpdate={patchEventDraft}
-                showOverview={false}
-                showDeleteButton={false}
-                layout="flat-grid"
-              />
-            </div>
-          </div>
-        </ConfigCard>
+        <EventForm
+          def={editingEvent}
+          onUpdate={patchEventDraft}
+          showOverview={false}
+          showDeleteButton={false}
+          layout="flat-grid"
+        />
       ) : (
         <ConfigNotice tone="info" className="py-8 text-center">
           Select an event from the left column or choose an event type above to start a new draft.
         </ConfigNotice>
       )}
-    </div>
-  )
-}
-
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 text-[11px]">
-      <span className="text-zinc-500">{label}</span>
-      <span className="truncate text-right font-semibold text-zinc-100">{children}</span>
     </div>
   )
 }

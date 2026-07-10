@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { DEFAULT_EVENT_DEFS, createBlankEventDef, type EventDef } from './eventPresets'
+import { DEFAULT_EVENT_DEFS, createBlankEventDef, type EventDef, type EventDraft } from './eventPresets'
 import { deleteMediaFile, mediaEntryToRecord, useMediaCatalog, type MediaKind, type MediaRecord } from '../../shared/catalog'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -31,14 +31,14 @@ export interface EventsTabState {
   setEventSearch: (v: string) => void
   filteredEventDefs: EventDef[]
   selectedEventId: string | null
-  editingEvent: EventDef | null
+  editingEvent: EventDraft | null
   eventDraftOriginalId: string | null
   selectEvent: (id: string) => void
   createEventDraft: () => void
-  patchEventDraft: (updated: EventDef) => void
+  patchEventDraft: (updated: EventDraft) => void
   saveEventDraft: () => void
   deleteEventDraft: () => void
-  handleTriggerEvent: (def: EventDef) => void
+  handleTriggerEvent: (def: EventDraft) => void
 }
 
 export interface SourcesTabState {
@@ -95,7 +95,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | MediaKind>('all')
   const [selectedCatalogAssetId, setSelectedCatalogAssetId] = useState<string | null>(null)
   const [eventSearch, setEventSearch]       = useState('')
-  const [eventDraft, setEventDraft]         = useState<{ event: EventDef; originalId: string | null } | null>(null)
+  const [eventDraft, setEventDraft]         = useState<{ event: EventDraft; originalId: string | null } | null>(null)
   const [sourceSearch, setSourceSearch]     = useState('')
   const [selectedSourcePresetId, setSelectedSourcePresetId] = useState<string | null>(
     (useAdminStore.getState().config.windowPresets ?? [])[0]?.id ?? null
@@ -321,13 +321,16 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     setEventDraft({ event: structuredClone(def), originalId: def.id })
   }
 
-  const patchEventDraft = (updated: EventDef) => {
+  const patchEventDraft = (updated: EventDraft) => {
     setEventDraft((cur) => (cur ? { ...cur, event: updated } : cur))
   }
 
   const saveEventDraft = () => {
     if (!eventDraft) return
-    const normalizedEvent: EventDef = {
+    // Blank (not-yet-typed) action/effect rows are intentionally persisted as-is —
+    // scene.ts's action executor and the overlay's dispatchEffect both no-op on an
+    // empty kind/type, same as a scene window with no rendererType set.
+    const normalizedEvent = {
       ...eventDraft.event,
       label:   eventDraft.event.label.trim() || 'New Event',
       icon:    eventDraft.event.icon || '⚡',
@@ -335,7 +338,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
       actions: structuredClone(eventDraft.event.actions ?? []),
       effects: structuredClone(eventDraft.event.effects ?? []),
       auto:    { ...eventDraft.event.auto },
-    }
+    } as EventDef
     if (eventDraft.originalId) {
       void saveConfig({
         sourceEvents: eventDefs.map((e) =>
@@ -360,7 +363,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     setEventDraft(null)
   }
 
-  const handleTriggerEvent = (def: EventDef) => socket.emit('event:preview', def)
+  const handleTriggerEvent = (def: EventDraft) => socket.emit('event:preview', def)
 
   // ── Context value ─────────────────────────────────────────────────
 

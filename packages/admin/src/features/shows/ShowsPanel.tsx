@@ -12,12 +12,12 @@ function blankShow(): ShowDefinition {
 }
 
 function blankStep(): ShowStep {
-  return { delayMs: 0, label: '', action: { kind: 'obs-stream', action: 'start' } }
+  return { delayMs: 0, label: '', action: { kind: 'obs-stream', cfg: { action: 'start' } } }
 }
 
 function describeAction(action: EventAction): string {
   switch (action.kind) {
-    case 'obs-stream':    return `OBS ${action.action}`
+    case 'obs-stream':    return `OBS ${action.cfg.action}`
     case 'widget-command': return `Widget ${action.action}: ${action.widgetId}`
     case 'widget-layout': return `Layout: ${action.layoutId}`
     default: return action.kind
@@ -36,7 +36,7 @@ function StepEditor({ step, onChange, onRemove }: {
 
   const setActionKind = (kind: EventAction['kind']) => {
     let action: EventAction
-    if (kind === 'obs-stream') action = { kind: 'obs-stream', action: 'start' }
+    if (kind === 'obs-stream') action = { kind: 'obs-stream', cfg: { action: 'start' } }
     else if (kind === 'widget-command') action = { kind: 'widget-command', widgetId: applications[0]?.id ?? '', action: 'toggle' }
     else action = { kind: 'widget-layout', layoutId: widgetLayouts[0]?.id ?? '' }
     onChange({ ...step, action })
@@ -85,8 +85,8 @@ function StepEditor({ step, onChange, onRemove }: {
 
         {a.kind === 'obs-stream' && (
           <select
-            value={a.action}
-            onChange={(e) => onChange({ ...step, action: { ...a, action: e.target.value as 'start' | 'stop' } })}
+            value={a.cfg.action}
+            onChange={(e) => onChange({ ...step, action: { ...a, cfg: { ...a.cfg, action: e.target.value as 'start' | 'stop' } } })}
             className="rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-300 focus:border-cyan-500/50 focus:outline-none"
           >
             <option value="start">Start</option>

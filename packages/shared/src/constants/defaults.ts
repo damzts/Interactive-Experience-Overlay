@@ -21,6 +21,7 @@ import type { PersonaConfig } from '../domain/persona.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
+import { ACTION_CATALOG, isCatalogActionKind } from '../domain/actionCatalog.js'
 import type { WindowInstance, WindowPreset } from '../domain/scene.js'
 import type { OverlayStyle } from '../domain/overlay.js'
 import type { RuntimeConfig } from '../contracts/socket.js'
@@ -201,40 +202,36 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     }
   }
 
-  if (action.kind === 'obs-stream') {
-    return { kind: 'obs-stream', action: action.action, rtmpUrl: action.rtmpUrl, streamKey: action.streamKey }
+  if (action.kind === 'ambiance-patch') {
+    return {
+      kind: 'ambiance-patch',
+      timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
+      patch: {
+        enabled: action.patch.enabled,
+        intervalSeconds: action.patch.intervalSeconds !== undefined
+          ? Math.max(1, Math.round(action.patch.intervalSeconds))
+          : undefined,
+        maxOpenWidgets: action.patch.maxOpenWidgets !== undefined
+          ? Math.max(1, Math.round(action.patch.maxOpenWidgets))
+          : undefined,
+        openWhileOneOpenChance: action.patch.openWhileOneOpenChance !== undefined
+          ? clampUnitInterval(action.patch.openWhileOneOpenChance, 0.35)
+          : undefined,
+        behaviors: action.patch.behaviors,
+      },
+    }
   }
 
-  if (action.kind === 'scene-change') {
-    return { kind: 'scene-change', target: action.target }
+  // Catalog-driven actions (see actionCatalog.ts): merge with the manifest's
+  // defaults so a persisted action always has every field its cfg needs, even
+  // if the catalog gained fields after this action was first saved.
+  if (isCatalogActionKind(action.kind)) {
+    return { kind: action.kind, cfg: { ...ACTION_CATALOG[action.kind].defaults, ...action.cfg } } as EventAction
   }
 
-  if (action.kind === 'transition') {
-    return { kind: 'transition', sequenceId: action.sequenceId }
-  }
-
-  if (action.kind === 'preset-apply') {
-    const presetId = action.presetId.trim()
-    return presetId ? { kind: 'preset-apply', presetId } : null
-  }
-
-  return {
-    kind: 'ambiance-patch',
-    timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
-    patch: {
-      enabled: action.patch.enabled,
-      intervalSeconds: action.patch.intervalSeconds !== undefined
-        ? Math.max(1, Math.round(action.patch.intervalSeconds))
-        : undefined,
-      maxOpenWidgets: action.patch.maxOpenWidgets !== undefined
-        ? Math.max(1, Math.round(action.patch.maxOpenWidgets))
-        : undefined,
-      openWhileOneOpenChance: action.patch.openWhileOneOpenChance !== undefined
-        ? clampUnitInterval(action.patch.openWhileOneOpenChance, 0.35)
-        : undefined,
-      behaviors: action.patch.behaviors,
-    },
-  }
+  // Unrecognized (or still-blank, not-yet-typed draft) kind — drop it, same
+  // as any other malformed config entry the sanitizer can't make sense of.
+  return null
 }
 
 export function withEventConfigDefaults(event: EventConfig): EventConfig {

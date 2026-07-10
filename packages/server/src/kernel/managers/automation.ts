@@ -13,8 +13,8 @@
  * (emitted by the HTTP CRUD route) so evaluation never touches disk.
  * Boot after all other managers (bootPriority: 100).
  */
-import type { Manager, ManagerStatus, AutomationRule, OverlayTriggerPayload, DesktopNotificationPayload, AutomationGate } from '@ieomlabs/shared'
-import { STATE, SYNTHETIC_SIGNAL_KEY, isSyntheticSignalPayload, createAutomationGate } from '@ieomlabs/shared'
+import type { Manager, ManagerStatus, AutomationRule, AutomationGate, EventConfig } from '@ieomlabs/shared'
+import { STATE, isSyntheticSignalPayload, createAutomationGate } from '@ieomlabs/shared'
 import type { KernelBus, BusFrame } from '../bus.js'
 import type { SceneManager } from './scene.js'
 import type { AutomationRuleRepository } from '../../db/repositories/AutomationRuleRepository.js'
@@ -23,12 +23,6 @@ import logger from '../../lib/logger.js'
 import './automation.signals.js'
 
 type WidgetSignalFrame = { source: string; event: string; payload: unknown }
-
-/** Authoritative widget open-state mutators (bound to the socket runtime in desktop-entry). */
-export interface WidgetRuntimeDelegate {
-  setOpen(widgetId: string, open: boolean): void
-  toggle(widgetId: string): void
-}
 
 export class AutomationManager implements Manager {
   readonly name = 'AutomationManager'
@@ -39,7 +33,6 @@ export class AutomationManager implements Manager {
   private _unsubRulesChanged: (() => void) | null = null
   private _unsubConfigChanged: (() => void) | null = null
   private rules: AutomationRule[] = []
-  private widgetRuntime: WidgetRuntimeDelegate | null = null
   /** Stateful firing gate (cooldown / everyN / window). RAM-only, keyed by rule id. */
   private gate: AutomationGate = createAutomationGate()
 
@@ -49,11 +42,6 @@ export class AutomationManager implements Manager {
     private io: SocketIOServer,
     private machine: SceneManager,
   ) {}
-
-  /** Bind the authoritative widget open-state mutators (called from desktop-entry once sockets exist). */
-  setWidgetRuntime(delegate: WidgetRuntimeDelegate): void {
-    this.widgetRuntime = delegate
-  }
 
   init(): void { this._status = 'idle' }
 
@@ -107,7 +95,11 @@ export class AutomationManager implements Manager {
       }
       if (t.sceneIs?.length && !t.sceneIs.includes(this.machine.currentState as STATE)) continue
       if (!this.gate(rule)) continue
-      this.execute(rule, signal)
+      // Single-hop guard: a rule whose action re-emits a signal may not fire
+      // off of an already-synthetic (signal-emit-produced) signal — same
+      // loop protection the old inline switch had for 'signal:emit'.
+      if (rule.action.kind === 'signal-emit' && signal && isSyntheticSignalPayload(signal.payload)) continue
+      this.execute(rule)
     }
   }
 
@@ -118,60 +110,22 @@ export class AutomationManager implements Manager {
     return Object.entries(match).every(([k, v]) => p[k] === v)
   }
 
-  private execute(rule: AutomationRule, signal: WidgetSignalFrame | null): void {
-    const { kind, params } = rule.action
+  /** Wraps the rule's action in a synthetic one-action EventConfig and fires
+   *  it through the same scheduler:fired → executeConfiguredEvent pipeline
+   *  Events, ShowSequencer, ChatReactionManager, and Twitch event reactions
+   *  already use — so any action reachable from an Event (including every
+   *  ACTION_CATALOG entry) is reachable from an Automation Rule too, with no
+   *  dispatch logic duplicated here. */
+  private execute(rule: AutomationRule): void {
     try {
-      switch (kind) {
-        case 'widget:action': {
-          // Only authoritative open-state actions execute here; custom actions
-          // run synchronously in the overlay's DOM-bus evaluator.
-          const targetWidgetId = params['targetWidgetId']
-          const action = params['action']
-          if (typeof targetWidgetId !== 'string' || typeof action !== 'string') break
-          if (action === 'open' || action === 'close') {
-            this.widgetRuntime?.setOpen(targetWidgetId, action === 'open')
-          } else if (action === 'toggle') {
-            this.widgetRuntime?.toggle(targetWidgetId)
-          }
-          break
-        }
-        case 'widget:toggle': {
-          const widgetId = params['widgetId']
-          if (typeof widgetId !== 'string') break
-          if (this.widgetRuntime) this.widgetRuntime.toggle(widgetId)
-          else this.io.emit('widget:toggle', widgetId)
-          break
-        }
-        case 'scene:change': {
-          const sceneId = params['sceneId']
-          // Scene ids are data-driven — the machine itself rejects
-          // TRANSITIONING and no-op transitions.
-          if (typeof sceneId === 'string' && sceneId.length > 0) {
-            this.machine.transition(sceneId)
-          }
-          break
-        }
-        case 'overlay:show':
-          this.io.emit('overlay:show', params as unknown as OverlayTriggerPayload)
-          break
-        case 'desktop:notify':
-          this.io.emit('desktop:notify', params as unknown as DesktopNotificationPayload)
-          break
-        case 'signal:emit': {
-          const event = params['event']
-          if (typeof event !== 'string' || !event) break
-          // Single-hop guard: a synthetic signal may not mint another one.
-          if (signal && isSyntheticSignalPayload(signal.payload)) break
-          const payload = {
-            ...(typeof params['payload'] === 'object' && params['payload'] !== null ? params['payload'] as Record<string, unknown> : {}),
-            [SYNTHETIC_SIGNAL_KEY]: true,
-          }
-          const synthetic: WidgetSignalFrame = { source: 'automation', event, payload }
-          this.bus.emit('widget:signal', synthetic) // other server rules can react
-          this.io.emit('widget:signal', synthetic)  // overlay widgets/renderers can react
-          break
-        }
+      const event: EventConfig = {
+        id: `automation:${rule.id}`,
+        label: '', icon: '', color: '', desc: '',
+        effects: [],
+        actions: [rule.action],
+        auto: { enabled: false, mode: 'interval', intervalMin: 0, idleMin: 0, chance: 1, cooldownMin: 0 },
       }
+      this.bus.emit('scheduler:fired', { eventId: rule.id, event })
     } catch (err) {
       logger.warn({ err, rule }, '[automation] rule execution failed')
     }

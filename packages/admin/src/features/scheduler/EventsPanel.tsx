@@ -42,7 +42,7 @@ function blankPresetRotationEvent(preset: ConfigPreset): EventConfig {
     color: 'text-fuchsia-400',
     desc: `Swaps the whole config to preset "${preset.label}"`,
     effects: [],
-    actions: [{ kind: 'preset-apply', presetId: preset.id }],
+    actions: [{ kind: 'preset-apply', cfg: { presetId: preset.id } }],
     auto: { enabled: true, mode: 'interval', intervalMin: 30, idleMin: 10, chance: 1, cooldownMin: 0 },
   }
 }
