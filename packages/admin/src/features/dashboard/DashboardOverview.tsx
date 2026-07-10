@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Monitor, Wifi, Globe, Layers, Zap, Sparkles, LayoutGrid } from 'lucide-react';
+import { Monitor, Wifi, Globe, Layers, Zap, LayoutGrid, Film, Clapperboard, BookmarkCheck, MousePointer2, Palette, AudioLines } from 'lucide-react';
 import type { EventConfig } from '@ieomlabs/shared';
 import { cn } from '../../utils/cn';
 import { Card } from '../../components/molecules/Card';
 import { StatusIndicator } from '../../components/molecules/StatusIndicator';
 import { EmptyState } from '../../components/molecules/EmptyState';
 import { Button } from '../../components/atoms/Button';
-import { Toggle } from '../../components/atoms/Toggle';
 import { IconGlyph } from '../../shared/ui';
 
 /**
@@ -48,12 +47,29 @@ export interface DashboardLayoutEntry {
   icon: string;
 }
 
+export interface DashboardSequenceEntry {
+  id: string;
+  label: string;
+}
+
+export interface DashboardShowEntry {
+  id: string;
+  label: string;
+}
+
+export interface DashboardPresetEntry {
+  id: string;
+  label: string;
+}
+
 /**
  * DashboardOverview — Kiosk-mode control surface for the IEOM Admin Panel.
  *
- * A single screen of tap-tiles that fire real actions immediately: switch
- * scenes, open/close widgets, apply widget layouts, trigger saved effects,
- * and flip manager toggles — no drilling into other tabs required.
+ * A single dense screen of tap-tiles that fire real actions immediately:
+ * switch scenes, open/close widgets, apply widget layouts/sequences/shows/
+ * presets, trigger saved effects, and flip manager toggles — no drilling
+ * into other tabs required. Every tile is itself the button (no separate
+ * switches); active state is shown purely via glow + a compact status dot.
  */
 export interface DashboardOverviewProps {
   overlayStatus?: 'connected' | 'disconnected';
@@ -76,20 +92,29 @@ export interface DashboardOverviewProps {
   onTriggerEffect: (event: EventConfig) => void;
   onToggleEffectAuto: (eventId: string) => void;
 
+  sequences: DashboardSequenceEntry[];
+  onRunSequence: (sequenceId: string) => void;
+
+  shows: DashboardShowEntry[];
+  runningShowIds: string[];
+  onToggleShow: (showId: string) => void;
+
+  presets: DashboardPresetEntry[];
+  onApplyPreset: (presetId: string) => void;
+
   aiAmbianceEnabled: boolean;
   onToggleAiAmbiance: () => void;
   effectAmbianceEnabled: boolean;
   onToggleEffectAmbiance: () => void;
-
-  /** "Load starter pack" action offered on the Widget Layouts / Effects
-   *  empty states — seeds a couple of example rows so a fresh install
-   *  doesn't feel blank. See useLoadStarterPack. */
-  onLoadStarterPack?: () => void;
+  themeRotationEnabled: boolean;
+  onToggleThemeRotation: () => void;
+  audioReactiveEnabled: boolean;
+  onToggleAudioReactive: () => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-[var(--space-2)]">
+    <h2 className="text-[9px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-1 leading-none">
       {children}
     </h2>
   );
@@ -97,9 +122,44 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function TileGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-[var(--space-2)]">
+    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14 gap-1">
       {children}
     </div>
+  );
+}
+
+/** Compact tap-tile shared by every dashboard grid — icon + label, active
+ *  state communicated purely by glow/border (no separate status text) so
+ *  each tile stays a single dense row. */
+function Tile({
+  active,
+  glow = 'primary',
+  onClick,
+  icon,
+  label,
+}: {
+  active?: boolean;
+  glow?: 'primary' | 'success';
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Card
+      variant="interactive"
+      padding="xs"
+      glow={active ? glow : 'none'}
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center gap-0.5 text-center animate-card-entrance',
+        active && (glow === 'success' ? 'border-[var(--color-success-400)]' : 'border-[var(--color-primary-400)]'),
+      )}
+    >
+      {icon}
+      <span className="text-[10px] font-medium leading-tight text-[var(--color-text-primary)] line-clamp-2 w-full">
+        {label}
+      </span>
+    </Card>
   );
 }
 
@@ -119,11 +179,21 @@ export function DashboardOverview({
   events,
   onTriggerEffect,
   onToggleEffectAuto,
+  sequences,
+  onRunSequence,
+  shows,
+  runningShowIds,
+  onToggleShow,
+  presets,
+  onApplyPreset,
   aiAmbianceEnabled,
   onToggleAiAmbiance,
   effectAmbianceEnabled,
   onToggleEffectAmbiance,
-  onLoadStarterPack,
+  themeRotationEnabled,
+  onToggleThemeRotation,
+  audioReactiveEnabled,
+  onToggleAudioReactive,
 }: DashboardOverviewProps) {
   const overlayFlash = useStateChangeFlash(overlayStatus);
   const obsFlash = useStateChangeFlash(obsStatus);
@@ -139,20 +209,27 @@ export function DashboardOverview({
     }
   }, [onlineRoomCount]);
 
+  const managers: Array<{ id: string; label: string; icon: React.ReactNode; enabled: boolean; onToggle: () => void }> = [
+    { id: 'desktop-interaction', label: 'Desktop Interaction', icon: <MousePointer2 className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />, enabled: aiAmbianceEnabled, onToggle: onToggleAiAmbiance },
+    { id: 'effect-storms', label: 'Effect Storms', icon: <Zap className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />, enabled: effectAmbianceEnabled, onToggle: onToggleEffectAmbiance },
+    { id: 'theme-rotation', label: 'Theme Rotation', icon: <Palette className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />, enabled: themeRotationEnabled, onToggle: onToggleThemeRotation },
+    { id: 'audio-reactive', label: 'Audio Reactive', icon: <AudioLines className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />, enabled: audioReactiveEnabled, onToggle: onToggleAudioReactive },
+  ];
+
   return (
-    <div className="flex flex-col gap-[var(--space-4)]">
+    <div className="flex flex-col gap-2">
       {/* ─── Status strip ─── */}
       <section aria-label="Connection status">
-        <div className="flex flex-wrap items-center gap-[var(--space-3)] rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-3)] py-[var(--space-2)]">
-          <div className={cn('flex items-center gap-[var(--space-2)]', overlayFlash && 'animate-highlight-flash')}>
+        <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5">
+          <div className={cn('flex items-center gap-1.5', overlayFlash && 'animate-highlight-flash')}>
             <Monitor className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
             <StatusIndicator status={overlayStatus} label={overlayStatus === 'connected' ? 'Overlay connected' : 'Overlay offline'} />
           </div>
-          <div className={cn('flex items-center gap-[var(--space-2)]', obsFlash && 'animate-highlight-flash')}>
+          <div className={cn('flex items-center gap-1.5', obsFlash && 'animate-highlight-flash')}>
             <Wifi className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
             <StatusIndicator status={obsStatus} label={obsStatus === 'connected' ? 'OBS connected' : 'OBS offline'} />
           </div>
-          <div className={cn('flex items-center gap-[var(--space-2)]', roomFlash && 'animate-highlight-flash')}>
+          <div className={cn('flex items-center gap-1.5', roomFlash && 'animate-highlight-flash')}>
             <Globe className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
             <span className="text-[var(--text-xs)] text-[var(--color-text-secondary)]">
               {onlineRoomCount} {onlineRoomCount === 1 ? 'room' : 'rooms'} active
@@ -171,30 +248,15 @@ export function DashboardOverview({
           <EmptyState icon={<Layers className="h-full w-full" />} title="No scenes configured" />
         ) : (
           <TileGrid>
-            {scenes.map((scene) => {
-              const isActive = scene.id === currentSceneId;
-              return (
-                <Card
-                  key={scene.id}
-                  variant="interactive"
-                  padding="sm"
-                  glow={isActive ? 'primary' : 'none'}
-                  onClick={() => onActivateScene(scene.id)}
-                  className={cn(
-                    'flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance',
-                    isActive && 'border-[var(--color-primary-400)]',
-                  )}
-                >
-                  <span className="text-lg leading-none">{scene.icon}</span>
-                  <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
-                    {scene.label}
-                  </span>
-                  {isActive && (
-                    <span className="text-[10px] font-medium text-[var(--color-primary-400)]">Live</span>
-                  )}
-                </Card>
-              );
-            })}
+            {scenes.map((scene) => (
+              <Tile
+                key={scene.id}
+                active={scene.id === currentSceneId}
+                onClick={() => onActivateScene(scene.id)}
+                icon={<span className="text-base leading-none">{scene.icon}</span>}
+                label={scene.label}
+              />
+            ))}
           </TileGrid>
         )}
       </section>
@@ -206,30 +268,16 @@ export function DashboardOverview({
           <EmptyState icon={<Monitor className="h-full w-full" />} title="No widgets configured" />
         ) : (
           <TileGrid>
-            {applications.map((app) => {
-              const isOpen = openWidgetIds.includes(app.id);
-              return (
-                <Card
-                  key={app.id}
-                  variant="interactive"
-                  padding="sm"
-                  glow={isOpen ? 'success' : 'none'}
-                  onClick={() => onToggleWidget(app.id)}
-                  className={cn(
-                    'flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance',
-                    isOpen && 'border-[var(--color-success-400)]',
-                  )}
-                >
-                  <IconGlyph icon={app.icon} label={app.label} size={20} />
-                  <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
-                    {app.label}
-                  </span>
-                  {isOpen && (
-                    <span className="text-[10px] font-medium text-[var(--color-success-400)]">Open</span>
-                  )}
-                </Card>
-              );
-            })}
+            {applications.map((app) => (
+              <Tile
+                key={app.id}
+                active={openWidgetIds.includes(app.id)}
+                glow="success"
+                onClick={() => onToggleWidget(app.id)}
+                icon={<IconGlyph icon={app.icon} label={app.label} size={16} />}
+                label={app.label}
+              />
+            ))}
           </TileGrid>
         )}
       </section>
@@ -241,25 +289,16 @@ export function DashboardOverview({
           <EmptyState
             icon={<LayoutGrid className="h-full w-full" />}
             title="No widget layouts configured"
-            description={onLoadStarterPack ? 'Load a starter pack to see an example layout.' : undefined}
-            actionLabel={onLoadStarterPack ? 'Load starter pack' : undefined}
-            onAction={onLoadStarterPack}
           />
         ) : (
           <TileGrid>
             {widgetLayouts.map((layout) => (
-              <Card
+              <Tile
                 key={layout.id}
-                variant="interactive"
-                padding="sm"
                 onClick={() => onApplyWidgetLayout(layout.id)}
-                className="flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance"
-              >
-                <span className="text-lg leading-none">{layout.icon}</span>
-                <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
-                  {layout.label}
-                </span>
-              </Card>
+                icon={<span className="text-base leading-none">{layout.icon}</span>}
+                label={layout.label}
+              />
             ))}
           </TileGrid>
         )}
@@ -272,9 +311,6 @@ export function DashboardOverview({
           <EmptyState
             icon={<Zap className="h-full w-full" />}
             title="No saved effects"
-            description={onLoadStarterPack ? 'Load a starter pack to see example effects.' : undefined}
-            actionLabel={onLoadStarterPack ? 'Load starter pack' : undefined}
-            onAction={onLoadStarterPack}
           />
         ) : (
           <TileGrid>
@@ -282,26 +318,95 @@ export function DashboardOverview({
               <Card
                 key={event.id}
                 variant="interactive"
-                padding="sm"
-                className="flex flex-col items-center gap-[var(--space-1)] text-center animate-card-entrance"
+                padding="xs"
+                glow={event.auto.enabled ? 'success' : 'none'}
+                onClick={() => onTriggerEffect(event)}
+                className={cn(
+                  'flex flex-col items-center gap-0.5 text-center animate-card-entrance',
+                  event.auto.enabled && 'border-[var(--color-success-400)]',
+                )}
               >
-                <button
-                  type="button"
-                  onClick={() => onTriggerEffect(event)}
-                  className="flex w-full flex-col items-center gap-[var(--space-1)]"
+                <span className={cn('text-base leading-none', event.color)}>{event.icon}</span>
+                <span className="text-[10px] font-medium leading-tight text-[var(--color-text-primary)] line-clamp-2 w-full">
+                  {event.label}
+                </span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); onToggleEffectAuto(event.id); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onToggleEffectAuto(event.id);
+                    }
+                  }}
+                  className={cn(
+                    'text-[9px] font-medium leading-none',
+                    event.auto.enabled ? 'text-[var(--color-success-400)]' : 'text-[var(--color-text-muted)]',
+                  )}
                 >
-                  <span className={cn('text-lg leading-none', event.color)}>{event.icon}</span>
-                  <span className="text-[var(--text-xs)] font-medium text-[var(--color-text-primary)] truncate w-full">
-                    {event.label}
-                  </span>
-                </button>
-                <Toggle
-                  checked={event.auto.enabled}
-                  onChange={() => onToggleEffectAuto(event.id)}
-                  size="sm"
-                  label="Auto"
-                />
+                  Auto: {event.auto.enabled ? 'On' : 'Off'}
+                </span>
               </Card>
+            ))}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Sequences ─── */}
+      <section aria-label="Sequences">
+        <SectionHeader>Sequences</SectionHeader>
+        {sequences.length === 0 ? (
+          <EmptyState icon={<Film className="h-full w-full" />} title="No sequences configured" />
+        ) : (
+          <TileGrid>
+            {sequences.map((sequence) => (
+              <Tile
+                key={sequence.id}
+                onClick={() => onRunSequence(sequence.id)}
+                icon={<Film className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />}
+                label={sequence.label}
+              />
+            ))}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Shows ─── */}
+      <section aria-label="Shows">
+        <SectionHeader>Shows</SectionHeader>
+        {shows.length === 0 ? (
+          <EmptyState icon={<Clapperboard className="h-full w-full" />} title="No shows configured" />
+        ) : (
+          <TileGrid>
+            {shows.map((show) => (
+              <Tile
+                key={show.id}
+                active={runningShowIds.includes(show.id)}
+                onClick={() => onToggleShow(show.id)}
+                icon={<Clapperboard className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />}
+                label={show.label}
+              />
+            ))}
+          </TileGrid>
+        )}
+      </section>
+
+      {/* ─── Presets ─── */}
+      <section aria-label="Presets">
+        <SectionHeader>Presets</SectionHeader>
+        {presets.length === 0 ? (
+          <EmptyState icon={<BookmarkCheck className="h-full w-full" />} title="No presets saved" />
+        ) : (
+          <TileGrid>
+            {presets.map((preset) => (
+              <Tile
+                key={preset.id}
+                onClick={() => onApplyPreset(preset.id)}
+                icon={<BookmarkCheck className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />}
+                label={preset.label}
+              />
             ))}
           </TileGrid>
         )}
@@ -310,18 +415,18 @@ export function DashboardOverview({
       {/* ─── Manager toggles ─── */}
       <section aria-label="Manager toggles">
         <SectionHeader>Managers</SectionHeader>
-        <div className="flex flex-wrap gap-[var(--space-2)]">
-          <Card variant="default" padding="sm" className="flex items-center gap-[var(--space-2)]">
-            <Sparkles className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
-            <span className="text-[var(--text-xs)] text-[var(--color-text-primary)]">AI Ambiance</span>
-            <Toggle checked={aiAmbianceEnabled} onChange={onToggleAiAmbiance} size="sm" />
-          </Card>
-          <Card variant="default" padding="sm" className="flex items-center gap-[var(--space-2)]">
-            <Zap className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
-            <span className="text-[var(--text-xs)] text-[var(--color-text-primary)]">Effect Storms</span>
-            <Toggle checked={effectAmbianceEnabled} onChange={onToggleEffectAmbiance} size="sm" />
-          </Card>
-        </div>
+        <TileGrid>
+          {managers.map((m) => (
+            <Tile
+              key={m.id}
+              active={m.enabled}
+              glow="success"
+              onClick={m.onToggle}
+              icon={m.icon}
+              label={m.label}
+            />
+          ))}
+        </TileGrid>
       </section>
     </div>
   );

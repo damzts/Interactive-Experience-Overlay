@@ -29,7 +29,7 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onClick
   /** Visual style variant */
   variant: 'default' | 'elevated' | 'interactive' | 'status';
   /** Internal padding size */
-  padding: 'sm' | 'md' | 'lg';
+  padding: 'xs' | 'sm' | 'md' | 'lg';
   /** Colored glow effect applied as a box-shadow */
   glow?: 'primary' | 'success' | 'accent' | 'none';
   /** Card content */
@@ -69,6 +69,7 @@ const variantStyles: Record<CardProps['variant'], string> = {
 };
 
 const paddingStyles: Record<CardProps['padding'], string> = {
+  xs: 'p-[var(--space-2)]',
   sm: 'p-[var(--space-3)]',
   md: 'p-[var(--space-4)]',
   lg: 'p-[var(--space-6)]',

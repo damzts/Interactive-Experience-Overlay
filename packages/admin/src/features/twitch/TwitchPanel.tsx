@@ -6,7 +6,6 @@ import { Button, Toggle } from '../../components/atoms'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, Btn, Field } from '../../shared/ui'
 import { createEffectDraft, EVENT_EFFECT_TYPES, normalizeDraftEventAction } from '../media-library/eventPresets'
 import { fetchSequences } from '../../api/sequencesApi'
-import { useLoadStarterPack } from '../../hooks/useLoadStarterPack'
 
 // ── Shared style constants ────────────────────────────────────────
 
@@ -387,7 +386,6 @@ export function TwitchPanel() {
 
   const twitch    = config.twitch    ?? { channel: '', enabled: false }
   const reactions = config.chatReactions ?? []
-  const { loadStarterPack } = useLoadStarterPack()
 
   // Local twitch connection config draft
   const [channel,     setChannel]     = useState(twitch.channel)
@@ -587,11 +585,6 @@ export function TwitchPanel() {
         {reactions.length === 0 && editingRuleId !== 'new' && (
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="text-[10px] text-zinc-600 italic">No reactions configured.</div>
-            <button type="button"
-              onClick={() => { void loadStarterPack() }}
-              className="shrink-0 rounded-lg border border-dashed border-white/10 px-2.5 py-1 text-[10px] text-zinc-500 transition-colors hover:border-violet-500/35 hover:bg-violet-500/8 hover:text-violet-200">
-              Load starter pack
-            </button>
           </div>
         )}
 

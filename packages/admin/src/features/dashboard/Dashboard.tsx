@@ -126,7 +126,7 @@ export function Dashboard() {
         data-tour="main-content"
       >
         {showDashboard ? (
-          <div className="h-full overflow-y-auto px-6 py-5" data-tour="quick-actions">
+          <div className="h-full overflow-y-auto px-4 py-3" data-tour="quick-actions">
             <DashboardContainer />
           </div>
         ) : (
