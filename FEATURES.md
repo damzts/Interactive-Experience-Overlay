@@ -26,4 +26,3 @@
 | [widget-communication.md](docs/widget-communication.md) | Widget-to-widget pub/sub, the DOM intent bus, the server-mediated signal path, the full ambiance reactive loop |
 | [manager-authoring.md](docs/manager-authoring.md) | How to add a new kernel manager, bus event declarations, making an event public |
 | [admin-engine-pages.md](docs/admin-engine-pages.md) | Panel-to-table ownership map, DB table inventory, routing checklist |
-| [architecture-debt.md](docs/architecture-debt.md) | Historical gap-analysis of the engine's "lego" composability goal — a dated record, not living documentation |

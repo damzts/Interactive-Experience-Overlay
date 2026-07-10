@@ -76,36 +76,27 @@ runs before the next paint. The server never sees it — it's overlay-local.
 
 ---
 
-## Channel 2: Server-mediated intent (authoritative)
+## Channel 2: Ambiance-driven intent (leader-local)
 
-When the server wants to trigger widget behavior — via ambiance, a scheduled
-event, or the admin panel — it emits `widget:simulate:intent` on the Socket.IO
-overlay namespace. The overlay receives it in `useDesktopEvents.ts` and
-immediately calls `dispatchWidgetSimulationIntent`, joining the same DOM bus.
+When the ambiance engine wants to trigger widget behavior, the server picks
+the interaction and sends it to the overlay leader via `ambiance:simulate`.
+The leader runs the cursor animation, then dispatches the intent directly on
+its own DOM bus — no server round-trip needed, since the single-overlay
+invariant means there is never more than one client to keep in sync.
 
 ```
 AmbianceManager (server)
   └─ io.to(leaderSocketId).emit('ambiance:simulate', payload)
        └─ Desktop.tsx: runs cursor simulation, then:
-            └─ socket.emit('widget:simulate:intent', payload.sharedIntent)
-                 └─ server: widget.ts handler
-                      └─ io.emit('widget:simulate:intent', ...)    ← broadcast to all overlay clients
-                           └─ useDesktopEvents.ts: onWidgetSimulationIntent
-                                └─ dispatchWidgetSimulationIntent(payload)
-                                     └─ widget listener fires
+            └─ dispatchWidgetSimulationIntent(payload.sharedIntent)   ← local DOM bus, no socket hop
+                 └─ widget listener fires
 ```
-
-The extra round-trip through the server exists because the cursor simulation
-leader (the single overlay) performs the animation first, then tells the server
-what intent was executed, and the server re-broadcasts it — which is what
-actually triggers the widget's state change. This ensures that if multiple
-clients were watching, they'd all see the same result.
 
 **`mirrorPolicy` on `AmbianceSimulationPayload`** controls which path is taken:
 
 | Policy | Meaning |
 |---|---|
-| `'shared-safe'` | The interaction has a deterministic, side-effect-free intent. Server gets `widget:simulate:intent` and re-broadcasts. All watchers see it. |
+| `'shared-safe'` | The interaction has a deterministic, side-effect-free intent. Dispatched locally on the leader's DOM bus. |
 | `'leader-only'` | Effect only makes sense on the leader (e.g. ArchiveWidget scroll). No intent emitted. |
 | `'unsafe-requires-runtime-event'` | Widget doesn't have a simulation recipe. No intent emitted, no cursor interaction attempt. |
 
@@ -127,16 +118,10 @@ This is the full reactive cycle that makes the desktop "feel alive":
    - drives the cursor visually to the widget using cursorSimUtils
    - if action is 'interact' and mirrorPolicy is 'shared-safe':
        a. moves cursor to the button DOM element (visual only, no native click)
-       b. socket.emit('widget:simulate:intent', payload.sharedIntent)
+       b. dispatchWidgetSimulationIntent(payload.sharedIntent)
    - emits ambiance:simulate:started, then ambiance:simulate:done back to server
 
-3. Server receives widget:simulate:intent from leader
-   - widget.ts handler: io.emit('widget:simulate:intent', ...)  ← broadcast
-   
-4. useDesktopEvents.ts receives widget:simulate:intent
-   - calls dispatchWidgetSimulationIntent(payload)
-   
-5. Widget's addWidgetSimulationIntentListener fires
+3. Widget's addWidgetSimulationIntentListener fires
    - updates local state (next track, new chat message, color change)
 ```
 

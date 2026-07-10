@@ -15,7 +15,6 @@ import type {
   PresentationStatePayload,
   RuntimeConfig,
   TransitionPlayPayload,
-  WidgetSimulationIntentPayload,
   ServerToClientEvents,
   AppConfig,
   EffectConfig,
@@ -24,7 +23,7 @@ import type {
 import { dispatchEffect } from '../effects/registry'
 import '../effects/index'
 import { audioEngine } from '../engine/AudioEngine'
-import { dispatchWidgetSimulationIntent, dispatchWidgetChainAction, dispatchWidgetSignal } from '../desktop/widgetSimulationEvents'
+import { dispatchWidgetChainAction, dispatchWidgetSignal } from '../desktop/widgetSimulationEvents'
 import { PRESENTATION_KEY_RECYCLE_BIN, readRecycleBinState } from '../desktop/presentationState'
 import { socket } from './client'
 import type { AppStore } from '../store/useAppStore'
@@ -140,10 +139,6 @@ export const signalHandlers: SignalHandlerMap = {
 
   'widget:toggle': (widgetId: string, store) => {
     store.toggleWidget(widgetId)
-  },
-
-  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload, _store) => {
-    dispatchWidgetSimulationIntent(payload)
   },
 
   'widget:chain:action': (payload: { targetWidgetId: string; action: string; sourceSignal: unknown }, _store) => {

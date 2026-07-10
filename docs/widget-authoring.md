@@ -107,10 +107,10 @@ export function ScoreboardWidget({
   const app = applications.find((a) => a.id === appId)
   const title = app?.label ?? 'Scoreboard.exe'
 
-  // --- Server-signaled updates (simulation intents) ---
-  // The server (or admin panel) can call widget:simulate:intent to push
-  // a named action into this widget. The intent is broadcast via a DOM
-  // CustomEvent so no prop drilling is needed.
+  // --- Ambiance-signaled updates (simulation intents) ---
+  // The ambiance engine can push a named action into this widget while
+  // simulating activity. The intent is dispatched on the overlay's local
+  // DOM CustomEvent bus (no server round-trip), so no prop drilling is needed.
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
       // Guard: only handle intents for this widget instance
@@ -191,10 +191,9 @@ adding your `componentType` in Step 1's definition is enough. You never edit
 
 ## Step 4 — Add simulation intent kinds (if signalable)
 
-If you want the server (via ambiance, events, or the admin panel) to signal your
-widget, extend the two union types in `packages/shared/src/contracts/signals.ts`
-(`WidgetSimulationIntentSeed`, `WidgetSimulationIntentPayload`) and `commands.ts`
-(`ClientToServerEvents`):
+If you want the ambiance engine to signal your widget, extend the two union
+types in `packages/shared/src/contracts/signals.ts`
+(`WidgetSimulationIntentSeed`, `WidgetSimulationIntentPayload`):
 
 ```ts
 export type WidgetSimulationIntentSeed =
@@ -208,24 +207,25 @@ export type WidgetSimulationIntentPayload =
   // ... existing entries
 ```
 
-`WidgetSimulationIntentSeed` is what the admin panel sends (no `actionId` yet).
-`WidgetSimulationIntentPayload` is what reaches the widget (server adds `actionId`).
-They must be kept in sync — same kinds, same extra fields.
+`WidgetSimulationIntentSeed` is what `pickAmbianceInteractionIntent` returns
+(no `actionId` yet). `WidgetSimulationIntentPayload` is what reaches the
+widget (the ambiance manager adds `actionId`). They must be kept in sync —
+same kinds, same extra fields.
 
-The server handler in `packages/server/src/socket/handlers/widget.ts` picks up
-the new kinds automatically. No server changes are required.
+Also register the new kind in `pickAmbianceInteractionIntent` /
+`getAmbianceInteractMirrorPolicy` (see [widget-communication.md](widget-communication.md))
+so the ambiance engine knows when to pick it.
 
 ---
 
 ## How the signal flow works
 
 ```
-Admin panel / ambiance engine
-  └─ socket.emit('widget:simulate:intent', { widgetId, kind, ...extras })
-       └─ server: widget.ts handler broadcasts to overlay namespace
-            └─ overlay: useSceneEvents picks up 'widget:simulate:intent'
-                 └─ dispatchWidgetSimulationIntent(payload)   ← DOM CustomEvent
-                      └─ addWidgetSimulationIntentListener callback in your widget
+AmbianceManager (server) picks an interaction
+  └─ emits ambiance:simulate to the overlay leader only
+       └─ Desktop.tsx: runs the cursor animation, then
+            └─ dispatchWidgetSimulationIntent(payload.sharedIntent)   ← local DOM CustomEvent, no socket hop
+                 └─ addWidgetSimulationIntentListener callback in your widget
 ```
 
 The DOM CustomEvent bus (`widgetSimulationEvents.ts`) decouples the socket layer

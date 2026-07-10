@@ -37,6 +37,7 @@ import { CursorOverlayProvider } from './CursorOverlay'
 import { buildWidgetThemeScopeClassNames, buildWidgetThemeVars } from './widgetTheme'
 import { buildOpenWidgetMenuTimeline, closeWidgetByWindowButton, interactWithWidgetByRecipe, runWidgetCursorSimulation, simulateWidgetWindowDrag, simulateWidgetWindowResize } from './cursorSimUtils';
 import { getWidgetInteractionStepForIntent, getWidgetSimulationRecipe, pickWidgetInteractionStep } from './widgetSimulationRegistry';
+import { dispatchWidgetSimulationIntent } from './widgetSimulationEvents'
 import { warnMissingDesktopWidgetRegistration, loadDesktopWidget, preloadWidgets, getDesktopWidgetRenderer, isWidgetRegistered } from './widgetRegistry'
 import React from 'react';
 
@@ -585,7 +586,10 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
             postDelayMaxMs: sharedStep.postDelayMaxMs,
             performNativeClick: false,
           })
-          socket.emit('widget:simulate:intent', payload.sharedIntent)
+          // Dispatched locally — the overlay is always the sole client (single-overlay
+          // invariant), so there's no need to round-trip through the server to
+          // "broadcast" to other watchers that can never exist.
+          dispatchWidgetSimulationIntent(payload.sharedIntent)
           ok = true
           return
         }

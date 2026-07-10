@@ -388,8 +388,6 @@ export interface ServerToClientEvents {
   'overlay:resync': (payload: { reason: string }) => void
   /** Overlay slot rejected — already taken */
   'overlay:rejected': (payload: { reason: string }) => void
-  /** Kernel wants a specific widget interaction (e.g. gallery:next) */
-  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   /** Toggle a widget open/closed */
   'widget:toggle': (widgetId: string) => void
   /** Apply a named layout preset */

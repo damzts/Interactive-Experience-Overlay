@@ -95,7 +95,7 @@ export interface OverlaySyncSnapshot {
  *                   desktop:notify, runtime:config:reset, runtime:config:widget:reset, runtime:config:widget-layout:reset
  *   State reports — presentation:state, overlay:runtime:status,
  *                   desktop:icon:drag, desktop:widget:drag, desktop:widget:resize
- *   Ambiance      — ambiance:simulate:accepted/started/done, widget:simulate:intent,
+ *   Ambiance      — ambiance:simulate:accepted/started/done,
  *                   widget:simulate, widget:simulate:action, widget:signal
  *   Queries       — state:request, desktop:state:request, overlay:sync
  *   Audio         — audio:beat, audio:energy:high, audio:energy:low, audio:silence
@@ -155,8 +155,6 @@ export interface ClientToServerEvents {
   'ambiance:simulate:started': (payload: AmbianceSimulationStartedPayload) => void
   /** Overlay finished an ambiance simulation action */
   'ambiance:simulate:done': (payload: AmbianceSimulationDonePayload) => void
-  /** Widget-to-widget simulation intent forwarded through kernel */
-  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   /** Simulate a widget open (ambiance-style) */
   'widget:simulate': (widgetId: string) => void
   /** Explicit widget action command */

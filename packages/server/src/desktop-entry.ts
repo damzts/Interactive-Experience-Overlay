@@ -266,6 +266,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const obsBridge = new ObsBridgeManager(io, machine, kernel.bus)
+  obsBridge.setOverlayUrl(`http://localhost:${port}/overlay`)
   const roomHub = new RoomHub()
   const povOrchestrator = new POVOrchestrator(roomHub)
   const automationRepo = new AutomationRuleRepository(db)
@@ -495,8 +496,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   }
 
   // ── OBS config sync ───────────────────────────────────────────
-  const defaultObsUrl = process.env.OBS_URL ?? 'ws://localhost:4455'
-  const defaultObsPassword = process.env.OBS_PASSWORD ?? ''
+  const defaultObsUrl = process.env.OBS_URL ?? DEFAULT_CONFIG.obs.url
+  const defaultObsPassword = process.env.OBS_PASSWORD ?? DEFAULT_CONFIG.obs.password
   let activeObsUrl = defaultObsUrl
   let activeObsPassword = defaultObsPassword
   let activeAmbianceIntervalSeconds = withDesktopAmbianceDefaults(DEFAULT_CONFIG.desktopAmbiance).widgetSimulation.intervalSeconds
