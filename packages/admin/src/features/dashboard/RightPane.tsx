@@ -269,10 +269,21 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
         {!selected ? (
           <div className="flex-1 min-w-0 overflow-y-auto">
             <ConfigCard className="text-left">
-              <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
-              <div className="text-[10px] text-zinc-400 leading-relaxed">
-                Scene = compositor content. Widget = desktop window. Desktop is the built-in boot scene.
-              </div>
+              {sidebarSection ? (
+                <>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{sidebarSection.label}</div>
+                  <div className="text-[10px] text-zinc-400 leading-relaxed">
+                    Pick an item from the left to view or configure it.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
+                  <div className="text-[10px] text-zinc-400 leading-relaxed">
+                    Scene = compositor content. Widget = desktop window. Desktop is the built-in boot scene.
+                  </div>
+                </>
+              )}
             </ConfigCard>
           </div>
         ) : (
@@ -302,10 +313,16 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
                     {actionLabel}
                   </Btn>
                 )}
-                <button onClick={onClose}
-                  className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
-                  ×
-                </button>
+                {/* No × close in Integrations/Settings — the persistent
+                    sidebar (sectionSidebar) is the nav; there is nothing
+                    useful to "close" back to, and doing so used to strand
+                    the panel on the Graphics-flavored Quick Read copy. */}
+                {!sidebarSection && (
+                  <button onClick={onClose}
+                    className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
+                    ×
+                  </button>
+                )}
               </div>
             )}
             <div className="flex-1 overflow-y-auto p-5">

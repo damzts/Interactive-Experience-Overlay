@@ -80,6 +80,11 @@ export interface DashboardOverviewProps {
   onToggleAiAmbiance: () => void;
   effectAmbianceEnabled: boolean;
   onToggleEffectAmbiance: () => void;
+
+  /** "Load starter pack" action offered on the Widget Layouts / Effects
+   *  empty states — seeds a couple of example rows so a fresh install
+   *  doesn't feel blank. See useLoadStarterPack. */
+  onLoadStarterPack?: () => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -118,6 +123,7 @@ export function DashboardOverview({
   onToggleAiAmbiance,
   effectAmbianceEnabled,
   onToggleEffectAmbiance,
+  onLoadStarterPack,
 }: DashboardOverviewProps) {
   const overlayFlash = useStateChangeFlash(overlayStatus);
   const obsFlash = useStateChangeFlash(obsStatus);
@@ -232,7 +238,13 @@ export function DashboardOverview({
       <section aria-label="Widget layouts">
         <SectionHeader>Widget Layouts</SectionHeader>
         {widgetLayouts.length === 0 ? (
-          <EmptyState icon={<LayoutGrid className="h-full w-full" />} title="No widget layouts configured" />
+          <EmptyState
+            icon={<LayoutGrid className="h-full w-full" />}
+            title="No widget layouts configured"
+            description={onLoadStarterPack ? 'Load a starter pack to see an example layout.' : undefined}
+            actionLabel={onLoadStarterPack ? 'Load starter pack' : undefined}
+            onAction={onLoadStarterPack}
+          />
         ) : (
           <TileGrid>
             {widgetLayouts.map((layout) => (
@@ -257,7 +269,13 @@ export function DashboardOverview({
       <section aria-label="Effects">
         <SectionHeader>Effects</SectionHeader>
         {events.length === 0 ? (
-          <EmptyState icon={<Zap className="h-full w-full" />} title="No saved effects" />
+          <EmptyState
+            icon={<Zap className="h-full w-full" />}
+            title="No saved effects"
+            description={onLoadStarterPack ? 'Load a starter pack to see example effects.' : undefined}
+            actionLabel={onLoadStarterPack ? 'Load starter pack' : undefined}
+            onAction={onLoadStarterPack}
+          />
         ) : (
           <TileGrid>
             {events.map((event) => (

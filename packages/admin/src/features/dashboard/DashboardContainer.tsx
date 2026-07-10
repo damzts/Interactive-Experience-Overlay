@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { STATE, withDesktopAmbianceDefaults, type EventConfig, type EffectAmbianceConfig } from '@ieomlabs/shared';
 import { useAdminStore } from '../../store/useAdminStore';
 import { socket } from '../../socket/client';
+import { useLoadStarterPack } from '../../hooks/useLoadStarterPack';
 import { DashboardOverview } from './DashboardOverview';
 
 const DEFAULT_EFFECT_AMBIANCE: EffectAmbianceConfig = {
@@ -34,6 +35,7 @@ export function DashboardContainer() {
   const effectAmbiance: EffectAmbianceConfig = rawEffectAmbiance ?? DEFAULT_EFFECT_AMBIANCE;
   const saveConfig = useAdminStore((s) => s.saveConfig);
   const setLastError = useAdminStore((s) => s.setLastError);
+  const { loadStarterPack } = useLoadStarterPack();
 
   const overlayStatus: 'connected' | 'disconnected' =
     overlayOwnerSocketId != null ? 'connected' : 'disconnected';
@@ -121,6 +123,7 @@ export function DashboardContainer() {
       onToggleAiAmbiance={handleToggleAiAmbiance}
       effectAmbianceEnabled={effectAmbianceEnabled}
       onToggleEffectAmbiance={handleToggleEffectAmbiance}
+      onLoadStarterPack={loadStarterPack}
     />
   );
 }
