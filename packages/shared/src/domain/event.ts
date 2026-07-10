@@ -2,7 +2,6 @@ import type { EffectConfig } from '../contracts/effects.js'
 import type { STATE } from '../contracts/state.js'
 import type { EventWidgetThemePatch } from './application.js'
 import type { DesktopIconAnimation, EventDesktopTheme, DesktopConfig } from './desktop.js'
-import type { AmbianceWidgetSimulationConfig } from './ambiance.js'
 import type { ActionConfigMap, CatalogActionKind } from './actionCatalog.js'
 
 // ── Auto-trigger configuration ───────────────────────────────────
@@ -50,31 +49,13 @@ export interface EventWidgetThemesAction {
   theme: EventWidgetThemePatch
 }
 
-export interface EventWidgetLayoutAction {
-  kind: 'widget-layout'
-  layoutId: string
-  timeoutSeconds?: number
-}
-
-export interface EventWidgetCommandAction {
-  kind: 'widget-command'
-  widgetId: string
-  /** 'open'/'close'/'toggle' mutate authoritative state server-side (see
-   *  scene.ts). Any other value is a custom widget/renderer action handled
-   *  locally by the overlay's DOM-bus evaluator (widgetRuleEvaluator.ts) —
-   *  the server leaves it alone. */
-  action: 'open' | 'close' | 'toggle' | (string & {})
-}
-
-export interface EventAmbiancePatchAction {
-  kind: 'ambiance-patch'
-  timeoutSeconds?: number
-  patch: Partial<AmbianceWidgetSimulationConfig>
-}
-
 /** A catalog-driven action (see actionCatalog.ts) — config schema, defaults,
  *  and admin editor are all generated from one ACTION_CATALOG entry instead
- *  of a bespoke interface + editor block per kind. */
+ *  of a bespoke interface + editor block per kind. Note: pre-catalog
+ *  persisted rows for migrated kinds (widget-layout, widget-command,
+ *  ambiance-patch) stored their config flat on the action instead of under
+ *  cfg — normalizeEventAction (defaults.ts) and the dispatch shim in
+ *  scene.ts lift those to this shape. */
 export type EventCatalogAction = {
   [K in CatalogActionKind]: { kind: K; cfg: ActionConfigMap[K] }
 }[CatalogActionKind]
@@ -82,9 +63,6 @@ export type EventCatalogAction = {
 export type EventAction =
   | EventDesktopConfigAction
   | EventWidgetThemesAction
-  | EventWidgetLayoutAction
-  | EventWidgetCommandAction
-  | EventAmbiancePatchAction
   | EventCatalogAction
 
 // ── Event entity ─────────────────────────────────────────────────

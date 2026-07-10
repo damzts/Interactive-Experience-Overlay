@@ -185,48 +185,17 @@ function normalizeEventAction(action: EventAction): EventAction | null {
     }
   }
 
-  if (action.kind === 'widget-layout') {
-    const layoutId = action.layoutId.trim()
-    return layoutId
-      ? { kind: 'widget-layout', layoutId, timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds) }
-      : null
-  }
-
-  if (action.kind === 'widget-command') {
-    const widgetId = action.widgetId.trim()
-    if (!widgetId) return null
-    return {
-      kind: 'widget-command',
-      widgetId,
-      action: action.action === 'open' || action.action === 'close' ? action.action : 'toggle',
-    }
-  }
-
-  if (action.kind === 'ambiance-patch') {
-    return {
-      kind: 'ambiance-patch',
-      timeoutSeconds: normalizeRuntimeActionTimeoutSeconds(action.timeoutSeconds),
-      patch: {
-        enabled: action.patch.enabled,
-        intervalSeconds: action.patch.intervalSeconds !== undefined
-          ? Math.max(1, Math.round(action.patch.intervalSeconds))
-          : undefined,
-        maxOpenWidgets: action.patch.maxOpenWidgets !== undefined
-          ? Math.max(1, Math.round(action.patch.maxOpenWidgets))
-          : undefined,
-        openWhileOneOpenChance: action.patch.openWhileOneOpenChance !== undefined
-          ? clampUnitInterval(action.patch.openWhileOneOpenChance, 0.35)
-          : undefined,
-        behaviors: action.patch.behaviors,
-      },
-    }
-  }
-
   // Catalog-driven actions (see actionCatalog.ts): merge with the manifest's
   // defaults so a persisted action always has every field its cfg needs, even
   // if the catalog gained fields after this action was first saved.
+  // Pre-catalog rows for the migrated kinds (widget-layout, widget-command,
+  // ambiance-patch) stored their config flat on the action — ambiance-patch
+  // nesting it under `patch` — so lift those onto cfg first.
   if (isCatalogActionKind(action.kind)) {
-    return { kind: action.kind, cfg: { ...ACTION_CATALOG[action.kind].defaults, ...action.cfg } } as EventAction
+    const raw = action as unknown as Record<string, unknown> & { cfg?: Record<string, unknown>; patch?: Record<string, unknown> }
+    const { kind: _kind, cfg, patch, ...flat } = raw
+    const merged = cfg ?? { ...(patch ?? {}), ...flat }
+    return { kind: action.kind, cfg: { ...ACTION_CATALOG[action.kind].defaults, ...merged } } as EventAction
   }
 
   // Unrecognized (or still-blank, not-yet-typed draft) kind — drop it, same

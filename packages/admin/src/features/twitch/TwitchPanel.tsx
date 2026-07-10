@@ -4,7 +4,7 @@ import type { EffectType } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, Btn, Field } from '../../shared/ui'
-import { createEffectDraft, EVENT_EFFECT_TYPES } from '../media-library/eventPresets'
+import { createEffectDraft, EVENT_EFFECT_TYPES, normalizeDraftEventAction } from '../media-library/eventPresets'
 import { fetchSequences } from '../../api/sequencesApi'
 
 // ── Shared style constants ────────────────────────────────────────
@@ -86,7 +86,7 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
 
   const addAction = (kind: EventAction['kind']) => {
     let blank: EventAction
-    if (kind === 'widget-command') blank = { kind, widgetId: applications[0]?.id ?? '', action: 'toggle' }
+    if (kind === 'widget-command') blank = { kind, cfg: { widgetId: applications[0]?.id ?? '', action: 'toggle' } }
     else if (kind === 'scene-change') blank = { kind, cfg: { target: scenes[0]?.id ?? '' } }
     else blank = { kind: 'transition', cfg: { sequenceId: sequences[0]?.id ?? '' } }
     onChange({ actions: [...actions, blank] })
@@ -125,16 +125,20 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
         </div>
       ))}
 
-      {actions.map((action, i) => (
+      {actions.map((rawAction, i) => {
+        // Reactions saved before widget-command joined ACTION_CATALOG store
+        // the config flat on the action — lift to { kind, cfg } for editing.
+        const action = normalizeDraftEventAction(rawAction) as EventAction
+        return (
         <div key={`act-${i}`} className="rounded-xl border border-zinc-700/50 bg-zinc-900/40 px-3 py-2">
           {action.kind === 'widget-command' && (
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-zinc-500 shrink-0">Widget</span>
-              <select value={action.widgetId} onChange={(e) => updateAction(i, { widgetId: e.target.value } as Partial<EventAction>)}
+              <select value={action.cfg.widgetId} onChange={(e) => updateAction(i, { cfg: { ...action.cfg, widgetId: e.target.value } } as Partial<EventAction>)}
                 className="flex-1 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
                 {applications.map((a) => <option key={a.id} value={a.id}>{a.label || a.id}</option>)}
               </select>
-              <select value={action.action} onChange={(e) => updateAction(i, { action: e.target.value as 'open' | 'close' | 'toggle' } as Partial<EventAction>)}
+              <select value={action.cfg.action} onChange={(e) => updateAction(i, { cfg: { ...action.cfg, action: e.target.value as 'open' | 'close' | 'toggle' } } as Partial<EventAction>)}
                 className="rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-200 focus:border-cyan-500/50 focus:outline-none">
                 <option value="toggle">Toggle</option>
                 <option value="open">Open</option>
@@ -166,7 +170,8 @@ function ActionsEditor({ effects, actions, onChange, hint }: ActionsEditorProps)
             </div>
           )}
         </div>
-      ))}
+        )
+      })}
 
       <div className="flex flex-wrap gap-2">
         <button type="button"

@@ -21,10 +21,9 @@ import type { HandlerContext, AppSocket } from './types.js'
 import {
   applyRuntimeConfig,
   scheduleRuntimeConfigReset,
-  scheduleWidgetRuntimeConfigReset,
   type RuntimeConfigResetScope,
 } from './runtimeConfig.js'
-import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout } from './widget.js'
+import { toggleWidgetRuntime } from './widget.js'
 import { dispatchCatalogAction } from '../../../kernel/actions/registry.js'
 
 const RANDOMIZABLE_WIDGET_SKINS = Object.keys(DEFAULT_WIDGET_THEME_PRESETS) as WidgetSkinTheme[]
@@ -127,40 +126,25 @@ export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfi
       continue
     }
 
-    if (action.kind === 'widget-layout') {
-      const layout = (ctx.cachedUserConfig.widgetLayouts ?? []).find((e) => e.id === action.layoutId)
-      const result = applySavedWidgetLayout(ctx, action.layoutId, { persist: false })
-      if (!result.ok) return result
-      const layoutWidgetIds = Array.from(new Set((layout?.items ?? []).map((i) => i.widgetId).filter(Boolean)))
-      if (layoutWidgetIds.length) scheduleWidgetRuntimeConfigReset(ctx, layoutWidgetIds, action.timeoutSeconds ?? 30)
-      continue
-    }
-
-    if (action.kind === 'widget-command') {
-      if (action.action === 'toggle') toggleWidgetRuntime(ctx, action.widgetId)
-      else if (action.action === 'open' || action.action === 'close') {
-        setWidgetRuntimeOpenState(ctx, action.widgetId, action.action === 'open')
-      }
-      // Any other action string is a custom widget/renderer action, handled
-      // locally by the overlay's DOM-bus evaluator (widgetRuleEvaluator.ts)
-      // — nothing for the server to do.
-      continue
-    }
-
-    if (action.kind === 'ambiance-patch') {
-      applyRuntimeConfig(ctx, {
-        desktopAmbiance: { widgetSimulation: { ...action.patch } as any },
-      })
-      scheduleRuntimeConfigReset(ctx, ['ambiance.widgetSimulation'], action.timeoutSeconds ?? 30)
-      continue
-    }
-
     // Catalog-driven actions (see @ieomlabs/shared's ACTION_CATALOG and
     // kernel/actions/registry.ts) — anything not one of the hardcoded kinds
     // above is dispatched through the action registry. A blank (not-yet-typed
     // draft) or otherwise unrecognized kind is a no-op there, same as an
     // unknown effect type in the overlay's dispatchEffect.
-    dispatchCatalogAction(action.kind, ctx, (action as { cfg?: unknown }).cfg)
+    //
+    // Pre-catalog persisted rows (events saved before widget-layout /
+    // widget-command / ambiance-patch joined ACTION_CATALOG, and automation
+    // rules migrated from the old {kind, params} shape) store their config
+    // flat on the action — ambiance-patch nesting it under `patch` — so lift
+    // those onto cfg here before dispatch.
+    let cfg: unknown
+    if ('cfg' in action) {
+      cfg = (action as { cfg?: unknown }).cfg
+    } else {
+      const { kind: _kind, patch, ...flat } = action as unknown as Record<string, unknown> & { patch?: Record<string, unknown> }
+      cfg = { ...(patch ?? {}), ...flat }
+    }
+    dispatchCatalogAction(action.kind, ctx, cfg)
   }
 
   return { ok: true }

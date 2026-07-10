@@ -8,7 +8,7 @@ function rule(overrides: Partial<AutomationRule>): AutomationRule {
     id: 'r1',
     enabled: true,
     trigger: { source: 'widget', event: 'weather:storm' },
-    action: { kind: 'widget-command', widgetId: 'gallery', action: 'gallery:next' },
+    action: { kind: 'widget-command', cfg: { widgetId: 'gallery', action: 'gallery:next' } },
     ...overrides,
   }
 }
@@ -50,11 +50,20 @@ describe('evaluateWidgetRules', () => {
 
   it('never returns authoritative open/close/toggle or non-widget-command kinds', () => {
     const rules = [
-      rule({ id: 'r1', action: { kind: 'widget-command', widgetId: 'g', action: 'open' } }),
-      rule({ id: 'r2', action: { kind: 'widget-command', widgetId: 'g', action: 'toggle' } }),
+      rule({ id: 'r1', action: { kind: 'widget-command', cfg: { widgetId: 'g', action: 'open' } } }),
+      rule({ id: 'r2', action: { kind: 'widget-command', cfg: { widgetId: 'g', action: 'toggle' } } }),
       rule({ id: 'r3', action: { kind: 'overlay-trigger', cfg: { effectsJson: '[]' } } }),
       rule({ id: 'r4', action: { kind: 'signal-emit', cfg: { event: 'x' } } }),
     ]
     expect(evaluateWidgetRules(rules, storm, STATE.DESKTOP)).toEqual([])
+  })
+
+  it('reads pre-catalog rules that stored widget-command config flat on the action', () => {
+    const legacy = [rule({
+      action: { kind: 'widget-command', widgetId: 'gallery', action: 'gallery:next' } as unknown as AutomationRule['action'],
+    })]
+    expect(evaluateWidgetRules(legacy, storm, STATE.DESKTOP)).toEqual([
+      { targetWidgetId: 'gallery', action: 'gallery:next' },
+    ])
   })
 })

@@ -247,7 +247,6 @@ export function EventForm({
                         draft.actions = actions
                       })}
                       widgetApps={widgetApps}
-                      widgetLayouts={widgetLayouts}
                     />
                   ) : !isBlankAction(action) && (
                     <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/55 px-5 py-4 text-[11px] text-zinc-500">

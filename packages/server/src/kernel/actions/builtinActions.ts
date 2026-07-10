@@ -10,6 +10,12 @@ import type { ActionConfigMap, DesktopNotificationPayload, EffectConfig, Transit
 import { SYNTHETIC_SIGNAL_KEY } from '@ieomlabs/shared'
 import { registerAction } from './registry.js'
 import { resolvePipelines } from '../../transport/socket/handlers/scene.js'
+import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout } from '../../transport/socket/handlers/widget.js'
+import {
+  applyRuntimeConfig,
+  scheduleRuntimeConfigReset,
+  scheduleWidgetRuntimeConfigReset,
+} from '../../transport/socket/handlers/runtimeConfig.js'
 
 type WidgetSignalFrame = { source: string; event: string; payload: unknown }
 
@@ -106,6 +112,39 @@ export function registerBuiltinActions(): void {
     }
     if (!effects.length) return
     ctx.machine.triggerOverlay({ id: `automation-overlay-${Date.now()}`, effects })
+  })
+
+  registerAction('widget-layout', (ctx, cfg) => {
+    const c = cfg as ActionConfigMap['widget-layout']
+    if (!c.layoutId) return
+    const layout = (ctx.cachedUserConfig.widgetLayouts ?? []).find((e) => e.id === c.layoutId)
+    const result = applySavedWidgetLayout(ctx, c.layoutId, { persist: false })
+    if (!result.ok) return
+    const layoutWidgetIds = Array.from(new Set((layout?.items ?? []).map((i) => i.widgetId).filter(Boolean)))
+    if (layoutWidgetIds.length) scheduleWidgetRuntimeConfigReset(ctx, layoutWidgetIds, c.timeoutSeconds ?? 30)
+  })
+
+  registerAction('widget-command', (ctx, cfg) => {
+    const c = cfg as ActionConfigMap['widget-command']
+    if (!c.widgetId) return
+    if (c.action === 'toggle') toggleWidgetRuntime(ctx, c.widgetId)
+    else if (c.action === 'open' || c.action === 'close') {
+      setWidgetRuntimeOpenState(ctx, c.widgetId, c.action === 'open')
+    }
+    // Any other action string is a custom widget/renderer verb, handled
+    // locally by the overlay's DOM-bus evaluator (widgetRuleEvaluator.ts)
+    // — nothing for the server to do.
+  })
+
+  registerAction('ambiance-patch', (ctx, cfg) => {
+    // Everything except the revert timeout is the simulation override —
+    // spreading the rest keeps legacy nested-patch extras (e.g. behaviors)
+    // that the dispatch shim flattened onto cfg.
+    const { timeoutSeconds, ...patch } = cfg as ActionConfigMap['ambiance-patch'] & Record<string, unknown>
+    applyRuntimeConfig(ctx, {
+      desktopAmbiance: { widgetSimulation: patch as never },
+    })
+    scheduleRuntimeConfigReset(ctx, ['ambiance.widgetSimulation'], (timeoutSeconds as number | undefined) ?? 30)
   })
 
   registerAction('persona-summarize', (ctx) => {

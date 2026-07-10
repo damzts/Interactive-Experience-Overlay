@@ -4,6 +4,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { fetchRunningShowIds, runShow, cancelShow } from '../../api/showsApi'
 import { Button } from '../../components/atoms'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, Btn } from '../../shared/ui'
+import { normalizeDraftEventAction } from '../media-library/eventPresets'
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -18,8 +19,8 @@ function blankStep(): ShowStep {
 function describeAction(action: EventAction): string {
   switch (action.kind) {
     case 'obs-stream':    return `OBS ${action.cfg.action}`
-    case 'widget-command': return `Widget ${action.action}: ${action.widgetId}`
-    case 'widget-layout': return `Layout: ${action.layoutId}`
+    case 'widget-command': return `Widget ${action.cfg.action}: ${action.cfg.widgetId}`
+    case 'widget-layout': return `Layout: ${action.cfg.layoutId}`
     default: return action.kind
   }
 }
@@ -37,8 +38,8 @@ function StepEditor({ step, onChange, onRemove }: {
   const setActionKind = (kind: EventAction['kind']) => {
     let action: EventAction
     if (kind === 'obs-stream') action = { kind: 'obs-stream', cfg: { action: 'start' } }
-    else if (kind === 'widget-command') action = { kind: 'widget-command', widgetId: applications[0]?.id ?? '', action: 'toggle' }
-    else action = { kind: 'widget-layout', layoutId: widgetLayouts[0]?.id ?? '' }
+    else if (kind === 'widget-command') action = { kind: 'widget-command', cfg: { widgetId: applications[0]?.id ?? '', action: 'toggle' } }
+    else action = { kind: 'widget-layout', cfg: { layoutId: widgetLayouts[0]?.id ?? '' } }
     onChange({ ...step, action })
   }
 
@@ -97,8 +98,8 @@ function StepEditor({ step, onChange, onRemove }: {
         {a.kind === 'widget-command' && (
           <>
             <select
-              value={a.widgetId}
-              onChange={(e) => onChange({ ...step, action: { ...a, widgetId: e.target.value } })}
+              value={a.cfg.widgetId}
+              onChange={(e) => onChange({ ...step, action: { ...a, cfg: { ...a.cfg, widgetId: e.target.value } } })}
               className="flex-1 min-w-0 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-300 focus:border-cyan-500/50 focus:outline-none"
             >
               {applications.map((app) => (
@@ -106,8 +107,8 @@ function StepEditor({ step, onChange, onRemove }: {
               ))}
             </select>
             <select
-              value={a.action}
-              onChange={(e) => onChange({ ...step, action: { ...a, action: e.target.value as 'open' | 'close' | 'toggle' } })}
+              value={a.cfg.action}
+              onChange={(e) => onChange({ ...step, action: { ...a, cfg: { ...a.cfg, action: e.target.value as 'open' | 'close' | 'toggle' } } })}
               className="rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-300 focus:border-cyan-500/50 focus:outline-none"
             >
               <option value="open">Open</option>
@@ -119,8 +120,8 @@ function StepEditor({ step, onChange, onRemove }: {
 
         {a.kind === 'widget-layout' && (
           <select
-            value={a.layoutId}
-            onChange={(e) => onChange({ ...step, action: { ...a, layoutId: e.target.value } })}
+            value={a.cfg.layoutId}
+            onChange={(e) => onChange({ ...step, action: { ...a, cfg: { ...a.cfg, layoutId: e.target.value } } })}
             className="flex-1 min-w-0 rounded-lg border border-zinc-700/60 bg-zinc-900/60 px-2 py-1 text-xs text-zinc-300 focus:border-cyan-500/50 focus:outline-none"
           >
             {widgetLayouts.length === 0 && <option value="">No layouts</option>}
@@ -141,7 +142,13 @@ function ShowEditor({ show, onSave, onCancel }: {
   onSave: (s: ShowDefinition) => void
   onCancel: () => void
 }) {
-  const [draft, setDraft] = useState<ShowDefinition>(() => JSON.parse(JSON.stringify(show)))
+  // Steps saved before widget-command/widget-layout joined ACTION_CATALOG
+  // store their config flat on the action — lift to { kind, cfg } so the
+  // step editor renders them.
+  const [draft, setDraft] = useState<ShowDefinition>(() => {
+    const clone: ShowDefinition = JSON.parse(JSON.stringify(show))
+    return { ...clone, steps: clone.steps.map((s) => ({ ...s, action: normalizeDraftEventAction(s.action) as EventAction })) }
+  })
 
   const addStep = () => setDraft((d) => ({ ...d, steps: [...d.steps, blankStep()] }))
   const updateStep = (i: number, s: ShowStep) => setDraft((d) => ({ ...d, steps: d.steps.map((x, j) => j === i ? s : x) }))

@@ -48,7 +48,12 @@ export function evaluateWidgetRules(
     if (!matchesPayload(t.match, signal.payload)) continue
 
     if (rule.action.kind !== 'widget-command') continue
-    const { widgetId: targetWidgetId, action } = rule.action
+    // Rules saved before widget-command joined ACTION_CATALOG store the
+    // config flat on the action instead of under cfg — read both shapes.
+    const raw = rule.action as unknown as { cfg?: { widgetId?: string; action?: string }; widgetId?: string; action?: string }
+    const targetWidgetId = raw.cfg?.widgetId ?? raw.widgetId
+    const action = raw.cfg?.action ?? raw.action
+    if (!targetWidgetId || !action) continue
     if (AUTHORITATIVE_ACTIONS.has(action)) continue
     if (gate && !gate(rule)) continue
     actions.push({ targetWidgetId, action })

@@ -8,6 +8,7 @@ import {
   isCatalogActionKind,
 } from '@ieomlabs/shared'
 import type {
+  CatalogActionKind,
   DesktopNotificationEffectConfig,
   EffectConfig,
   EffectType,
@@ -34,20 +35,11 @@ export type EventDraft = Omit<EventDef, 'actions' | 'effects'> & {
 
 export const DEFAULT_EVENT_DEFS: EventDef[] = []
 
-export const COMMON_EVENT_ACTION_KINDS: EventAction['kind'][] = [
-  'desktop-config',
-  'widget-themes',
-  'widget-layout',
-  'widget-command',
-  'ambiance-patch',
-]
-
 /** Category → kinds for the hand-coded (non-catalog) kinds — real categories,
  *  not a catch-all "Common" bucket. */
 const LEGACY_ACTION_CATEGORIES: { label: string; kinds: EventAction['kind'][] }[] = [
   { label: 'Desktop', kinds: ['desktop-config'] },
-  { label: 'Widgets', kinds: ['widget-themes', 'widget-layout', 'widget-command'] },
-  { label: 'Ambiance', kinds: ['ambiance-patch'] },
+  { label: 'Widgets', kinds: ['widget-themes'] },
 ]
 
 /** Category → kinds for the per-row action type selector: the four
@@ -75,10 +67,7 @@ export const EVENT_EFFECT_TYPES: EffectType[] = EFFECT_CATEGORIES.flatMap(c => c
 export function getEventActionLabel(kind: EventAction['kind']) {
   if (isCatalogActionKind(kind)) return getActionLabel(kind)
   if (kind === 'desktop-config') return 'Desktop look'
-  if (kind === 'widget-themes') return 'Widget mood'
-  if (kind === 'widget-layout') return 'Widget layout'
-  if (kind === 'widget-command') return 'Widget state'
-  return 'Ambiance'
+  return 'Widget mood'
 }
 
 export function describeEventSetup(def: EventDraft) {
@@ -163,40 +152,23 @@ export function createEventActionDraft(kind: EventAction['kind']): EventAction {
     }
   }
 
-  if (kind === 'widget-themes') {
-    return {
-      kind,
-      timeoutSeconds: 30,
-      widgetIds: [],
-      clearExisting: false,
-      theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
-    }
-  }
-
-  if (kind === 'widget-layout') {
-    return {
-      kind,
-      layoutId: '',
-      timeoutSeconds: 30,
-    }
-  }
-
-  if (kind === 'widget-command') {
-    return {
-      kind,
-      widgetId: 'music',
-      action: 'toggle',
-    }
-  }
-
   return {
-    kind: 'ambiance-patch' as const,
+    kind: 'widget-themes' as const,
     timeoutSeconds: 30,
-    patch: {
-      enabled: true,
-      intervalSeconds: 30,
-      maxOpenWidgets: 2,
-      openWhileOneOpenChance: 0.35,
-    },
+    widgetIds: [],
+    clearExisting: false,
+    theme: structuredClone(DEFAULT_WIDGET_THEME_PRESETS.metalheart),
   }
+}
+
+/** Lifts a pre-catalog persisted action of a migrated kind (widget-layout,
+ *  widget-command, ambiance-patch — config stored flat on the action, with
+ *  ambiance-patch nesting it under `patch`) onto the { kind, cfg } shape the
+ *  generated editor renders. Already-cfg-shaped and legacy kinds pass
+ *  through untouched. Mirrors normalizeEventAction in shared defaults.ts. */
+export function normalizeDraftEventAction(action: DraftEventAction): DraftEventAction {
+  if (isBlankAction(action) || !isCatalogActionKind(action.kind) || 'cfg' in action) return action
+  const raw = action as unknown as Record<string, unknown> & { kind: CatalogActionKind; patch?: Record<string, unknown> }
+  const { kind, patch, ...flat } = raw
+  return { kind, cfg: { ...structuredClone(ACTION_CATALOG[kind].defaults), ...(patch ?? {}), ...flat } } as DraftEventAction
 }

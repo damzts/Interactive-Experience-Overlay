@@ -1,8 +1,9 @@
 /**
  * ACTION_CATALOG — extensible Runtime Actions, catalog-driven like
- * EFFECT_CATALOG (see effectCatalog.ts). Unlike the eight hand-coded legacy
- * EventAction kinds (desktop-config, widget-themes, ...), a catalog action's
- * config schema, defaults, and admin editor are all generated from one entry
+ * EFFECT_CATALOG (see effectCatalog.ts). Only two hand-coded legacy
+ * EventAction kinds remain (desktop-config and widget-themes — their nested
+ * theme patches don't fit the flat FieldDef schema); every other action's
+ * config schema, defaults, and admin editor are generated from one entry
  * here — no per-kind editor code, no per-kind dispatch branch.
  *
  * Adding a new catalog action =
@@ -62,6 +63,30 @@ export interface OverlayTriggerActionConfig {
   effectsJson: string
 }
 
+export interface WidgetLayoutActionConfig {
+  /** Saved layout id (AppConfig.widgetLayouts) applied as a runtime patch */
+  layoutId: string
+  /** Seconds until the affected widgets revert */
+  timeoutSeconds?: number
+}
+
+export interface WidgetCommandActionConfig {
+  widgetId: string
+  /** 'open'/'close'/'toggle' mutate authoritative state server-side. Any
+   *  other value is a custom widget/renderer verb handled locally by the
+   *  overlay's DOM-bus evaluator (widgetRuleEvaluator.ts). */
+  action: 'open' | 'close' | 'toggle' | (string & {})
+}
+
+export interface AmbiancePatchActionConfig {
+  enabled: boolean
+  intervalSeconds: number
+  maxOpenWidgets: number
+  openWhileOneOpenChance: number
+  /** Seconds until the ghost-user settings revert */
+  timeoutSeconds?: number
+}
+
 /** Config-less catalog actions (obs-virtualcam, persona-summarize, ambiance-clear-history). */
 export type EmptyActionConfig = Record<string, never>
 
@@ -75,6 +100,9 @@ export interface ActionConfigMap {
   'transition': TransitionActionConfig
   'preset-apply': PresetApplyActionConfig
   'overlay-trigger': OverlayTriggerActionConfig
+  'widget-layout': WidgetLayoutActionConfig
+  'widget-command': WidgetCommandActionConfig
+  'ambiance-patch': AmbiancePatchActionConfig
   'persona-summarize': EmptyActionConfig
   'ambiance-clear-history': EmptyActionConfig
 }
@@ -86,6 +114,7 @@ export const ACTION_CATEGORY_ORDER = [
   'Signals',
   'OBS',
   'Scene',
+  'Widgets',
   'Persona',
   'Ambiance',
 ] as const
@@ -189,6 +218,39 @@ export const ACTION_CATALOG: { [K in CatalogActionKind]: ActionManifest<K> } = {
     defaults: { effectsJson: '[]' },
     fields: [
       { key: 'effectsJson', label: 'Effects (JSON array)', type: 'textarea', placeholder: '[{"type":"level-up","cfg":{}}]' },
+    ],
+  },
+  'widget-layout': {
+    label: 'Widget Layout',
+    category: 'Widgets',
+    desc: 'Applies a saved widget layout as a runtime patch — affected widgets revert after the timeout.',
+    defaults: { layoutId: '', timeoutSeconds: 30 },
+    fields: [
+      { key: 'layoutId', label: 'Layout', type: 'ref', refKind: 'widget-layout' },
+      { key: 'timeoutSeconds', label: 'Revert after', type: 'slider', min: 5, max: 600, step: 5, unit: 's' },
+    ],
+  },
+  'widget-command': {
+    label: 'Widget State',
+    category: 'Widgets',
+    desc: 'Opens, closes, or toggles a desktop widget window.',
+    defaults: { widgetId: '', action: 'toggle' },
+    fields: [
+      { key: 'widgetId', label: 'Widget', type: 'ref', refKind: 'widget' },
+      { key: 'action', label: 'Action', type: 'select', options: ['toggle', 'open', 'close'] },
+    ],
+  },
+  'ambiance-patch': {
+    label: 'Ghost User Override',
+    category: 'Ambiance',
+    desc: 'Temporarily overrides the ghost-user widget simulation, reverting after the timeout.',
+    defaults: { enabled: true, intervalSeconds: 30, maxOpenWidgets: 2, openWhileOneOpenChance: 0.35, timeoutSeconds: 30 },
+    fields: [
+      { key: 'enabled', label: 'Ambiance enabled', type: 'boolean' },
+      { key: 'intervalSeconds', label: 'Interval', type: 'slider', min: 1, max: 120, step: 1, unit: 's' },
+      { key: 'maxOpenWidgets', label: 'Max open', type: 'slider', min: 1, max: 8, step: 1 },
+      { key: 'openWhileOneOpenChance', label: 'Open chance', type: 'slider', min: 0, max: 1, step: 0.05 },
+      { key: 'timeoutSeconds', label: 'Revert after', type: 'slider', min: 5, max: 600, step: 5, unit: 's' },
     ],
   },
   'persona-summarize': {

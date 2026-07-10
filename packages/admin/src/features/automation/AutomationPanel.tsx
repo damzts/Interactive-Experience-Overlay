@@ -29,7 +29,12 @@ function summarizeTrigger(trigger: AutomationTrigger, apps: { id: string; label:
 
 function summarizeAction(rule: AutomationRule, apps: { id: string; label: string }[]): string {
   const action = rule.action
-  if (action.kind === 'widget-command') return `${widgetLabel(action.widgetId, apps)} › ${action.action}`
+  if (action.kind === 'widget-command') {
+    // Rules saved before widget-command joined ACTION_CATALOG store the
+    // config flat on the action instead of under cfg.
+    const c = ('cfg' in action ? action.cfg : action) as { widgetId: string; action: string }
+    return `${widgetLabel(c.widgetId, apps)} › ${c.action}`
+  }
   if ('cfg' in action) {
     if (action.kind === 'scene-change') return `→ ${action.cfg.target}`
     if (action.kind === 'desktop-notify') return action.cfg.title
@@ -49,7 +54,6 @@ interface SignalPeer {
 export function AutomationPanel() {
   const applications = useAdminStore((s) => s.config.applications)
   const scenes = useAdminStore((s) => s.config.scenes)
-  const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
 
   const [rules, setRules] = useState<AutomationRule[]>([])
   const [manifests, setManifests] = useState<WidgetIntentManifest[]>([])
@@ -307,7 +311,6 @@ export function AutomationPanel() {
               action={actionDraft}
               onChange={setActionDraft}
               widgetApps={applications}
-              widgetLayouts={widgetLayouts}
             />
           </div>
 

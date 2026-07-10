@@ -30,6 +30,7 @@ import {
   createEventActionDraft,
   getEventActionLabel,
   isBlankAction,
+  normalizeDraftEventAction,
   type DraftEventAction,
 } from '../features/media-library/eventPresets'
 
@@ -148,14 +149,17 @@ export interface ActionFieldsProps {
   action: DraftEventAction
   onChange: (next: DraftEventAction) => void
   widgetApps: { id: string; label: string }[]
-  widgetLayouts: { id: string; label: string }[]
   /** Hide the type selector — used when the caller already renders its own (e.g. a card header). */
   hideTypeSelect?: boolean
 }
 
 /** Type selector + per-kind editor for one action. Renders nothing below the
  *  selector for a still-blank (no kind chosen) action. */
-export function ActionFields({ action, onChange, widgetApps, widgetLayouts, hideTypeSelect }: ActionFieldsProps) {
+export function ActionFields({ action: rawAction, onChange, widgetApps, hideTypeSelect }: ActionFieldsProps) {
+  // Pre-catalog persisted rows of migrated kinds store config flat — lift to
+  // { kind, cfg } so the generated editor below can render them.
+  const action = normalizeDraftEventAction(rawAction)
+
   const setKind = (kind: EventAction['kind'] | '') => {
     onChange(kind ? createEventActionDraft(kind) : { kind: '' })
   }
@@ -253,61 +257,6 @@ export function ActionFields({ action, onChange, widgetApps, widgetLayouts, hide
                 onChange({ ...action, theme: nextTheme })
               }}
             />
-          </div>
-        </div>
-      )}
-
-      {action.kind === 'widget-layout' && (
-        <div className="space-y-2">
-          <div className="rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
-            <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s"
-              onChange={(value) => onChange({ ...action, timeoutSeconds: value })} />
-          </div>
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Layout</div>
-            <select value={action.layoutId} onChange={(event) => onChange({ ...action, layoutId: event.target.value })} className="w-full text-xs">
-              <option value="">Select a layout</option>
-              {widgetLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.label}</option>)}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {action.kind === 'widget-command' && (
-        <div className="grid grid-cols-2 gap-2 pl-1">
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Widget</div>
-            <select value={action.widgetId} onChange={(event) => onChange({ ...action, widgetId: event.target.value })} className="w-full text-xs">
-              {widgetApps.map((app) => <option key={app.id} value={app.id}>{app.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-500">Action</div>
-            <select value={action.action} onChange={(event) => onChange({ ...action, action: event.target.value })} className="w-full text-xs">
-              <option value="toggle">Toggle</option>
-              <option value="open">Open</option>
-              <option value="close">Close</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {action.kind === 'ambiance-patch' && (
-        <div className="grid grid-cols-2 gap-2 pl-1">
-          <div className="col-span-2 rounded border border-zinc-800/70 bg-zinc-900/45 px-5 py-4">
-            <Slider label="Revert after" value={action.timeoutSeconds ?? 30} min={5} max={600} step={5} unit="s"
-              onChange={(value) => onChange({ ...action, timeoutSeconds: value })} />
-          </div>
-          <div className="col-span-2">
-            <Toggle checked={action.patch.enabled ?? false} onChange={(value) => onChange({ ...action, patch: { ...action.patch, enabled: value } })} label="Ambiance enabled" />
-          </div>
-          <Slider label="Interval" value={action.patch.intervalSeconds ?? 30} min={1} max={120} step={1} unit="s"
-            onChange={(value) => onChange({ ...action, patch: { ...action.patch, intervalSeconds: value } })} />
-          <Slider label="Max open" value={action.patch.maxOpenWidgets ?? 2} min={1} max={8} step={1}
-            onChange={(value) => onChange({ ...action, patch: { ...action.patch, maxOpenWidgets: value } })} />
-          <div className="col-span-2">
-            <Slider label="Open chance" value={action.patch.openWhileOneOpenChance ?? 0.35} min={0} max={1} step={0.05}
-              onChange={(value) => onChange({ ...action, patch: { ...action.patch, openWhileOneOpenChance: value } })} />
           </div>
         </div>
       )}
