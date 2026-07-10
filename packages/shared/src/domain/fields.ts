@@ -60,6 +60,18 @@ export type FieldType =
   | 'text-list'   // string[] — edited one entry per line
   | 'color-list'  // string[] of colors — edited one hex per line
   | 'media'       // asset path/URL with media library picker
+  | 'ref'         // cross-entity reference id with admin entity picker
+
+/** Entity kinds a 'ref' field can point at. The admin resolves each to a
+ *  live picker (scenes/widgets/layouts from config, presets/sequences via
+ *  API) so operators never type raw ids. */
+export type RefKind =
+  | 'scene'
+  | 'sequence'
+  | 'preset'
+  | 'widget-layout'
+  | 'widget'
+  | 'window-preset'
 
 export interface FieldDef {
   key: string
@@ -75,6 +87,8 @@ export interface FieldDef {
   unit?: string
   /** media: which asset kinds the picker offers */
   mediaKinds?: MediaKind[]
+  /** ref: which entity the picker lists */
+  refKind?: RefKind
   placeholder?: string
   /** helper text under the input */
   hint?: string

@@ -161,7 +161,7 @@ export const ACTION_CATALOG: { [K in CatalogActionKind]: ActionManifest<K> } = {
     desc: 'Transitions the active scene, running its configured intro/exit sequences.',
     defaults: { target: '' },
     fields: [
-      { key: 'target', label: 'Target scene id', type: 'text', placeholder: 'e.g. DESKTOP' },
+      { key: 'target', label: 'Target scene', type: 'ref', refKind: 'scene' },
     ],
   },
   'transition': {
@@ -170,7 +170,7 @@ export const ACTION_CATALOG: { [K in CatalogActionKind]: ActionManifest<K> } = {
     desc: 'Plays a saved transition sequence as a one-off overlay pipeline.',
     defaults: { sequenceId: '' },
     fields: [
-      { key: 'sequenceId', label: 'Sequence id', type: 'text' },
+      { key: 'sequenceId', label: 'Sequence', type: 'ref', refKind: 'sequence' },
     ],
   },
   'preset-apply': {
@@ -179,7 +179,7 @@ export const ACTION_CATALOG: { [K in CatalogActionKind]: ActionManifest<K> } = {
     desc: 'Applies a saved config preset — persisted, not a runtime patch.',
     defaults: { presetId: '' },
     fields: [
-      { key: 'presetId', label: 'Preset id', type: 'text' },
+      { key: 'presetId', label: 'Preset', type: 'ref', refKind: 'preset' },
     ],
   },
   'overlay-trigger': {

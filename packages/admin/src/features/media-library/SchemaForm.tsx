@@ -8,6 +8,7 @@
  */
 import { HexColorInput, Slider, Toggle } from '../../shared/ui'
 import { MediaSelectionInput } from './MediaLibrary'
+import { RefSelect } from './RefSelect'
 import type { FieldDef } from '@ieomlabs/shared'
 
 export interface SchemaFormProps {
@@ -162,6 +163,21 @@ function SchemaField({ field, value, onChange }: {
         </div>
       )
     }
+
+    case 'ref':
+      return (
+        <div>
+          {label}
+          <RefSelect
+            refKind={field.refKind ?? 'scene'}
+            value={(value as string) ?? ''}
+            onChange={(v) => onChange(field.optional && v === undefined ? undefined : v ?? '')}
+            optional={field.optional}
+            placeholder={field.placeholder}
+          />
+          {hint}
+        </div>
+      )
 
     case 'media':
       return (
