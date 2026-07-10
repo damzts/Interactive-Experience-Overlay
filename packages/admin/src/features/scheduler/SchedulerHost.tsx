@@ -3,15 +3,19 @@ import { EffectAmbiancePanel } from './EffectAmbiancePanel'
 import { ThemeDriftPanel } from './ThemeDriftPanel'
 import { PersonaPanel } from './PersonaPanel'
 import { DesktopAmbiancePanel } from './DesktopAmbiancePanel'
+import { AutomationPanel } from '../automation/AutomationPanel'
+import { AudioPanel } from '../audio/AudioPanel'
 
-export type SchedulerTab = 'events' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance'
+export type SchedulerTab = 'events' | 'automation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' | 'audio'
 
 export const SCHEDULER_TABS: Array<{ tab: SchedulerTab; icon: string; label: string }> = [
   { tab: 'events',            icon: '⚡', label: 'Events' },
+  { tab: 'automation',        icon: '🤖', label: 'Automation' },
   { tab: 'effect-ambiance',   icon: '✨', label: 'Effect Ambiance' },
   { tab: 'theme-drift',       icon: '🎨', label: 'Theme Drift' },
-  { tab: 'persona',           icon: '🗣', label: 'Persona' },
   { tab: 'desktop-ambiance',  icon: '👻', label: 'Ghost User' },
+  { tab: 'persona',           icon: '🗣', label: 'Persona' },
+  { tab: 'audio',             icon: '🔊', label: 'Audio' },
 ]
 
 export function SchedulerHost({ tab, onTabChange }: {
@@ -40,10 +44,12 @@ export function SchedulerHost({ tab, onTabChange }: {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto pt-4">
         {tab === 'events' && <EventsPanel />}
+        {tab === 'automation' && <AutomationPanel />}
         {tab === 'effect-ambiance' && <EffectAmbiancePanel />}
         {tab === 'theme-drift' && <ThemeDriftPanel />}
         {tab === 'persona' && <PersonaPanel />}
         {tab === 'desktop-ambiance' && <DesktopAmbiancePanel />}
+        {tab === 'audio' && <AudioPanel />}
       </div>
     </div>
   )

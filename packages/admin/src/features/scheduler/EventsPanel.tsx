@@ -110,7 +110,7 @@ function EventRow({
         <div className="mt-4 space-y-4 border-t border-white/8 pt-4">
           {!hasWork && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-4 py-3 text-[10px] text-rose-300">
-              This event has no actions or effects — it will be skipped by the scheduler even if enabled. Add actions or effects in the Asset Library → Events tab.
+              This event has no actions or effects — it will be skipped by the scheduler even if enabled. Add actions or effects in Graphics → Effects.
             </div>
           )}
 
@@ -346,6 +346,7 @@ export function EventsPanel() {
     <div className="space-y-5">
       <ConfigPageIntro title="Events">
         Automatic event triggers — fires on an interval or after idle time, with a chance and cooldown.
+        Events themselves (their effects and actions) are authored in Graphics → Effects.
       </ConfigPageIntro>
 
       <ConfigSectionPanel label="Engine status">
@@ -374,7 +375,7 @@ export function EventsPanel() {
       </ConfigSectionPanel>
 
       {plainEvents.length === 0 ? (
-        <div className="text-xs text-zinc-600 italic px-1">No events configured. Create events in the Asset Library.</div>
+        <div className="text-xs text-zinc-600 italic px-1">No events configured. Create events in Graphics → Effects.</div>
       ) : (
         <ConfigSectionPanel label="Events">
           <div className="space-y-2">

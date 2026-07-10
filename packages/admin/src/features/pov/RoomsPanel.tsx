@@ -1465,6 +1465,3 @@ export function RoomsPanel() {
     </div>
   )
 }
-
-/** @deprecated Use RoomsPanel */
-export { RoomsPanel as OnlineRoomsPanel }

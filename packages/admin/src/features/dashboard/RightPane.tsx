@@ -7,12 +7,11 @@ import {
   IconGlyph,
 } from '../../shared/ui'
 import { KeybindEditor } from '../keybinds/KeybindEditor'
-import { AudioPanel } from '../audio/AudioPanel'
-import { OnlineRoomsPanel } from '../pov/OnlineRoomsPanel'
+import { RoomsPanel } from '../pov/RoomsPanel'
 import { SchedulerHost } from '../scheduler/SchedulerHost'
 import { ObsPanel } from '../obs/ObsPanel'
 import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
-import { AutomationPanel } from '../automation/AutomationPanel'
+import { AiVoicePanel } from '../integrations/AiVoicePanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
 import { PresetsPanel } from '../presets/PresetsPanel'
@@ -104,7 +103,6 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
     return <WidgetLayoutPanel key={selected.layoutId} layoutId={selected.layoutId} onDeleted={onDeleted} />
   }
 
-  if (selected.kind === 'audio')    return <AudioPanel />
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'settings') return <SettingsPanel />
   if (selected.kind === 'scheduler') {
@@ -112,41 +110,39 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   }
   if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'kernel-health') return <KernelHealthPanel />
-  if (selected.kind === 'automation') return <AutomationPanel />
+  if (selected.kind === 'ai-voice') return <AiVoicePanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'presets') return <PresetsPanel />
-  if (selected.kind === 'pov-online') return <OnlineRoomsPanel />
-  if (selected.kind === 'media-gallery')     return <MediaLibraryPanel tab="catalog" />
-  if (selected.kind === 'media-effects')     return <MediaLibraryPanel tab="events" />
-  if (selected.kind === 'media-renders')     return <MediaLibraryPanel tab="sources" />
+  if (selected.kind === 'pov-online') return <RoomsPanel />
+  if (selected.kind === 'graphics') return <MediaLibraryPanel tab="sources" />
   if (selected.kind === 'sequence') return <SequencesHost key={selected.sequenceId} sequenceId={selected.sequenceId} onDeleted={onDeleted} />
 
   return null
 }
 
-// ── Media tabs (module-level — stable across renders) ──────────────
+// ── Section sidebars (module-level — stable across renders) ────────
 
-const MEDIA_TABS: Array<{ kind: SelectedItem['kind']; icon: string; label: string }> = [
-  { kind: 'media-gallery',     icon: '🖼', label: 'Gallery' },
-  { kind: 'media-effects',     icon: '⚡', label: 'Effects' },
-  { kind: 'media-renders',     icon: '📺', label: 'Renders' },
+const INTEGRATION_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
+  { icon: '🎬', label: 'OBS',          kind: 'obs' },
+  { icon: '💬', label: 'Twitch',       kind: 'twitch' },
+  { icon: '🌐', label: 'Online Rooms', kind: 'pov-online' },
+  { icon: '🧠', label: 'AI & Voice',   kind: 'ai-voice' },
 ]
 
-// ── SystemSidebar ──────────────────────────────────────────────────
-
-const SYSTEM_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
-  { icon: '🌐', label: 'Online Rooms',       kind: 'pov-online' },
-  { icon: '🎬', label: 'OBS',               kind: 'obs' },
-  { icon: '🔊', label: 'Audio Engine',       kind: 'audio' },
-  { icon: '⌨', label: 'Input Engine',       kind: 'keybinds' },
-  { icon: '⚙', label: 'Kernel Health',      kind: 'kernel-health' },
-  { icon: '🤖', label: 'Automation',        kind: 'automation' },
-  { icon: '🎭', label: 'Show Sequencer',    kind: 'shows' },
-  { icon: '💬', label: 'Twitch Integration', kind: 'twitch' },
-  { icon: '💾', label: 'Presets',            kind: 'presets' },
-  { icon: '⚙', label: 'Settings',           kind: 'settings' },
+const SETTINGS_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
+  { icon: '⌨', label: 'Input Engine',  kind: 'keybinds' },
+  { icon: '⚙', label: 'Kernel Health', kind: 'kernel-health' },
+  { icon: '💾', label: 'Presets',       kind: 'presets' },
+  { icon: '⚙', label: 'Settings',      kind: 'settings' },
 ]
+
+// ── Sequences sub-tabs ─────────────────────────────────────────────
+
+const SEQUENCES_TABS = [
+  { id: 'sequences', icon: '🎞', label: 'Sequences' },
+  { id: 'shows',     icon: '🎭', label: 'Shows' },
+] as const
 
 // ── RightPane ──────────────────────────────────────────────────────
 
@@ -169,7 +165,8 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     socket.emit('scene:change', state, (err: string | null) => { if (err) setLastError(err) })
   }
 
-  const showNavList = activeSection === 'scenes' || activeSection === 'widgets' || activeSection === 'layouts' || activeSection === 'sequences'
+  const showNavList = activeSection === 'scenes' || activeSection === 'widgets' || activeSection === 'layouts'
+    || (activeSection === 'sequences' && selected?.kind !== 'shows')
 
   // ── Header metadata (only used when selected is non-null) ──────────
   let headerIcon: React.ReactNode = ''
@@ -206,28 +203,27 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
       headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
       actionLabel = '▶ Test'
       actionFn    = () => socket.emit('widget:layout:apply', selected.layoutId)
-    } else if (selected.kind === 'audio')             { headerIcon = '🔊'; headerLabel = 'Audio Engine';   headerMeta = 'Engine' }
-    else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
+    } else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
     else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
-    else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Engine' }
+    else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Integration' }
     else if (selected.kind === 'kernel-health')     { headerIcon = '⚙';  headerLabel = 'Kernel Health';  headerMeta = 'Engine' }
-    else if (selected.kind === 'automation')        { headerIcon = '🤖'; headerLabel = 'Automation';     headerMeta = 'Engine' }
     else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
-    else if (selected.kind === 'shows')             { headerIcon = '🎭'; headerLabel = 'Show Sequencer'; headerMeta = 'Engine' }
-    else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch Integration'; headerMeta = 'Engine' }
+    else if (selected.kind === 'ai-voice')          { headerIcon = '🧠'; headerLabel = 'AI & Voice';     headerMeta = 'Integration' }
+    else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch';         headerMeta = 'Integration' }
     else if (selected.kind === 'presets')            { headerIcon = '💾'; headerLabel = 'Presets';           headerMeta = 'System' }
     else if (selected.kind === 'sequence')          { headerIcon = '🎞'; headerLabel = 'Sequence';         headerMeta = 'Effect Pipeline' }
-    else {
-      const mediaTab = MEDIA_TABS.find((t) => t.kind === selected.kind)
-      if (mediaTab) { headerIcon = mediaTab.icon; headerLabel = mediaTab.label; headerMeta = 'Media Library' }
-    }
   }
 
   // ── Shared section sidebars ───────────────────────────────────────
-  const systemSidebar = activeSection === 'system' ? (
+  const sidebarSection = activeSection === 'integrations'
+    ? { label: 'Integrations', items: INTEGRATION_ITEMS }
+    : activeSection === 'settings-tab'
+      ? { label: 'Settings', items: SETTINGS_ITEMS }
+      : null
+  const sectionSidebar = sidebarSection ? (
     <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4 overflow-y-auto">
-      <SectionLabel first>Manager</SectionLabel>
-      {SYSTEM_ITEMS.map(({ icon, label, kind }) => (
+      <SectionLabel first>{sidebarSection.label}</SectionLabel>
+      {sidebarSection.items.map(({ icon, label, kind }) => (
         <SidebarBtn key={kind} icon={icon} label={label}
           active={selected?.kind === kind}
           onClick={() => onSelectItem({ kind } as SelectedItem)} />
@@ -235,14 +231,40 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     </div>
   ) : null
 
+  // ── Sequences sub-tabs: "Sequences" is the NavListBox flow, "Shows" swaps
+  // in the ShowsPanel full-width. Derived from `selected` — no extra state.
+  const sequencesTab = selected?.kind === 'shows' ? 'shows' : 'sequences'
+  const sequencesTabStrip = activeSection === 'sequences' ? (
+    <div className="flex shrink-0 items-center border-b border-[var(--color-border-default)] px-5">
+      {SEQUENCES_TABS.map(({ id, icon, label }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => { if (id === 'shows') onSelectItem({ kind: 'shows' }); else onClose() }}
+          className={
+            '-mb-px flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-2 text-xs font-medium transition-colors ' +
+            (sequencesTab === id
+              ? 'border-cyan-400 text-zinc-50'
+              : 'border-transparent text-zinc-500 hover:text-zinc-200')
+          }
+        >
+          <span className="text-sm leading-none">{icon}</span>
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  ) : null
+
   // ── Single return — ONE MediaLibraryProvider survives all navigation ──
   return (
     <MediaLibraryProvider>
-      <div className="flex flex-1 min-w-0 overflow-hidden bg-[var(--color-bg-base)]">
+      <div className="flex flex-1 min-w-0 flex-col overflow-hidden bg-[var(--color-bg-base)]">
+        {sequencesTabStrip}
+        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
         {showNavList && onSelect && onActivate && (
           <NavListBox selected={selected} onSelect={onSelect} onActivate={onActivate} activeSection={activeSection} />
         )}
-        {systemSidebar}
+        {sectionSidebar}
 
         {!selected ? (
           <div className="flex-1 min-w-0 overflow-y-auto">
@@ -255,7 +277,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           </div>
         ) : (
           <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-            {!MEDIA_TABS.some((t) => t.kind === selected.kind) && selected.kind !== 'scheduler' && (
+            {selected.kind !== 'graphics' && selected.kind !== 'scheduler' && selected.kind !== 'shows' && (
               <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
                 <span className="text-sm shrink-0">{headerIcon}</span>
                 <span className="flex-1 min-w-0">
@@ -293,6 +315,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
             </div>
           </div>
         )}
+        </div>
       </div>
     </MediaLibraryProvider>
   )

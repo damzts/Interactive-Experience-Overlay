@@ -4,11 +4,11 @@ import type { PersonaAvatarConfig, PersonaBrainConfig, PersonaConfig, PersonaEve
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import { getPersonaAvatarImages } from '../../api/mediaApi'
-import { getTtsVoices } from '../../api/ttsApi'
 import {
-  ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel,
+  ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel, ConfigNotice,
   Toggle, Slider, ConfigChoiceButton, isSameDraft,
 } from '../../shared/ui'
+import { patchPersonaDraft } from './personaDraft'
 
 // ── PersonaSection ───────────────────────────────────────────────────
 
@@ -29,20 +29,6 @@ function PersonaSection({
   const setVoice = (patch: Partial<PersonaConfig['voice']>) => {
     onChange({ voice: { ...config.voice, ...patch } })
   }
-
-  const [voices, setVoices] = useState<string[]>([])
-  useEffect(() => {
-    let cancelled = false
-    getTtsVoices(config.ttsProvider)
-      .then((names) => { if (!cancelled) setVoices(names) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [config.ttsProvider])
-
-  // Keep a configured-but-uninstalled voice selectable so it isn't silently lost.
-  const voiceOptions = config.voice.ttsVoice && !voices.includes(config.voice.ttsVoice)
-    ? [config.voice.ttsVoice, ...voices]
-    : voices
 
   return (
     <div className="space-y-4">
@@ -96,20 +82,8 @@ function PersonaSection({
         <Slider label="Pitch" value={config.voice.pitchSemitones} min={-12} max={12} step={1} unit=" st" onChange={(v) => setVoice({ pitchSemitones: v })} />
         <Slider label="Robotic intensity" value={config.voice.roboticIntensity} min={0} max={1} step={0.05} onChange={(v) => setVoice({ roboticIntensity: v })} />
         <Slider label="Speech rate" value={config.voice.rate} min={-10} max={10} step={1} onChange={(v) => setVoice({ rate: v })} />
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            TTS voice <span className="normal-case font-normal text-zinc-600">(installed on this machine)</span>
-          </div>
-          <select
-            value={config.voice.ttsVoice ?? ''}
-            onChange={(e) => setVoice({ ttsVoice: e.target.value || undefined })}
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25 [&>option]:bg-zinc-900"
-          >
-            <option value="">(system default)</option>
-            {voiceOptions.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+        <div className="text-[10px] text-zinc-600">
+          TTS engine and installed voice are selected in Integrations → AI &amp; Voice.
         </div>
       </div>
 
@@ -404,12 +378,7 @@ function AvatarSection({
   )
 }
 
-// ── Brain (LLM) ──────────────────────────────────────────────────────
-
-const BRAIN_PROVIDERS: Array<{ id: PersonaBrainConfig['provider']; label: string }> = [
-  { id: 'anthropic', label: 'Haiku (Anthropic)' },
-  { id: 'ollama',    label: 'Ollama (local)' },
-]
+// ── Brain (LLM behavior — connection lives in Integrations → AI & Voice) ──
 
 function BrainSection({
   brain,
@@ -420,57 +389,27 @@ function BrainSection({
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-xs font-semibold text-zinc-200">Brain</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">
-            An LLM behind the persona — she summarizes what chat is saying, talks with you in the
-            console below, and can write real replies to viewers instead of echoing them.
-          </div>
-        </div>
-        <Toggle checked={brain.enabled} onChange={(v) => onChange({ enabled: v })} />
-      </div>
-
       <div>
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Provider</div>
-        <div className="flex gap-1.5">
-          {BRAIN_PROVIDERS.map((p) => (
-            <ConfigChoiceButton key={p.id} selected={brain.provider === p.id} onClick={() => onChange({ provider: p.id })}>
-              {p.label}
-            </ConfigChoiceButton>
-          ))}
-        </div>
-        <div className="mt-1 text-[10px] text-zinc-600">
-          {brain.provider === 'anthropic'
-            ? 'Needs the ANTHROPIC_API_KEY environment variable set for the server (never stored in config).'
-            : 'Needs Ollama running locally with the model pulled (e.g. `ollama pull llama3.2`).'}
+        <div className="text-xs font-semibold text-zinc-200">Brain</div>
+        <div className="text-[10px] text-zinc-500 mt-0.5">
+          An LLM behind the persona — she summarizes what chat is saying, talks with you in the
+          console below, and can write real replies to viewers instead of echoing them.
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Model</div>
-          <input
-            type="text"
-            value={brain.model}
-            onChange={(e) => onChange({ model: e.target.value })}
-            placeholder={brain.provider === 'anthropic' ? 'claude-haiku-4-5 (default)' : 'llama3.2 (default)'}
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
-          />
-        </div>
-        {brain.provider === 'ollama' && (
-          <div className="flex-1">
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Ollama URL</div>
-            <input
-              type="text"
-              value={brain.ollamaUrl}
-              onChange={(e) => onChange({ ollamaUrl: e.target.value })}
-              placeholder="http://localhost:11434"
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
-            />
-          </div>
-        )}
+      <div className="text-[10px] text-zinc-600">
+        {brain.enabled
+          ? <>Brain connected: <span className="font-mono text-zinc-400">{brain.provider}{brain.model ? ` · ${brain.model}` : ''}</span>. </>
+          : null}
+        Connection (provider, model) is configured in Integrations → AI &amp; Voice.
       </div>
+
+      {!brain.enabled && (
+        <ConfigNotice tone="info">
+          No brain connected — the persona still works, echoing chat messages in her voice.
+          These behavior settings take effect once a brain is enabled in Integrations → AI &amp; Voice.
+        </ConfigNotice>
+      )}
 
       <div>
         <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Personality</div>
@@ -631,23 +570,8 @@ export function PersonaPanel() {
 
   const handleChange = (patch: Partial<PersonaConfig>) => {
     setDraft((prev) => {
-      const next = { ...prev, ...patch }
-      // Identity edits also land on the active profile — the flat
-      // voice/avatar/ttsProvider fields are just its resolved view.
-      if (patch.voice || patch.avatar || 'ttsProvider' in patch) {
-        next.profiles = next.profiles.map((p) =>
-          p.id === next.activeProfileId
-            ? {
-                ...p,
-                ...(patch.voice ? { voice: patch.voice } : null),
-                ...(patch.avatar ? { avatar: patch.avatar } : null),
-                ...('ttsProvider' in patch ? { ttsProvider: patch.ttsProvider } : null),
-              }
-            : p,
-        )
-      }
       setSaved(false)
-      return next
+      return patchPersonaDraft(prev, patch)
     })
   }
 

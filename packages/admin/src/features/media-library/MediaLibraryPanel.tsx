@@ -11,9 +11,9 @@ import type { MediaRecord } from '../../shared/catalog'
 // ── Library tab metadata ───────────────────────────────────────────
 
 const LIBRARY_TABS: Array<{ tab: MediaLibraryTab; icon: string; label: string }> = [
-  { tab: 'catalog',     icon: '🖼', label: 'Gallery' },
+  { tab: 'sources',     icon: '📺', label: 'Renderers' },
   { tab: 'events',      icon: '⚡', label: 'Effects' },
-  { tab: 'sources',     icon: '📺', label: 'Renders' },
+  { tab: 'catalog',     icon: '🖼', label: 'Gallery' },
 ]
 
 // ── Search input ───────────────────────────────────────────────────
@@ -284,6 +284,6 @@ function MediaLibraryPanelInner({ tab }: { tab: MediaLibraryTab }) {
   )
 }
 
-export function MediaLibraryPanel({ tab = 'catalog' }: { tab?: MediaLibraryTab }) {
+export function MediaLibraryPanel({ tab = 'sources' }: { tab?: MediaLibraryTab }) {
   return <MediaLibraryPanelInner tab={tab} />
 }

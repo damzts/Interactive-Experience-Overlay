@@ -38,7 +38,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: 'Top Bar Navigation',
     description:
-      'Browse all sections from the top bar — Dashboard, Scenes, Widgets, Media, and Manager.',
+      'Browse all sections from the top bar — Dashboard, Scenes, Graphics, Ambiance, and Integrations.',
     target: '[data-tour="topbar"]',
     position: 'bottom',
   },
@@ -46,7 +46,7 @@ const TOUR_STEPS: TourStep[] = [
     title: 'Content Area',
     description:
       'This is where your configurations and panels are displayed. Each section opens here.',
-    target: '[data-tour="content"]',
+    target: '[data-tour="main-content"]',
     position: 'center',
   },
   {

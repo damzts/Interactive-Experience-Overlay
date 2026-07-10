@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { LayoutDashboard, Monitor, Layers, LayoutGrid, Image, Settings, Film, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Monitor, Layers, LayoutGrid, Image, Settings, Film, Sparkles, Plug } from 'lucide-react'
 import { withDesktopConfigDefaults } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
@@ -20,10 +20,14 @@ const NAV_SECTIONS: TopBarNavSection[] = [
   { id: 'scenes', label: 'Scenes', icon: Monitor },
   { id: 'widgets', label: 'Widgets', icon: Layers },
   { id: 'layouts', label: 'Layouts', icon: LayoutGrid },
+  { id: 'graphics', label: 'Graphics', icon: Image },
+  { id: 'ambiance', label: 'Ambiance', icon: Sparkles },
   { id: 'sequences', label: 'Sequences', icon: Film },
-  { id: 'scheduler', label: 'Ambience', icon: Sparkles },
-  { id: 'media', label: 'Media', icon: Image },
-  { id: 'system', label: 'Manager', icon: Settings },
+  { id: 'integrations', label: 'Integrations', icon: Plug },
+]
+
+const END_SECTIONS: TopBarNavSection[] = [
+  { id: 'settings-tab', label: 'Settings', icon: Settings },
 ]
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -88,8 +92,10 @@ export function Dashboard() {
   const handleNavigate = useCallback((section: string) => {
     setActiveSection(section)
     setSelected(
-      section === 'media' ? { kind: 'media-gallery' }
-      : section === 'scheduler' ? { kind: 'scheduler', tab: 'events' }
+      section === 'graphics' ? { kind: 'graphics' }
+      : section === 'ambiance' ? { kind: 'scheduler', tab: 'events' }
+      : section === 'integrations' ? { kind: 'obs' }
+      : section === 'settings-tab' ? { kind: 'keybinds' }
       : null
     )
   }, [])
@@ -109,6 +115,7 @@ export function Dashboard() {
       <NewTopBar
         userName={user?.name ?? 'Admin'}
         sections={NAV_SECTIONS}
+        endSections={END_SECTIONS}
         activeSection={activeSection}
         onNavigate={handleNavigate}
       />

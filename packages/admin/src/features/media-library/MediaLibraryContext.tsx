@@ -90,7 +90,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useMediaCatalog()
 
-  const [tab, setTab]                       = useState<MediaLibraryTab>('catalog')
+  const [tab, setTab]                       = useState<MediaLibraryTab>('sources')
   const [catalogSearch, setCatalogSearch]   = useState('')
   const [catalogKindFilter, setCatalogKindFilter] = useState<'all' | MediaKind>('all')
   const [selectedCatalogAssetId, setSelectedCatalogAssetId] = useState<string | null>(null)

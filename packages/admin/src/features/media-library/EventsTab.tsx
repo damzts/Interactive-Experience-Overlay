@@ -138,6 +138,7 @@ export function EventsTabContent({
       ) : (
         <ConfigNotice tone="info" className="py-8 text-center">
           Select an event from the left column or choose an event type above to start a new draft.
+          Events define effects and actions; auto-fire scheduling (intervals, cooldowns) lives in Ambiance → Events.
         </ConfigNotice>
       )}
     </div>

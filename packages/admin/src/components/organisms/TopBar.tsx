@@ -22,6 +22,8 @@ export interface TopBarProps {
   style?: React.CSSProperties;
   /** Horizontal navigation sections (replaces the old left sidebar) */
   sections?: TopBarNavSection[];
+  /** Sections rendered in the right cluster (e.g. Settings), before status/avatar */
+  endSections?: TopBarNavSection[];
   /** ID of the currently active navigation section */
   activeSection?: string;
   /** Callback when a navigation section is selected */
@@ -74,6 +76,7 @@ export function TopBar({
   className,
   style,
   sections,
+  endSections,
   activeSection,
   onNavigate,
 }: TopBarProps) {
@@ -123,6 +126,14 @@ export function TopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-[var(--space-3)]">
+        {endSections?.map((section) => (
+          <NavItem
+            key={section.id}
+            section={section}
+            active={activeSection === section.id}
+            onClick={() => onNavigate?.(section.id)}
+          />
+        ))}
         {overlayStatus && <StatusDot label="Overlay" status={overlayStatus} />}
         {obsStatus && <StatusDot label="OBS" status={obsStatus} />}
         {onSearchOpen && (

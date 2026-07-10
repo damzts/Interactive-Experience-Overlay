@@ -7,17 +7,14 @@ export type SelectedItem =
   | { kind: 'app';   appId: string }
   | { kind: 'widget-create' }
   | { kind: 'widget-layout'; layoutId: string }
-  | { kind: 'audio' }
   | { kind: 'keybinds' }
   | { kind: 'settings' }
-  | { kind: 'scheduler'; tab: 'events' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' }
+  | { kind: 'scheduler'; tab: 'events' | 'automation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' | 'audio' }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
-  | { kind: 'media-gallery' }
-  | { kind: 'media-effects' }
-  | { kind: 'media-renders' }
+  | { kind: 'graphics' }
+  | { kind: 'ai-voice' }
   | { kind: 'kernel-health' }
-  | { kind: 'automation' }
   | { kind: 'shows' }
   | { kind: 'twitch' }
   | { kind: 'presets' }
