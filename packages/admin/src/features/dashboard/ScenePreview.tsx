@@ -22,8 +22,10 @@ export function ScenePreview({ windows, selectedId, onSelect, onChangePosition }
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const overlayUrl = import.meta.env.DEV ? getOverlayDevOrigin() : getOverlayRuntimeOrigin()
 
+  const lockedVisibleCount = windows.filter((w) => w.visible && w.locked).length
+
   const handleItems = windows
-    .filter((w) => w.visible)
+    .filter((w) => w.visible && !w.locked)
     .map((w) => ({
       id: w.id,
       x: w.position.x,
@@ -68,6 +70,12 @@ export function ScenePreview({ windows, selectedId, onSelect, onChangePosition }
           emptyMessage="No visible windows"
         />
       </div>
+
+      {lockedVisibleCount > 0 && (
+        <div className="absolute bottom-1 left-1 rounded bg-black/70 px-2 py-0.5 text-[10px] text-[var(--color-warning-400)]">
+          {lockedVisibleCount} locked window{lockedVisibleCount === 1 ? '' : 's'} hidden from canvas — unlock in the list to reposition
+        </div>
+      )}
     </div>
   )
 }

@@ -25,6 +25,9 @@ export function SourcesEditor({
   const toggle = (id: string) =>
     onChange(sources.map((w) => w.id === id ? { ...w, visible: !w.visible } : w))
 
+  const toggleLock = (id: string) =>
+    onChange(sources.map((w) => w.id === id ? { ...w, locked: !w.locked } : w))
+
   const remove = (id: string) =>
     onChange(sources.filter((w) => w.id !== id))
 
@@ -77,11 +80,17 @@ export function SourcesEditor({
         const meta = RENDERER_CATALOG.find((c) => c.id === rendererType)
         const wTier = w.tier
         return (
-          <Card key={w.id} variant="default" padding="sm" className="overflow-hidden !p-0">
+          <Card key={w.id} variant="default" padding="sm" className={'overflow-hidden !p-0' + (w.locked ? ' opacity-60' : '')}>
             <div className="flex items-center gap-2 px-3 py-2">
               {/* Visibility dot */}
               <button type="button" title={w.visible ? 'Hide' : 'Show'} onClick={() => toggle(w.id)}
                 className={'w-2 h-2 rounded-full shrink-0 transition-colors ' + (w.visible ? 'bg-[var(--color-success-400)]' : 'bg-[var(--color-text-muted)]')} />
+
+              {/* Lock toggle — excludes from drag/resize canvas */}
+              <button type="button" title={w.locked ? 'Unlock (allow drag/resize in canvas)' : 'Lock position (excludes from drag canvas)'} onClick={() => toggleLock(w.id)}
+                className={'shrink-0 text-[11px] leading-none transition-colors ' + (w.locked ? 'text-[var(--color-warning-400)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]')}>
+                {w.locked ? '🔒' : '🔓'}
+              </button>
 
               <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">{meta?.icon ?? '▣'}</span>
 

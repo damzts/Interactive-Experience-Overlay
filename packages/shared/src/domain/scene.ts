@@ -30,6 +30,8 @@ export interface WindowInstance {
   position: Rect
   zIndex: number
   visible: boolean
+  /** When true, excluded from the admin drag/resize canvas so it stops blocking pointer events for windows beneath it. Editor-only; does not affect runtime rendering. */
+  locked?: boolean
   /** CSS mix-blend-mode for compositing against layers below */
   blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add'
   /** ID of another window in the same tier that acts as alpha mask */
