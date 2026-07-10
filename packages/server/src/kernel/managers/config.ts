@@ -15,6 +15,7 @@ import {
   STATE,
   withApplicationListDefaults,
   withDesktopAmbianceDefaults,
+  withEffectStormsDefaults,
   withDesktopConfigDefaults,
   withEventListDefaults,
   withOverlayStyleDefaults,
@@ -220,7 +221,7 @@ export class DesktopConfigService implements Manager, IConfigService {
         'scenes', 'applications', 'keybinds', 'obs', 'audio',
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
         'sourceEvents', 'sourceMedia', 'windowPresets', 'shows',
-        'effectAmbiance', 'desktopThemeDrift', 'persona',
+        'effectAmbiance', 'effectStorms', 'desktopThemeDrift', 'persona',
       ])
     }
 
@@ -341,6 +342,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       twitch:           this.loadTwitchConfig(),
       chatReactions:    this.loadChatReactions(),
       effectAmbiance:   this.themeRepo.loadEffectAmbiance(),
+      effectStorms:     this.themeRepo.loadEffectStorms(),
       desktopThemeDrift: this.themeRepo.loadDesktopThemeDrift(),
       persona:          this.themeRepo.loadPersonaConfig(),
     }
@@ -444,6 +446,7 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'twitch':           if (cfg.twitch) this.saveTwitchConfig(cfg.twitch); break
           case 'chatReactions':    this.saveChatReactions(cfg.chatReactions ?? []); break
           case 'effectAmbiance':   if (cfg.effectAmbiance) this.themeRepo.saveEffectAmbiance(cfg.effectAmbiance); break
+          case 'effectStorms':     if (cfg.effectStorms) this.themeRepo.saveEffectStorms(cfg.effectStorms); break
           case 'desktopThemeDrift': if (cfg.desktopThemeDrift) this.themeRepo.saveDesktopThemeDrift(cfg.desktopThemeDrift); break
           case 'persona':          if (cfg.persona) this.themeRepo.savePersonaConfig(cfg.persona); break
         }
@@ -623,6 +626,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       scenes,
       desktopConfig,
       desktopAmbiance: withDesktopAmbianceDefaults(next.desktopAmbiance ?? {}),
+      effectStorms: withEffectStormsDefaults(next.effectStorms, next.effectAmbiance),
       widgetLayouts: next.widgetLayouts ?? [],
       sourceEvents: withEventListDefaults(next.sourceEvents ?? []),
       sourceMedia: next.sourceMedia ?? [],

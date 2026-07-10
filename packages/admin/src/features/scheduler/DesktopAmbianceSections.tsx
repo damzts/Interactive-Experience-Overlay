@@ -39,14 +39,14 @@ function WidgetTargetCard({
   onChange: (updater: (d: AmbianceWidgetBehavior) => void) => void
 }) {
   return (
-    <ConfigCard className="p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/20">
-          <IconGlyph icon={app.icon} label={app.label} />
+    <ConfigCard className="p-3">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/20">
+          <IconGlyph icon={app.icon} label={app.label} size={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-xs font-semibold text-zinc-200">{app.label}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[11px] font-semibold text-zinc-200">{app.label}</span>
             <TypeBadge kind="widget" />
           </div>
         </div>
@@ -56,7 +56,7 @@ function WidgetTargetCard({
         />
       </div>
       {behavior.enabled && (
-        <div className="mt-3 space-y-1 border-t border-white/8 pt-3">
+        <div className="mt-2.5 space-y-1 border-t border-white/8 pt-2.5">
           <Slider label="Open" value={behavior.openChance} min={0} max={1} step={0.05}
             onChange={(v) => onChange((d) => { d.openChance = v })} />
           <Slider label="Close" value={behavior.closeChance} min={0} max={1} step={0.05}
@@ -85,14 +85,14 @@ function NavTargetCard({
   onChange: (updater: (d: AmbianceNavBehavior) => void) => void
 }) {
   return (
-    <ConfigCard className="p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/20 text-base">
+    <ConfigCard className="p-3">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/20 text-sm">
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-xs font-semibold text-zinc-200">{label}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[11px] font-semibold text-zinc-200">{label}</span>
             <TypeBadge kind={kind} />
           </div>
         </div>
@@ -102,7 +102,7 @@ function NavTargetCard({
         />
       </div>
       {behavior.enabled && (
-        <div className="mt-3 border-t border-white/8 pt-3">
+        <div className="mt-2.5 border-t border-white/8 pt-2.5">
           <Slider label={sliderLabel} value={behavior.selectChance} min={0} max={1} step={0.05}
             onChange={(v) => onChange((d) => { d.selectChance = v })} />
         </div>
@@ -146,20 +146,15 @@ export function WidgetAmbianceSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs font-semibold text-zinc-200">Simulation Engine</div>
+          <div className="text-xs font-semibold text-zinc-200">Engine settings</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">
-            Simulates an AI agent using the Desktop OS — opens widgets, applies layouts, and switches scenes through the Start Menu.
+            Tuning for the shared tick loop that drives widget, layout, and scene interaction. The master
+            switch above turns the whole engine on or off.
           </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {showEnableAll && (
-            <Btn variant="default" onClick={onEnableAll}>Enable all targets</Btn>
-          )}
-          <Toggle
-            checked={simConfig.enabled}
-            onChange={(v) => update('widgetSimulation', (d) => { d.enabled = v })}
-          />
-        </div>
+        {showEnableAll && (
+          <Btn variant="default" onClick={onEnableAll} className="shrink-0">Enable all targets</Btn>
+        )}
       </div>
 
       <Slider
@@ -234,7 +229,7 @@ export function WidgetAmbianceSection({
       {allApps.length === 0 ? (
         <div className="text-xs text-zinc-600 italic px-1">No widgets configured.</div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {allApps.map((app) => (
             <WidgetTargetCard
               key={app.id}
@@ -273,7 +268,7 @@ export function LayoutAmbianceSection({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {userLayouts.map((layout) => (
         <NavTargetCard
           key={layout.id}
@@ -309,7 +304,7 @@ export function SceneAmbianceSection({
   }, [update])
 
   return (
-    <div className="space-y-2">
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {sceneEntries.map((scene) => (
         <NavTargetCard
           key={scene.id}

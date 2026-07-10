@@ -68,6 +68,16 @@ export class ThemeRepository {
     this.db.prepare('INSERT OR REPLACE INTO effect_ambiance (id, config_json) VALUES (1, ?)').run(JSON.stringify(config))
   }
 
+  loadEffectStorms(): AppConfig['effectStorms'] | undefined {
+    const row = this.db.prepare('SELECT * FROM effect_storms WHERE id = 1').get() as { config_json: string | null } | undefined
+    if (!row?.config_json) return undefined
+    return parseJson(row.config_json, undefined)
+  }
+
+  saveEffectStorms(storms: NonNullable<AppConfig['effectStorms']>): void {
+    this.db.prepare('INSERT OR REPLACE INTO effect_storms (id, config_json) VALUES (1, ?)').run(JSON.stringify(storms))
+  }
+
   loadDesktopThemeDrift(): AppConfig['desktopThemeDrift'] | undefined {
     const row = this.db.prepare('SELECT * FROM desktop_theme_drift WHERE id = 1').get() as { config_json: string | null } | undefined
     if (!row?.config_json) return undefined

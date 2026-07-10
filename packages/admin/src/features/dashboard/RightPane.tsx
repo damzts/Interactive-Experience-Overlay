@@ -316,7 +316,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
                 {/* No × close in Integrations/Settings — the persistent
                     sidebar (sectionSidebar) is the nav; there is nothing
                     useful to "close" back to, and doing so used to strand
-                    the panel on the Graphics-flavored Quick Read copy. */}
+                    the panel on the Events-flavored Quick Read copy. */}
                 {!sidebarSection && (
                   <button onClick={onClose}
                     className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">

@@ -1,16 +1,9 @@
 import { useCallback, useMemo } from 'react';
-import { STATE, withDesktopAmbianceDefaults, type EventConfig, type EffectAmbianceConfig } from '@ieomlabs/shared';
+import { STATE, withDesktopAmbianceDefaults, withEffectStormsDefaults, type EventConfig } from '@ieomlabs/shared';
 import { useAdminStore } from '../../store/useAdminStore';
 import { socket } from '../../socket/client';
 import { useLoadStarterPack } from '../../hooks/useLoadStarterPack';
 import { DashboardOverview } from './DashboardOverview';
-
-const DEFAULT_EFFECT_AMBIANCE: EffectAmbianceConfig = {
-  enabled: false,
-  pool: [],
-  intervalSeconds: 30,
-  jitterFactor: 0.3,
-};
 
 /**
  * DashboardContainer — Connects the DashboardOverview kiosk grid to the
@@ -31,8 +24,9 @@ export function DashboardContainer() {
   const scenesConfig = useAdminStore((s) => s.config.scenes);
   const sourceEvents = useAdminStore((s) => s.config.sourceEvents ?? []);
   const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance);
-  const rawEffectAmbiance = useAdminStore((s) => s.config.effectAmbiance);
-  const effectAmbiance: EffectAmbianceConfig = rawEffectAmbiance ?? DEFAULT_EFFECT_AMBIANCE;
+  const rawEffectStorms = useAdminStore((s) => s.config.effectStorms);
+  const legacyEffectAmbiance = useAdminStore((s) => s.config.effectAmbiance);
+  const effectStorms = withEffectStormsDefaults(rawEffectStorms, legacyEffectAmbiance);
   const saveConfig = useAdminStore((s) => s.saveConfig);
   const setLastError = useAdminStore((s) => s.setLastError);
   const { loadStarterPack } = useLoadStarterPack();
@@ -54,7 +48,7 @@ export function DashboardContainer() {
   }, [scenesConfig]);
 
   const aiAmbianceEnabled = withDesktopAmbianceDefaults(rawDesktopAmbiance).widgetSimulation.enabled;
-  const effectAmbianceEnabled = effectAmbiance.enabled;
+  const effectStormsEnabled = effectStorms.some((storm) => storm.enabled);
 
   const handleActivateScene = useCallback(
     (id: string) => {
@@ -94,9 +88,12 @@ export function DashboardContainer() {
     });
   }, [rawDesktopAmbiance, saveConfig]);
 
-  const handleToggleEffectAmbiance = useCallback(() => {
-    void saveConfig({ effectAmbiance: { ...effectAmbiance, enabled: !effectAmbiance.enabled } });
-  }, [effectAmbiance, saveConfig]);
+  const handleToggleEffectStorms = useCallback(() => {
+    // Dashboard summary tile — flips all storms together as a single
+    // on/off switch. Per-storm control lives in Ambiance → Effect Storms.
+    const next = !effectStorms.some((storm) => storm.enabled);
+    void saveConfig({ effectStorms: effectStorms.map((storm) => ({ ...storm, enabled: next })) });
+  }, [effectStorms, saveConfig]);
 
   const handleOpenOverlay = useCallback(() => {
     window.open('/', '_blank');
@@ -121,8 +118,8 @@ export function DashboardContainer() {
       onToggleEffectAuto={handleToggleEffectAuto}
       aiAmbianceEnabled={aiAmbianceEnabled}
       onToggleAiAmbiance={handleToggleAiAmbiance}
-      effectAmbianceEnabled={effectAmbianceEnabled}
-      onToggleEffectAmbiance={handleToggleEffectAmbiance}
+      effectAmbianceEnabled={effectStormsEnabled}
+      onToggleEffectAmbiance={handleToggleEffectStorms}
       onLoadStarterPack={loadStarterPack}
     />
   );

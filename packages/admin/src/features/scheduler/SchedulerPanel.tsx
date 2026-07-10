@@ -4,7 +4,7 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
 import {
   ConfigCard, ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel,
-  Toggle, Slider, ConfigChoiceButton, isSameDraft,
+  Toggle, Slider, ConfigChoiceButton, Btn, isSameDraft,
 } from '../../shared/ui'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -16,15 +16,6 @@ function formatRelative(ts: number | null): string {
   const s = Math.ceil(d / 1000)
   if (s < 60) return `in ${s}s`
   return `in ${Math.ceil(s / 60)}m`
-}
-
-function formatAgo(ts: number | null): string {
-  if (!ts) return '—'
-  const d = Date.now() - ts
-  if (d < 1000) return 'just now'
-  const s = Math.round(d / 1000)
-  if (s < 60) return `${s}s ago`
-  return `${Math.round(s / 60)}m ago`
 }
 
 /** A sourceEvents entry created by the Preset Rotation quick-create form —
@@ -51,18 +42,64 @@ function PresetTypeBadge({ presetType }: { presetType?: 'effect' | 'action' }) {
   )
 }
 
+// ── Blank slot card ──────────────────────────────────────────────────
+// A freshly added, unassigned schedule slot — pick a preset inline to
+// turn it into a real ScheduleRow. Mirrors an empty StormCard.
+
+function BlankScheduleSlot({
+  candidates,
+  onPick,
+  onRemove,
+}: {
+  candidates: EventConfig[]
+  onPick: (eventId: string) => void
+  onRemove: () => void
+}) {
+  return (
+    <ConfigCard className="flex min-w-0 flex-col gap-3 p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-base shrink-0">⚡</span>
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-500">New schedule slot</span>
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove"
+          className="text-zinc-600 hover:text-red-400 transition-colors text-sm"
+        >
+          ✕
+        </button>
+      </div>
+      <select
+        defaultValue=""
+        onChange={(e) => { if (e.target.value) onPick(e.target.value) }}
+        disabled={candidates.length === 0}
+        className="w-full text-xs"
+      >
+        <option value="" disabled>
+          {candidates.length === 0 ? 'No more presets available' : '— choose a preset —'}
+        </option>
+        {candidates.map((event) => (
+          <option key={event.id} value={event.id}>
+            {event.icon ? `${event.icon} ` : ''}{event.label}
+          </option>
+        ))}
+      </select>
+    </ConfigCard>
+  )
+}
+
 // ── ScheduleRow ──────────────────────────────────────────────────────
 
 function ScheduleRow({
   event,
   diag,
   onChange,
-  onDelete,
+  onRemove,
 }: {
   event: EventConfig
   diag: { nextRunAt: number | null; due: boolean; idleTriggered: boolean } | undefined
   onChange: (patch: Partial<AutoTrigger>) => void
-  onDelete?: () => void
+  onRemove: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const auto = event.auto
@@ -70,29 +107,42 @@ function ScheduleRow({
   const sceneIds = useAdminStore((s) => Object.keys(s.config.scenes ?? {}))
 
   return (
-    <ConfigCard>
+    <ConfigCard className="flex min-w-0 flex-col gap-3 p-4">
       <div
-        className="flex w-full cursor-pointer items-center gap-3"
+        className="flex w-full cursor-pointer items-center gap-2"
         onClick={() => setExpanded((e) => !e)}
       >
         <span className="text-base shrink-0">{event.icon || '⚡'}</span>
-        <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-1.5">
-            <span className="block text-xs font-semibold text-zinc-200 truncate">{event.label}</span>
-            <PresetTypeBadge presetType={event.presetType} />
-          </span>
-          <span className="block text-[10px] text-zinc-500 truncate mt-0.5">
-            {auto.enabled
-              ? auto.mode === 'interval'
-                ? `interval · ${auto.intervalMin}m · ${Math.round(auto.chance * 100)}% chance`
-                : `idle · after ${auto.idleMin}m idle · ${Math.round(auto.chance * 100)}% chance`
-              : 'disabled'}
-          </span>
-        </span>
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-200">{event.label}</span>
+        <PresetTypeBadge presetType={event.presetType} />
         <div
           className="flex items-center gap-2 shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
+          <Toggle
+            checked={auto.enabled}
+            onChange={(v) => onChange({ enabled: v })}
+          />
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Remove from schedule"
+            className="text-zinc-600 hover:text-red-400 transition-colors text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-[10px] text-zinc-500">
+        <span className="truncate">
+          {auto.enabled
+            ? auto.mode === 'interval'
+              ? `interval · ${auto.intervalMin}m · ${Math.round(auto.chance * 100)}% chance`
+              : `idle · after ${auto.idleMin}m idle · ${Math.round(auto.chance * 100)}% chance`
+            : 'disabled'}
+        </span>
+        <span className="flex items-center gap-1.5 shrink-0">
           {!hasWork && auto.enabled && (
             <span className="text-[9px] font-bold text-rose-400 tracking-widest">NO WORK</span>
           )}
@@ -100,23 +150,24 @@ function ScheduleRow({
             <span className="text-[9px] font-bold text-amber-400 tracking-widest">DUE</span>
           )}
           {auto.enabled && diag?.nextRunAt && (
-            <span className="text-[10px] text-zinc-500 tabular-nums">{formatRelative(diag.nextRunAt)}</span>
+            <span className="tabular-nums">{formatRelative(diag.nextRunAt)}</span>
           )}
-          <Toggle
-            checked={auto.enabled}
-            onChange={(v) => onChange({ enabled: v })}
-          />
-          {onDelete && (
-            <button type="button" onClick={onDelete} className="text-zinc-600 hover:text-red-400 transition-colors text-sm">✕</button>
-          )}
-        </div>
+        </span>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="self-start rounded-md border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[10px] font-medium text-zinc-300 transition hover:border-zinc-600/80 hover:text-zinc-100"
+      >
+        {expanded ? 'Collapse' : 'Expand'}
+      </button>
+
       {expanded && (
-        <div className="mt-4 space-y-4 border-t border-white/8 pt-4">
+        <div className="space-y-4 border-t border-white/8 pt-3">
           {!hasWork && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-4 py-3 text-[10px] text-rose-300">
-              This preset is empty — it will be skipped by the scheduler even if enabled. Configure it in Graphics → Effects.
+              This preset is empty — it will be skipped by the scheduler even if enabled. Configure it in Events.
             </div>
           )}
 
@@ -156,7 +207,7 @@ function ScheduleRow({
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
               Allowed scenes <span className="font-normal text-zinc-600">(empty = any)</span>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {sceneIds.map((s) => {
                 const active = (auto.allowedStates ?? []).includes(s)
                 return (
@@ -215,6 +266,17 @@ export function SchedulerPanel() {
   const diagByEventId = Object.fromEntries(diag.events.map((e) => [e.id, e]))
 
   const [draft, setDraft] = useState<EventConfig[]>(() => structuredClone(events))
+  // Which preset ids are shown on the schedule. Rather than auto-listing
+  // every saved preset, the Scheduler starts empty — only presets the user
+  // has explicitly added (via "+ Add Preset", or that already had
+  // scheduling turned on from a previous session) show up here.
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(
+    () => new Set(events.filter((e) => e.auto.enabled).map((e) => e.id)),
+  )
+  // Blank slots added via "+ Add Preset" that don't have a preset chosen
+  // yet — each renders as an empty card with an inline picker, mirroring
+  // Effect Storms' "+ Add Storm" creating an unconfigured card in place.
+  const [blankSlots, setBlankSlots] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -245,6 +307,34 @@ export function SchedulerPanel() {
     })
   }
 
+  const visibleRows = draft.filter((e) => visibleIds.has(e.id))
+  const addCandidates = draft.filter((e) => !visibleIds.has(e.id))
+
+  const addBlankSlot = () => {
+    setBlankSlots((prev) => [...prev, crypto.randomUUID()])
+  }
+
+  const removeBlankSlot = (slotId: string) => {
+    setBlankSlots((prev) => prev.filter((id) => id !== slotId))
+  }
+
+  const pickPresetForSlot = (slotId: string, eventId: string) => {
+    setVisibleIds((prev) => new Set(prev).add(eventId))
+    setBlankSlots((prev) => prev.filter((id) => id !== slotId))
+  }
+
+  const removePreset = (eventId: string) => {
+    // Removing from the schedule just hides + disables it here — the
+    // preset itself (its effects/actions) is untouched and stays available
+    // in Events / Input Engine / Preset Rotation.
+    setVisibleIds((prev) => {
+      const next = new Set(prev)
+      next.delete(eventId)
+      return next
+    })
+    handleChange(eventId, { enabled: false })
+  }
+
   const apply = useCallback(async () => {
     if (!dirty) return
     setSaving(true)
@@ -267,52 +357,40 @@ export function SchedulerPanel() {
   return (
     <div className="space-y-5">
       <ConfigPageIntro title="Scheduler">
-        Schedules any saved preset — Effect or Action — to fire automatically on an interval or
-        after idle time, with a chance and cooldown. Presets themselves (their effects or actions)
-        are authored in Graphics → Effects; Input Engine keybinds fire the same presets on demand.
+        Schedules saved presets — Effect or Action — to fire automatically on an interval or
+        after idle time, with a chance and cooldown. Add a preset to put it on the schedule;
+        presets themselves (their effects or actions) are authored in Events.
       </ConfigPageIntro>
 
-      <ConfigSectionPanel label="Engine status">
-        <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Next fire</div>
-            <div className="text-zinc-300 font-medium">{formatRelative(diag.nextFireAt)}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Active schedules</div>
-            <div className="text-zinc-300 font-medium">{diag.activeEventCount}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last processed</div>
-            <div className="text-zinc-400">{formatAgo(diag.lastProcessedAt)}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last fired</div>
-            <div className="text-zinc-400">
-              {diag.lastTriggeredEventId
-                ? `${diag.lastTriggeredEventId} · ${formatAgo(diag.lastTriggeredAt)}`
-                : '—'}
-            </div>
-          </div>
-        </div>
-      </ConfigSectionPanel>
-
-      {draft.length === 0 ? (
-        <div className="text-xs text-zinc-600 italic px-1">No presets to schedule yet. Create Effect/Action presets in Graphics → Effects.</div>
+      {visibleRows.length === 0 && blankSlots.length === 0 ? (
+        <div className="text-xs text-zinc-600 italic px-1">Nothing scheduled yet. Add a preset to get started.</div>
       ) : (
         <ConfigSectionPanel label="Scheduled Presets">
-          <div className="space-y-2">
-            {draft.map((event) => (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleRows.map((event) => (
               <ScheduleRow
                 key={event.id}
                 event={event}
                 diag={diagByEventId[event.id]}
                 onChange={(patch) => handleChange(event.id, patch)}
+                onRemove={() => removePreset(event.id)}
+              />
+            ))}
+            {blankSlots.map((slotId) => (
+              <BlankScheduleSlot
+                key={slotId}
+                candidates={addCandidates}
+                onPick={(eventId) => pickPresetForSlot(slotId, eventId)}
+                onRemove={() => removeBlankSlot(slotId)}
               />
             ))}
           </div>
         </ConfigSectionPanel>
       )}
+
+      <Btn type="button" variant="ghost" onClick={addBlankSlot} className="w-full justify-center border-dashed border-zinc-700/80 py-2 text-xs">
+        + Add Preset
+      </Btn>
 
       <ConfigApplyBar
         label="Scheduler"

@@ -15,7 +15,7 @@ import type {
   WidgetLayoutSource,
 } from '../domain/application.js'
 import { WIDGET_DEFINITIONS } from '../widgets/index.js'
-import type { DesktopAmbianceConfig } from '../domain/ambiance.js'
+import type { DesktopAmbianceConfig, EffectAmbianceConfig, EffectStormConfig } from '../domain/ambiance.js'
 import type { DesktopThemeDriftConfig } from '../domain/themeDrift.js'
 import type { PersonaConfig } from '../domain/persona.js'
 import type { AppConfig } from '../domain/config.js'
@@ -700,6 +700,60 @@ export function withDesktopAmbianceDefaults(config?: Partial<DesktopAmbianceConf
       ...config?.widgetSimulation,
     },
   }
+}
+
+// ── Effect Storms ────────────────────────────────────────────────
+// Multiple independent ambient-effect timers ("storms"), each with its own
+// enable flag, interval, and pool. Replaces the old single-pool
+// EffectAmbianceConfig (kept only for migrating existing saved configs).
+
+function createDefaultEffectStorm(overrides?: Partial<EffectStormConfig>): EffectStormConfig {
+  return {
+    id: overrides?.id ?? crypto.randomUUID(),
+    label: overrides?.label ?? 'Storm',
+    enabled: false,
+    pool: [],
+    intervalSeconds: 30,
+    jitterFactor: 0.3,
+    countPerTick: 1,
+    ...overrides,
+  }
+}
+
+/** Migrates a legacy single-pool EffectAmbianceConfig into a one-item
+ *  EffectStormConfig[], preserving its settings under a generic label. */
+function migrateLegacyEffectAmbiance(legacy: EffectAmbianceConfig): EffectStormConfig[] {
+  if (!legacy.pool.length && !legacy.enabled) return []
+  return [createDefaultEffectStorm({
+    id: 'effect-ambiance-migrated',
+    label: 'Effect Ambiance',
+    enabled: legacy.enabled,
+    pool: legacy.pool,
+    intervalSeconds: legacy.intervalSeconds,
+    jitterFactor: legacy.jitterFactor,
+    countPerTick: legacy.countPerTick,
+  })]
+}
+
+/** Normalizes effectStorms, migrating from the legacy single-pool
+ *  effectAmbiance shape the first time it's encountered (storms array
+ *  absent/undefined but a legacy config exists). Once effectStorms has
+ *  been saved (even as []), it's treated as source of truth. */
+export function withEffectStormsDefaults(
+  storms?: EffectStormConfig[] | null,
+  legacyEffectAmbiance?: EffectAmbianceConfig | null,
+): EffectStormConfig[] {
+  if (storms != null) {
+    return storms.map((storm) => createDefaultEffectStorm(storm))
+  }
+  if (legacyEffectAmbiance) {
+    return migrateLegacyEffectAmbiance(legacyEffectAmbiance)
+  }
+  return []
+}
+
+export function createBlankEffectStorm(): EffectStormConfig {
+  return createDefaultEffectStorm({ label: 'New Storm' })
 }
 
 export const DEFAULT_DESKTOP_THEME_DRIFT: DesktopThemeDriftConfig = {

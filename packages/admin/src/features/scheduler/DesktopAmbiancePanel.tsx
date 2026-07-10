@@ -2,32 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { STATE, withDesktopAmbianceDefaults } from '@ieomlabs/shared'
 import type { DesktopAmbianceConfig } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
-import { ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel, isSameDraft } from '../../shared/ui'
+import { ConfigApplyBar, ConfigCard, ConfigPageIntro, ConfigSectionPanel, Toggle, isSameDraft } from '../../shared/ui'
 import {
   createDefaultNavBehavior, createDefaultWidgetBehavior,
   WidgetAmbianceSection, LayoutAmbianceSection, SceneAmbianceSection,
 } from './DesktopAmbianceSections'
 import type { AmbianceUpdater } from './DesktopAmbianceSections'
 
-function formatRelative(ts: number | null): string {
-  if (!ts) return '—'
-  const d = ts - Date.now()
-  if (d <= 0) return 'now'
-  const s = Math.ceil(d / 1000)
-  if (s < 60) return `in ${s}s`
-  return `in ${Math.ceil(s / 60)}m`
-}
-
-function formatAgo(ts: number | null): string {
-  if (!ts) return '—'
-  const d = Date.now() - ts
-  if (d < 1000) return 'just now'
-  const s = Math.round(d / 1000)
-  if (s < 60) return `${s}s ago`
-  return `${Math.round(s / 60)}m ago`
-}
-
-// ── DesktopAmbiancePanel ─────────────────────────────────────────────
+// ── DesktopAmbiancePanel ("Desktop Interaction") ─────────────────────
 
 export function DesktopAmbiancePanel() {
   const saveConfig         = useAdminStore((s) => s.saveConfig)
@@ -35,7 +17,6 @@ export function DesktopAmbiancePanel() {
   const allLayouts         = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const allScenes          = useAdminStore((s) => s.config.scenes ?? {})
   const rawDesktopAmbiance = useAdminStore((s) => s.config.desktopAmbiance)
-  const ambianceDiag       = useAdminStore((s) => s.runtimeDiagnostics.ambiance)
 
   const userLayouts = allLayouts.filter((l) => l.source === 'user')
   const sceneEntries: Array<{ id: string; label: string; icon: string }> = Object.values(allScenes)
@@ -109,39 +90,30 @@ export function DesktopAmbiancePanel() {
 
   return (
     <div className="space-y-5">
-      <ConfigPageIntro title="Ghost User">
+      <ConfigPageIntro title="Desktop Interaction">
         Simulates an AI agent using the Desktop OS — opens widgets, applies layouts, and switches scenes. One
         engine drives widget, layout, and scene targets together, so they share this single tick loop and save.
       </ConfigPageIntro>
 
-      <ConfigSectionPanel label="Engine status">
-        <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last tick</div>
-            <div className="text-zinc-300 font-medium">{formatAgo(ambianceDiag.lastTickAt)}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Overlay ready</div>
-            <div className="text-zinc-300 font-medium">{ambianceDiag.overlayReady ? 'Yes' : 'No'}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last action</div>
-            <div className="text-zinc-400">
-              {ambianceDiag.lastAction
-                ? `${ambianceDiag.lastAction} · ${ambianceDiag.lastActionWidgetId ?? '—'} · ${formatAgo(ambianceDiag.lastActionAt)}`
-                : '—'}
-            </div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Status</div>
-            <div className="text-zinc-400">
-              {ambianceDiag.inFlight ? `in flight (${ambianceDiag.pendingPhase ?? '—'})` : (ambianceDiag.lastSkipReason ?? 'idle')}
-            </div>
+      {/* Master switch — runs the whole engine, independent of which
+          individual widgets/layouts/scenes are enabled below. Turning
+          this off stops all simulation immediately without touching the
+          per-target selections, so re-enabling restores the same setup. */}
+      <ConfigCard className="flex items-center justify-between p-5">
+        <div>
+          <div className="text-sm font-semibold text-zinc-100">Engine</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">
+            Master switch for the whole Desktop Interaction engine. Per-target toggles below only take
+            effect while this is on.
           </div>
         </div>
-      </ConfigSectionPanel>
+        <Toggle
+          checked={simConfig.enabled}
+          onChange={(v) => updateAmbiance('widgetSimulation', (d) => { d.enabled = v })}
+        />
+      </ConfigCard>
 
-      <ConfigSectionPanel label="Widget ambiance">
+      <ConfigSectionPanel label="Widget interaction">
         <WidgetAmbianceSection
           form={draft}
           update={updateAmbiance}
@@ -151,16 +123,16 @@ export function DesktopAmbiancePanel() {
         />
       </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Layout ambiance">
+      <ConfigSectionPanel label="Layout interaction">
         <LayoutAmbianceSection form={draft} update={updateAmbiance} userLayouts={userLayouts} />
       </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Scene ambiance">
+      <ConfigSectionPanel label="Scene interaction">
         <SceneAmbianceSection form={draft} update={updateAmbiance} sceneEntries={sceneEntries} />
       </ConfigSectionPanel>
 
       <ConfigApplyBar
-        label="Ghost User"
+        label="Desktop Interaction"
         dirty={dirty}
         saving={saving}
         saved={saved}

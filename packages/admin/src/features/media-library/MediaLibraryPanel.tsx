@@ -12,7 +12,7 @@ import type { MediaRecord } from '../../shared/catalog'
 
 const LIBRARY_TABS: Array<{ tab: MediaLibraryTab; icon: string; label: string }> = [
   { tab: 'sources',     icon: '📺', label: 'Renderers' },
-  { tab: 'events',      icon: '⚡', label: 'Effects' },
+  { tab: 'events',      icon: '⚡', label: 'Events' },
   { tab: 'catalog',     icon: '🖼', label: 'Gallery' },
 ]
 

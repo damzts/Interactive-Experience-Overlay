@@ -318,7 +318,7 @@ export function DashboardOverview({
           </Card>
           <Card variant="default" padding="sm" className="flex items-center gap-[var(--space-2)]">
             <Zap className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
-            <span className="text-[var(--text-xs)] text-[var(--color-text-primary)]">Effect Ambiance</span>
+            <span className="text-[var(--text-xs)] text-[var(--color-text-primary)]">Effect Storms</span>
             <Toggle checked={effectAmbianceEnabled} onChange={onToggleEffectAmbiance} size="sm" />
           </Card>
         </div>

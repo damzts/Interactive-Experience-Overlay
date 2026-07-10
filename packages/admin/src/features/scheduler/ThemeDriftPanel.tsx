@@ -31,7 +31,7 @@ function ThemeDriftSection({
   }
 
   const clearRuntimeConfig = () => {
-    if (!window.confirm('Clear all runtime overrides (theme drift, temporary event patches, etc.)? This affects the live overlay immediately.')) return
+    if (!window.confirm('Clear all runtime overrides (theme rotation, temporary event patches, etc.)? This affects the live overlay immediately.')) return
     setClearing(true)
     socket.emit('runtime:config:reset', () => setClearing(false))
   }
@@ -40,10 +40,10 @@ function ThemeDriftSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs font-semibold text-zinc-200">Theme Drift</div>
+          <div className="text-xs font-semibold text-zinc-200">Theme Rotation</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">
             Ambiently varies the desktop art style over time. Each enabled group independently rolls a chance to
-            change on every tick — the change sticks as the new look (a runtime override) until the next drift or
+            change on every tick — the change sticks as the new look (a runtime override) until the next rotation or
             a runtime config reset. Nothing here is saved to your base theme.
           </div>
         </div>
@@ -151,16 +151,16 @@ export function ThemeDriftPanel() {
 
   return (
     <div className="space-y-5">
-      <ConfigPageIntro title="Theme Drift">
+      <ConfigPageIntro title="Theme Rotation">
         Ambiently varies the desktop art style over time as a runtime override, independent of your saved theme.
       </ConfigPageIntro>
 
-      <ConfigSectionPanel label="Theme drift">
+      <ConfigSectionPanel label="Theme rotation">
         <ThemeDriftSection config={draft} onChange={handleChange} />
       </ConfigSectionPanel>
 
       <ConfigApplyBar
-        label="Theme Drift"
+        label="Theme Rotation"
         dirty={dirty}
         saving={saving}
         saved={saved}

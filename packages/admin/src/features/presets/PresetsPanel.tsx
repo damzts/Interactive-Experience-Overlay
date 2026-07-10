@@ -10,9 +10,9 @@ import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, ConfigNotice, Btn } fr
 
 const SECTION_OPTIONS: Array<{ key: keyof AppConfig; label: string; defaultChecked: boolean }> = [
   { key: 'desktopConfig',     label: 'Desktop Theme & Skin',    defaultChecked: true },
-  { key: 'desktopAmbiance',   label: 'Ambiance (widget sim)',   defaultChecked: true },
-  { key: 'effectAmbiance',    label: 'Effect Ambiance',         defaultChecked: true },
-  { key: 'desktopThemeDrift', label: 'Theme Drift',             defaultChecked: true },
+  { key: 'desktopAmbiance',   label: 'Desktop Interaction',     defaultChecked: true },
+  { key: 'effectStorms',      label: 'Effect Storms',           defaultChecked: true },
+  { key: 'desktopThemeDrift', label: 'Theme Rotation',          defaultChecked: true },
   { key: 'audio',             label: 'Audio Engine',            defaultChecked: true },
   { key: 'chatReactions',     label: 'Chat Reactions',          defaultChecked: false },
   { key: 'automationRules',   label: 'Automation Rules',        defaultChecked: false },

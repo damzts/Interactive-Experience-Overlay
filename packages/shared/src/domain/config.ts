@@ -1,5 +1,5 @@
 import type { Application, WidgetLayoutDefinition } from './application.js'
-import type { DesktopAmbianceConfig, EffectAmbianceConfig } from './ambiance.js'
+import type { DesktopAmbianceConfig, EffectAmbianceConfig, EffectStormConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { DesktopThemeDriftConfig } from './themeDrift.js'
 import type { PersonaConfig } from './persona.js'
@@ -85,8 +85,14 @@ export interface AppConfig {
   shows?: ShowDefinition[]
   /** Twitch connection config (TwitchIntegrationManager → twitch_config table) */
   twitch?: TwitchConfig
-  /** Ambient random effect loop config (EffectAmbianceManager) */
+  /** @deprecated legacy single-pool ambient effect loop config — replaced by
+   *  effectStorms (array). Still read for one-time migration; no longer
+   *  written by the admin UI. See withEffectStormsDefaults. */
   effectAmbiance?: EffectAmbianceConfig
+  /** Ambient random effect loops (EffectAmbianceManager) — one or more
+   *  independent "storms", each with its own enable flag, interval, and
+   *  effect pool, running concurrently. */
+  effectStorms?: EffectStormConfig[]
   /** Chat reaction rules (ChatReactionManager → chat_reactions table) */
   chatReactions?: ChatReactionRule[]
   /** Ambient art-style drift config (ThemeDriftManager → desktop_theme_drift table) */

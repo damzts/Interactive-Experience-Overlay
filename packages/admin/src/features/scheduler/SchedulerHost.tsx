@@ -13,9 +13,9 @@ export const SCHEDULER_TABS: Array<{ tab: SchedulerTab; icon: string; label: str
   { tab: 'events',            icon: '⏱', label: 'Scheduler' },
   { tab: 'preset-rotation',   icon: '💾', label: 'Preset Rotation' },
   { tab: 'automation',        icon: '🤖', label: 'Automation' },
-  { tab: 'effect-ambiance',   icon: '✨', label: 'Effect Ambiance' },
-  { tab: 'theme-drift',       icon: '🎨', label: 'Theme Drift' },
-  { tab: 'desktop-ambiance',  icon: '👻', label: 'Ghost User' },
+  { tab: 'effect-ambiance',   icon: '🌩', label: 'Effect Storms' },
+  { tab: 'theme-drift',       icon: '🎨', label: 'Theme Rotation' },
+  { tab: 'desktop-ambiance',  icon: '🖱', label: 'Desktop Interaction' },
   { tab: 'persona',           icon: '🗣', label: 'Persona' },
   { tab: 'audio',             icon: '🔊', label: 'Audio' },
 ]

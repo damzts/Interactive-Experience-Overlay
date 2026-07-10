@@ -66,10 +66,33 @@ export interface DesktopAmbianceConfig {
   widgetSimulation: AmbianceWidgetSimulationConfig
 }
 
-// ── Effect Ambiance ───────────────────────────────────────────────
+// ── Effect Ambiance (legacy single-pool shape, kept for migration) ─
+// See EffectStormConfig below for the current multi-storm shape.
 
-/** Fires randomly selected overlay effects on a timer in the background. */
+/** @deprecated superseded by EffectStormConfig[] (effectStorms). Kept so old
+ *  saved configs / DB rows can be migrated via withEffectStormsDefaults. */
 export interface EffectAmbianceConfig {
+  enabled: boolean
+  /** Pool of preconfigured effects — one or more are chosen at random each tick. */
+  pool: import('../contracts/effects.js').EffectConfig[]
+  /** Average seconds between fires */
+  intervalSeconds: number
+  /** ±jitter as a fraction of the interval. 0.3 = ±30%. Default 0.3. */
+  jitterFactor?: number
+  /** How many effects to pick from the pool per tick. Default 1. */
+  countPerTick?: number
+}
+
+// ── Effect Storms ──────────────────────────────────────────────────
+// Multiple independent "storms" of ambient effects. Each storm owns its
+// own enable flag, timer interval, and effect pool — e.g. a light
+// "sparkle storm" ticking every 10s alongside a rare "chaos storm" every
+// 5 minutes, running concurrently and independently.
+
+/** A single independent ambient-effect timer with its own pool. */
+export interface EffectStormConfig {
+  id: string
+  label: string
   enabled: boolean
   /** Pool of preconfigured effects — one or more are chosen at random each tick. */
   pool: import('../contracts/effects.js').EffectConfig[]

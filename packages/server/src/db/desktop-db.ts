@@ -119,6 +119,11 @@ const SCHEMA = `
     config_json TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS effect_storms (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    config_json TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS desktop_theme_drift (
     id INTEGER PRIMARY KEY DEFAULT 1,
     config_json TEXT

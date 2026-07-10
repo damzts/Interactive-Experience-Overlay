@@ -111,13 +111,13 @@ export function KeybindEditor() {
     <div className="w-full max-w-none space-y-0 pt-1">
       <ConfigPageIntro title="Keybind Configuration">
         Capture keyboard shortcuts and bind each one to a saved preset — Effect or Action, authored
-        in Graphics → Effects. Input Engine only triggers presets; it doesn't configure them.
+        in Events. Input Engine only triggers presets; it doesn't configure them.
       </ConfigPageIntro>
 
       <ConfigPanel title="Keybind Editor">
         {presets.length === 0 ? (
           <ConfigNotice tone="info">
-            No presets exist yet. Create an Effect or Action preset in Graphics → Effects before binding a key.
+            No presets exist yet. Create an Effect or Action preset in Events before binding a key.
           </ConfigNotice>
         ) : (
           <ConfigNotice>

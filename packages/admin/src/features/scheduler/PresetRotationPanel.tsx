@@ -110,7 +110,7 @@ function EventRow({
         <div className="mt-4 space-y-4 border-t border-white/8 pt-4">
           {!hasWork && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 px-4 py-3 text-[10px] text-rose-300">
-              This event has no actions or effects — it will be skipped by the scheduler even if enabled. Add actions or effects in Graphics → Effects.
+              This event has no actions or effects — it will be skipped by the scheduler even if enabled. Add actions or effects in Events.
             </div>
           )}
 

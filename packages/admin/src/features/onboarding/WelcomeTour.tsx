@@ -38,7 +38,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: 'Top Bar Navigation',
     description:
-      'Browse all sections from the top bar — Dashboard, Scenes, Graphics, Ambiance, and Integrations.',
+      'Browse all sections from the top bar — Dashboard, Scenes, Events, Ambiance, and Integrations.',
     target: '[data-tour="topbar"]',
     position: 'bottom',
   },

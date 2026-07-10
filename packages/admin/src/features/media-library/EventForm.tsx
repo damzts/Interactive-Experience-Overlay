@@ -210,6 +210,8 @@ export function EventForm({
     )
   }
 
+  const showBothSections = def.presetType !== 'effect' && def.presetType !== 'action'
+
   const runtimeActionsSection = wrapGridItem(
     <ConfigSectionPanel label="Runtime Actions" first>
             <div className="space-y-4">
@@ -263,7 +265,7 @@ export function EventForm({
               </Btn>
             </div>
               </ConfigSectionPanel>,
-            'xl:col-start-1'
+            showBothSections ? 'xl:col-start-1' : 'xl:col-span-2'
   )
 
   const effectsSection = wrapGridItem(
@@ -359,7 +361,7 @@ export function EventForm({
               </Btn>
             </div>
               </ConfigSectionPanel>,
-            'xl:col-start-2'
+            showBothSections ? 'xl:col-start-2' : 'xl:col-span-2'
   )
 
   return (
