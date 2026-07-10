@@ -1,3 +1,8 @@
+> **AI Agent Notes**
+> This is an operator/user guide, not an architecture doc — see `webrtc-online-rooms.md` for the conceptual model and constraints. Keep tuning numbers in sync with `RoomConfig` defaults in code.
+
+---
+
 # Online Rooms Admin Guide
 
 ## Overview

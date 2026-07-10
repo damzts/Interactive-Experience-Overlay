@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > Update this catalog when signals or commands are added or removed.
 > The ground truth is `packages/shared/src/contracts/signals.ts` and `commands.ts`.
-> This file provides prose context that type definitions alone don't convey.
+> This file provides prose context that type definitions alone don't convey. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

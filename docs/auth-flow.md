@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > Auth flows change less often than engine features but are harder to debug when broken.
 > The key constraint: the self-hosted server has no auth logic. It delegates entirely to the cloud API.
-> The Vite proxy split (some routes to cloud, most to local) is the most common source of confusion for new contributors.
+> The Vite proxy split (some routes to cloud, most to local) is the most common source of confusion for new contributors. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

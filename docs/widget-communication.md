@@ -1,3 +1,9 @@
+> **AI Agent Notes**
+> Document the channel choice (DOM bus vs automation vs server-mediated), not every payload shape — those are in `signal-catalog.md`.
+> If something here contradicts the code, the code wins — fix the doc.
+
+---
+
 # Widget-to-Widget Communication
 
 ## Naming note

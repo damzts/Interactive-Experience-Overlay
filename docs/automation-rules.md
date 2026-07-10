@@ -1,3 +1,9 @@
+> **AI Agent Notes**
+> This describes the rule engine's shape and evaluation split (overlay vs server), not the UI. Keep it high-level and stable.
+> If something here contradicts the code, the code wins — fix the doc.
+
+---
+
 # Automation Rules
 
 Automation Rules connect **any signal** to **any action** — persistently, without writing code. One rule engine covers what used to be two separate systems (kernel-event "automation" and widget-to-widget "wires").

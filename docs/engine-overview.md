@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > This file documents design decisions and boundaries — things hard to rediscover from code alone.
 > Do not document what is obvious from reading the source. Document **why**.
-> If a section becomes stale, delete it rather than leaving incorrect info.
+> If a section becomes stale, delete it rather than leaving incorrect info. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

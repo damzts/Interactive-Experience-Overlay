@@ -1,3 +1,9 @@
+> **AI Agent Notes**
+> This documents the panel → table ownership invariant, not individual field layouts.
+> If a new panel or table is added, update the map. If something here contradicts the code, the code wins — fix the doc.
+
+---
+
 # Admin — Right Pane Panels & Table Ownership
 
 Each right-pane panel in the admin is responsible for exactly one DB table. A panel that saves to multiple tables indicates a schema design problem or mixed abstraction — fix the schema or split the panel.
