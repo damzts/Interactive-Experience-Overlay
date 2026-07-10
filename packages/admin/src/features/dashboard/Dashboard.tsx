@@ -95,7 +95,7 @@ export function Dashboard() {
       section === 'graphics' ? { kind: 'graphics' }
       : section === 'ambiance' ? { kind: 'scheduler', tab: 'events' }
       : section === 'integrations' ? { kind: 'obs' }
-      : section === 'settings-tab' ? { kind: 'keybinds' }
+      : section === 'settings-tab' ? { kind: 'settings' }
       : null
     )
   }, [])

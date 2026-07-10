@@ -258,11 +258,18 @@ export class DesktopConfigService implements Manager, IConfigService {
     return this.presetRepo.list()
   }
 
-  savePreset(label: string, sectionKeys: Array<keyof AppConfig>): ConfigPreset {
-    const current = this._cachedConfig ?? this.loadFromDb()
-    const sections: Partial<AppConfig> = {}
-    for (const key of sectionKeys) {
-      sections[key] = clone(current[key]) as never
+  savePreset(label: string, sectionKeys: Array<keyof AppConfig>, explicitSections?: Partial<AppConfig>): ConfigPreset {
+    let sections: Partial<AppConfig>
+    if (explicitSections) {
+      // Imported bundle: trust the caller's section payload as-is (already
+      // validated shape-wise by the route), just clone to detach references.
+      sections = clone(explicitSections)
+    } else {
+      const current = this._cachedConfig ?? this.loadFromDb()
+      sections = {}
+      for (const key of sectionKeys) {
+        sections[key] = clone(current[key]) as never
+      }
     }
     const preset: ConfigPreset = {
       id: crypto.randomUUID(),
@@ -349,13 +356,31 @@ export class DesktopConfigService implements Manager, IConfigService {
 
   private loadKeybinds(): AppConfig['keybinds'] {
     const rows = this.db.prepare('SELECT * FROM keybinds').all() as Array<{ scope: string; key: string; action: string }>
-    const obs: Record<string, string> = {}
-    const admin: Record<string, string> = {}
-    for (const row of rows) {
-      if (row.scope === 'obs') obs[row.key] = row.action
-      else if (row.scope === 'admin') admin[row.key] = row.action
+    const keybinds: Record<string, string> = {}
+    // Historic rows may carry an 'obs' scope from before bindings were
+    // unified into a single map — fold them in too so existing bindings
+    // aren't silently dropped. 'admin' rows take precedence on conflict.
+    // The `action` column holds a plain preset id (AppConfig.sourceEvents)
+    // now — Input Engine only triggers a saved preset, never an inline
+    // action. A row from either older shape (a JSON-encoded EventAction,
+    // or the original bare 'scene:x'/'widget:x'/'event:x' string) doesn't
+    // parse as a bare id and is dropped with a warning instead of guessing
+    // at a conversion.
+    const isLegacyRow = (action: string): boolean => {
+      if (action.startsWith('{') || action.startsWith('[')) return true // JSON EventAction
+      return /^(scene|widget|event|overlay):/.test(action) // original string-prefix scheme
     }
-    return { obs, admin }
+    for (const row of rows) {
+      if (row.scope !== 'obs') continue
+      if (isLegacyRow(row.action)) { logger.warn(`[config] Dropping legacy keybind "${row.key}" — pre-preset action shape no longer supported`); continue }
+      keybinds[row.key] = row.action
+    }
+    for (const row of rows) {
+      if (row.scope !== 'admin') continue
+      if (isLegacyRow(row.action)) { logger.warn(`[config] Dropping legacy keybind "${row.key}" — pre-preset action shape no longer supported`); continue }
+      keybinds[row.key] = row.action
+    }
+    return keybinds
   }
 
   private loadObsConfig(): AppConfig['obs'] {
@@ -437,8 +462,7 @@ export class DesktopConfigService implements Manager, IConfigService {
   private saveKeybinds(keybinds: AppConfig['keybinds']): void {
     this.db.prepare('DELETE FROM keybinds').run()
     const insert = this.db.prepare('INSERT INTO keybinds (scope, key, action) VALUES (?, ?, ?)')
-    for (const [key, action] of Object.entries(keybinds.obs ?? {})) insert.run('obs', key, action)
-    for (const [key, action] of Object.entries(keybinds.admin ?? {})) insert.run('admin', key, action)
+    for (const [key, presetId] of Object.entries(keybinds ?? {})) insert.run('admin', key, presetId)
   }
 
   private saveObsConfig(obs: AppConfig['obs']): void {

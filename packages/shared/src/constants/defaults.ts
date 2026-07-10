@@ -158,7 +158,7 @@ export function withAutoTriggerDefaults(auto?: Partial<AutoTrigger> | null): Aut
   }
 }
 
-function normalizeEventAction(action: EventAction): EventAction | null {
+export function normalizeEventAction(action: EventAction): EventAction | null {
   const normalizeRuntimeActionTimeoutSeconds = (value?: number) => Math.max(1, Math.min(3600, Math.round(value ?? 30)))
 
   if (action.kind === 'desktop-config') {
@@ -856,14 +856,7 @@ export function mergeAppConfig(base: AppConfig, updates: Partial<AppConfig>): Ap
     ...updates,
     scenes: updates.scenes ?? base.scenes,
     applications: updates.applications ?? base.applications,
-    keybinds: updates.keybinds
-      ? {
-          ...base.keybinds,
-          ...updates.keybinds,
-          obs: updates.keybinds.obs ? { ...base.keybinds.obs, ...updates.keybinds.obs } : base.keybinds.obs,
-          admin: updates.keybinds.admin ? { ...base.keybinds.admin, ...updates.keybinds.admin } : base.keybinds.admin,
-        }
-      : base.keybinds,
+    keybinds: updates.keybinds ? { ...base.keybinds, ...updates.keybinds } : base.keybinds,
     obs: updates.obs ? { ...base.obs, ...updates.obs } : base.obs,
     audio: updates.audio ? { ...base.audio, ...updates.audio } : base.audio,
     desktopConfig: nextDesktopConfig,
@@ -963,20 +956,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     { id: 'lcd-dolphins',         label: 'Pioneer LCD',          icon: '🐬',   widgetSource: 'system' as const, widgetComponent: 'lcd-dolphins' as const },
   ],
 
-  keybinds: {
-    obs: {
-      F2: 'overlay:death',
-      F3: 'overlay:revive',
-      F4: 'overlay:victory',
-      F6: 'scene:DESKTOP',
-    },
-    admin: {
-      F2: 'overlay:death',
-      F3: 'overlay:revive',
-      F4: 'overlay:victory',
-      F6: 'scene:DESKTOP',
-    },
-  },
+  // No default bindings — Input Engine only binds a saved preset id, and
+  // there are no seeded presets to point at out of the box. Users bind
+  // keys once they've created Effect/Action presets in Graphics → Effects.
+  keybinds: {},
 
   obs: {
     url: 'ws://localhost:4455',

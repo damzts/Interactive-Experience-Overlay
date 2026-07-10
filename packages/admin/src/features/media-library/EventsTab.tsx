@@ -4,6 +4,20 @@ import { describeEventSetup, type EventDef, type EventDraft } from './eventPrese
 import { LibraryItemBtn } from './mediaLibraryUi'
 import { MediaSearchInput } from './MediaLibraryPanel'
 
+const PRESET_TYPE_BADGE: Record<'effect' | 'action', { label: string; className: string }> = {
+  effect: { label: 'Effect', className: 'bg-cyan-500/10 text-cyan-300' },
+  action: { label: 'Action', className: 'bg-violet-500/10 text-violet-300' },
+}
+
+function PresetTypeBadge({ presetType }: { presetType?: 'effect' | 'action' }) {
+  const badge = presetType ? PRESET_TYPE_BADGE[presetType] : null
+  return (
+    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${badge ? badge.className : 'bg-zinc-500/10 text-zinc-400'}`}>
+      {badge ? badge.label : 'Legacy'}
+    </span>
+  )
+}
+
 export function EventsTabSidebar({
   eventSearch,
   onEventSearchChange,
@@ -19,29 +33,26 @@ export function EventsTabSidebar({
 }) {
   return (
     <>
-      <MediaSearchInput value={eventSearch} onChange={onEventSearchChange} placeholder="Search events…" />
+      <MediaSearchInput value={eventSearch} onChange={onEventSearchChange} placeholder="Search presets…" />
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
         {filteredEventDefs.length ? filteredEventDefs.map((def) => (
           <LibraryItemBtn key={def.id} active={def.id === selectedEventId} onClick={() => onSelectEvent(def.id)}>
             <div className="flex items-center gap-2">
               <span className="text-sm leading-none">{def.icon}</span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{def.label}</span>
-              {def.auto.enabled && (
-                <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-300">
-                  Auto
-                </span>
-              )}
+              <PresetTypeBadge presetType={def.presetType} />
             </div>
             <div className="mt-1.5 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">
               {def.desc || describeEventSetup(def)}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
-              <span>{def.actions?.length ?? 0} actions</span>
-              <span>{def.effects.length} fx</span>
-            </div>
+            {def.auto.enabled && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] uppercase tracking-[0.12em] text-amber-300/80">
+                <span>⏱ scheduled</span>
+              </div>
+            )}
           </LibraryItemBtn>
         )) : (
-          <ConfigNotice tone="info">No events match this filter.</ConfigNotice>
+          <ConfigNotice tone="info">No presets match this filter.</ConfigNotice>
         )}
       </div>
     </>
@@ -57,7 +68,7 @@ export function EventsTabContent({
   deleteEventDraft,
   onTriggerEvent,
 }: {
-  createEventDraft: () => void
+  createEventDraft: (presetType: 'effect' | 'action') => void
   editingEvent: EventDraft | null
   eventDraftOriginalId: string | null
   patchEventDraft: (updated: EventDraft) => void
@@ -66,6 +77,9 @@ export function EventsTabContent({
   onTriggerEvent: (def: EventDraft) => void
 }) {
   const editingEventCreatesNew = !eventDraftOriginalId
+  const presetTypeLabel = editingEvent?.presetType === 'effect' ? 'Effect Preset'
+    : editingEvent?.presetType === 'action' ? 'Action Preset'
+    : 'Legacy Preset'
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
@@ -95,13 +109,16 @@ export function EventsTabContent({
             </>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <Btn type="button" variant="ghost" onClick={() => createEventDraft()} className="px-4 py-2 text-sm">
-              + New Blank Event
+            <Btn type="button" variant="ghost" onClick={() => createEventDraft('effect')} className="px-4 py-2 text-sm">
+              + New Effect Preset
+            </Btn>
+            <Btn type="button" variant="ghost" onClick={() => createEventDraft('action')} className="px-4 py-2 text-sm">
+              + New Action Preset
             </Btn>
             {editingEvent && (
               <>
                 <Btn type="button" variant="primary" onClick={saveEventDraft} className="px-4 py-2 text-sm">
-                  {editingEventCreatesNew ? 'Save Event' : 'Update Event'}
+                  {editingEventCreatesNew ? 'Save Preset' : 'Update Preset'}
                 </Btn>
                 {!editingEventCreatesNew && (
                   <Btn type="button" variant="primary" onClick={() => onTriggerEvent(editingEvent)} className="px-4 py-2 text-sm">
@@ -109,21 +126,24 @@ export function EventsTabContent({
                   </Btn>
                 )}
                 <Btn type="button" variant="danger" onClick={deleteEventDraft} className="px-4 py-2 text-sm">
-                  {editingEventCreatesNew ? 'Delete Draft' : 'Delete Event'}
+                  {editingEventCreatesNew ? 'Delete Draft' : 'Delete Preset'}
                 </Btn>
               </>
             )}
           </div>
         </div>
         {editingEvent && !editingEvent.builtIn && (
-          <div>
-            <div className="mb-1 text-[10px] text-zinc-400">Description</div>
-            <textarea
-              value={editingEvent.desc}
-              onChange={(event) => patchEventDraft({ ...editingEvent, desc: event.target.value })}
-              className="min-h-[56px] w-full text-sm"
-            />
-          </div>
+          <>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{presetTypeLabel}</div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-400">Description</div>
+              <textarea
+                value={editingEvent.desc}
+                onChange={(event) => patchEventDraft({ ...editingEvent, desc: event.target.value })}
+                className="min-h-[56px] w-full text-sm"
+              />
+            </div>
+          </>
         )}
       </div>
 
@@ -137,8 +157,10 @@ export function EventsTabContent({
         />
       ) : (
         <ConfigNotice tone="info" className="py-8 text-center">
-          Select an event from the left column or choose an event type above to start a new draft.
-          Events define effects and actions; auto-fire scheduling (intervals, cooldowns) lives in Ambiance → Events.
+          Select a preset from the left column, or create a new Effect Preset (overlay visuals) or
+          Action Preset (runtime automation) above. Scheduling a preset to fire automatically
+          (intervals, cooldowns) happens in Ambiance → Scheduler. Input Engine keybinds also fire
+          any saved preset directly.
         </ConfigNotice>
       )}
     </div>

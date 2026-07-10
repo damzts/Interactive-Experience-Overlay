@@ -34,7 +34,7 @@ export interface EventsTabState {
   editingEvent: EventDraft | null
   eventDraftOriginalId: string | null
   selectEvent: (id: string) => void
-  createEventDraft: () => void
+  createEventDraft: (presetType: 'effect' | 'action') => void
   patchEventDraft: (updated: EventDraft) => void
   saveEventDraft: () => void
   deleteEventDraft: () => void
@@ -307,8 +307,8 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     if (asset.source === 'filesystem') { await deleteMediaFile(asset.url); await refreshCatalog() }
   }
 
-  const createEventDraft = () => {
-    const def = createBlankEventDef()
+  const createEventDraft = (presetType: 'effect' | 'action') => {
+    const def = createBlankEventDef(presetType)
     setTab('events')
     setEventDraft({ event: def, originalId: null })
     setSelectedEventId(null)
@@ -330,13 +330,18 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     // Blank (not-yet-typed) action/effect rows are intentionally persisted as-is —
     // scene.ts's action executor and the overlay's dispatchEffect both no-op on an
     // empty kind/type, same as a scene window with no rendererType set.
+    // A typed preset (presetType set) only ever persists its own section —
+    // the editor already only renders one, but this keeps a stale section
+    // from a pre-split legacy preset from surviving an edit+save round trip.
+    const presetType = eventDraft.event.presetType
+    const defaultLabel = presetType === 'effect' ? 'New Effect' : presetType === 'action' ? 'New Action' : 'New Event'
     const normalizedEvent = {
       ...eventDraft.event,
-      label:   eventDraft.event.label.trim() || 'New Event',
+      label:   eventDraft.event.label.trim() || defaultLabel,
       icon:    eventDraft.event.icon || '⚡',
       desc:    eventDraft.event.desc ?? '',
-      actions: structuredClone(eventDraft.event.actions ?? []),
-      effects: structuredClone(eventDraft.event.effects ?? []),
+      actions: presetType === 'effect' ? [] : structuredClone(eventDraft.event.actions ?? []),
+      effects: presetType === 'action' ? [] : structuredClone(eventDraft.event.effects ?? []),
       auto:    { ...eventDraft.event.auto },
     } as EventDef
     if (eventDraft.originalId) {

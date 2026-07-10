@@ -30,9 +30,11 @@ import type {
 // ── Command-only payload types ────────────────────────────────────
 
 export interface KeybindExecutionPayload {
-  scope: 'obs' | 'admin'
+  /** Looks up the bound preset id from config.keybinds[key] server-side. */
   key?: string
-  action?: string
+  /** Fires this preset id directly, bypassing the keybind map — used by the
+   *  Input Engine's "Run" preview button to validate a binding before save. */
+  presetId?: string
 }
 
 export interface AmbianceSimulationAcceptedPayload {

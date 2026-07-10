@@ -380,22 +380,26 @@ export function EventForm({
               <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Setup</div>
               <div className="mt-1 text-sm font-semibold text-zinc-100">{describeEventSetup(def)}</div>
             </ConfigCard>
-            <ConfigCard className="text-left">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Runtime Actions</div>
-              <div className="mt-1 text-sm font-semibold text-zinc-100">{def.actions?.length ?? 0}</div>
-            </ConfigCard>
-            <ConfigCard className="text-left">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Overlay Effects</div>
-              <div className="mt-1 text-sm font-semibold text-zinc-100">{def.effects.length}</div>
-            </ConfigCard>
+            {def.presetType !== 'effect' && (
+              <ConfigCard className="text-left">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Runtime Actions</div>
+                <div className="mt-1 text-sm font-semibold text-zinc-100">{def.actions?.length ?? 0}</div>
+              </ConfigCard>
+            )}
+            {def.presetType !== 'action' && (
+              <ConfigCard className="text-left">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">Overlay Effects</div>
+                <div className="mt-1 text-sm font-semibold text-zinc-100">{def.effects.length}</div>
+              </ConfigCard>
+            )}
           </div>
         </>
       )}
 
       {flatGrid ? (
         <div className="grid items-start gap-4 xl:grid-cols-2">
-          {runtimeActionsSection}
-          {effectsSection}
+          {def.presetType !== 'effect' && runtimeActionsSection}
+          {def.presetType !== 'action' && effectsSection}
           {!def.builtIn && showDeleteButton && onDelete && (
             <div className="pt-1 xl:col-span-2">
               <Btn variant="danger" onClick={onDelete} className="w-full py-2.5 text-sm">Delete Event</Btn>
@@ -411,8 +415,8 @@ export function EventForm({
           )}
 
           <div className="grid items-start gap-4 xl:grid-cols-2">
-            {runtimeActionsSection}
-            {effectsSection}
+            {def.presetType !== 'effect' && runtimeActionsSection}
+            {def.presetType !== 'action' && effectsSection}
           </div>
         </div>
       )}

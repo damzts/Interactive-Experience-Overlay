@@ -4,7 +4,7 @@ import {
   resetWidgetRuntimeConfig,
   resetWidgetRuntimeConfigs,
 } from './runtimeConfig.js'
-import { runConfiguredAction } from './scene.js'
+import { triggerConfiguredEvent } from './scene.js'
 
 export function registerConfigHandlers(ctx: HandlerContext, socket: AppSocket): void {
   socket.on('runtime:config:reset', (callback) => {
@@ -40,14 +40,13 @@ export function registerConfigHandlers(ctx: HandlerContext, socket: AppSocket): 
 
   socket.on('keybind:execute', (payload, callback) => {
     ctx.scheduler?.noteActivity()
-    const inlineAction = payload.action?.trim()
     const key = payload.key?.trim()
-    const action = inlineAction || (key ? ctx.cachedUserConfig.keybinds[payload.scope]?.[key] : undefined)
-    if (!action) {
-      if (callback) callback(`No ${payload.scope} keybind action found`)
+    const presetId = payload.presetId?.trim() || (key ? ctx.cachedUserConfig.keybinds[key] : undefined)
+    if (!presetId) {
+      if (callback) callback('No preset bound to this key')
       return
     }
-    const result = runConfiguredAction(ctx, action)
+    const result = triggerConfiguredEvent(ctx, presetId)
     if (callback) callback(result.ok ? null : result.error ?? 'Unknown error')
   })
 }

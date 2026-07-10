@@ -190,86 +190,15 @@ function EventRow({
   )
 }
 
-// ── PresetRotationSection ────────────────────────────────────────────
+// ── PresetRotationPanel ──────────────────────────────────────────────
 
-function PresetRotationSection({
-  events,
-  diagByEventId,
-  onAutoChange,
-  onAdd,
-  onDelete,
-}: {
-  events: EventConfig[]
-  diagByEventId: Record<string, { nextRunAt: number | null; due: boolean; idleTriggered: boolean }>
-  onAutoChange: (eventId: string, patch: Partial<AutoTrigger>) => void
-  onAdd: (preset: ConfigPreset) => void
-  onDelete: (eventId: string) => void
-}) {
-  const [presets, setPresets] = useState<ConfigPreset[]>([])
-  const [selectedPresetId, setSelectedPresetId] = useState('')
-
-  useEffect(() => { void fetchPresets().then(setPresets).catch(() => {}) }, [])
-
-  const handleAdd = () => {
-    const preset = presets.find((p) => p.id === selectedPresetId)
-    if (!preset) return
-    onAdd(preset)
-    setSelectedPresetId('')
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="text-[10px] text-zinc-500">
-        Randomly swaps the entire config to a saved preset on a timer — same engine as the plain Events above.
-        The whole thematic (skin, ambiance, sounds, everything the preset captured) changes at once instead of
-        just one layer. Presets are managed in System → Presets.
-      </div>
-
-      <div className="flex gap-2">
-        <select
-          value={selectedPresetId}
-          onChange={(e) => setSelectedPresetId(e.target.value)}
-          className="flex-1 rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-[11px] text-zinc-200 focus:border-fuchsia-500/50 focus:outline-none"
-        >
-          <option value="">
-            {presets.length === 0 ? 'No presets saved yet' : 'Select a preset…'}
-          </option>
-          {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-        </select>
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={!selectedPresetId}
-          className="rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-[11px] font-semibold text-fuchsia-300 hover:border-fuchsia-400/60 hover:bg-fuchsia-500/20 hover:text-fuchsia-100 transition disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          + Add Rotation
-        </button>
-      </div>
-
-      {events.length === 0 ? (
-        <div className="text-[10px] text-zinc-600 italic">No preset rotations configured.</div>
-      ) : (
-        <div className="space-y-2">
-          {events.map((event) => (
-            <EventRow
-              key={event.id}
-              event={event}
-              diag={diagByEventId[event.id]}
-              onChange={(patch) => onAutoChange(event.id, patch)}
-              onDelete={() => onDelete(event.id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── EventsPanel ──────────────────────────────────────────────────────
-
-export function EventsPanel() {
-  const events      = useAdminStore((s) => s.config.sourceEvents ?? [])
+/** Dedicated Ambiance tab for preset rotation — randomly swaps the entire
+ *  config to a saved preset on a timer, using the same scheduler engine as
+ *  plain Events. Presets themselves are managed in Settings → Presets. */
+export function PresetRotationPanel() {
+  const events      = useAdminStore((s) => (s.config.sourceEvents ?? []).filter(isPresetRotationEvent))
   const saveConfig  = useAdminStore((s) => s.saveConfig)
+  const allEvents   = useAdminStore((s) => s.config.sourceEvents ?? [])
   const diag        = useAdminStore((s) => s.runtimeDiagnostics.scheduler)
 
   // tick every second so countdowns refresh
@@ -306,6 +235,11 @@ export function EventsPanel() {
     })
   }, [])
 
+  const [presets, setPresets] = useState<ConfigPreset[]>([])
+  const [selectedPresetId, setSelectedPresetId] = useState('')
+
+  useEffect(() => { void fetchPresets().then(setPresets).catch(() => {}) }, [])
+
   const handleChange = (eventId: string, patch: Partial<AutoTrigger>) => {
     update((list) => {
       const ev = list.find((e) => e.id === eventId)
@@ -313,11 +247,14 @@ export function EventsPanel() {
     })
   }
 
-  const handleAddPresetRotation = (preset: ConfigPreset) => {
+  const handleAdd = () => {
+    const preset = presets.find((p) => p.id === selectedPresetId)
+    if (!preset) return
     update((list) => { list.push(blankPresetRotationEvent(preset)) })
+    setSelectedPresetId('')
   }
 
-  const handleDeletePresetRotation = (eventId: string) => {
+  const handleDelete = (eventId: string) => {
     update((list) => {
       const i = list.findIndex((e) => e.id === eventId)
       if (i >= 0) list.splice(i, 1)
@@ -327,82 +264,73 @@ export function EventsPanel() {
   const apply = useCallback(async () => {
     if (!dirty) return
     setSaving(true)
-    await saveConfig({ sourceEvents: draft })
+    // Preset rotation events live in the same sourceEvents array as plain
+    // scheduled presets (Ambiance → Scheduler) — merge our draft back with
+    // whatever non-rotation events currently exist so neither tab clobbers
+    // the other.
+    const plainEvents = allEvents.filter((e) => !isPresetRotationEvent(e))
+    await saveConfig({ sourceEvents: [...plainEvents, ...draft] })
     setSaving(false)
     if (savedTimer.current) clearTimeout(savedTimer.current)
     setSaved(true)
     savedTimer.current = setTimeout(() => setSaved(false), 1500)
-  }, [dirty, saveConfig, draft])
+  }, [dirty, saveConfig, draft, allEvents])
 
   const reset = useCallback(() => {
     setDraft(structuredClone(events))
     setSaved(false)
   }, [events])
 
-  const plainEvents = draft.filter((e) => !isPresetRotationEvent(e))
-  const presetEvents = draft.filter(isPresetRotationEvent)
-
   return (
     <div className="space-y-5">
-      <ConfigPageIntro title="Events">
-        Automatic event triggers — fires on an interval or after idle time, with a chance and cooldown.
-        Events themselves (their effects and actions) are authored in Graphics → Effects.
+      <ConfigPageIntro title="Preset Rotation">
+        Randomly swaps the entire config to a saved preset on a timer — same engine as the plain
+        Events tab, except the whole thematic (skin, ambiance, sounds, everything the preset
+        captured) changes at once instead of just one layer. Presets are managed in
+        Settings → Presets.
       </ConfigPageIntro>
 
-      <ConfigSectionPanel label="Engine status">
-        <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Next fire</div>
-            <div className="text-zinc-300 font-medium">{formatRelative(diag.nextFireAt)}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Active events</div>
-            <div className="text-zinc-300 font-medium">{diag.activeEventCount}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last processed</div>
-            <div className="text-zinc-400">{formatAgo(diag.lastProcessedAt)}</div>
-          </div>
-          <div className="rounded-xl border border-white/6 bg-white/[0.02] px-5 py-4">
-            <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-0.5">Last fired</div>
-            <div className="text-zinc-400">
-              {diag.lastTriggeredEventId
-                ? `${diag.lastTriggeredEventId} · ${formatAgo(diag.lastTriggeredAt)}`
-                : '—'}
-            </div>
-          </div>
-        </div>
-      </ConfigSectionPanel>
+      <div className="flex gap-2">
+        <select
+          value={selectedPresetId}
+          onChange={(e) => setSelectedPresetId(e.target.value)}
+          className="flex-1 rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-[11px] text-zinc-200 focus:border-fuchsia-500/50 focus:outline-none"
+        >
+          <option value="">
+            {presets.length === 0 ? 'No presets saved yet' : 'Select a preset…'}
+          </option>
+          {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!selectedPresetId}
+          className="rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-[11px] font-semibold text-fuchsia-300 hover:border-fuchsia-400/60 hover:bg-fuchsia-500/20 hover:text-fuchsia-100 transition disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          + Add Rotation
+        </button>
+      </div>
 
-      {plainEvents.length === 0 ? (
-        <div className="text-xs text-zinc-600 italic px-1">No events configured. Create events in Graphics → Effects.</div>
+      {draft.length === 0 ? (
+        <div className="text-[10px] text-zinc-600 italic">No preset rotations configured.</div>
       ) : (
-        <ConfigSectionPanel label="Events">
+        <ConfigSectionPanel label="Rotations">
           <div className="space-y-2">
-            {plainEvents.map((event) => (
+            {draft.map((event) => (
               <EventRow
                 key={event.id}
                 event={event}
                 diag={diagByEventId[event.id]}
                 onChange={(patch) => handleChange(event.id, patch)}
+                onDelete={() => handleDelete(event.id)}
               />
             ))}
           </div>
         </ConfigSectionPanel>
       )}
 
-      <ConfigSectionPanel label="Preset rotation">
-        <PresetRotationSection
-          events={presetEvents}
-          diagByEventId={diagByEventId}
-          onAutoChange={handleChange}
-          onAdd={handleAddPresetRotation}
-          onDelete={handleDeletePresetRotation}
-        />
-      </ConfigSectionPanel>
-
       <ConfigApplyBar
-        label="Events"
+        label="Preset Rotation"
         dirty={dirty}
         saving={saving}
         saved={saved}

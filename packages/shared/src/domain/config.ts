@@ -48,10 +48,10 @@ export interface AudioReactivityConfig {
 export interface AppConfig {
   scenes: Record<string, Scene>
   applications: Application[]
-  keybinds: {
-    obs: Record<string, string>
-    admin: Record<string, string>
-  }
+  /** key -> id of a saved preset (AppConfig.sourceEvents) to fire. Input
+   *  Engine only triggers a saved preset, never an inline action — the
+   *  same vocabulary Ambiance → Scheduler fires automatically. */
+  keybinds: Record<string, string>
   obs: {
     url: string
     password: string

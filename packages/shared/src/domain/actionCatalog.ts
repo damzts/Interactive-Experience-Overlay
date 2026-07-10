@@ -48,6 +48,12 @@ export interface SceneChangeActionConfig {
   target: string
 }
 
+export interface EventTriggerActionConfig {
+  /** ID of a saved event (AppConfig.sourceEvents) to fire — runs its
+   *  effects and runtime actions, same as the event firing automatically. */
+  eventId: string
+}
+
 export interface TransitionActionConfig {
   /** Sequence id (Sequences tab, `sequences` table) to play as an exit pipeline. */
   sequenceId: string
@@ -104,6 +110,7 @@ export interface ActionConfigMap {
   'obs-ensure-overlay-source': ObsEnsureOverlaySourceActionConfig
   'obs-stream': ObsStreamActionConfig
   'scene-change': SceneChangeActionConfig
+  'event-trigger': EventTriggerActionConfig
   'transition': TransitionActionConfig
   'preset-apply': PresetApplyActionConfig
   'overlay-trigger': OverlayTriggerActionConfig
@@ -200,6 +207,15 @@ export const ACTION_CATALOG: { [K in CatalogActionKind]: ActionManifest<K> } = {
     defaults: { target: '' },
     fields: [
       { key: 'target', label: 'Target scene', type: 'ref', refKind: 'scene' },
+    ],
+  },
+  'event-trigger': {
+    label: 'Fire Saved Event',
+    category: 'Scene',
+    desc: 'Runs a saved event\'s effects and runtime actions on demand — the same as it firing automatically.',
+    defaults: { eventId: '' },
+    fields: [
+      { key: 'eventId', label: 'Event', type: 'ref', refKind: 'event' },
     ],
   },
   'transition': {

@@ -48,14 +48,9 @@ function AppContent() {
     const handleKey = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as Element)?.tagName)) return
       const key = e.key === ' ' ? 'Space' : e.key
-      const scope = config.keybinds.admin[key]
-        ? 'admin'
-        : config.keybinds.obs[key]
-          ? 'obs'
-          : null
-      if (!scope) return
+      if (!config.keybinds[key]) return
       e.preventDefault()
-      socket.emit('keybind:execute', { scope, key })
+      socket.emit('keybind:execute', { key })
     }
 
     window.addEventListener('keydown', handleKey)

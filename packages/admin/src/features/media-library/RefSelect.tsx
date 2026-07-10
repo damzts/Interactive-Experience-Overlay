@@ -20,6 +20,7 @@ function useRefOptions(refKind: RefKind): RefOption[] {
   const applications  = useAdminStore((s) => s.config.applications)
   const widgetLayouts = useAdminStore((s) => s.config.widgetLayouts ?? [])
   const windowPresets = useAdminStore((s) => s.config.windowPresets ?? [])
+  const sourceEvents  = useAdminStore((s) => s.config.sourceEvents ?? [])
   const [fetched, setFetched] = useState<RefOption[]>([])
 
   useEffect(() => {
@@ -37,6 +38,7 @@ function useRefOptions(refKind: RefKind): RefOption[] {
     case 'widget':        return applications.map((a) => ({ id: a.id, label: a.label }))
     case 'widget-layout': return widgetLayouts.map((l) => ({ id: l.id, label: l.label }))
     case 'window-preset': return windowPresets.map((p) => ({ id: p.id, label: p.label }))
+    case 'event':         return sourceEvents.map((e) => ({ id: e.id, label: e.label }))
     case 'preset':
     case 'sequence':      return fetched
   }

@@ -7,6 +7,7 @@ import {
   mergeAppConfig,
   type AppConfig,
   type EventConfig,
+  type EventAction,
   type OverlayTriggerPayload,
   type SequenceStep,
   type TransitionPlayPayload,
@@ -68,116 +69,101 @@ export function resolvePipelines(
   return { exit: exit ?? [], intro: intro ?? [] }
 }
 
+/** Dispatches a single EventAction — the four hand-coded kinds inline,
+ *  everything else via the catalog action registry. Shared by
+ *  executeConfiguredEvent's per-action loop and runSingleAction (used to
+ *  fire a lone action outside of any event, e.g. a keybind binding). */
+function runEventAction(ctx: HandlerContext, action: EventAction): void {
+  if (action.kind === 'desktop-config') {
+    const currentEffective = withDesktopConfigDefaults(
+      mergeAppConfig(ctx.cachedUserConfig, ctx.runtimeConfig as unknown as Partial<AppConfig>).desktopConfig,
+    )
+    const resolvedTheme = resolveRuntimeDesktopTheme(action.patch.theme, currentEffective.globalThemeDefault.theme)
+    const resolvedWidgetPatch = resolveRuntimeWidgetThemePatch(action.patch.widgetTheme)
+    const globalPatch = resolvedTheme !== undefined || resolvedWidgetPatch
+      ? {
+          ...(resolvedTheme !== undefined ? { theme: resolvedTheme } : {}),
+          ...(resolvedWidgetPatch ? { widgetTheme: resolvedWidgetPatch } : {}),
+        }
+      : undefined
+    const desktopPatch = {
+      ...(globalPatch ? { globalThemeDefault: globalPatch } : {}),
+      ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
+      ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
+      ...(action.patch.iconArrangement !== undefined ? { iconArrangement: action.patch.iconArrangement } : {}),
+      ...(action.patch.iconArrangementMotion !== undefined ? { iconArrangementMotion: action.patch.iconArrangementMotion } : {}),
+    }
+    applyRuntimeConfig(ctx, { desktopConfig: desktopPatch as typeof ctx.runtimeConfig['desktopConfig'] })
+    if (!action.persistent) {
+      const resetScopes: RuntimeConfigResetScope[] = []
+      if (globalPatch) resetScopes.push('desktop.globalThemeDefault')
+      if (desktopPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
+      if (desktopPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
+      if (desktopPatch.iconArrangement !== undefined) resetScopes.push('desktop.iconArrangement')
+      if (desktopPatch.iconArrangementMotion !== undefined) resetScopes.push('desktop.iconArrangementMotion')
+      if (resetScopes.length) scheduleRuntimeConfigReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
+    }
+    // persistent actions (e.g. ThemeDriftManager) skip reset scheduling —
+    // the patch sticks as the new baseline until the next drift or an
+    // explicit runtime:config:reset.
+    return
+  }
+
+  if (action.kind === 'widget-themes') {
+    const currentDesktop = withDesktopConfigDefaults(ctx.cachedUserConfig.desktopConfig)
+    const resolvedPatch = resolveRuntimeWidgetThemePatch(action.theme)
+    const nextThemes: NonNullable<DesktopConfig['widgetThemes']> = {}
+    for (const widgetId of action.widgetIds) {
+      const globalTheme = currentDesktop.globalThemeDefault.widgetTheme
+      const persistedTheme = ctx.cachedUserConfig.applications.find((a) => a.id === widgetId)?.theme
+      const base = action.clearExisting
+        ? globalTheme
+        : currentDesktop.widgetThemes?.[widgetId] ?? persistedTheme ?? globalTheme
+      nextThemes[widgetId] = { ...base, ...(resolvedPatch ?? {}) }
+    }
+    applyRuntimeConfig(ctx, { desktopConfig: { widgetThemes: nextThemes } })
+    scheduleRuntimeConfigReset(ctx, ['desktop.widgetThemes'], action.timeoutSeconds ?? 30)
+    return
+  }
+
+  // Catalog-driven actions (see @ieomlabs/shared's ACTION_CATALOG and
+  // kernel/actions/registry.ts) — anything not one of the hardcoded kinds
+  // above is dispatched through the action registry. A blank (not-yet-typed
+  // draft) or otherwise unrecognized kind is a no-op there, same as an
+  // unknown effect type in the overlay's dispatchEffect.
+  //
+  // Pre-catalog persisted rows (events saved before widget-layout /
+  // widget-command / ambiance-patch joined ACTION_CATALOG, and automation
+  // rules migrated from the old {kind, params} shape) store their config
+  // flat on the action — ambiance-patch nesting it under `patch` — so lift
+  // those onto cfg here before dispatch.
+  let cfg: unknown
+  if ('cfg' in action) {
+    cfg = (action as { cfg?: unknown }).cfg
+  } else {
+    const { kind: _kind, patch, ...flat } = action as unknown as Record<string, unknown> & { patch?: Record<string, unknown> }
+    cfg = { ...(patch ?? {}), ...flat }
+  }
+  dispatchCatalogAction(action.kind, ctx, cfg)
+}
+
 export function executeConfiguredEvent(ctx: HandlerContext, eventDef: EventConfig): { ok: boolean; error?: string } {
   if (eventDef.effects.length > 0) {
     ctx.machine.triggerOverlay({ id: eventDef.id, effects: eventDef.effects })
   }
 
   for (const action of eventDef.actions ?? []) {
-    if (action.kind === 'desktop-config') {
-      const currentEffective = withDesktopConfigDefaults(
-        mergeAppConfig(ctx.cachedUserConfig, ctx.runtimeConfig as unknown as Partial<AppConfig>).desktopConfig,
-      )
-      const resolvedTheme = resolveRuntimeDesktopTheme(action.patch.theme, currentEffective.globalThemeDefault.theme)
-      const resolvedWidgetPatch = resolveRuntimeWidgetThemePatch(action.patch.widgetTheme)
-      const globalPatch = resolvedTheme !== undefined || resolvedWidgetPatch
-        ? {
-            ...(resolvedTheme !== undefined ? { theme: resolvedTheme } : {}),
-            ...(resolvedWidgetPatch ? { widgetTheme: resolvedWidgetPatch } : {}),
-          }
-        : undefined
-      const desktopPatch = {
-        ...(globalPatch ? { globalThemeDefault: globalPatch } : {}),
-        ...(action.patch.iconAnimation !== undefined ? { iconAnimation: action.patch.iconAnimation } : {}),
-        ...(action.patch.iconMotion !== undefined ? { iconMotion: action.patch.iconMotion } : {}),
-        ...(action.patch.iconArrangement !== undefined ? { iconArrangement: action.patch.iconArrangement } : {}),
-        ...(action.patch.iconArrangementMotion !== undefined ? { iconArrangementMotion: action.patch.iconArrangementMotion } : {}),
-      }
-      applyRuntimeConfig(ctx, { desktopConfig: desktopPatch as typeof ctx.runtimeConfig['desktopConfig'] })
-      if (!action.persistent) {
-        const resetScopes: RuntimeConfigResetScope[] = []
-        if (globalPatch) resetScopes.push('desktop.globalThemeDefault')
-        if (desktopPatch.iconAnimation !== undefined) resetScopes.push('desktop.iconAnimation')
-        if (desktopPatch.iconMotion !== undefined) resetScopes.push('desktop.iconMotion')
-        if (desktopPatch.iconArrangement !== undefined) resetScopes.push('desktop.iconArrangement')
-        if (desktopPatch.iconArrangementMotion !== undefined) resetScopes.push('desktop.iconArrangementMotion')
-        if (resetScopes.length) scheduleRuntimeConfigReset(ctx, resetScopes, action.timeoutSeconds ?? 30)
-      }
-      // persistent actions (e.g. ThemeDriftManager) skip reset scheduling —
-      // the patch sticks as the new baseline until the next drift or an
-      // explicit runtime:config:reset.
-      continue
-    }
-
-    if (action.kind === 'widget-themes') {
-      const currentDesktop = withDesktopConfigDefaults(ctx.cachedUserConfig.desktopConfig)
-      const resolvedPatch = resolveRuntimeWidgetThemePatch(action.theme)
-      const nextThemes: NonNullable<DesktopConfig['widgetThemes']> = {}
-      for (const widgetId of action.widgetIds) {
-        const globalTheme = currentDesktop.globalThemeDefault.widgetTheme
-        const persistedTheme = ctx.cachedUserConfig.applications.find((a) => a.id === widgetId)?.theme
-        const base = action.clearExisting
-          ? globalTheme
-          : currentDesktop.widgetThemes?.[widgetId] ?? persistedTheme ?? globalTheme
-        nextThemes[widgetId] = { ...base, ...(resolvedPatch ?? {}) }
-      }
-      applyRuntimeConfig(ctx, { desktopConfig: { widgetThemes: nextThemes } })
-      scheduleRuntimeConfigReset(ctx, ['desktop.widgetThemes'], action.timeoutSeconds ?? 30)
-      continue
-    }
-
-    // Catalog-driven actions (see @ieomlabs/shared's ACTION_CATALOG and
-    // kernel/actions/registry.ts) — anything not one of the hardcoded kinds
-    // above is dispatched through the action registry. A blank (not-yet-typed
-    // draft) or otherwise unrecognized kind is a no-op there, same as an
-    // unknown effect type in the overlay's dispatchEffect.
-    //
-    // Pre-catalog persisted rows (events saved before widget-layout /
-    // widget-command / ambiance-patch joined ACTION_CATALOG, and automation
-    // rules migrated from the old {kind, params} shape) store their config
-    // flat on the action — ambiance-patch nesting it under `patch` — so lift
-    // those onto cfg here before dispatch.
-    let cfg: unknown
-    if ('cfg' in action) {
-      cfg = (action as { cfg?: unknown }).cfg
-    } else {
-      const { kind: _kind, patch, ...flat } = action as unknown as Record<string, unknown> & { patch?: Record<string, unknown> }
-      cfg = { ...(patch ?? {}), ...flat }
-    }
-    dispatchCatalogAction(action.kind, ctx, cfg)
+    runEventAction(ctx, action)
   }
 
   return { ok: true }
 }
 
-function triggerConfiguredEvent(ctx: HandlerContext, eventId: string): { ok: boolean; error?: string } {
+export function triggerConfiguredEvent(ctx: HandlerContext, eventId: string): { ok: boolean; error?: string } {
   const normalized = eventId.toLowerCase().replace(/[_\s]+/g, '-')
   const eventDef = (ctx.cachedUserConfig.sourceEvents ?? []).find((e) => e.id.toLowerCase().replace(/[_\s]+/g, '-') === normalized)
   if (!eventDef) return { ok: false, error: `Unknown event: ${eventId}` }
   return executeConfiguredEvent(ctx, eventDef)
-}
-
-export function runConfiguredAction(ctx: HandlerContext, action: string): { ok: boolean; error?: string } {
-  if (!action) return { ok: false, error: 'No action provided' }
-
-  if (action.startsWith('scene:')) {
-    const target = action.slice(6).trim()
-    if (!(ctx.cachedUserConfig.scenes ?? {})[target]) return { ok: false, error: `Unknown scene target: ${target}` }
-    const { exit, intro } = resolvePipelines(ctx.cachedUserConfig, sequenceLookup(ctx), ctx.machine.currentState, target)
-    return ctx.machine.transition(target, { exit, intro })
-  }
-
-  if (action.startsWith('widget:')) {
-    const widgetId = action.slice(7).trim()
-    if (!widgetId) return { ok: false, error: 'Missing widget id' }
-    toggleWidgetRuntime(ctx, widgetId)
-    return { ok: true }
-  }
-
-  if (action.startsWith('event:')) return triggerConfiguredEvent(ctx, action.slice(6))
-  if (action.startsWith('overlay:')) return triggerConfiguredEvent(ctx, action.slice(8))
-
-  return { ok: false, error: `Unsupported action: ${action}` }
 }
 
 /** Register machine event listeners and scene/event socket handlers on a socket. */

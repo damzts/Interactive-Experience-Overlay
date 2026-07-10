@@ -81,6 +81,7 @@ const SCHEMA = `
     icon TEXT NOT NULL DEFAULT '',
     color TEXT NOT NULL DEFAULT '',
     "desc" TEXT NOT NULL DEFAULT '',
+    preset_type TEXT,
     effects_json TEXT NOT NULL DEFAULT '[]',
     actions_json TEXT,
     auto_json TEXT NOT NULL
@@ -251,6 +252,7 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   addColumn('audio_config', 'ambient_volume', 'REAL')
   addColumn('twitch_config', 'client_id', 'TEXT')
   addColumn('twitch_config', 'event_reactions_json', 'TEXT')
+  addColumn('media_effects', 'preset_type', 'TEXT')
 
   migrateAutomationRules(db)
   migrateAutomationActionShapes(db)

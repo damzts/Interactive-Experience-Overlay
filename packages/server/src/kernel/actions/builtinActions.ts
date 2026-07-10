@@ -10,6 +10,7 @@ import type { ActionConfigMap, DesktopNotificationPayload, EffectConfig, Transit
 import { SYNTHETIC_SIGNAL_KEY } from '@ieomlabs/shared'
 import { registerAction } from './registry.js'
 import { resolvePipelines } from '../../transport/socket/handlers/scene.js'
+import { triggerConfiguredEvent } from '../../transport/socket/handlers/scene.js'
 import { toggleWidgetRuntime, setWidgetRuntimeOpenState, applySavedWidgetLayout } from '../../transport/socket/handlers/widget.js'
 import {
   applyRuntimeConfig,
@@ -79,6 +80,12 @@ export function registerBuiltinActions(): void {
       c.target,
     )
     ctx.machine.transition(c.target, { exit, intro })
+  })
+
+  registerAction('event-trigger', (ctx, cfg) => {
+    const c = cfg as ActionConfigMap['event-trigger']
+    if (!c.eventId?.trim()) return
+    triggerConfiguredEvent(ctx, c.eventId.trim())
   })
 
   registerAction('transition', (ctx, cfg) => {

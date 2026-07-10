@@ -1,4 +1,5 @@
-import { EventsPanel } from './EventsPanel'
+import { SchedulerPanel } from './SchedulerPanel'
+import { PresetRotationPanel } from './PresetRotationPanel'
 import { EffectAmbiancePanel } from './EffectAmbiancePanel'
 import { ThemeDriftPanel } from './ThemeDriftPanel'
 import { PersonaPanel } from './PersonaPanel'
@@ -6,10 +7,11 @@ import { DesktopAmbiancePanel } from './DesktopAmbiancePanel'
 import { AutomationPanel } from '../automation/AutomationPanel'
 import { AudioPanel } from '../audio/AudioPanel'
 
-export type SchedulerTab = 'events' | 'automation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' | 'audio'
+export type SchedulerTab = 'events' | 'preset-rotation' | 'automation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' | 'audio'
 
 export const SCHEDULER_TABS: Array<{ tab: SchedulerTab; icon: string; label: string }> = [
-  { tab: 'events',            icon: '⚡', label: 'Events' },
+  { tab: 'events',            icon: '⏱', label: 'Scheduler' },
+  { tab: 'preset-rotation',   icon: '💾', label: 'Preset Rotation' },
   { tab: 'automation',        icon: '🤖', label: 'Automation' },
   { tab: 'effect-ambiance',   icon: '✨', label: 'Effect Ambiance' },
   { tab: 'theme-drift',       icon: '🎨', label: 'Theme Drift' },
@@ -43,7 +45,8 @@ export function SchedulerHost({ tab, onTabChange }: {
         ))}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto pt-4">
-        {tab === 'events' && <EventsPanel />}
+        {tab === 'events' && <SchedulerPanel />}
+        {tab === 'preset-rotation' && <PresetRotationPanel />}
         {tab === 'automation' && <AutomationPanel />}
         {tab === 'effect-ambiance' && <EffectAmbiancePanel />}
         {tab === 'theme-drift' && <ThemeDriftPanel />}

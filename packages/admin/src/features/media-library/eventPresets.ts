@@ -71,9 +71,12 @@ export function getEventActionLabel(kind: EventAction['kind']) {
 }
 
 export function describeEventSetup(def: EventDraft) {
-  if (def.actions?.length && def.effects.length) return 'Automation + overlay FX'
-  if (def.actions?.length) return 'Runtime automation only'
-  if (def.effects.length) return 'Overlay FX only'
+  if (def.presetType === 'effect') return `Effect preset · ${def.effects.length} fx`
+  if (def.presetType === 'action') return `Action preset · ${def.actions?.length ?? 0} action${def.actions?.length === 1 ? '' : 's'}`
+  // Legacy (pre-split) preset — may mix both.
+  if (def.actions?.length && def.effects.length) return 'Legacy · Automation + overlay FX'
+  if (def.actions?.length) return 'Legacy · Runtime automation only'
+  if (def.effects.length) return 'Legacy · Overlay FX only'
   return 'Empty draft'
 }
 
@@ -117,21 +120,26 @@ export function isBlankEffect(effect: DraftEffectConfig): effect is { type: '' }
   return effect.type === ''
 }
 
-function createEventDef(): EventDef {
+function createEventDef(presetType: 'effect' | 'action'): EventDef {
   return {
     id: 'custom-' + Date.now(),
-    label: 'New Event',
-    icon: '⚡',
+    label: presetType === 'effect' ? 'New Effect' : 'New Action',
+    icon: presetType === 'effect' ? '✨' : '⚡',
     color: 'text-cyan-400',
     desc: '',
+    presetType,
     effects: [],
     actions: [],
     auto: { enabled: false, mode: 'interval', intervalMin: 15, idleMin: 5, chance: 1, cooldownMin: 0 },
   }
 }
 
-export function createBlankEventDef(): EventDef {
-  return createEventDef()
+/** Creates a blank preset draft of the given kind. An "effect" preset
+ *  edits only effects[] (overlay visuals); an "action" preset edits only
+ *  actions[] (runtime automation) — see EventForm, which gates which
+ *  section renders off `presetType`. */
+export function createBlankEventDef(presetType: 'effect' | 'action'): EventDef {
+  return createEventDef(presetType)
 }
 
 export function createEventActionDraft(kind: EventAction['kind']): EventAction {

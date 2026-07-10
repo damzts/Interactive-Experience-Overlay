@@ -378,7 +378,7 @@ function AvatarSection({
   )
 }
 
-// ── Brain (LLM behavior — connection lives in Integrations → AI & Voice) ──
+// ── Brain (LLM behavior — connection lives in Integrations → AI) ──
 
 function BrainSection({
   brain,

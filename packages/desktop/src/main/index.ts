@@ -11,6 +11,7 @@ import { initConnectivityMonitor, cleanupConnectivityMonitor } from './connectiv
 import { isAutoLaunched, openAppSettingsDb, closeAppSettingsDb } from './startup.js';
 import { loadToken } from './token-storage.js';
 import { broadcastAuthStatus } from './ipc-handlers.js';
+import { startGlobalShortcuts, stopGlobalShortcuts } from './global-shortcuts.js';
 
 // ---------------------------------------------------------------------------
 // Crash Handlers — ensure the process exits on fatal errors
@@ -120,6 +121,11 @@ if (!gotLock) {
     // Startup sequence: server → tray → (conditional) admin window → license
     await startServer();
 
+    // Bridge OS-level global hotkeys to the server's keybind actions so
+    // configured keybinds still fire while the Admin Window is unfocused
+    // or minimized to the tray.
+    startGlobalShortcuts();
+
     // Open app settings DB (the server creates the DB file during startup)
     try {
       const dbPath = path.join(app.getPath('userData'), 'ieom.db');
@@ -198,6 +204,7 @@ if (!gotLock) {
     cleanupAutoUpdater();
     cleanupConnectivityMonitor();
     closeAppSettingsDb();
+    stopGlobalShortcuts();
 
     // Hard kill after 5s if graceful stop hangs
     setTimeout(() => process.exit(0), 5000).unref();

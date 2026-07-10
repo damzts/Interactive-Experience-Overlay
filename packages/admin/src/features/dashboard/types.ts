@@ -1,4 +1,5 @@
 import type { OverlayStyle } from '@ieomlabs/shared'
+import type { SchedulerTab } from '../scheduler/SchedulerHost'
 
 export type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
 
@@ -9,15 +10,15 @@ export type SelectedItem =
   | { kind: 'widget-layout'; layoutId: string }
   | { kind: 'keybinds' }
   | { kind: 'settings' }
-  | { kind: 'scheduler'; tab: 'events' | 'automation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' | 'audio' }
+  | { kind: 'scheduler'; tab: SchedulerTab }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
   | { kind: 'graphics' }
-  | { kind: 'ai-voice' }
-  | { kind: 'kernel-health' }
+  | { kind: 'ai' }
+  | { kind: 'tts' }
   | { kind: 'shows' }
   | { kind: 'twitch' }
-  | { kind: 'presets' }
+  | { kind: 'developer' }
   | { kind: 'sequence'; sequenceId: string }
 
 export function itemKey(item: SelectedItem): string {

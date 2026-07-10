@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppConfig, ConfigPreset } from '@ieomlabs/shared'
-import { fetchPresets, savePreset, applyPreset, deletePreset } from '../../api/presetsApi'
+import {
+  fetchPresets, savePreset, applyPreset, deletePreset,
+  downloadPresetBundle, importPresetBundle, readPresetBundleFile,
+} from '../../api/presetsApi'
 import { ConfigPageIntro, ConfigSectionPanel, ConfigCard, ConfigNotice, Btn } from '../../shared/ui'
 
 // ── Section catalog ──────────────────────────────────────────────────
@@ -36,6 +39,9 @@ export function PresetsPanel() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importNotice, setImportNotice] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -96,17 +102,68 @@ export function PresetsPanel() {
     }
   }
 
+  async function handleExport(preset: ConfigPreset) {
+    setBusyId(preset.id)
+    setError(null)
+    try {
+      await downloadPresetBundle(preset.id, preset.label)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export preset')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  function handlePickImportFile() {
+    setImportNotice(null)
+    setError(null)
+    fileInputRef.current?.click()
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setImporting(true)
+    setError(null)
+    setImportNotice(null)
+    try {
+      const bundle = await readPresetBundleFile(file)
+      if (!bundle?.preset?.label || !bundle.preset.sections) {
+        throw new Error('That file does not look like a valid preset bundle.')
+      }
+      const result = await importPresetBundle(bundle)
+      const assetCount = result.assets.written
+      const skippedCount = result.assets.skipped
+      setImportNotice(
+        `Imported "${result.preset.label}"${assetCount ? ` with ${assetCount} asset${assetCount === 1 ? '' : 's'}` : ''}` +
+        `${skippedCount ? ` (${skippedCount} asset${skippedCount === 1 ? '' : 's'} skipped)` : ''}.`,
+      )
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import preset bundle')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <ConfigPageIntro title="Config Presets" eyebrow="System">
         Save the current configuration — theme/skin, ambiance, sounds, or any other section —
         as a named preset, then load it later to reconfigure the whole system in one shot.
         A preset only knows about the config values it stores; it has no notion of what those
-        values represent.
+        values represent. Export a preset to share your setup with friends — the file bundles
+        the config together with every image/video/audio file it references under /assets/, so
+        it works out of the box for whoever imports it, with no broken paths.
       </ConfigPageIntro>
 
       {error && (
         <ConfigNotice tone="warning" className="px-3 py-2 text-[11px]">{error}</ConfigNotice>
+      )}
+      {importNotice && (
+        <ConfigNotice tone="info" className="px-3 py-2 text-[11px]">{importNotice}</ConfigNotice>
       )}
 
       <ConfigSectionPanel label="Save current as preset">
@@ -141,6 +198,20 @@ export function PresetsPanel() {
         </div>
       </ConfigSectionPanel>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(e) => { void handleImportFile(e) }}
+      />
+
+      <div className="flex justify-end">
+        <Btn type="button" variant="default" onClick={handlePickImportFile} disabled={importing} className="px-3 py-1.5 text-xs">
+          {importing ? 'Importing…' : '⭱ Import Preset File'}
+        </Btn>
+      </div>
+
       <ConfigSectionPanel label={`Saved Presets${presets.length ? ` (${presets.length})` : ''}`}>
         {presets.length === 0 && (
           <div className="text-[10px] text-zinc-600 italic">No presets saved yet.</div>
@@ -156,6 +227,15 @@ export function PresetsPanel() {
                   {new Date(preset.createdAt).toLocaleString()}
                 </div>
               </div>
+              <Btn
+                type="button"
+                variant="default"
+                onClick={() => { void handleExport(preset) }}
+                disabled={busyId === preset.id}
+                className="px-3 py-1.5 text-xs shrink-0"
+              >
+                {busyId === preset.id ? '…' : '⭳ Export'}
+              </Btn>
               <Btn
                 type="button"
                 variant="default"

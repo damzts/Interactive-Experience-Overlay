@@ -67,7 +67,14 @@ export type EventAction =
 
 // ── Event entity ─────────────────────────────────────────────────
 
-/** A saved event definition — persisted in AppConfig.sourceEvents */
+/** A saved event definition — persisted in AppConfig.sourceEvents.
+ *
+ *  A preset is authored as exactly one kind — an "effect" preset carries
+ *  only overlay effects, an "action" preset carries only runtime actions —
+ *  enforced by the admin editor (Graphics → Effects). `presetType` is the
+ *  discriminator; it's optional only to keep pre-split presets (saved
+ *  before this field existed, potentially mixing both effects and actions)
+ *  loading without a forced migration. New presets always set it. */
 export interface EventConfig {
   id: string
   label: string
@@ -75,6 +82,10 @@ export interface EventConfig {
   /** Tailwind text color class, e.g. 'text-red-400' */
   color: string
   desc: string
+  /** 'effect' = effects[] only, 'action' = actions[] only. Undefined = a
+   *  pre-split preset, possibly mixing both — still fully functional, just
+   *  not something the editor lets you create anymore. */
+  presetType?: 'effect' | 'action'
   /** Ordered stack of effects to fire. Empty = no visual. */
   effects: EffectConfig[]
   /** Runtime actions executed alongside overlay effects. */

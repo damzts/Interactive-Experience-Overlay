@@ -10,11 +10,11 @@ import { KeybindEditor } from '../keybinds/KeybindEditor'
 import { RoomsPanel } from '../pov/RoomsPanel'
 import { SchedulerHost } from '../scheduler/SchedulerHost'
 import { ObsPanel } from '../obs/ObsPanel'
-import { KernelHealthPanel } from '../kernel/KernelHealthPanel'
-import { AiVoicePanel } from '../integrations/AiVoicePanel'
+import { AiPanel } from '../integrations/AiPanel'
+import { TtsPanel } from '../integrations/TtsPanel'
 import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
-import { PresetsPanel } from '../presets/PresetsPanel'
+import { DeveloperPanel } from '../developer/DeveloperPanel'
 import { MediaLibraryPanel } from '../media-library/MediaLibraryPanel'
 import { MediaLibraryProvider } from '../media-library/MediaLibraryContext'
 import type { SelectedItem } from './types'
@@ -109,11 +109,11 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
     return <SchedulerHost tab={selected.tab} onTabChange={(tab) => onSelectItem({ kind: 'scheduler', tab })} />
   }
   if (selected.kind === 'obs') return <ObsPanel />
-  if (selected.kind === 'kernel-health') return <KernelHealthPanel />
-  if (selected.kind === 'ai-voice') return <AiVoicePanel />
+  if (selected.kind === 'ai') return <AiPanel />
+  if (selected.kind === 'tts') return <TtsPanel />
   if (selected.kind === 'shows')  return <ShowsPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
-  if (selected.kind === 'presets') return <PresetsPanel />
+  if (selected.kind === 'developer') return <DeveloperPanel />
   if (selected.kind === 'pov-online') return <RoomsPanel />
   if (selected.kind === 'graphics') return <MediaLibraryPanel tab="sources" />
   if (selected.kind === 'sequence') return <SequencesHost key={selected.sequenceId} sequenceId={selected.sequenceId} onDeleted={onDeleted} />
@@ -127,14 +127,14 @@ const INTEGRATION_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem
   { icon: '🎬', label: 'OBS',          kind: 'obs' },
   { icon: '💬', label: 'Twitch',       kind: 'twitch' },
   { icon: '🌐', label: 'Online Rooms', kind: 'pov-online' },
-  { icon: '🧠', label: 'AI & Voice',   kind: 'ai-voice' },
+  { icon: '🧠', label: 'AI',           kind: 'ai' },
+  { icon: '🔊', label: 'TTS',          kind: 'tts' },
+  { icon: '⌨', label: 'Input Engine',  kind: 'keybinds' },
 ]
 
 const SETTINGS_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['kind'] }> = [
-  { icon: '⌨', label: 'Input Engine',  kind: 'keybinds' },
-  { icon: '⚙', label: 'Kernel Health', kind: 'kernel-health' },
-  { icon: '💾', label: 'Presets',       kind: 'presets' },
   { icon: '⚙', label: 'Settings',      kind: 'settings' },
+  { icon: '🛠', label: 'Developer',     kind: 'developer' },
 ]
 
 // ── Sequences sub-tabs ─────────────────────────────────────────────
@@ -203,14 +203,14 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
       headerMeta  = layout?.source === 'system' ? 'System Layout' : 'User Layout'
       actionLabel = '▶ Test'
       actionFn    = () => socket.emit('widget:layout:apply', selected.layoutId)
-    } else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Engine' }
+    } else if (selected.kind === 'keybinds')          { headerIcon = '⌨';  headerLabel = 'Input Engine';   headerMeta = 'Integration' }
     else if (selected.kind === 'settings')          { headerIcon = '⚙';  headerLabel = 'Settings';       headerMeta = 'Utility' }
     else if (selected.kind === 'obs')               { headerIcon = '🎬'; headerLabel = 'OBS';            headerMeta = 'Integration' }
-    else if (selected.kind === 'kernel-health')     { headerIcon = '⚙';  headerLabel = 'Kernel Health';  headerMeta = 'Engine' }
     else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
-    else if (selected.kind === 'ai-voice')          { headerIcon = '🧠'; headerLabel = 'AI & Voice';     headerMeta = 'Integration' }
+    else if (selected.kind === 'ai')                { headerIcon = '🧠'; headerLabel = 'AI';             headerMeta = 'Integration' }
+    else if (selected.kind === 'tts')               { headerIcon = '🔊'; headerLabel = 'TTS';            headerMeta = 'Integration' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch';         headerMeta = 'Integration' }
-    else if (selected.kind === 'presets')            { headerIcon = '💾'; headerLabel = 'Presets';           headerMeta = 'System' }
+    else if (selected.kind === 'developer')         { headerIcon = '🛠'; headerLabel = 'Developer';      headerMeta = 'Engine' }
     else if (selected.kind === 'sequence')          { headerIcon = '🎞'; headerLabel = 'Sequence';         headerMeta = 'Effect Pipeline' }
   }
 

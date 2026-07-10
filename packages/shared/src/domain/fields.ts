@@ -72,6 +72,7 @@ export type RefKind =
   | 'widget-layout'
   | 'widget'
   | 'window-preset'
+  | 'event'
 
 export interface FieldDef {
   key: string
