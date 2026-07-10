@@ -3,6 +3,8 @@ assets/images/
 assets/tts/
 assets/persona/*
 !assets/persona/.gitkeep
+!assets/persona/ene/
+!assets/persona/ene/**
 dist/
 .env
 *.db
