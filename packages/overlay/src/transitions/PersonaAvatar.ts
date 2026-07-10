@@ -48,7 +48,8 @@ interface AvatarInstance {
 let inst: AvatarInstance | null = null
 
 function resolveConfig(cfg: PersonaAvatarEffectConfig): ResolvedAvatarConfig {
-  const persona = withPersonaDefaults(useAppStore.getState().config.persona)
+  const { persona: rawPersona, avatarPresets } = useAppStore.getState().config
+  const persona = withPersonaDefaults(rawPersona, avatarPresets)
   return {
     images: cfg.images?.length ? cfg.images : persona.avatar.images,
     mode: cfg.mode ?? 'pop-in',

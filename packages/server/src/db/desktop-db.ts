@@ -144,6 +144,16 @@ const SCHEMA = `
     default_position_json TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS avatar_presets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'pop-in',
+    images_json TEXT NOT NULL DEFAULT '[]',
+    corner TEXT NOT NULL DEFAULT 'bottom-right',
+    width_px REAL NOT NULL DEFAULT 260,
+    linger_ms REAL NOT NULL DEFAULT 4000
+  );
+
   CREATE TABLE IF NOT EXISTS media_gallery (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -275,6 +285,7 @@ export function initDesktopDatabase(dbPath: string): DesktopDatabase {
   } catch { /* table may not exist yet */ }
 
   seedDefaultMediaRenders(db)
+  seedDefaultAvatarPresets(db)
 
   return db
 }
@@ -301,6 +312,28 @@ function seedDefaultMediaRenders(db: DesktopDatabase): void {
     }
   })
   insertAll(RENDERER_CATALOG)
+}
+
+/** Seed a ready-to-use "Ene" avatar preset from the bundled poses under
+ *  assets/persona/ene/ so a fresh install has a persona avatar available
+ *  immediately in Graphics → Avatar, without requiring the operator to
+ *  build one from scratch first. Only fires when the table is empty —
+ *  never re-inserts after a user deletes or renames it. */
+function seedDefaultAvatarPresets(db: DesktopDatabase): void {
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM avatar_presets').get() as { count: number }
+  if (count > 0) return
+
+  db.prepare(
+    'INSERT INTO avatar_presets (id, name, mode, images_json, corner, width_px, linger_ms) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    'ene',
+    'Ene',
+    'pop-in',
+    JSON.stringify(['/assets/persona/ene/Ene_Anime.webp', '/assets/persona/ene/Ene_Reload.webp']),
+    'bottom-right',
+    260,
+    4000,
+  )
 }
 
 /** One-time unification of automation_rules + widget_wires into the trigger/action rule shape.

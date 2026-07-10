@@ -107,7 +107,7 @@ export class PersonaManager implements Manager {
   status(): ManagerStatus { return this._status }
 
   private async evaluate(msg: ChatMessagePayload): Promise<void> {
-    const persona = withPersonaDefaults(this.getConfig().persona)
+    const persona = withPersonaDefaults(this.getConfig().persona, this.getConfig().avatarPresets)
     if (!persona.enabled) return
     if (Date.now() - this.lastSpokenAt < persona.cooldownMs) return
 
@@ -167,7 +167,7 @@ export class PersonaManager implements Manager {
    *  messages since the last summary and respects summaryMinMessages. */
   async summarizeNow(reason: 'manual' | 'interval'): Promise<string | null> {
     if (!this.llm) return null
-    const persona = withPersonaDefaults(this.getConfig().persona)
+    const persona = withPersonaDefaults(this.getConfig().persona, this.getConfig().avatarPresets)
     if (!persona.brain.enabled) return null
 
     const window = reason === 'interval'
@@ -205,7 +205,7 @@ export class PersonaManager implements Manager {
   private armSummaryTimer(): void {
     if (this.summaryTimer) { clearTimeout(this.summaryTimer); this.summaryTimer = null }
     if (this._status !== 'running' && this._status !== 'idle') return
-    const persona = withPersonaDefaults(this.getConfig().persona)
+    const persona = withPersonaDefaults(this.getConfig().persona, this.getConfig().avatarPresets)
     const minutes = persona.brain.summaryIntervalMin
     if (!persona.enabled || !persona.brain.enabled || !this.llm || minutes <= 0) return
     this.summaryTimer = setTimeout(() => {
@@ -219,7 +219,7 @@ export class PersonaManager implements Manager {
    *  chat as context), speaks the reply, and returns it for the admin UI. */
   async converse(text: string): Promise<string | null> {
     if (!this.llm) return null
-    const persona = withPersonaDefaults(this.getConfig().persona)
+    const persona = withPersonaDefaults(this.getConfig().persona, this.getConfig().avatarPresets)
     if (!persona.brain.enabled) return null
     const trimmed = text.trim()
     if (!trimmed) return null
@@ -253,7 +253,7 @@ export class PersonaManager implements Manager {
   }
 
   private async evaluateEventLines(frame: BusFrame): Promise<void> {
-    const persona = withPersonaDefaults(this.getConfig().persona)
+    const persona = withPersonaDefaults(this.getConfig().persona, this.getConfig().avatarPresets)
     if (!persona.enabled || persona.eventLines.length === 0) return
     if (Date.now() - this.lastSpokenAt < persona.cooldownMs) return
 

@@ -1,6 +1,7 @@
 ﻿import { useEffect } from 'react'
 import { EventsTabContent, EventsTabSidebar } from './EventsTab'
 import { SourcesTabContent, SourcesTabSidebar } from './SourcesTab'
+import { AvatarTabContent, AvatarTabSidebar } from './AvatarTab'
 import { Button } from '../../components/atoms'
 import { Card } from '../../components/molecules'
 import { useMediaLibrary } from './MediaLibraryContext'
@@ -14,6 +15,7 @@ const LIBRARY_TABS: Array<{ tab: MediaLibraryTab; icon: string; label: string }>
   { tab: 'sources',     icon: '📺', label: 'Renderers' },
   { tab: 'events',      icon: '⚡', label: 'Events' },
   { tab: 'catalog',     icon: '🖼', label: 'Gallery' },
+  { tab: 'avatar',      icon: '🙂', label: 'Avatar' },
 ]
 
 // ── Search input ───────────────────────────────────────────────────
@@ -171,7 +173,8 @@ function CatalogGridView() {
 function MediaLibrarySidebar() {
   const { tab, eventSearch, setEventSearch, filteredEventDefs, selectedEventId, selectEvent,
     sourceSearch, setSourceSearch, filteredSourcePresets, selectedSourcePresetId,
-    setSelectedSourcePresetId, usageCountByPreset } = useMediaLibrary()
+    setSelectedSourcePresetId, usageCountByPreset,
+    avatarSearch, setAvatarSearch, filteredAvatarPresets, selectedAvatarPresetId, setSelectedAvatarPresetId } = useMediaLibrary()
 
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
@@ -194,6 +197,15 @@ function MediaLibrarySidebar() {
           onSelectSourcePreset={setSelectedSourcePresetId}
         />
       )}
+      {tab === 'avatar'      && (
+        <AvatarTabSidebar
+          avatarSearch={avatarSearch}
+          onAvatarSearchChange={setAvatarSearch}
+          filteredAvatarPresets={filteredAvatarPresets}
+          selectedAvatarPresetId={selectedAvatarPresetId}
+          onSelectAvatarPreset={setSelectedAvatarPresetId}
+        />
+      )}
     </div>
   )
 }
@@ -208,6 +220,8 @@ export function MediaLibraryContent() {
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId, sourceDraftCreatesNewPreset,
     createSourcePresetDraft, patchSourcePresetDraft,
     saveSourcePresetDraft, deleteSourcePresetDraft,
+    editingAvatarPreset, avatarPresetOriginalId,
+    createAvatarPresetDraft, patchAvatarPresetDraft, saveAvatarPresetDraft, deleteAvatarPresetDraft,
   } = useMediaLibrary()
 
   return (
@@ -237,6 +251,18 @@ export function MediaLibraryContent() {
           patchSourcePresetDraft={patchSourcePresetDraft}
           saveSourcePresetDraft={saveSourcePresetDraft}
           deleteSourcePresetDraft={deleteSourcePresetDraft}
+        />
+      )}
+
+      {/* ── Avatar ── */}
+      {tab === 'avatar' && (
+        <AvatarTabContent
+          editingAvatarPreset={editingAvatarPreset}
+          avatarPresetOriginalId={avatarPresetOriginalId}
+          createAvatarPresetDraft={createAvatarPresetDraft}
+          patchAvatarPresetDraft={patchAvatarPresetDraft}
+          saveAvatarPresetDraft={saveAvatarPresetDraft}
+          deleteAvatarPresetDraft={deleteAvatarPresetDraft}
         />
       )}
 

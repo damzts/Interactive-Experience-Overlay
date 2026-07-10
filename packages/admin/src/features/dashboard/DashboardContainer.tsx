@@ -15,10 +15,7 @@ import type { DashboardPresetEntry } from './DashboardOverview';
  */
 export function DashboardContainer() {
   // ─── Runtime state from socket events ───
-  const overlayOwnerSocketId = useAdminStore((s) => s.overlayOwnerSocketId);
-  const obsConnected = useAdminStore((s) => s.obsConnected);
   const currentState = useAdminStore((s) => s.currentState);
-  const clientCount = useAdminStore((s) => s.clientCount);
   const openWidgetIds = useAdminStore((s) => s.openWidgetIds);
 
   // ─── Config ───
@@ -60,14 +57,6 @@ export function DashboardContainer() {
   useEffect(() => {
     void fetchPresets().then(setPresets).catch(() => {});
   }, []);
-
-  const overlayStatus: 'connected' | 'disconnected' =
-    overlayOwnerSocketId != null ? 'connected' : 'disconnected';
-
-  const obsStatus: 'connected' | 'disconnected' =
-    obsConnected ? 'connected' : 'disconnected';
-
-  const onlineRoomCount = clientCount;
 
   const scenes = useMemo(() => {
     return Object.values(scenesConfig ?? {}).map((s) => ({
@@ -127,8 +116,8 @@ export function DashboardContainer() {
     void saveConfig({ effectStorms: effectStorms.map((storm) => ({ ...storm, enabled: next })) });
   }, [effectStorms, saveConfig]);
 
-  const handleOpenOverlay = useCallback(() => {
-    window.open('/', '_blank');
+  const handleApplyPreset = useCallback((presetId: string) => {
+    void applyPreset(presetId);
   }, []);
 
   const handleRunSequence = useCallback((sequenceId: string) => {
@@ -144,10 +133,6 @@ export function DashboardContainer() {
     }
   }, [runningShowIds, refreshRunningShows]);
 
-  const handleApplyPreset = useCallback((presetId: string) => {
-    void applyPreset(presetId);
-  }, []);
-
   const handleToggleThemeRotation = useCallback(() => {
     void saveConfig({ desktopThemeDrift: { ...themeDrift, enabled: !themeDrift.enabled } });
   }, [themeDrift, saveConfig]);
@@ -159,10 +144,6 @@ export function DashboardContainer() {
 
   return (
     <DashboardOverview
-      overlayStatus={overlayStatus}
-      obsStatus={obsStatus}
-      onlineRoomCount={onlineRoomCount}
-      onOpenOverlay={handleOpenOverlay}
       scenes={scenes}
       currentSceneId={currentState}
       onActivateScene={handleActivateScene}

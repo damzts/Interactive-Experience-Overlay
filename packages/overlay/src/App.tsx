@@ -62,20 +62,19 @@ export default function App() {
   // open widget, so it's wired globally here rather than in ChatWidget.
   useEffect(() => {
     return onKernelSignal('persona:speak', ({ user, text, audioUrl }) => {
-      const persona = withPersonaDefaults(useAppStore.getState().config.persona)
+      const { persona: rawPersona, avatarPresets } = useAppStore.getState().config
+      const persona = withPersonaDefaults(rawPersona, avatarPresets)
       void audioEngine.playPersonaLine(audioUrl, persona.voice, persona.duckAmount)
       runChatBubble({ author: user, text, duration: 5, position: 'bottom' })
-      if (persona.avatar.enabled) {
-        runPersonaAvatar({ duration: 8, ...persona.avatar })
-      }
+      runPersonaAvatar({ duration: 8, ...persona.avatar })
     })
   }, [])
 
   // Persona avatar in persistent mode lives on screen independent of speech.
-  const personaAvatar = withPersonaDefaults(config.persona).avatar
+  const personaAvatar = withPersonaDefaults(config.persona, config.avatarPresets).avatar
   const personaAvatarKey = JSON.stringify(personaAvatar)
   useEffect(() => {
-    if (personaAvatar.enabled && personaAvatar.mode === 'persistent' && personaAvatar.images.length) {
+    if (personaAvatar.mode === 'persistent' && personaAvatar.images.length) {
       ensurePersonaAvatar(personaAvatar)
     } else {
       retirePersistentAvatar()

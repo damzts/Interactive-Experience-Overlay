@@ -106,7 +106,13 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'keybinds') return <KeybindEditor />
   if (selected.kind === 'settings') return <SettingsPanel />
   if (selected.kind === 'scheduler') {
-    return <SchedulerHost tab={selected.tab} onTabChange={(tab) => onSelectItem({ kind: 'scheduler', tab })} />
+    return (
+      <SchedulerHost
+        tab={selected.tab}
+        onTabChange={(tab) => onSelectItem({ kind: 'scheduler', tab })}
+        onOpenAvatar={() => onSelectItem({ kind: 'graphics', tab: 'avatar' })}
+      />
+    )
   }
   if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'ai') return <AiPanel />
@@ -115,7 +121,7 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'developer') return <DeveloperPanel />
   if (selected.kind === 'pov-online') return <RoomsPanel />
-  if (selected.kind === 'graphics') return <MediaLibraryPanel tab="sources" />
+  if (selected.kind === 'graphics') return <MediaLibraryPanel tab={selected.tab ?? 'sources'} />
   if (selected.kind === 'sequence') return <SequencesHost key={selected.sequenceId} sequenceId={selected.sequenceId} onDeleted={onDeleted} />
 
   return null

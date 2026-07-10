@@ -1,33 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Monitor, Wifi, Globe, Layers, Zap, LayoutGrid, Film, Clapperboard, BookmarkCheck, MousePointer2, Palette, AudioLines } from 'lucide-react';
+import { Monitor, Layers, Zap, LayoutGrid, Film, Clapperboard, BookmarkCheck, MousePointer2, Palette, AudioLines } from 'lucide-react';
 import type { EventConfig } from '@ieomlabs/shared';
 import { cn } from '../../utils/cn';
 import { Card } from '../../components/molecules/Card';
-import { StatusIndicator } from '../../components/molecules/StatusIndicator';
-import { EmptyState } from '../../components/molecules/EmptyState';
-import { Button } from '../../components/atoms/Button';
 import { IconGlyph } from '../../shared/ui';
-
-/**
- * Hook that detects when a value changes and returns a transient
- * "just changed" flag that auto-resets after a short duration.
- * Used to trigger a one-shot pulse animation on state transitions.
- */
-function useStateChangeFlash(value: string, durationMs = 600): boolean {
-  const prevRef = useRef(value);
-  const [flash, setFlash] = useState(false);
-
-  useEffect(() => {
-    if (prevRef.current !== value) {
-      prevRef.current = value;
-      setFlash(true);
-      const timer = setTimeout(() => setFlash(false), durationMs);
-      return () => clearTimeout(timer);
-    }
-  }, [value, durationMs]);
-
-  return flash;
-}
 
 export interface DashboardSceneEntry {
   id: string;
@@ -72,11 +47,6 @@ export interface DashboardPresetEntry {
  * switches); active state is shown purely via glow + a compact status dot.
  */
 export interface DashboardOverviewProps {
-  overlayStatus?: 'connected' | 'disconnected';
-  obsStatus?: 'connected' | 'disconnected';
-  onlineRoomCount?: number;
-  onOpenOverlay?: () => void;
-
   scenes: DashboardSceneEntry[];
   currentSceneId: string;
   onActivateScene: (id: string) => void;
@@ -163,11 +133,17 @@ function Tile({
   );
 }
 
+/** Compact one-line placeholder for sections with nothing configured —
+ *  replaces the large EmptyState illustration to keep the dashboard dense. */
+function CompactEmpty({ label }: { label: string }) {
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-default)] px-3 py-1.5 text-[10px] text-[var(--color-text-muted)]">
+      {label}
+    </div>
+  );
+}
+
 export function DashboardOverview({
-  overlayStatus = 'disconnected',
-  obsStatus = 'disconnected',
-  onlineRoomCount = 0,
-  onOpenOverlay,
   scenes,
   currentSceneId,
   onActivateScene,
@@ -195,20 +171,6 @@ export function DashboardOverview({
   audioReactiveEnabled,
   onToggleAudioReactive,
 }: DashboardOverviewProps) {
-  const overlayFlash = useStateChangeFlash(overlayStatus);
-  const obsFlash = useStateChangeFlash(obsStatus);
-  const prevRoomCount = useRef(onlineRoomCount);
-  const [roomFlash, setRoomFlash] = useState(false);
-
-  useEffect(() => {
-    if (prevRoomCount.current !== onlineRoomCount) {
-      prevRoomCount.current = onlineRoomCount;
-      setRoomFlash(true);
-      const timer = setTimeout(() => setRoomFlash(false), 600);
-      return () => clearTimeout(timer);
-    }
-  }, [onlineRoomCount]);
-
   const managers: Array<{ id: string; label: string; icon: React.ReactNode; enabled: boolean; onToggle: () => void }> = [
     { id: 'desktop-interaction', label: 'Desktop Interaction', icon: <MousePointer2 className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />, enabled: aiAmbianceEnabled, onToggle: onToggleAiAmbiance },
     { id: 'effect-storms', label: 'Effect Storms', icon: <Zap className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />, enabled: effectAmbianceEnabled, onToggle: onToggleEffectAmbiance },
@@ -218,34 +180,11 @@ export function DashboardOverview({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* ─── Status strip ─── */}
-      <section aria-label="Connection status">
-        <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-3 py-1.5">
-          <div className={cn('flex items-center gap-1.5', overlayFlash && 'animate-highlight-flash')}>
-            <Monitor className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
-            <StatusIndicator status={overlayStatus} label={overlayStatus === 'connected' ? 'Overlay connected' : 'Overlay offline'} />
-          </div>
-          <div className={cn('flex items-center gap-1.5', obsFlash && 'animate-highlight-flash')}>
-            <Wifi className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
-            <StatusIndicator status={obsStatus} label={obsStatus === 'connected' ? 'OBS connected' : 'OBS offline'} />
-          </div>
-          <div className={cn('flex items-center gap-1.5', roomFlash && 'animate-highlight-flash')}>
-            <Globe className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
-            <span className="text-[var(--text-xs)] text-[var(--color-text-secondary)]">
-              {onlineRoomCount} {onlineRoomCount === 1 ? 'room' : 'rooms'} active
-            </span>
-          </div>
-          <Button variant="secondary" size="sm" icon={<Globe />} onClick={onOpenOverlay} className="ml-auto">
-            Open Overlay
-          </Button>
-        </div>
-      </section>
-
       {/* ─── Scenes ─── */}
       <section aria-label="Scenes">
         <SectionHeader>Scenes</SectionHeader>
         {scenes.length === 0 ? (
-          <EmptyState icon={<Layers className="h-full w-full" />} title="No scenes configured" />
+          <CompactEmpty label="No scenes configured" />
         ) : (
           <TileGrid>
             {scenes.map((scene) => (
@@ -265,7 +204,7 @@ export function DashboardOverview({
       <section aria-label="Widgets">
         <SectionHeader>Widgets</SectionHeader>
         {applications.length === 0 ? (
-          <EmptyState icon={<Monitor className="h-full w-full" />} title="No widgets configured" />
+          <CompactEmpty label="No widgets configured" />
         ) : (
           <TileGrid>
             {applications.map((app) => (
@@ -286,10 +225,7 @@ export function DashboardOverview({
       <section aria-label="Widget layouts">
         <SectionHeader>Widget Layouts</SectionHeader>
         {widgetLayouts.length === 0 ? (
-          <EmptyState
-            icon={<LayoutGrid className="h-full w-full" />}
-            title="No widget layouts configured"
-          />
+          <CompactEmpty label="No widget layouts configured" />
         ) : (
           <TileGrid>
             {widgetLayouts.map((layout) => (
@@ -308,10 +244,7 @@ export function DashboardOverview({
       <section aria-label="Effects">
         <SectionHeader>Effects</SectionHeader>
         {events.length === 0 ? (
-          <EmptyState
-            icon={<Zap className="h-full w-full" />}
-            title="No saved effects"
-          />
+          <CompactEmpty label="No saved effects" />
         ) : (
           <TileGrid>
             {events.map((event) => (
@@ -358,7 +291,7 @@ export function DashboardOverview({
       <section aria-label="Sequences">
         <SectionHeader>Sequences</SectionHeader>
         {sequences.length === 0 ? (
-          <EmptyState icon={<Film className="h-full w-full" />} title="No sequences configured" />
+          <CompactEmpty label="No sequences configured" />
         ) : (
           <TileGrid>
             {sequences.map((sequence) => (
@@ -377,7 +310,7 @@ export function DashboardOverview({
       <section aria-label="Shows">
         <SectionHeader>Shows</SectionHeader>
         {shows.length === 0 ? (
-          <EmptyState icon={<Clapperboard className="h-full w-full" />} title="No shows configured" />
+          <CompactEmpty label="No shows configured" />
         ) : (
           <TileGrid>
             {shows.map((show) => (
@@ -397,7 +330,7 @@ export function DashboardOverview({
       <section aria-label="Presets">
         <SectionHeader>Presets</SectionHeader>
         {presets.length === 0 ? (
-          <EmptyState icon={<BookmarkCheck className="h-full w-full" />} title="No presets saved" />
+          <CompactEmpty label="No presets saved" />
         ) : (
           <TileGrid>
             {presets.map((preset) => (

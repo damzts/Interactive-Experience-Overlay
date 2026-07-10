@@ -22,6 +22,7 @@ const SECTION_OPTIONS: Array<{ key: keyof AppConfig; label: string; defaultCheck
   { key: 'applications',      label: 'Widgets/Applications',    defaultChecked: false },
   { key: 'twitch',            label: 'Twitch Integration',      defaultChecked: false },
   { key: 'shows',             label: 'Show Sequencer',          defaultChecked: false },
+  { key: 'avatarPresets',     label: 'Persona Avatars',         defaultChecked: false },
 ]
 
 function defaultSelection(): Record<string, boolean> {

@@ -84,7 +84,8 @@ function BrainConnectionSection({
 
 export function AiPanel() {
   const rawPersona = useAdminStore((s) => s.config.persona)
-  const persona: PersonaConfig = withPersonaDefaults(rawPersona)
+  const avatarPresets = useAdminStore((s) => s.config.avatarPresets)
+  const persona: PersonaConfig = withPersonaDefaults(rawPersona, avatarPresets)
   const saveConfig = useAdminStore((s) => s.saveConfig)
 
   const [draft, setDraft] = useState<PersonaConfig>(() => structuredClone(persona))

@@ -13,7 +13,7 @@ export type SelectedItem =
   | { kind: 'scheduler'; tab: SchedulerTab }
   | { kind: 'obs' }
   | { kind: 'pov-online' }
-  | { kind: 'graphics' }
+  | { kind: 'graphics'; tab?: 'sources' | 'events' | 'catalog' | 'avatar' }
   | { kind: 'ai' }
   | { kind: 'tts' }
   | { kind: 'shows' }
@@ -29,5 +29,6 @@ export function itemKey(item: SelectedItem): string {
   if (item.kind === 'pov-online') return 'pov-online'
   if (item.kind === 'sequence') return 'sequence-' + item.sequenceId
   if (item.kind === 'scheduler') return 'scheduler-' + item.tab
+  if (item.kind === 'graphics') return 'graphics-' + (item.tab ?? 'sources')
   return item.kind
 }

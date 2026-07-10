@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { withPersonaDefaults } from '@ieomlabs/shared'
-import type { PersonaAvatarConfig, PersonaBrainConfig, PersonaConfig, PersonaEventLine, PersonaProfile } from '@ieomlabs/shared'
+import type { AvatarPreset, PersonaBrainConfig, PersonaConfig, PersonaEventLine, PersonaProfile } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { socket } from '../../socket/client'
-import { getPersonaAvatarImages } from '../../api/mediaApi'
+import { Card } from '../../components/molecules/Card'
 import {
   ConfigApplyBar, ConfigPageIntro, ConfigSectionPanel, ConfigNotice,
   Toggle, Slider, ConfigChoiceButton, isSameDraft,
 } from '../../shared/ui'
 import { patchPersonaDraft } from './personaDraft'
 
-// ── PersonaSection ───────────────────────────────────────────────────
+// ── Config (trigger/cooldown/voice/event lines) ──────────────────────
 
 const TRIGGER_MODES: Array<{ id: PersonaConfig['triggerMode']; label: string }> = [
   { id: 'command', label: 'Command' },
@@ -19,7 +19,7 @@ const TRIGGER_MODES: Array<{ id: PersonaConfig['triggerMode']; label: string }> 
   { id: 'all',     label: 'All messages' },
 ]
 
-function PersonaSection({
+function PersonaConfigSection({
   config,
   onChange,
 }: {
@@ -34,10 +34,10 @@ function PersonaSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-xs font-semibold text-zinc-200">Persona</div>
+          <div className="text-xs font-semibold text-zinc-200">Config</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">
             Picks a chat message and speaks it in the overlay through a robotic voice filter, with a caption
-            bubble — a chat-to-voice bridge you can react to live.
+            bubble — a chat-to-voice bridge you can react to live. These settings belong to this profile.
           </div>
         </div>
         <Toggle checked={config.enabled} onChange={(v) => onChange({ enabled: v })} />
@@ -166,214 +166,61 @@ function EventLinesSection({
   )
 }
 
-// ── Profiles ─────────────────────────────────────────────────────────
+// ── Avatar reference (picker only — editing happens in Graphics → Avatar) ──
 
-function ProfilesSection({
-  profiles,
-  activeId,
-  onSwitch,
-  onRename,
-  onAdd,
-  onDelete,
+function AvatarReferenceSection({
+  avatarPresets,
+  avatarPresetId,
+  onChange,
+  onOpenAvatar,
 }: {
-  profiles: PersonaProfile[]
-  activeId: string
-  onSwitch: (id: string) => void
-  onRename: (name: string) => void
-  onAdd: () => void
-  onDelete: () => void
+  avatarPresets: AvatarPreset[]
+  avatarPresetId: string | undefined
+  onChange: (id: string | undefined) => void
+  onOpenAvatar?: () => void
 }) {
-  const active = profiles.find((p) => p.id === activeId) ?? profiles[0]
+  const selected = avatarPresets.find((p) => p.id === avatarPresetId)
 
   return (
     <div className="space-y-3">
-      <div>
-        <div className="text-xs font-semibold text-zinc-200">Active persona</div>
-        <div className="text-[10px] text-zinc-500 mt-0.5">
-          A profile is who the persona is — voice and character art. Behavior (trigger, cooldown,
-          event reactions) is shared. Switch here to swap identities; voice and avatar below edit
-          the selected profile.
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <select
-          value={active?.id ?? ''}
-          onChange={(e) => onSwitch(e.target.value)}
-          className="w-44 shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25 [&>option]:bg-zinc-900"
-        >
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <input
-          type="text"
-          value={active?.name ?? ''}
-          onChange={(e) => onRename(e.target.value)}
-          placeholder="Profile name"
-          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
-        />
-        <button
-          type="button"
-          onClick={onAdd}
-          className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-white/25"
-        >
-          + New
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={profiles.length <= 1}
-          className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-red-400/50 hover:text-red-400 disabled:opacity-40 disabled:hover:border-white/10 disabled:hover:text-zinc-300"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Avatar ───────────────────────────────────────────────────────────
-
-const AVATAR_MODES: Array<{ id: PersonaAvatarConfig['mode']; label: string }> = [
-  { id: 'pop-in',     label: 'Pop in when speaking' },
-  { id: 'persistent', label: 'Always visible' },
-]
-
-const AVATAR_CORNERS: Array<{ id: PersonaAvatarConfig['corner']; label: string }> = [
-  { id: 'bottom-right', label: 'Bottom right' },
-  { id: 'bottom-left',  label: 'Bottom left' },
-  { id: 'top-right',    label: 'Top right' },
-  { id: 'top-left',     label: 'Top left' },
-]
-
-function AvatarSection({
-  avatar,
-  onChange,
-}: {
-  avatar: PersonaAvatarConfig
-  onChange: (patch: Partial<PersonaAvatarConfig>) => void
-}) {
-  const [available, setAvailable] = useState<string[]>([])
-  const [manualUrl, setManualUrl] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    getPersonaAvatarImages()
-      .then((images) => { if (!cancelled) setAvailable(images) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
-
-  const toggleImage = (url: string) =>
-    onChange({
-      images: avatar.images.includes(url)
-        ? avatar.images.filter((u) => u !== url)
-        : [...avatar.images, url],
-    })
-
-  const addManual = () => {
-    const url = manualUrl.trim()
-    if (!url || avatar.images.includes(url)) return
-    onChange({ images: [...avatar.images, url] })
-    setManualUrl('')
-  }
-
-  // Picker shows everything on disk plus any configured URLs not found by the scan.
-  const gallery = [...available, ...avatar.images.filter((u) => !available.includes(u))]
-
-  return (
-    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs font-semibold text-zinc-200">Avatar</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">
-            Character art (transparent png/webp) that appears on the overlay and moves with the
-            persona's live voice. Drop images into <span className="font-mono">assets/persona/</span> to
-            see them here.
+            Character art shown while this profile speaks. Avatars are built in Graphics → Avatar —
+            pick one to reference here, or create/edit one there.
           </div>
         </div>
-        <Toggle checked={avatar.enabled} onChange={(v) => onChange({ enabled: v })} />
+        <button
+          type="button"
+          onClick={onOpenAvatar}
+          className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-white/25"
+        >
+          Open Graphics → Avatar
+        </button>
       </div>
 
-      <div>
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Mode</div>
-        <div className="flex gap-1.5">
-          {AVATAR_MODES.map((mode) => (
-            <ConfigChoiceButton key={mode.id} selected={avatar.mode === mode.id} onClick={() => onChange({ mode: mode.id })}>
-              {mode.label}
-            </ConfigChoiceButton>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Corner</div>
-        <div className="flex gap-1.5">
-          {AVATAR_CORNERS.map((corner) => (
-            <ConfigChoiceButton key={corner.id} selected={avatar.corner === corner.id} onClick={() => onChange({ corner: corner.id })}>
-              {corner.label}
-            </ConfigChoiceButton>
-          ))}
-        </div>
-      </div>
-
-      <Slider label="Width" value={avatar.widthPx} min={120} max={520} step={10} unit="px" onChange={(v) => onChange({ widthPx: v })} />
-      {avatar.mode === 'pop-in' && (
-        <Slider label="Linger after speaking" value={avatar.lingerMs} min={0} max={10_000} step={500} unit="ms" onChange={(v) => onChange({ lingerMs: v })} />
-      )}
-
-      <div className="rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 space-y-2">
-        <div className="text-[11px] font-semibold text-zinc-300">
-          Poses <span className="font-normal text-zinc-500">— click to select; a random selected pose is used per appearance</span>
-        </div>
-
-        {gallery.length === 0 && (
-          <div className="text-[10px] italic text-zinc-600">
-            No images found under <span className="font-mono">assets/persona/</span>.
-          </div>
+      <div className="flex items-center gap-2">
+        {selected?.images[0] && (
+          <img src={selected.images[0]} alt="" className="h-12 w-9 shrink-0 rounded object-contain border border-white/10 bg-white/5" />
         )}
-
-        <div className="flex flex-wrap gap-2">
-          {gallery.map((url) => {
-            const selected = avatar.images.includes(url)
-            return (
-              <button
-                key={url}
-                type="button"
-                onClick={() => toggleImage(url)}
-                title={url}
-                className={`relative h-24 w-20 overflow-hidden rounded-lg border transition-colors ${
-                  selected ? 'border-sky-400/80 bg-sky-400/10' : 'border-white/10 bg-white/5 hover:border-white/25'
-                }`}
-              >
-                <img src={url} alt="" loading="lazy" className="h-full w-full object-contain" />
-                {selected && (
-                  <span className="absolute right-1 top-1 rounded bg-sky-400/90 px-1 text-[9px] font-bold text-zinc-900">✓</span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={manualUrl}
-            onChange={(e) => setManualUrl(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addManual() }}
-            placeholder="/assets/persona/ene/pose.webp"
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-white/25"
-          />
-          <button
-            type="button"
-            onClick={addManual}
-            className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:border-white/25"
-          >
-            + Add URL
-          </button>
-        </div>
+        <select
+          value={avatarPresetId ?? ''}
+          onChange={(e) => onChange(e.target.value || undefined)}
+          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25 [&>option]:bg-zinc-900"
+        >
+          <option value="">(none — avatar never shows)</option>
+          {avatarPresets.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
       </div>
+
+      {avatarPresets.length === 0 && (
+        <div className="text-[10px] italic text-zinc-600">
+          No avatars saved yet — create one in Graphics → Avatar.
+        </div>
+      )}
     </div>
   )
 }
@@ -392,7 +239,7 @@ function BrainSection({
       <div>
         <div className="text-xs font-semibold text-zinc-200">Brain</div>
         <div className="text-[10px] text-zinc-500 mt-0.5">
-          An LLM behind the persona — she summarizes what chat is saying, talks with you in the
+          An LLM behind this profile — she summarizes what chat is saying, talks with you in the
           console below, and can write real replies to viewers instead of echoing them.
         </div>
       </div>
@@ -500,7 +347,7 @@ function ConsoleSection() {
           <div className="text-xs font-semibold text-zinc-200">Console</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">
             Talk with the persona. Replies show here and are spoken on the overlay; she knows what
-            chat has been saying. Uses the applied (saved) config.
+            chat has been saying. Uses the applied (saved) config, for whichever profile is active.
           </div>
         </div>
         <button
@@ -560,14 +407,110 @@ function ConsoleSection() {
   )
 }
 
+// ── Profile cards ──────────────────────────────────────────────────
+
+function ProfileCard({
+  profile,
+  active,
+  avatarThumb,
+  onActivate,
+  onEdit,
+}: {
+  profile: PersonaProfile
+  active: boolean
+  avatarThumb?: string
+  onActivate: () => void
+  onEdit: () => void
+}) {
+  return (
+    <Card
+      variant="interactive"
+      padding="sm"
+      glow={active ? 'primary' : 'none'}
+      onClick={onActivate}
+      className={`flex flex-col items-center gap-1.5 text-center animate-card-entrance ${active ? 'border-[var(--color-primary-400)]' : ''}`}
+    >
+      {avatarThumb ? (
+        <img src={avatarThumb} alt="" className="h-16 w-12 rounded object-contain border border-white/10 bg-white/5" />
+      ) : (
+        <span className="text-2xl leading-none">🙂</span>
+      )}
+      <span className="text-xs font-medium text-[var(--color-text-primary)] truncate w-full">{profile.name}</span>
+      <span className="text-[9px] text-[var(--color-text-muted)]">
+        {profile.brain.enabled ? `Brain: ${profile.brain.provider}` : 'No brain'}
+      </span>
+      {active && <span className="text-[10px] font-medium text-[var(--color-primary-400)]">Active</span>}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onEdit() }}
+        className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-zinc-300 hover:border-white/25"
+      >
+        Edit
+      </button>
+    </Card>
+  )
+}
+
+function ProfilesSection({
+  profiles,
+  activeId,
+  avatarPresets,
+  editingId,
+  onActivate,
+  onEdit,
+  onAdd,
+}: {
+  profiles: PersonaProfile[]
+  activeId: string
+  avatarPresets: AvatarPreset[]
+  editingId: string | null
+  onActivate: (id: string) => void
+  onEdit: (id: string) => void
+  onAdd: () => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] text-zinc-500">
+        A profile is Config (trigger/cooldown/voice/event reactions) + Avatar (by reference) + Brain,
+        selected as a unit. Tap a card to activate it; Edit opens its Config/Avatar/Brain.
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+        {profiles.map((profile) => (
+          <ProfileCard
+            key={profile.id}
+            profile={profile}
+            active={profile.id === activeId}
+            avatarThumb={avatarPresets.find((p) => p.id === profile.avatarPresetId)?.images[0]}
+            onActivate={() => onActivate(profile.id)}
+            onEdit={() => onEdit(profile.id)}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)] border border-dashed border-white/15 px-3 py-4 text-zinc-500 transition-colors hover:border-cyan-400/40 hover:text-cyan-200"
+        >
+          <span className="text-xl leading-none">+</span>
+          <span className="text-[10px]">New Profile</span>
+        </button>
+      </div>
+      {editingId && (
+        <div className="text-[10px] text-zinc-600">Editing: {profiles.find((p) => p.id === editingId)?.name}</div>
+      )}
+    </div>
+  )
+}
+
 // ── PersonaPanel ─────────────────────────────────────────────────────
 
-export function PersonaPanel() {
+export function PersonaPanel({ onOpenAvatar }: { onOpenAvatar?: () => void }) {
   const rawPersona = useAdminStore((s) => s.config.persona)
-  const persona: PersonaConfig = withPersonaDefaults(rawPersona)
+  const avatarPresets = useAdminStore((s) => s.config.avatarPresets ?? [])
+  const persona: PersonaConfig = withPersonaDefaults(rawPersona, avatarPresets)
   const saveConfig = useAdminStore((s) => s.saveConfig)
 
   const [draft, setDraft] = useState<PersonaConfig>(() => structuredClone(persona))
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -590,16 +533,24 @@ export function PersonaPanel() {
   }
 
   // Profile ops — switching flattens the chosen profile onto the flat fields
-  // so every section below immediately edits/reflects the new identity.
+  // so the editor below immediately edits/reflects the new identity.
   const flattenProfile = (cfg: PersonaConfig, profile: PersonaProfile): PersonaConfig => ({
     ...cfg,
     activeProfileId: profile.id,
     ttsProvider: profile.ttsProvider,
     voice: structuredClone(profile.voice),
-    avatar: structuredClone(profile.avatar),
+    brain: structuredClone(profile.brain),
+    triggerMode: profile.triggerMode,
+    triggerValue: profile.triggerValue,
+    chance: profile.chance,
+    cooldownMs: profile.cooldownMs,
+    maxChars: profile.maxChars,
+    duckAmount: profile.duckAmount,
+    eventLines: structuredClone(profile.eventLines),
+    avatar: avatarPresets.find((p) => p.id === profile.avatarPresetId) ?? cfg.avatar,
   })
 
-  const switchProfile = (id: string) => {
+  const activateProfile = (id: string) => {
     setDraft((prev) => {
       const profile = prev.profiles.find((p) => p.id === id)
       if (!profile) return prev
@@ -608,13 +559,33 @@ export function PersonaPanel() {
     })
   }
 
-  const renameProfile = (name: string) => {
+  const editProfile = (id: string) => {
+    setEditingProfileId(id)
+    if (id !== draft.activeProfileId) activateProfile(id)
+  }
+
+  const renameEditingProfile = (name: string) => {
     setDraft((prev) => {
       setSaved(false)
       return {
         ...prev,
-        profiles: prev.profiles.map((p) => (p.id === prev.activeProfileId ? { ...p, name } : p)),
+        profiles: prev.profiles.map((p) => (p.id === (editingProfileId ?? prev.activeProfileId) ? { ...p, name } : p)),
       }
+    })
+  }
+
+  const setEditingProfileAvatar = (avatarPresetId: string | undefined) => {
+    setDraft((prev) => {
+      setSaved(false)
+      const targetId = editingProfileId ?? prev.activeProfileId
+      const next = {
+        ...prev,
+        profiles: prev.profiles.map((p) => (p.id === targetId ? { ...p, avatarPresetId } : p)),
+      }
+      if (targetId === prev.activeProfileId) {
+        next.avatar = avatarPresets.find((p) => p.id === avatarPresetId) ?? { mode: 'pop-in' as const, images: [], corner: 'bottom-right' as const, widthPx: 260, lingerMs: 4000 }
+      }
+      return next
     })
   }
 
@@ -627,16 +598,20 @@ export function PersonaPanel() {
         name: `${src.name} copy`,
       }
       setSaved(false)
-      return flattenProfile({ ...prev, profiles: [...prev.profiles, profile] }, profile)
+      const next = flattenProfile({ ...prev, profiles: [...prev.profiles, profile] }, profile)
+      setEditingProfileId(profile.id)
+      return next
     })
   }
 
-  const deleteProfile = () => {
+  const deleteEditingProfile = () => {
     setDraft((prev) => {
       if (prev.profiles.length <= 1) return prev
-      const profiles = prev.profiles.filter((p) => p.id !== prev.activeProfileId)
+      const targetId = editingProfileId ?? prev.activeProfileId
+      const profiles = prev.profiles.filter((p) => p.id !== targetId)
       setSaved(false)
-      return flattenProfile({ ...prev, profiles }, profiles[0])
+      setEditingProfileId(null)
+      return targetId === prev.activeProfileId ? flattenProfile({ ...prev, profiles }, profiles[0]) : { ...prev, profiles }
     })
   }
 
@@ -652,43 +627,74 @@ export function PersonaPanel() {
 
   const reset = useCallback(() => {
     setDraft(structuredClone(persona))
+    setEditingProfileId(null)
     setSaved(false)
   }, [persona])
+
+  const editingProfile = draft.profiles.find((p) => p.id === (editingProfileId ?? draft.activeProfileId))
 
   return (
     <div className="space-y-5">
       <ConfigPageIntro title="Persona">
-        A chat-to-voice companion — picks chat messages and speaks them in the overlay.
+        A chat-to-voice companion — picks chat messages and speaks them in the overlay. Profiles are
+        named identities: Config + Avatar + Brain, selected as a unit.
       </ConfigPageIntro>
 
       <ConfigSectionPanel label="Profiles">
         <ProfilesSection
           profiles={draft.profiles}
           activeId={draft.activeProfileId}
-          onSwitch={switchProfile}
-          onRename={renameProfile}
+          avatarPresets={avatarPresets}
+          editingId={editingProfileId}
+          onActivate={activateProfile}
+          onEdit={editProfile}
           onAdd={addProfile}
-          onDelete={deleteProfile}
         />
       </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Persona">
-        <PersonaSection config={draft} onChange={handleChange} />
-      </ConfigSectionPanel>
+      {editingProfile && (
+        <>
+          <ConfigSectionPanel label={`Editing: ${editingProfile.name}`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={editingProfile.name}
+                onChange={(e) => renameEditingProfile(e.target.value)}
+                placeholder="Profile name"
+                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-zinc-200 outline-none focus:border-white/25"
+              />
+              <button
+                type="button"
+                onClick={deleteEditingProfile}
+                disabled={draft.profiles.length <= 1}
+                className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-red-400/50 hover:text-red-400 disabled:opacity-40 disabled:hover:border-white/10 disabled:hover:text-zinc-300"
+              >
+                Delete profile
+              </button>
+            </div>
+          </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Avatar">
-        <AvatarSection
-          avatar={draft.avatar}
-          onChange={(patch) => handleChange({ avatar: { ...draft.avatar, ...patch } })}
-        />
-      </ConfigSectionPanel>
+          <ConfigSectionPanel label="Config">
+            <PersonaConfigSection config={draft} onChange={handleChange} />
+          </ConfigSectionPanel>
 
-      <ConfigSectionPanel label="Brain">
-        <BrainSection
-          brain={draft.brain}
-          onChange={(patch) => handleChange({ brain: { ...draft.brain, ...patch } })}
-        />
-      </ConfigSectionPanel>
+          <ConfigSectionPanel label="Avatar">
+            <AvatarReferenceSection
+              avatarPresets={avatarPresets}
+              avatarPresetId={editingProfile.avatarPresetId}
+              onChange={setEditingProfileAvatar}
+              onOpenAvatar={onOpenAvatar}
+            />
+          </ConfigSectionPanel>
+
+          <ConfigSectionPanel label="Brain">
+            <BrainSection
+              brain={draft.brain}
+              onChange={(patch) => handleChange({ brain: { ...draft.brain, ...patch } })}
+            />
+          </ConfigSectionPanel>
+        </>
+      )}
 
       <ConfigSectionPanel label="Console">
         <ConsoleSection />

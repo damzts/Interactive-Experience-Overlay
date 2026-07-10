@@ -5,9 +5,9 @@ import { socket } from '../../socket/client'
 import { useAdminStore } from '../../store/useAdminStore'
 import { RENDERER_CATALOG, findRendererCatalogEntry } from '@ieomlabs/shared'
 import { getSafeSceneWindows } from '../../shared/windowCatalog'
-import type { WindowPreset } from '@ieomlabs/shared'
+import type { WindowPreset, AvatarPreset } from '@ieomlabs/shared'
 
-export type MediaLibraryTab = 'catalog' | 'events' | 'sources'
+export type MediaLibraryTab = 'catalog' | 'events' | 'sources' | 'avatar'
 
 // ── Per-tab state interfaces ───────────────────────────────────────
 
@@ -59,10 +59,25 @@ export interface SourcesTabState {
   deleteSourcePresetDraft: () => void
 }
 
+export interface AvatarTabState {
+  avatarSearch: string
+  setAvatarSearch: (v: string) => void
+  filteredAvatarPresets: AvatarPreset[]
+  selectedAvatarPresetId: string | null
+  setSelectedAvatarPresetId: (id: string | null) => void
+  editingAvatarPreset: AvatarPreset | null
+  avatarPresetOriginalId: string | null
+  createAvatarPresetDraft: () => void
+  patchAvatarPresetDraft: (updates: Partial<AvatarPreset>) => void
+  saveAvatarPresetDraft: () => void
+  deleteAvatarPresetDraft: () => void
+}
+
 export interface MediaLibraryContextValue
   extends CatalogTabState,
     EventsTabState,
-    SourcesTabState {
+    SourcesTabState,
+    AvatarTabState {
   tab: MediaLibraryTab
   setTab: (t: MediaLibraryTab) => void
 }
@@ -87,6 +102,7 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const config        = useAdminStore((s) => s.config)
   const sourceMedia   = useAdminStore((s) => s.config.sourceMedia ?? [])
   const eventDefs     = useAdminStore((s) => (s.config.sourceEvents ?? DEFAULT_EVENT_DEFS) as EventDef[])
+  const avatarPresets = useAdminStore((s) => s.config.avatarPresets ?? [])
   const saveConfig    = useAdminStore((s) => s.saveConfig)
   const { assets: catalogAssets, loading: catalogLoading, error: catalogError, refresh: refreshCatalog } = useMediaCatalog()
 
@@ -106,6 +122,10 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     originalLabel: string | null
   } | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+
+  const [avatarSearch, setAvatarSearch] = useState('')
+  const [selectedAvatarPresetId, setSelectedAvatarPresetId] = useState<string | null>(null)
+  const [avatarPresetDraft, setAvatarPresetDraft] = useState<{ preset: AvatarPreset; originalId: string | null } | null>(null)
 
   const sourcePresets = config.windowPresets ?? []
 
@@ -188,6 +208,21 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
 
   const editingEvent = eventDraft?.event ?? null
 
+  // ── Derived: Avatar presets ────────────────────────────────────
+
+  const filteredAvatarPresets = useMemo(() => {
+    const q = avatarSearch.trim().toLowerCase()
+    if (!q) return avatarPresets
+    return avatarPresets.filter((p) => p.name.toLowerCase().includes(q))
+  }, [avatarPresets, avatarSearch])
+
+  const selectedAvatarPreset = useMemo(
+    () => (selectedAvatarPresetId ? avatarPresets.find((p) => p.id === selectedAvatarPresetId) ?? null : null),
+    [selectedAvatarPresetId, avatarPresets]
+  )
+
+  const editingAvatarPreset = avatarPresetDraft?.preset ?? selectedAvatarPreset
+
   // ── Sync effects ─────────────────────────────────────────────────
 
   useEffect(() => {
@@ -225,6 +260,13 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
       setSelectedCatalogAssetId(filteredCatalogAssets[0].id)
     }
   }, [filteredCatalogAssets, selectedCatalogAssetId])
+
+  useEffect(() => {
+    if (!selectedAvatarPresetId) return
+    const preset = avatarPresets.find((p) => p.id === selectedAvatarPresetId)
+    if (!preset || avatarPresetDraft?.originalId === preset.id) return
+    setAvatarPresetDraft({ preset: { ...preset, images: [...preset.images] }, originalId: preset.id })
+  }, [selectedAvatarPresetId, avatarPresets, avatarPresetDraft?.originalId])
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -370,6 +412,54 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
 
   const handleTriggerEvent = (def: EventDraft) => socket.emit('event:preview', def)
 
+  // ── Handlers: Avatar presets ─────────────────────────────────────
+
+  const saveAvatarPresets = (next: AvatarPreset[]) => { void saveConfig({ avatarPresets: next }) }
+
+  const createAvatarPresetDraft = () => {
+    const newPreset: AvatarPreset = {
+      id: `avatar-${Date.now()}`,
+      name: 'New Avatar',
+      mode: 'pop-in',
+      images: [],
+      corner: 'bottom-right',
+      widthPx: 260,
+      lingerMs: 4000,
+    }
+    setAvatarPresetDraft({ preset: newPreset, originalId: null })
+    setSelectedAvatarPresetId(null)
+  }
+
+  const patchAvatarPresetDraft = (updates: Partial<AvatarPreset>) => {
+    setAvatarPresetDraft((cur) => (cur ? { ...cur, preset: { ...cur.preset, ...updates } } : cur))
+  }
+
+  const saveAvatarPresetDraft = () => {
+    if (!avatarPresetDraft) return
+    const name = avatarPresetDraft.preset.name.trim() || 'Untitled avatar'
+    const normalizedPreset: AvatarPreset = { ...avatarPresetDraft.preset, name, images: [...avatarPresetDraft.preset.images] }
+    if (avatarPresetDraft.originalId) {
+      const next = avatarPresets.map((p) => (p.id === avatarPresetDraft.originalId ? { ...normalizedPreset, id: avatarPresetDraft.originalId! } : p))
+      saveAvatarPresets(next)
+      setSelectedAvatarPresetId(avatarPresetDraft.originalId)
+      setAvatarPresetDraft({ preset: { ...normalizedPreset, id: avatarPresetDraft.originalId }, originalId: avatarPresetDraft.originalId })
+      return
+    }
+    const savedPreset = { ...normalizedPreset, id: `avatar-${Date.now()}` }
+    saveAvatarPresets([...avatarPresets, savedPreset])
+    setSelectedAvatarPresetId(savedPreset.id)
+    setAvatarPresetDraft({ preset: savedPreset, originalId: savedPreset.id })
+  }
+
+  const deleteAvatarPresetDraft = () => {
+    if (!avatarPresetDraft) return
+    if (!avatarPresetDraft.originalId) { setAvatarPresetDraft(null); return }
+    const id = avatarPresetDraft.originalId
+    saveAvatarPresets(avatarPresets.filter((p) => p.id !== id))
+    if (selectedAvatarPresetId === id) setSelectedAvatarPresetId(null)
+    setAvatarPresetDraft(null)
+  }
+
   // ── Context value ─────────────────────────────────────────────────
 
   const value: MediaLibraryContextValue = {
@@ -388,6 +478,10 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
     editingSourcePreset, selectedSourceMeta, sourcePresetOriginalId: sourcePresetDraft?.originalId ?? null,
     sourceDraftCreatesNewPreset, selectedSourceUsageCount, usageCountByPreset,
     createSourcePresetDraft, patchSourcePresetDraft, saveSourcePresetDraft, deleteSourcePresetDraft,
+    // avatar
+    avatarSearch, setAvatarSearch, filteredAvatarPresets, selectedAvatarPresetId, setSelectedAvatarPresetId,
+    editingAvatarPreset, avatarPresetOriginalId: avatarPresetDraft?.originalId ?? null,
+    createAvatarPresetDraft, patchAvatarPresetDraft, saveAvatarPresetDraft, deleteAvatarPresetDraft,
   }
 
   return <MediaLibraryContext.Provider value={value}>{children}</MediaLibraryContext.Provider>

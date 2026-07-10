@@ -224,6 +224,7 @@ export class DesktopConfigService implements Manager, IConfigService {
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
         'sourceEvents', 'sourceMedia', 'windowPresets', 'shows',
         'effectAmbiance', 'effectStorms', 'desktopThemeDrift', 'persona',
+        'avatarPresets',
       ])
     }
 
@@ -347,6 +348,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       effectStorms:     this.themeRepo.loadEffectStorms(),
       desktopThemeDrift: this.themeRepo.loadDesktopThemeDrift(),
       persona:          this.themeRepo.loadPersonaConfig(),
+      avatarPresets:    this.loadAvatarPresets(),
     }
     return this.withConfigDefaults(base)
   }
@@ -423,6 +425,18 @@ export class DesktopConfigService implements Manager, IConfigService {
     }))
   }
 
+  private loadAvatarPresets() {
+    const rows = this.db.prepare('SELECT * FROM avatar_presets').all() as Array<{
+      id: string; name: string; mode: string; images_json: string; corner: string; width_px: number; linger_ms: number;
+    }>
+    return rows.map((row) => ({
+      id: row.id, name: row.name, mode: row.mode as 'pop-in' | 'persistent',
+      images: this._parseJson(row.images_json, [] as string[]),
+      corner: row.corner as 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right',
+      widthPx: row.width_px, lingerMs: row.linger_ms,
+    }))
+  }
+
   private _parseJson<T>(v: string | null | undefined, fallback: T): T {
     if (!v) return fallback; try { return JSON.parse(v) as T } catch { return fallback }
   }
@@ -451,6 +465,7 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'effectStorms':     if (cfg.effectStorms) this.themeRepo.saveEffectStorms(cfg.effectStorms); break
           case 'desktopThemeDrift': if (cfg.desktopThemeDrift) this.themeRepo.saveDesktopThemeDrift(cfg.desktopThemeDrift); break
           case 'persona':          if (cfg.persona) this.themeRepo.savePersonaConfig(cfg.persona); break
+          case 'avatarPresets':    this.saveAvatarPresets(cfg.avatarPresets ?? []); break
         }
       }
     })
@@ -497,6 +512,20 @@ export class DesktopConfigService implements Manager, IConfigService {
         preset.id, preset.label, preset.rendererType,
         JSON.stringify(preset.config ?? {}),
         preset.defaultPosition ? JSON.stringify(preset.defaultPosition) : null,
+      )
+    }
+  }
+
+  private saveAvatarPresets(presets: NonNullable<AppConfig['avatarPresets']>): void {
+    this.db.prepare('DELETE FROM avatar_presets').run()
+    const insert = this.db.prepare(
+      'INSERT INTO avatar_presets (id, name, mode, images_json, corner, width_px, linger_ms) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    for (const preset of presets) {
+      insert.run(
+        preset.id, preset.name, preset.mode,
+        JSON.stringify(preset.images ?? []),
+        preset.corner, preset.widthPx, preset.lingerMs,
       )
     }
   }

@@ -140,31 +140,75 @@ describe('withPersonaDefaults profiles', () => {
     expect(result.voice.ttsVoice).toBe('Zira')
   })
 
-  it('flattens the active profile onto voice/avatar/ttsProvider', () => {
+  it('defaults a fresh install (no persona config at all) to the bundled Ene avatar preset', () => {
+    const result = withPersonaDefaults(undefined, [
+      { id: 'ene', name: 'Ene', mode: 'pop-in', images: ['/assets/persona/ene/Ene_Anime.webp'], corner: 'bottom-right', widthPx: 260, lingerMs: 4000 },
+    ])
+    expect(result.profiles[0].avatarPresetId).toBe('ene')
+    expect(result.avatar.images).toEqual(['/assets/persona/ene/Ene_Anime.webp'])
+  })
+
+  it('keeps legacy inline avatar images instead of defaulting to Ene when migrating a pre-profile config', () => {
+    const result = withPersonaDefaults({
+      avatar: { mode: 'persistent', images: ['/assets/persona/custom.webp'], corner: 'top-left', widthPx: 300, lingerMs: 0 },
+    }, [
+      { id: 'ene', name: 'Ene', mode: 'pop-in', images: ['/assets/persona/ene/Ene_Anime.webp'], corner: 'bottom-right', widthPx: 260, lingerMs: 4000 },
+    ])
+    expect(result.profiles[0].avatarPresetId).toBeUndefined()
+    expect(result.avatar.images).toEqual(['/assets/persona/custom.webp'])
+  })
+
+  it('flattens the active profile onto voice/ttsProvider/brain/config fields', () => {
     const result = withPersonaDefaults({
       voice: { pitchSemitones: 0, roboticIntensity: 0, rate: 0 },
       profiles: [
-        { id: 'a', name: 'A', voice: { pitchSemitones: 1, roboticIntensity: 0.1, rate: 0 }, avatar: { enabled: true, mode: 'pop-in', images: ['/assets/persona/a.webp'], corner: 'bottom-left', widthPx: 200, lingerMs: 1000 } },
-        { id: 'b', name: 'B', ttsProvider: 'piper', voice: { pitchSemitones: -2, roboticIntensity: 0.9, rate: 3, ttsVoice: 'David' }, avatar: { enabled: false, mode: 'persistent', images: [], corner: 'top-right', widthPx: 300, lingerMs: 0 } },
+        {
+          id: 'a', name: 'A',
+          voice: { pitchSemitones: 1, roboticIntensity: 0.1, rate: 0 },
+          avatarPresetId: 'preset-a',
+          brain: { enabled: false, provider: 'anthropic', model: '', ollamaUrl: '', personality: '', replyToViewers: false, postRepliesToChat: false, maxReplyChars: 220, summaryIntervalMin: 0, summaryMinMessages: 8 },
+          triggerMode: 'command', cooldownMs: 30_000, maxChars: 200, duckAmount: 0.5, eventLines: [],
+        },
+        {
+          id: 'b', name: 'B', ttsProvider: 'piper',
+          voice: { pitchSemitones: -2, roboticIntensity: 0.9, rate: 3, ttsVoice: 'David' },
+          avatarPresetId: 'preset-b',
+          brain: { enabled: true, provider: 'ollama', model: 'llama3.2', ollamaUrl: 'http://x', personality: 'chill', replyToViewers: true, postRepliesToChat: false, maxReplyChars: 300, summaryIntervalMin: 5, summaryMinMessages: 3 },
+          triggerMode: 'chance', chance: 0.5, cooldownMs: 10_000, maxChars: 150, duckAmount: 0.3, eventLines: [],
+        },
       ],
       activeProfileId: 'b',
-    })
+    }, [
+      { id: 'preset-a', name: 'Preset A', mode: 'pop-in', images: ['/assets/persona/a.webp'], corner: 'bottom-left', widthPx: 200, lingerMs: 1000 },
+      { id: 'preset-b', name: 'Preset B', mode: 'persistent', images: [], corner: 'top-right', widthPx: 300, lingerMs: 0 },
+    ])
     expect(result.voice.pitchSemitones).toBe(-2)
     expect(result.voice.ttsVoice).toBe('David')
     expect(result.ttsProvider).toBe('piper')
     expect(result.avatar.mode).toBe('persistent')
     expect(result.avatar.corner).toBe('top-right')
+    expect(result.brain.provider).toBe('ollama')
+    expect(result.brain.replyToViewers).toBe(true)
+    expect(result.triggerMode).toBe('chance')
+    expect(result.chance).toBe(0.5)
   })
 
-  it('falls back to the first profile when activeProfileId is stale', () => {
+  it('falls back to no avatar when avatarPresetId is unset or unresolved', () => {
     const result = withPersonaDefaults({
       profiles: [
-        { id: 'only', name: 'Only', voice: { pitchSemitones: 5, roboticIntensity: 0.5, rate: 0 }, avatar: { enabled: true, mode: 'pop-in', images: [], corner: 'bottom-right', widthPx: 260, lingerMs: 4000 } },
+        {
+          id: 'only', name: 'Only',
+          voice: { pitchSemitones: 5, roboticIntensity: 0.5, rate: 0 },
+          avatarPresetId: 'missing-preset',
+          brain: { enabled: false, provider: 'anthropic', model: '', ollamaUrl: '', personality: '', replyToViewers: false, postRepliesToChat: false, maxReplyChars: 220, summaryIntervalMin: 0, summaryMinMessages: 8 },
+          triggerMode: 'command', cooldownMs: 30_000, maxChars: 200, duckAmount: 0.5, eventLines: [],
+        },
       ],
       activeProfileId: 'deleted-profile',
-    })
+    }, [])
     expect(result.activeProfileId).toBe('only')
     expect(result.voice.pitchSemitones).toBe(5)
+    expect(result.avatar.images).toEqual([])
   })
 
   it('is idempotent', () => {

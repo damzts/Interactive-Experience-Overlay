@@ -2,7 +2,7 @@ import type { Application, WidgetLayoutDefinition } from './application.js'
 import type { DesktopAmbianceConfig, EffectAmbianceConfig, EffectStormConfig } from './ambiance.js'
 import type { DesktopConfig } from './desktop.js'
 import type { DesktopThemeDriftConfig } from './themeDrift.js'
-import type { PersonaConfig } from './persona.js'
+import type { AvatarPreset, PersonaConfig } from './persona.js'
 import type { EventAction, EventConfig } from './event.js'
 import type { MediaEntry, Scene, WindowPreset } from './scene.js'
 import type { AutomationRule } from '../contracts/automation.js'
@@ -99,6 +99,10 @@ export interface AppConfig {
   desktopThemeDrift?: DesktopThemeDriftConfig
   /** Chat-to-voice companion config (PersonaManager → desktop_persona table) */
   persona?: PersonaConfig
+  /** Reusable avatar presets built in Graphics → Avatar (avatar_presets
+   *  table) — Persona profiles reference one of these by id instead of
+   *  embedding avatar config inline. */
+  avatarPresets?: AvatarPreset[]
 }
 
 // ── Twitch config ────────────────────────────────────────────────

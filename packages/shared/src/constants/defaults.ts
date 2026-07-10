@@ -17,7 +17,7 @@ import type {
 import { WIDGET_DEFINITIONS } from '../widgets/index.js'
 import type { DesktopAmbianceConfig, EffectAmbianceConfig, EffectStormConfig } from '../domain/ambiance.js'
 import type { DesktopThemeDriftConfig } from '../domain/themeDrift.js'
-import type { PersonaConfig } from '../domain/persona.js'
+import type { AvatarPreset, PersonaAvatarConfig, PersonaBrainConfig, PersonaConfig, PersonaProfile } from '../domain/persona.js'
 import type { AppConfig } from '../domain/config.js'
 import type { DesktopConfig, DesktopTheme, EventDesktopTheme } from '../domain/desktop.js'
 import type { AutoTrigger, EventAction, EventConfig } from '../domain/event.js'
@@ -779,6 +779,30 @@ export function withDesktopThemeDriftDefaults(config?: Partial<DesktopThemeDrift
   }
 }
 
+const DEFAULT_PERSONA_BRAIN: PersonaBrainConfig = {
+  enabled: false,
+  provider: 'anthropic',
+  model: '',
+  ollamaUrl: 'http://localhost:11434',
+  personality:
+    'You are a playful digital sprite who lives inside a Windows 98 desktop shown on a livestream. ' +
+    'You are cheeky but kind, love the streamer and their chat, and keep replies to one or two short ' +
+    'spoken sentences — no emoji, no markdown, no stage directions.',
+  replyToViewers: false,
+  postRepliesToChat: false,
+  maxReplyChars: 220,
+  summaryIntervalMin: 0,
+  summaryMinMessages: 8,
+}
+
+const DEFAULT_PERSONA_AVATAR: PersonaAvatarConfig = {
+  mode: 'pop-in',
+  images: [],
+  corner: 'bottom-right',
+  widthPx: 260,
+  lingerMs: 4000,
+}
+
 export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
   enabled: false,
   triggerMode: 'command',
@@ -793,34 +817,70 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
     roboticIntensity: 0.5,
     rate: 0,
   },
-  avatar: {
-    enabled: true,
-    mode: 'pop-in',
-    images: [],
-    corner: 'bottom-right',
-    widthPx: 260,
-    lingerMs: 4000,
-  },
+  avatar: { ...DEFAULT_PERSONA_AVATAR },
   profiles: [],
   activeProfileId: 'default',
-  brain: {
-    enabled: false,
-    provider: 'anthropic',
-    model: '',
-    ollamaUrl: 'http://localhost:11434',
-    personality:
-      'You are a playful digital sprite who lives inside a Windows 98 desktop shown on a livestream. ' +
-      'You are cheeky but kind, love the streamer and their chat, and keep replies to one or two short ' +
-      'spoken sentences — no emoji, no markdown, no stage directions.',
-    replyToViewers: false,
-    postRepliesToChat: false,
-    maxReplyChars: 220,
-    summaryIntervalMin: 0,
-    summaryMinMessages: 8,
-  },
+  brain: { ...DEFAULT_PERSONA_BRAIN },
 }
 
-export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): PersonaConfig {
+/** Resolves a profile's `avatarPresetId` against the saved presets list —
+ *  unset/deleted preset falls back to "no avatar" (empty images), same
+ *  behavior as an avatar with no poses selected. */
+function resolveAvatarForProfile(
+  profile: Pick<PersonaProfile, 'avatarPresetId'>,
+  avatarPresets: AvatarPreset[],
+): PersonaAvatarConfig {
+  const preset = profile.avatarPresetId
+    ? avatarPresets.find((p) => p.id === profile.avatarPresetId)
+    : undefined
+  if (!preset) return { ...DEFAULT_PERSONA_AVATAR, images: [] }
+  return {
+    mode: preset.mode,
+    images: [...preset.images],
+    corner: preset.corner,
+    widthPx: preset.widthPx,
+    lingerMs: preset.lingerMs,
+  }
+}
+
+/** Fills in defaults for a persona profile — used both when synthesizing
+ *  the legacy 'default' profile and when resolving a saved one that
+ *  predates a later-added field (e.g. brain, once per-profile). */
+function withProfileDefaults(profile: Partial<PersonaProfile> & { id: string; name: string }): PersonaProfile {
+  return {
+    id: profile.id,
+    name: profile.name,
+    ttsProvider: profile.ttsProvider,
+    voice: { ...DEFAULT_PERSONA_CONFIG.voice, ...profile.voice },
+    avatarPresetId: profile.avatarPresetId,
+    brain: { ...DEFAULT_PERSONA_BRAIN, ...profile.brain },
+    triggerMode: profile.triggerMode ?? DEFAULT_PERSONA_CONFIG.triggerMode,
+    triggerValue: profile.triggerValue ?? DEFAULT_PERSONA_CONFIG.triggerValue,
+    chance: profile.chance ?? DEFAULT_PERSONA_CONFIG.chance,
+    cooldownMs: profile.cooldownMs ?? DEFAULT_PERSONA_CONFIG.cooldownMs,
+    maxChars: profile.maxChars ?? DEFAULT_PERSONA_CONFIG.maxChars,
+    duckAmount: profile.duckAmount ?? DEFAULT_PERSONA_CONFIG.duckAmount,
+    eventLines: profile.eventLines ?? [],
+  }
+}
+
+/**
+ * Resolves a PersonaConfig, synthesizing a 'default' profile from legacy
+ * flat fields when there are no profiles yet, then flattening the ACTIVE
+ * profile's Config + Avatar (by reference) + Brain back onto the top-level
+ * fields so existing consumers keep reading persona.voice/avatar/brain/
+ * triggerMode/etc without knowing profiles exist.
+ *
+ * `avatarPresets` should be the sibling AppConfig.avatarPresets list — pass
+ * the full config's presets so the active profile's avatarPresetId can be
+ * resolved into an actual PersonaAvatarConfig. Omitted/empty is safe (avatar
+ * resolves to "no avatar shown") for callers that only have the persona
+ * slice in scope.
+ */
+export function withPersonaDefaults(
+  config?: Partial<PersonaConfig> | null,
+  avatarPresets: AvatarPreset[] = [],
+): PersonaConfig {
   const base: PersonaConfig = {
     ...DEFAULT_PERSONA_CONFIG,
     ...config,
@@ -842,26 +902,61 @@ export function withPersonaDefaults(config?: Partial<PersonaConfig> | null): Per
     },
   }
 
-  // Profiles: pre-profile configs get a 'default' identity synthesized from
-  // the legacy flat fields; then the ACTIVE profile is flattened back onto
-  // voice/avatar/ttsProvider so consumers only ever read the flat fields.
+  // Profiles: pre-profile configs (no profiles at all) get a 'default'
+  // identity synthesized from the legacy flat fields, including the
+  // formerly-global brain and formerly-inline avatar — the avatar is
+  // seeded as a one-off preset-less config (images carried over directly;
+  // Graphics → Avatar promotes it to a real named preset on first save).
   if (base.profiles.length === 0) {
-    base.profiles = [{
+    const hasLegacyAvatarImages = (config?.avatar?.images?.length ?? 0) > 0
+    base.profiles = [withProfileDefaults({
       id: 'default',
       name: 'Default',
       ttsProvider: base.ttsProvider,
       voice: { ...base.voice },
-      avatar: { ...base.avatar, images: [...base.avatar.images] },
-    }]
+      // Fresh install with no persona config saved yet (no legacy inline
+      // avatar images to preserve) — default to the bundled "Ene" avatar
+      // preset (seeded server-side; see seedDefaultAvatarPresets) so the
+      // persona has a face out of the box. A config predating profiles
+      // that already had its own avatar images keeps those instead (see
+      // below) rather than being silently switched to Ene.
+      avatarPresetId: hasLegacyAvatarImages ? undefined : 'ene',
+      brain: { ...base.brain },
+      triggerMode: base.triggerMode,
+      triggerValue: base.triggerValue,
+      chance: base.chance,
+      cooldownMs: base.cooldownMs,
+      maxChars: base.maxChars,
+      duckAmount: base.duckAmount,
+      eventLines: base.eventLines,
+    })]
+    // Legacy inline avatar images survive the migration as a directly-set
+    // avatar on the resolved config even though the synthesized profile has
+    // no avatarPresetId yet — resolveAvatarForProfile below only kicks in
+    // once a real preset is referenced, so fall back to the legacy images
+    // here rather than losing them.
+    base.avatar = { ...DEFAULT_PERSONA_CONFIG.avatar, ...config?.avatar, images: config?.avatar?.images ?? [] }
+  } else {
+    // Profiles already exist but may predate a per-profile field (brain,
+    // full Config) added later — backfill defaults without touching fields
+    // that are already set.
+    base.profiles = base.profiles.map((p) => withProfileDefaults(p))
   }
+
   const active = base.profiles.find((p) => p.id === base.activeProfileId) ?? base.profiles[0]
   base.activeProfileId = active.id
   base.ttsProvider = active.ttsProvider
   base.voice = { ...DEFAULT_PERSONA_CONFIG.voice, ...active.voice }
-  base.avatar = {
-    ...DEFAULT_PERSONA_CONFIG.avatar,
-    ...active.avatar,
-    images: active.avatar?.images ?? [],
+  base.brain = { ...DEFAULT_PERSONA_BRAIN, ...active.brain }
+  base.triggerMode = active.triggerMode
+  base.triggerValue = active.triggerValue
+  base.chance = active.chance
+  base.cooldownMs = active.cooldownMs
+  base.maxChars = active.maxChars
+  base.duckAmount = active.duckAmount
+  base.eventLines = active.eventLines
+  if (active.avatarPresetId) {
+    base.avatar = resolveAvatarForProfile(active, avatarPresets)
   }
   return base
 }

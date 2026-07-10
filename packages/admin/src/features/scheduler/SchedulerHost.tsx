@@ -20,9 +20,10 @@ export const SCHEDULER_TABS: Array<{ tab: SchedulerTab; icon: string; label: str
   { tab: 'audio',             icon: '🔊', label: 'Audio' },
 ]
 
-export function SchedulerHost({ tab, onTabChange }: {
+export function SchedulerHost({ tab, onTabChange, onOpenAvatar }: {
   tab: SchedulerTab
   onTabChange: (tab: SchedulerTab) => void
+  onOpenAvatar?: () => void
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -50,7 +51,7 @@ export function SchedulerHost({ tab, onTabChange }: {
         {tab === 'automation' && <AutomationPanel />}
         {tab === 'effect-ambiance' && <EffectAmbiancePanel />}
         {tab === 'theme-drift' && <ThemeDriftPanel />}
-        {tab === 'persona' && <PersonaPanel />}
+        {tab === 'persona' && <PersonaPanel onOpenAvatar={onOpenAvatar} />}
         {tab === 'desktop-ambiance' && <DesktopAmbiancePanel />}
         {tab === 'audio' && <AudioPanel />}
       </div>

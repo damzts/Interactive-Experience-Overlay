@@ -20,9 +20,10 @@ export interface PersonaVoiceConfig {
 }
 
 /** On-screen character art for the persona — a transparent png/webp that
- *  appears on the overlay and moves with the live voice amplitude. */
+ *  appears on the overlay and moves with the live voice amplitude. Always
+ *  active (cannot be disabled) — an empty `images` list is what makes the
+ *  avatar not render, not a separate toggle. */
 export interface PersonaAvatarConfig {
-  enabled: boolean
   /** 'pop-in': slides in while speaking, lingers, leaves. 'persistent': always on screen. */
   mode: 'pop-in' | 'persistent'
   /** Root-relative image URLs (e.g. '/assets/persona/ene/Ene_Anime.webp').
@@ -33,6 +34,14 @@ export interface PersonaAvatarConfig {
   widthPx: number
   /** Pop-in mode: how long she stays after speech ends, in milliseconds. */
   lingerMs: number
+}
+
+/** A named, reusable avatar built in Graphics → Avatar (media_renders-style
+ *  asset, not tied to any one persona profile) — Persona profiles reference
+ *  one of these by id instead of embedding an avatar config inline. */
+export interface AvatarPreset extends PersonaAvatarConfig {
+  id: string
+  name: string
 }
 
 /** A spoken reaction to a kernel event — the persona announces raids,
@@ -49,22 +58,11 @@ export interface PersonaEventLine {
   enabled?: boolean
 }
 
-/** A named persona identity — who she is (voice + art). One profile is
- *  active at a time; behavioral settings (trigger, cooldown, event lines…)
- *  are shared across profiles. */
-export interface PersonaProfile {
-  id: string
-  name: string
-  /** TTS backend id ('sapi' built-in). Omit = 'sapi'. */
-  ttsProvider?: string
-  voice: PersonaVoiceConfig
-  avatar: PersonaAvatarConfig
-}
-
 /** The persona's brain — an LLM that summarizes chat for the streamer,
  *  chats with the streamer (admin console), and can generate real replies
  *  to viewers. The Anthropic API key lives in the ANTHROPIC_API_KEY env
- *  var, never in config (config is broadcast to clients). */
+ *  var, never in config (config is broadcast to clients). Per-profile —
+ *  each named identity can have its own personality/provider. */
 export interface PersonaBrainConfig {
   enabled: boolean
   /** 'anthropic' (cloud, needs ANTHROPIC_API_KEY) or 'ollama' (local). */
@@ -91,10 +89,44 @@ export interface PersonaBrainConfig {
   summaryMinMessages: number
 }
 
+/** A named persona identity — who she is (voice, avatar reference, and
+ *  brain) plus her own behavior config. One profile is active at a time;
+ *  activating a profile flattens all of this onto PersonaConfig's top-level
+ *  fields (see withPersonaDefaults) so existing consumers keep reading
+ *  flat fields without knowing profiles exist. */
+export interface PersonaProfile {
+  id: string
+  name: string
+  /** TTS backend id ('sapi' built-in). Omit = 'sapi'. */
+  ttsProvider?: string
+  voice: PersonaVoiceConfig
+  /** References an AppConfig.avatarPresets entry by id. Unset/deleted
+   *  preset = no avatar (falls back to empty images, i.e. never shows). */
+  avatarPresetId?: string
+  brain: PersonaBrainConfig
+  /** 'all': every message is a candidate. 'keyword'/'command': only matching messages.
+   *  'chance': every message rolls against `chance`. */
+  triggerMode: 'all' | 'keyword' | 'command' | 'chance'
+  /** Keyword substring or command name (without '!'), required for those trigger modes. */
+  triggerValue?: string
+  /** Probability 0–1 a message is selected, used when triggerMode is 'chance'. */
+  chance?: number
+  /** Minimum milliseconds between spoken lines. */
+  cooldownMs: number
+  /** Chat messages longer than this are truncated before synthesis. */
+  maxChars: number
+  /** How much to attenuate music/ambient layers while speaking (0 = none, 1 = silence). */
+  duckAmount: number
+  /** Spoken reactions to kernel events (independent of chat triggerMode;
+   *  shares the same cooldown). */
+  eventLines: PersonaEventLine[]
+}
+
 export interface PersonaConfig {
   enabled: boolean
   /** 'all': every message is a candidate. 'keyword'/'command': only matching messages.
-   *  'chance': every message rolls against `chance`. */
+   *  'chance': every message rolls against `chance`. (Resolved from the
+   *  active profile — see withPersonaDefaults.) */
   triggerMode: 'all' | 'keyword' | 'command' | 'chance'
   /** Keyword substring or command name (without '!'), required for those trigger modes. */
   triggerValue?: string
@@ -112,16 +144,20 @@ export interface PersonaConfig {
    *  shares the same cooldown). */
   eventLines: PersonaEventLine[]
   /** Resolved identity of the ACTIVE profile — withPersonaDefaults flattens
-   *  the active profile onto voice/avatar/ttsProvider, so consumers read
-   *  these flat fields and never touch profiles directly. */
+   *  the active profile onto voice/avatar/ttsProvider/brain/triggerMode/etc,
+   *  so consumers read these flat fields and never touch profiles directly. */
   voice: PersonaVoiceConfig
-  /** On-screen character art shown while the persona speaks (active profile's). */
+  /** On-screen character art shown while the persona speaks (active
+   *  profile's referenced avatar preset, flattened). */
   avatar: PersonaAvatarConfig
-  /** Named identities. Empty = a 'default' profile is synthesized from the
-   *  legacy flat voice/avatar fields on resolution. */
+  /** Named identities — a profile is Config (trigger/cooldown/voice/event
+   *  lines) + Avatar (by reference) + Brain, selected as a unit. Empty = a
+   *  'default' profile is synthesized from the legacy flat fields on
+   *  resolution. */
   profiles: PersonaProfile[]
   /** Which profile is live. */
   activeProfileId: string
-  /** LLM brain (summaries, console, viewer replies). */
+  /** LLM brain (summaries, console, viewer replies) — resolved from the
+   *  active profile. */
   brain: PersonaBrainConfig
 }
