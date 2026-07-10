@@ -759,6 +759,7 @@ export const DEFAULT_PERSONA_CONFIG: PersonaConfig = {
       'You are cheeky but kind, love the streamer and their chat, and keep replies to one or two short ' +
       'spoken sentences — no emoji, no markdown, no stage directions.',
     replyToViewers: false,
+    postRepliesToChat: false,
     maxReplyChars: 220,
     summaryIntervalMin: 0,
     summaryMinMessages: 8,

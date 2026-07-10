@@ -151,6 +151,12 @@ export function registerBuiltinActions(): void {
     void ctx.personaBrain?.summarizeNow('manual')
   })
 
+  registerAction('twitch-chat-send', (ctx, cfg) => {
+    const c = cfg as ActionConfigMap['twitch-chat-send']
+    if (!c.message?.trim()) return
+    ctx.twitchChat?.sendMessage(c.message)
+  })
+
   registerAction('ambiance-clear-history', (ctx) => {
     ctx.ambianceManager.clearHistory()
   })

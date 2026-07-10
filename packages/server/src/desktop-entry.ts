@@ -346,6 +346,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
     configService,
     obsBridge,
     personaBrain: personaManager,
+    twitchChat: twitchManager,
   })
 
   // ── REST routes ───────────────────────────────────────────────

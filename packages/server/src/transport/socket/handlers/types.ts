@@ -46,4 +46,12 @@ export interface HandlerContext {
     converse(text: string): Promise<string | null>
     summarizeNow(reason: 'manual' | 'interval'): Promise<string | null>
   }
+
+  /** Twitch outbound-chat surface — a narrow interface instead of the whole
+   *  TwitchIntegrationManager to keep handlers decoupled. sendMessage()
+   *  no-ops (returns false) when IRC isn't connected with an authenticated
+   *  (chat:edit-scoped) token. */
+  twitchChat?: {
+    sendMessage(text: string): boolean
+  }
 }

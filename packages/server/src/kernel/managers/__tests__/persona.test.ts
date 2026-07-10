@@ -154,6 +154,37 @@ describe('PersonaManager brain', () => {
     manager.stop()
   })
 
+  it('does not post replies to Twitch chat when postRepliesToChat is off (default)', async () => {
+    const { bus, manager } = setupBrain({
+      triggerMode: 'all', cooldownMs: 0,
+      brain: brainOn({ replyToViewers: true }),
+    })
+    const sent: Array<{ text: string }> = []
+    ;(bus.on as (e: string, cb: (p: { text: string }) => void) => void)('twitch:chat:send', (p) => sent.push(p))
+
+    emit(bus, 'chat:message', { user: 'viewer', text: 'hello ene!' })
+    await flush()
+
+    expect(sent).toEqual([])
+    manager.stop()
+  })
+
+  it('emits twitch:chat:send with the LLM reply when postRepliesToChat is on', async () => {
+    const { bus, manager, spoken } = setupBrain({
+      triggerMode: 'all', cooldownMs: 0,
+      brain: brainOn({ replyToViewers: true, postRepliesToChat: true }),
+    })
+    const sent: Array<{ text: string }> = []
+    ;(bus.on as (e: string, cb: (p: { text: string }) => void) => void)('twitch:chat:send', (p) => sent.push(p))
+
+    emit(bus, 'chat:message', { user: 'viewer', text: 'hello ene!' })
+    await flush()
+
+    expect(sent).toEqual([{ text: 'a witty reply' }])
+    expect(spoken).toEqual([{ user: 'viewer', text: 'a witty reply', kind: 'reply' }])
+    manager.stop()
+  })
+
   it('echoes chat unchanged when the brain is disabled', async () => {
     const { bus, llm, manager, spoken } = setupBrain({
       triggerMode: 'all', cooldownMs: 0,

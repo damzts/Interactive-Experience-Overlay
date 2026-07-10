@@ -26,6 +26,7 @@ import './publicSignals.js'
 import './managers/scheduler.signals.js'
 import './managers/ambiance.signals.js'
 import './managers/config.signals.js'
+import './managers/twitch.signals.js'
 
 export { KernelBus } from './bus.js'
 export type { KernelEvents, BusFrame, BoundBus } from './bus.js'

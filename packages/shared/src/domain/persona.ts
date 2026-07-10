@@ -76,6 +76,13 @@ export interface PersonaBrainConfig {
   personality: string
   /** Trigger-selected chat goes through the LLM instead of being echoed. */
   replyToViewers: boolean
+  /** When true (and replyToViewers is on), the LLM reply is also posted
+   *  back to Twitch chat via TwitchIntegrationManager.sendMessage — not
+   *  just spoken over the overlay. Requires config.twitch.accessToken with
+   *  the chat:edit scope; silently does nothing without it. Off by default:
+   *  speaking is a local overlay effect, posting to chat is publicly
+   *  visible and should be an explicit opt-in. */
+  postRepliesToChat: boolean
   /** Spoken replies/summaries are truncated to this length. */
   maxReplyChars: number
   /** Speak a chat summary every N minutes. 0 = off. */

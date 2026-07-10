@@ -87,6 +87,13 @@ export interface AmbiancePatchActionConfig {
   timeoutSeconds?: number
 }
 
+export interface TwitchChatSendActionConfig {
+  /** Message text sent verbatim via IRC PRIVMSG. Requires config.twitch.accessToken
+   *  with the chat:edit scope — a read-only (anonymous or unscoped) connection
+   *  makes this a silent no-op (see TwitchIntegrationManager.sendMessage). */
+  message: string
+}
+
 /** Config-less catalog actions (obs-virtualcam, persona-summarize, ambiance-clear-history). */
 export type EmptyActionConfig = Record<string, never>
 
@@ -103,6 +110,7 @@ export interface ActionConfigMap {
   'widget-layout': WidgetLayoutActionConfig
   'widget-command': WidgetCommandActionConfig
   'ambiance-patch': AmbiancePatchActionConfig
+  'twitch-chat-send': TwitchChatSendActionConfig
   'persona-summarize': EmptyActionConfig
   'ambiance-clear-history': EmptyActionConfig
 }
@@ -115,6 +123,7 @@ export const ACTION_CATEGORY_ORDER = [
   'OBS',
   'Scene',
   'Widgets',
+  'Twitch',
   'Persona',
   'Ambiance',
 ] as const
@@ -259,6 +268,15 @@ export const ACTION_CATALOG: { [K in CatalogActionKind]: ActionManifest<K> } = {
     desc: 'Asks the active persona to summarize recent stream activity immediately.',
     defaults: {},
     fields: [],
+  },
+  'twitch-chat-send': {
+    label: 'Twitch: Send Chat Message',
+    category: 'Twitch',
+    desc: 'Posts a message to Twitch chat via IRC. Requires a connected accessToken with the chat:edit scope — otherwise this silently does nothing.',
+    defaults: { message: '' },
+    fields: [
+      { key: 'message', label: 'Message', type: 'textarea', placeholder: 'Thanks for the follow!' },
+    ],
   },
   'ambiance-clear-history': {
     label: 'Ambiance: Clear History',

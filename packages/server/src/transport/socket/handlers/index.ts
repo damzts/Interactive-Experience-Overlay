@@ -39,6 +39,7 @@ export function setupSocketHandlers(
     configService?: import('../../../kernel/managers/config.js').IConfigService
     obsBridge?: import('../../../kernel/managers/obs.js').ObsBridgeManager
     personaBrain?: HandlerContext['personaBrain']
+    twitchChat?: HandlerContext['twitchChat']
   },
 ): { isOverlaySlotTaken: () => boolean } {
   const ctx: HandlerContext = {
@@ -53,6 +54,7 @@ export function setupSocketHandlers(
     bus: options?.bus ?? (() => { throw new Error('[kernel] bus required') })(),
     obsBridge: options?.obsBridge,
     personaBrain: options?.personaBrain,
+    twitchChat: options?.twitchChat,
 
     runtimeConfig: {},
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,

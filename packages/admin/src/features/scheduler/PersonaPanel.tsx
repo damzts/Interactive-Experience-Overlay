@@ -426,11 +426,25 @@ function BrainSection({
           <div className="text-[11px] font-semibold text-zinc-300">Reply to viewers</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">
             Trigger-selected chat (see Trigger above, e.g. <span className="font-mono">!say</span>) gets an
-            in-character LLM reply instead of an echo. Voice/overlay only — never posted to Twitch chat.
+            in-character LLM reply instead of an echo, spoken over the overlay.
           </div>
         </div>
         <Toggle checked={brain.replyToViewers} onChange={(v) => onChange({ replyToViewers: v })} />
       </div>
+
+      {brain.replyToViewers && (
+        <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+          <div>
+            <div className="text-[11px] font-semibold text-zinc-300">Also post replies to Twitch chat</div>
+            <div className="text-[10px] text-zinc-500 mt-0.5">
+              Publicly visible in your channel's chat, not just spoken over the overlay. Requires an
+              access token with the <span className="font-mono">chat:edit</span> scope in Twitch settings —
+              otherwise this silently does nothing.
+            </div>
+          </div>
+          <Toggle checked={brain.postRepliesToChat} onChange={(v) => onChange({ postRepliesToChat: v })} />
+        </div>
+      )}
 
       <Slider label="Max reply length" value={brain.maxReplyChars} min={60} max={500} step={10} unit=" ch" onChange={(v) => onChange({ maxReplyChars: v })} />
       <Slider label="Auto-summary interval (0 = off)" value={brain.summaryIntervalMin} min={0} max={60} step={1} unit=" min" onChange={(v) => onChange({ summaryIntervalMin: v })} />

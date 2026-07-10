@@ -49,6 +49,7 @@ export class TwitchIntegrationManager implements Manager {
   private ircPingTimer: ReturnType<typeof setInterval> | null = null
   private ircReconnectAttempt = 0
   private _ircConnected = false
+  private _ircAuthenticated = false
   private _channel = ''
 
   // EventSub state
@@ -57,6 +58,8 @@ export class TwitchIntegrationManager implements Manager {
   private eventSubReconnectAttempt = 0
   private _eventSubConnected = false
   private _sessionId: string | null = null
+
+  private _unsubscribeChatSend: (() => void) | null = null
 
   constructor(
     private getConfig: () => AppConfig,
@@ -74,11 +77,16 @@ export class TwitchIntegrationManager implements Manager {
         this.connectEventSub(cfg, EVENTSUB_URL)
       }
     }
+    this._unsubscribeChatSend = this.bus.on('twitch:chat:send', ({ text }) => {
+      this.sendMessage(text)
+    })
   }
 
   stop(): void {
     this.disconnectIrc()
     this.disconnectEventSub()
+    this._unsubscribeChatSend?.()
+    this._unsubscribeChatSend = null
     this._status = 'stopped'
   }
 
@@ -88,6 +96,27 @@ export class TwitchIntegrationManager implements Manager {
   get isConnected(): boolean { return this._ircConnected }
   get isEventSubConnected(): boolean { return this._eventSubConnected }
   get channel(): string { return this._channel }
+  /** True once IRC has authenticated with a token (chat:edit scope required
+   *  for sends to actually land — Twitch accepts the handshake either way,
+   *  so this reflects "we attempted auth", not a verified scope check). */
+  get canSendChat(): boolean { return this._ircAuthenticated && this._ircConnected }
+
+  /**
+   * Sends a chat message via IRC PRIVMSG. Requires the IRC connection to be
+   * authenticated (config.twitch.accessToken with the chat:edit scope) —
+   * anonymous (justinfan) connections can read chat but Twitch silently
+   * drops PRIVMSG from them. Returns false without throwing when sending
+   * isn't currently possible (not connected, or connected anonymously) so
+   * callers (catalog action, persona replies) can no-op safely.
+   */
+  sendMessage(text: string): boolean {
+    const trimmed = text.trim()
+    if (!trimmed) return false
+    if (!this.ircWs || this.ircWs.readyState !== this.ircWs.OPEN) return false
+    if (!this._ircAuthenticated || !this._channel) return false
+    this.ircWs.send(`PRIVMSG #${this._channel} :${trimmed}`)
+    return true
+  }
 
   onConfigChange(config: AppConfig): void {
     const cfg = config.twitch
@@ -131,8 +160,10 @@ export class TwitchIntegrationManager implements Manager {
       if (cfg.accessToken) {
         ws.send(`PASS oauth:${cfg.accessToken}`)
         ws.send(`NICK ${this._channel}`)
+        this._ircAuthenticated = true
       } else {
         ws.send(`NICK justinfan${Math.floor(Math.random() * 80000) + 1000}`)
+        this._ircAuthenticated = false
       }
       ws.send(`JOIN #${this._channel}`)
       this.ircPingTimer = setInterval(() => {
@@ -151,6 +182,7 @@ export class TwitchIntegrationManager implements Manager {
 
     ws.onclose = () => {
       this._ircConnected = false
+      this._ircAuthenticated = false
       this.clearIrcPing()
       logger.info('[twitch:irc] WebSocket closed')
       if (this._status === 'running') this.scheduleIrcReconnect(cfg)
@@ -160,6 +192,11 @@ export class TwitchIntegrationManager implements Manager {
   private handleIrcLine(line: string): void {
     if (line.startsWith('PING')) {
       this.ircWs?.send('PONG :tmi.twitch.tv')
+      return
+    }
+    if (line.includes('Login authentication failed') || line.includes('Improperly formatted auth')) {
+      logger.warn('[twitch:irc] authentication failed — check accessToken/chat:edit scope; falling back to read-only')
+      this._ircAuthenticated = false
       return
     }
     if (line.includes('JOIN') && !this._ircConnected) {
@@ -189,6 +226,7 @@ export class TwitchIntegrationManager implements Manager {
     this.clearIrcPing()
     if (this.ircWs) { this.ircWs.onclose = null; this.ircWs.close(); this.ircWs = null }
     this._ircConnected = false
+    this._ircAuthenticated = false
     this._channel = ''
   }
 

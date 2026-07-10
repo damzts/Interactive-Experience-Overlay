@@ -121,7 +121,12 @@ export class PersonaManager implements Manager {
       this.llmBusy = true
       try {
         const reply = await this.generateViewerReply(persona, msg.user, text)
-        if (reply) await this.speak(persona, msg.user, reply, 'reply')
+        if (reply) {
+          await this.speak(persona, msg.user, reply, 'reply')
+          if (persona.brain.postRepliesToChat) {
+            this.bus.emit('twitch:chat:send', { text: reply })
+          }
+        }
       } finally {
         this.llmBusy = false
       }
