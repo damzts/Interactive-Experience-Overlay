@@ -12,6 +12,8 @@ export interface ScreenSharePublisherSnapshot {
 interface PublisherEntry {
   pc: RTCPeerConnection
   stream: MediaStream
+  /** ICE candidates gathered so far — re-sent when the overlay requests a re-offer */
+  gatheredCandidates: RTCIceCandidateInit[]
 }
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -83,23 +85,24 @@ class ScreenSharePublisherRegistry {
     })
 
     // Overlay subscriber mounted (or changed its watched key) and is ready to
-    // receive an offer. Re-create the offer on the existing RTCPeerConnection
-    // so the overlay can complete the handshake without requiring a new
-    // getDisplayMedia() call (which would show the picker again).
-    socket.on('screen-share:request-offer', async (payload: { widgetId: string }) => {
+    // receive an offer. Re-send the existing local SDP offer so the overlay
+    // can answer it — no new negotiation or getDisplayMedia call needed.
+    // We simply re-emit whatever offer we already set as localDescription,
+    // plus all ICE candidates gathered so far (the overlay missed them).
+    // This handles the case where start() was called before the overlay widget
+    // was open (or before sourceId was saved to the widget config), leaving
+    // the admin PC stuck in have-local-offer with no one to answer it.
+    socket.on('screen-share:request-offer', (payload: { widgetId: string }) => {
       const entry = this.entries.get(payload.widgetId)
       if (!entry) return
-      try {
-        // restartIce() resets ICE credentials so the new offer/answer pair
-        // establishes a fresh connection path. This is the correct way to
-        // re-negotiate on an existing PC without tearing down the media tracks.
-        entry.pc.restartIce()
-        const offer = await entry.pc.createOffer({ iceRestart: true })
-        await entry.pc.setLocalDescription(offer)
-        socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp: offer.sdp ?? '' })
-      } catch {
-        // Non-fatal — the overlay will stay in the 'waiting' state; the user
-        // can stop and restart from the Capture Sources panel if needed.
+      const sdp = entry.pc.localDescription?.sdp
+      if (!sdp) return
+      socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp })
+      // Re-send any ICE candidates that were gathered before the overlay
+      // was listening — without these the ICE negotiation would stall even
+      // though the offer/answer completes.
+      for (const candidate of entry.gatheredCandidates) {
+        socket.emit('screen-share:ice:admin', { widgetId: payload.widgetId, candidate })
       }
     })
   }
@@ -171,7 +174,7 @@ class ScreenSharePublisherRegistry {
       }
 
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
-      this.entries.set(widgetId, { pc, stream })
+      this.entries.set(widgetId, { pc, stream, gatheredCandidates: [] })
 
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream)
@@ -180,7 +183,10 @@ class ScreenSharePublisherRegistry {
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          socket.emit('screen-share:ice:admin', { widgetId, candidate: event.candidate.toJSON() })
+          const candidate = event.candidate.toJSON()
+          const entry = this.entries.get(widgetId)
+          if (entry) entry.gatheredCandidates.push(candidate)
+          socket.emit('screen-share:ice:admin', { widgetId, candidate })
         }
       }
 
