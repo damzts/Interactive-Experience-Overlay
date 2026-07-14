@@ -94,6 +94,22 @@ export class ScreenShareRelay {
     }
   }
 
+  /**
+   * Overlay subscriber has mounted and is ready to receive an offer for
+   * widgetId. Forward the request to the admin publisher so it can
+   * re-create and re-send the SDP offer to complete the handshake.
+   * No-op if no publisher is registered for this widgetId.
+   */
+  requestOffer(widgetId: string): void {
+    const publisher = this.publishers.get(widgetId)
+    if (!publisher) {
+      logger.warn(`[screen-share-relay] request-offer for "${widgetId}" but no publisher on file`)
+      return
+    }
+    publisher.emit('screen-share:request-offer', { widgetId })
+    logger.info(`[screen-share-relay] forwarded request-offer for "${widgetId}" to admin`)
+  }
+
   getActiveWidgetIds(): string[] {
     return [...this.publishers.keys()]
   }

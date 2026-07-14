@@ -215,4 +215,12 @@ export interface ClientToServerEvents {
   'screen-share:ice:overlay': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
   /** Admin → server: publisher stopped sharing (browser "Stop sharing" or widget closed) */
   'screen-share:stop': (payload: { widgetId: string }) => void
+  /**
+   * Overlay → server → admin: overlay subscriber has mounted (or changed its
+   * watched widgetId) and is now ready to receive an offer. If the admin has
+   * an active publisher for this widgetId it should re-create and re-send the
+   * SDP offer so the overlay can complete the WebRTC handshake even when it
+   * joined after the initial offer was already forwarded.
+   */
+  'screen-share:request-offer': (payload: { widgetId: string }) => void
 }

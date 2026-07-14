@@ -81,6 +81,27 @@ class ScreenSharePublisherRegistry {
       const entry = this.entries.get(payload.widgetId)
       entry?.pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {})
     })
+
+    // Overlay subscriber mounted (or changed its watched key) and is ready to
+    // receive an offer. Re-create the offer on the existing RTCPeerConnection
+    // so the overlay can complete the handshake without requiring a new
+    // getDisplayMedia() call (which would show the picker again).
+    socket.on('screen-share:request-offer', async (payload: { widgetId: string }) => {
+      const entry = this.entries.get(payload.widgetId)
+      if (!entry) return
+      try {
+        // restartIce() resets ICE credentials so the new offer/answer pair
+        // establishes a fresh connection path. This is the correct way to
+        // re-negotiate on an existing PC without tearing down the media tracks.
+        entry.pc.restartIce()
+        const offer = await entry.pc.createOffer({ iceRestart: true })
+        await entry.pc.setLocalDescription(offer)
+        socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp: offer.sdp ?? '' })
+      } catch {
+        // Non-fatal — the overlay will stay in the 'waiting' state; the user
+        // can stop and restart from the Capture Sources panel if needed.
+      }
+    })
   }
 
   subscribe(widgetId: string, callback: () => void): () => void {

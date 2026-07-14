@@ -106,6 +106,13 @@ export function useRemoteScreenShare(widgetId: string, enabled = true): RemoteSc
     socket.on('screen-share:ice:admin', handleIce)
     socket.on('screen-share:stop', handleStop)
 
+    // Tell the admin publisher we're ready. If a share is already active for
+    // this widgetId (e.g. the source was started before this widget opened, or
+    // the widget's sourceId was just changed), the publisher will re-send its
+    // offer so we can complete the WebRTC handshake without the user having to
+    // stop and restart the share manually.
+    socket.emit('screen-share:request-offer', { widgetId })
+
     return () => {
       cancelled = true
       socket.off('screen-share:offer', handleOffer)

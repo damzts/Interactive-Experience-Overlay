@@ -35,4 +35,10 @@ export function registerScreenShareHandlers(ctx: HandlerContext, socket: AppSock
     if (ctx.socketClientTypes.get(socket.id) !== 'admin') return
     relay.stop(widgetId, socket)
   })
+
+  socket.on('screen-share:request-offer', ({ widgetId }) => {
+    // Only the overlay subscriber should emit this — guard accordingly.
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
+    relay.requestOffer(widgetId)
+  })
 }
