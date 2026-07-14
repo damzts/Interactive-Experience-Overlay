@@ -17,6 +17,7 @@
     }
   },
   "scripts": {
+    "predev": "node ../../scripts/rebuild-sqlite-node.mjs",
     "build": "tsc",
     "dev": "tsx watch src/desktop-entry.ts",
     "start": "node dist/desktop-entry.js",

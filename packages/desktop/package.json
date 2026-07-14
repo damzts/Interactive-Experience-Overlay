@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
+    "predev": "node scripts/rebuild-sqlite.mjs",
     "dev": "electron .",
     "build": "tsc && tsc -p tsconfig.preload.json",
     "bundle-server": "node scripts/bundle-server.mjs",
