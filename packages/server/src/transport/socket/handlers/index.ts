@@ -84,9 +84,11 @@ export function setupSocketHandlers(
   registerMachineListeners(ctx)
   registerKernelSignalBridge(ctx)
 
-  const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'unknown' => {
+  const getSocketClientType = (socket: AppSocket): 'overlay' | 'admin' | 'preview' | 'unknown' => {
     const auth = socket.handshake.auth as { clientType?: string } | undefined
-    return auth?.clientType === 'overlay' || auth?.clientType === 'admin' ? auth.clientType : 'unknown'
+    const t = auth?.clientType
+    if (t === 'overlay' || t === 'admin' || t === 'preview') return t
+    return 'unknown'
   }
 
   io.on('connection', (socket: AppSocket) => {

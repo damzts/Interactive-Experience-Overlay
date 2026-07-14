@@ -2,9 +2,19 @@
   "name": "@ieom/server",
   "version": "1.0.0",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./desktop-entry": "./dist/desktop-entry.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./desktop-entry": {
+      "types": "./dist/desktop-entry.d.ts",
+      "import": "./dist/desktop-entry.js",
+      "default": "./dist/desktop-entry.js"
+    }
   },
   "scripts": {
     "build": "tsc",

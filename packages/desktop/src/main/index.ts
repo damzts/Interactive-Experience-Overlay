@@ -143,7 +143,9 @@ if (!gotLock) {
 
     // Open app settings DB (the server creates the DB file during startup)
     try {
-      const dbPath = path.join(app.getPath('userData'), 'ieom.db');
+      const dbPath = app.isPackaged
+        ? path.join(app.getPath('userData'), 'ieom.db')
+        : path.join(path.resolve(app.getAppPath(), '..', '..'), 'data', 'ieom-dev.db');
       openAppSettingsDb(dbPath);
     } catch {
       // If the database isn't ready yet, startup settings will use defaults

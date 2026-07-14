@@ -134,13 +134,16 @@ export function getAdminToken(): string | undefined {
  */
 export async function startServer(): Promise<void> {
   // Resolve paths
-  const userData = app.getPath('userData');
-  const dbPath = path.join(userData, 'ieom.db');
-
   // Assets directory at the project root (or bundled location)
   const appRoot = app.isPackaged
     ? path.join(process.resourcesPath, 'app')
     : path.resolve(app.getAppPath(), '..', '..');
+
+  // In dev mode use the same DB as `pnpm dev` (project root data/ieom-dev.db)
+  // so settings are shared between the two run modes.
+  const dbPath = app.isPackaged
+    ? path.join(app.getPath('userData'), 'ieom.db')
+    : path.join(appRoot, 'data', 'ieom-dev.db');
 
   const assetsDir = path.join(appRoot, 'assets');
   const overlayDir = app.isPackaged
