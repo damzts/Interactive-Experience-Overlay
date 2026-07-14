@@ -70,10 +70,16 @@ class ScreenSharePublisherRegistry {
 
     socket.on('screen-share:answer', async (payload: { widgetId: string; sdp: string }) => {
       const entry = this.entries.get(payload.widgetId)
-      if (!entry) return
+      if (!entry) {
+        console.warn('[screen-share] answer for', payload.widgetId, 'but no entry in registry')
+        return
+      }
+      console.log('[screen-share] answer received for', payload.widgetId, 'pc signalingState:', entry.pc.signalingState)
       try {
         await entry.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp })
-      } catch {
+        console.log('[screen-share] setRemoteDescription(answer) ok, signalingState:', entry.pc.signalingState)
+      } catch (err) {
+        console.error('[screen-share] setRemoteDescription(answer) failed:', err)
         this.errors.set(payload.widgetId, 'Failed to establish screen share connection.')
         this.teardown(payload.widgetId, { emitStop: false })
       }
@@ -92,17 +98,67 @@ class ScreenSharePublisherRegistry {
     // This handles the case where start() was called before the overlay widget
     // was open (or before sourceId was saved to the widget config), leaving
     // the admin PC stuck in have-local-offer with no one to answer it.
-    socket.on('screen-share:request-offer', (payload: { widgetId: string }) => {
+    socket.on('screen-share:request-offer', async (payload: { widgetId: string }) => {
       const entry = this.entries.get(payload.widgetId)
-      if (!entry) return
-      const sdp = entry.pc.localDescription?.sdp
-      if (!sdp) return
-      socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp })
-      // Re-send any ICE candidates that were gathered before the overlay
-      // was listening — without these the ICE negotiation would stall even
-      // though the offer/answer completes.
-      for (const candidate of entry.gatheredCandidates) {
-        socket.emit('screen-share:ice:admin', { widgetId: payload.widgetId, candidate })
+      if (!entry) {
+        console.log('[screen-share] request-offer for', payload.widgetId, '— no active entry, ignoring')
+        return
+      }
+
+      const signalingState = entry.pc.signalingState
+      console.log('[screen-share] request-offer for', payload.widgetId, 'signalingState:', signalingState)
+
+      // If the PC is in have-local-offer (offer sent, no answer received yet),
+      // the offer SDP is still valid — just re-send it plus any gathered ICE
+      // candidates the overlay missed.
+      if (signalingState === 'have-local-offer') {
+        const sdp = entry.pc.localDescription?.sdp
+        if (!sdp) return
+        console.log('[screen-share] re-sending existing offer, candidates:', entry.gatheredCandidates.length)
+        socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp })
+        for (const candidate of entry.gatheredCandidates) {
+          socket.emit('screen-share:ice:admin', { widgetId: payload.widgetId, candidate })
+        }
+        return
+      }
+
+      // In any other state (stable = was connected, failed, closed, etc.) the
+      // old PC can't be re-offered cleanly. Create a fresh PC reusing the same
+      // MediaStream tracks — no getDisplayMedia call, no picker shown.
+      console.log('[screen-share] rebuilding PC for', payload.widgetId, '(reusing existing stream)')
+      entry.pc.close()
+
+      const { stream } = entry
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const freshEntry = { pc, stream, gatheredCandidates: [] as RTCIceCandidateInit[] }
+      this.entries.set(payload.widgetId, freshEntry)
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          const candidate = event.candidate.toJSON()
+          freshEntry.gatheredCandidates.push(candidate)
+          socket.emit('screen-share:ice:admin', { widgetId: payload.widgetId, candidate })
+        }
+      }
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          if (this.entries.get(payload.widgetId)?.pc === pc) {
+            this.teardown(payload.widgetId, { emitStop: false })
+          }
+        }
+      }
+
+      try {
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        console.log('[screen-share] new offer created and sent for', payload.widgetId)
+        socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp: offer.sdp ?? '' })
+      } catch (err) {
+        console.error('[screen-share] failed to create re-offer:', err)
+        this.teardown(payload.widgetId, { emitStop: false })
       }
     })
   }

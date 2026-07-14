@@ -53,6 +53,7 @@ export function useRemoteScreenShare(widgetId: string, enabled = true): RemoteSc
 
     const handleOffer = async (payload: { widgetId: string; sdp: string }) => {
       if (payload.widgetId !== widgetId || cancelled) return
+      console.log('[screen-share] offer received for', widgetId, 'pcRef state:', pcRef.current?.signalingState ?? 'none')
 
       // Re-offer (publisher restarted) — tear down any existing PC first.
       pcRef.current?.close()
@@ -64,6 +65,7 @@ export function useRemoteScreenShare(widgetId: string, enabled = true): RemoteSc
 
       const remoteStream = new MediaStream()
       pc.ontrack = (event) => {
+        console.log('[screen-share] ontrack', event.track.kind)
         remoteStream.addTrack(event.track)
         if (!cancelled) setStream(remoteStream)
       }
@@ -75,18 +77,34 @@ export function useRemoteScreenShare(widgetId: string, enabled = true): RemoteSc
       }
 
       pc.onconnectionstatechange = () => {
+        console.log('[screen-share] connectionState:', pc.connectionState)
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
           if (pcRef.current === pc) teardown()
         }
       }
 
+      pc.onsignalingstatechange = () => {
+        console.log('[screen-share] signalingState:', pc.signalingState)
+      }
+
+      pc.onicegatheringstatechange = () => {
+        console.log('[screen-share] iceGatheringState:', pc.iceGatheringState)
+      }
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('[screen-share] iceConnectionState:', pc.iceConnectionState)
+      }
+
       try {
         await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp })
+        console.log('[screen-share] setRemoteDescription ok, creating answer...')
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
+        console.log('[screen-share] answer sent')
         socket.emit('screen-share:answer', { widgetId, sdp: answer.sdp ?? '' })
         if (!cancelled) setConnecting(false)
-      } catch {
+      } catch (err) {
+        console.error('[screen-share] handleOffer failed:', err)
         if (!cancelled) setError('Failed to establish screen share connection.')
         teardown()
       }
@@ -111,6 +129,7 @@ export function useRemoteScreenShare(widgetId: string, enabled = true): RemoteSc
     // the widget's sourceId was just changed), the publisher will re-send its
     // offer so we can complete the WebRTC handshake without the user having to
     // stop and restart the share manually.
+    console.log('[screen-share] subscribing and requesting offer for', widgetId)
     socket.emit('screen-share:request-offer', { widgetId })
 
     return () => {
