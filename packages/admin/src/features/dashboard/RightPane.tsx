@@ -12,9 +12,9 @@ import { SchedulerHost } from '../scheduler/SchedulerHost'
 import { ObsPanel } from '../obs/ObsPanel'
 import { AiPanel } from '../integrations/AiPanel'
 import { TtsPanel } from '../integrations/TtsPanel'
-import { ShowsPanel } from '../shows/ShowsPanel'
 import { TwitchPanel } from '../twitch/TwitchPanel'
 import { DeveloperPanel } from '../developer/DeveloperPanel'
+import { AudioPanel } from '../audio/AudioPanel'
 import { MediaLibraryPanel } from '../media-library/MediaLibraryPanel'
 import { MediaLibraryProvider } from '../media-library/MediaLibraryContext'
 import type { SelectedItem } from './types'
@@ -26,6 +26,7 @@ import { removeWidgetFromDesktopConfig } from './widgetHelpers'
 import { SettingsPanel } from './SettingsPanel'
 import { SidebarBtn, SectionLabel, NavListBox } from './NavListBox'
 import { SequencesHost } from '../sequences/SequencesHost'
+import { SequencesPanel } from '../sequences/SequencesPanel'
 
 // ── RightPaneErrorBoundary ─────────────────────────────────────────
 
@@ -117,11 +118,22 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   if (selected.kind === 'obs') return <ObsPanel />
   if (selected.kind === 'ai') return <AiPanel />
   if (selected.kind === 'tts') return <TtsPanel />
-  if (selected.kind === 'shows')  return <ShowsPanel />
+  if (selected.kind === 'audio') return <AudioPanel />
   if (selected.kind === 'twitch') return <TwitchPanel />
   if (selected.kind === 'developer') return <DeveloperPanel />
   if (selected.kind === 'pov-online') return <RoomsPanel />
-  if (selected.kind === 'graphics') return <MediaLibraryPanel tab={selected.tab ?? 'sources'} />
+  if (selected.kind === 'graphics') return (
+    <MediaLibraryPanel
+      tab={selected.tab ?? 'sources'}
+      onTabChange={(tab) => onSelectItem({ kind: 'graphics', tab })}
+    />
+  )
+  if (selected.kind === 'sequences-panel') return (
+    <SequencesPanel
+      tab={selected.tab ?? 'sequences'}
+      onTabChange={(tab) => onSelectItem({ kind: 'sequences-panel', tab })}
+    />
+  )
   if (selected.kind === 'sequence') return <SequencesHost key={selected.sequenceId} sequenceId={selected.sequenceId} onDeleted={onDeleted} />
 
   return null
@@ -135,6 +147,7 @@ const INTEGRATION_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem
   { icon: '🌐', label: 'Online Rooms', kind: 'pov-online' },
   { icon: '🧠', label: 'AI',           kind: 'ai' },
   { icon: '🔊', label: 'TTS',          kind: 'tts' },
+  { icon: '🎵', label: 'Audio',        kind: 'audio' },
   { icon: '⌨', label: 'Input Engine',  kind: 'keybinds' },
 ]
 
@@ -142,13 +155,6 @@ const SETTINGS_ITEMS: Array<{ icon: string; label: string; kind: SelectedItem['k
   { icon: '⚙', label: 'Settings',      kind: 'settings' },
   { icon: '🛠', label: 'Developer',     kind: 'developer' },
 ]
-
-// ── Sequences sub-tabs ─────────────────────────────────────────────
-
-const SEQUENCES_TABS = [
-  { id: 'sequences', icon: '🎞', label: 'Sequences' },
-  { id: 'shows',     icon: '🎭', label: 'Shows' },
-] as const
 
 // ── RightPane ──────────────────────────────────────────────────────
 
@@ -172,7 +178,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
   }
 
   const showNavList = activeSection === 'scenes' || activeSection === 'widgets' || activeSection === 'layouts'
-    || (activeSection === 'sequences' && selected?.kind !== 'shows')
 
   // ── Header metadata (only used when selected is non-null) ──────────
   let headerIcon: React.ReactNode = ''
@@ -215,6 +220,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'pov-online')        { headerIcon = '🌐'; headerLabel = 'Online Rooms';   headerMeta = 'Browser POV' }
     else if (selected.kind === 'ai')                { headerIcon = '🧠'; headerLabel = 'AI';             headerMeta = 'Integration' }
     else if (selected.kind === 'tts')               { headerIcon = '🔊'; headerLabel = 'TTS';            headerMeta = 'Integration' }
+    else if (selected.kind === 'audio')             { headerIcon = '🎵'; headerLabel = 'Audio';          headerMeta = 'Integration' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch';         headerMeta = 'Integration' }
     else if (selected.kind === 'developer')         { headerIcon = '🛠'; headerLabel = 'Developer';      headerMeta = 'Engine' }
     else if (selected.kind === 'sequence')          { headerIcon = '🎞'; headerLabel = 'Sequence';         headerMeta = 'Effect Pipeline' }
@@ -237,35 +243,10 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     </div>
   ) : null
 
-  // ── Sequences sub-tabs: "Sequences" is the NavListBox flow, "Shows" swaps
-  // in the ShowsPanel full-width. Derived from `selected` — no extra state.
-  const sequencesTab = selected?.kind === 'shows' ? 'shows' : 'sequences'
-  const sequencesTabStrip = activeSection === 'sequences' ? (
-    <div className="flex shrink-0 items-center border-b border-[var(--color-border-default)] px-5">
-      {SEQUENCES_TABS.map(({ id, icon, label }) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => { if (id === 'shows') onSelectItem({ kind: 'shows' }); else onClose() }}
-          className={
-            '-mb-px flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-2 text-xs font-medium transition-colors ' +
-            (sequencesTab === id
-              ? 'border-cyan-400 text-zinc-50'
-              : 'border-transparent text-zinc-500 hover:text-zinc-200')
-          }
-        >
-          <span className="text-sm leading-none">{icon}</span>
-          <span>{label}</span>
-        </button>
-      ))}
-    </div>
-  ) : null
-
   // ── Single return — ONE MediaLibraryProvider survives all navigation ──
   return (
     <MediaLibraryProvider>
       <div className="flex flex-1 min-w-0 flex-col overflow-hidden bg-[var(--color-bg-base)]">
-        {sequencesTabStrip}
         <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
         {showNavList && onSelect && onActivate && (
           <NavListBox selected={selected} onSelect={onSelect} onActivate={onActivate} activeSection={activeSection} />
@@ -276,13 +257,23 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           <div className="flex-1 min-w-0 overflow-y-auto">
             <ConfigCard className="text-left">
               {sidebarSection ? (
+                // Integrations / Settings: sidebar is visible, nothing selected yet
                 <>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{sidebarSection.label}</div>
                   <div className="text-[10px] text-zinc-400 leading-relaxed">
-                    Pick an item from the left to view or configure it.
+                    Select an item on the left to configure it.
+                  </div>
+                </>
+              ) : showNavList ? (
+                // Scenes / Widgets / Layouts / Sequences with an empty list
+                <>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Nothing here yet</div>
+                  <div className="text-[10px] text-zinc-400 leading-relaxed">
+                    Use the <strong className="text-zinc-300">+ Add</strong> button on the left to create your first item.
                   </div>
                 </>
               ) : (
+                // Fallback (shouldn't be reached in normal navigation)
                 <>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Quick Read</div>
                   <div className="text-[10px] text-zinc-400 leading-relaxed">
@@ -294,7 +285,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
           </div>
         ) : (
           <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-            {selected.kind !== 'graphics' && selected.kind !== 'scheduler' && selected.kind !== 'shows' && (
+            {selected.kind !== 'graphics' && selected.kind !== 'scheduler' && selected.kind !== 'sequence' && selected.kind !== 'sequences-panel' && (
               <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/70 px-5 py-3 backdrop-blur-sm">
                 <span className="text-sm shrink-0">{headerIcon}</span>
                 <span className="flex-1 min-w-0">
@@ -319,11 +310,10 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
                     {actionLabel}
                   </Btn>
                 )}
-                {/* No × close in Integrations/Settings — the persistent
-                    sidebar (sectionSidebar) is the nav; there is nothing
-                    useful to "close" back to, and doing so used to strand
-                    the panel on the Events-flavored Quick Read copy. */}
-                {!sidebarSection && (
+                {/* × close button: hidden for list sections (scenes/widgets/layouts/sequences)
+                    because those always keep a selection; also hidden when the persistent
+                    sidebar is the navigation (integrations/settings). */}
+                {!sidebarSection && !(['scene','app','widget-create','widget-layout','sequence'] as string[]).includes(selected.kind) && (
                   <button onClick={onClose}
                     className="ml-1 rounded-md border border-[var(--color-danger-400)]/30 bg-[var(--color-danger-500)]/10 px-2.5 py-1 text-sm leading-none text-[var(--color-danger-400)] transition-colors hover:border-[var(--color-danger-400)]/50 hover:text-[var(--color-danger-300)]">
                     ×

@@ -4,20 +4,16 @@ import { EffectAmbiancePanel } from './EffectAmbiancePanel'
 import { ThemeDriftPanel } from './ThemeDriftPanel'
 import { PersonaPanel } from './PersonaPanel'
 import { DesktopAmbiancePanel } from './DesktopAmbiancePanel'
-import { AutomationPanel } from '../automation/AutomationPanel'
-import { AudioPanel } from '../audio/AudioPanel'
 
-export type SchedulerTab = 'events' | 'preset-rotation' | 'automation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance' | 'audio'
+export type SchedulerTab = 'events' | 'preset-rotation' | 'effect-ambiance' | 'theme-drift' | 'persona' | 'desktop-ambiance'
 
 export const SCHEDULER_TABS: Array<{ tab: SchedulerTab; icon: string; label: string }> = [
   { tab: 'events',            icon: '⏱', label: 'Scheduler' },
   { tab: 'preset-rotation',   icon: '💾', label: 'Preset Rotation' },
-  { tab: 'automation',        icon: '🤖', label: 'Automation' },
   { tab: 'effect-ambiance',   icon: '🌩', label: 'Effect Storms' },
   { tab: 'theme-drift',       icon: '🎨', label: 'Theme Rotation' },
   { tab: 'desktop-ambiance',  icon: '🖱', label: 'Desktop Interaction' },
   { tab: 'persona',           icon: '🗣', label: 'Persona' },
-  { tab: 'audio',             icon: '🔊', label: 'Audio' },
 ]
 
 export function SchedulerHost({ tab, onTabChange, onOpenAvatar }: {
@@ -48,12 +44,10 @@ export function SchedulerHost({ tab, onTabChange, onOpenAvatar }: {
       <div className="flex-1 min-h-0 overflow-y-auto pt-4">
         {tab === 'events' && <SchedulerPanel />}
         {tab === 'preset-rotation' && <PresetRotationPanel />}
-        {tab === 'automation' && <AutomationPanel />}
         {tab === 'effect-ambiance' && <EffectAmbiancePanel />}
         {tab === 'theme-drift' && <ThemeDriftPanel />}
         {tab === 'persona' && <PersonaPanel onOpenAvatar={onOpenAvatar} />}
         {tab === 'desktop-ambiance' && <DesktopAmbiancePanel />}
-        {tab === 'audio' && <AudioPanel />}
       </div>
     </div>
   )

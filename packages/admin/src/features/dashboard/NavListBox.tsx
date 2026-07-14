@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { STATE, withDesktopConfigDefaults, getWidgetSource } from '@ieomlabs/shared'
-import type { Application, Scene, Sequence } from '@ieomlabs/shared'
+import type { Application, Scene } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { IconGlyph } from '../../shared/ui'
 import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
 import type { MediaRecord } from '../../shared/catalog'
-import { fetchSequences, createSequence } from '../../api/sequencesApi'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -96,6 +95,17 @@ export function MediaSection({ title, items, selectedId, onSelect }: {
   )
 }
 
+// ── helpers ────────────────────────────────────────────────────────
+
+/** Returns true if the currently selected item "belongs" to the given section. */
+function selectedBelongsToSection(selected: SelectedItem | null, section: string): boolean {
+  if (!selected) return false
+  if (section === 'scenes')  return selected.kind === 'scene'
+  if (section === 'widgets') return selected.kind === 'app' || selected.kind === 'widget-create'
+  if (section === 'layouts') return selected.kind === 'widget-layout'
+  return false
+}
+
 // ── NavListBox ─────────────────────────────────────────────────────
 
 export function NavListBox({ selected, onSelect, onActivate, activeSection = 'scenes' }: {
@@ -126,24 +136,29 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
     try {
       await saveConfig({ widgetLayouts: nextLayouts })
     } catch {
-      // saveConfig already records the error (store.lastError) — just roll
-      // back the optimistic local update so a failed save doesn't look saved.
       patchConfig({ widgetLayouts: persistedWidgetLayouts })
     }
   }
 
   const isActive = (item: SelectedItem) => selected ? itemKey(item) === itemKey(selected) : false
 
-  const [sequences, setSequences] = useState<Sequence[]>([])
+  // ── Auto-select first item when entering a list section ───────────
   useEffect(() => {
-    if (activeSection === 'sequences') void fetchSequences().then(setSequences)
-  }, [activeSection, selected])
+    if (selectedBelongsToSection(selected, activeSection)) return
 
-  const addNewSequence = async () => {
-    const seq = await createSequence(`Sequence ${sequences.length + 1}`, [])
-    setSequences((prev) => [seq, ...prev])
-    onSelect({ kind: 'sequence', sequenceId: seq.id })
-  }
+    if (activeSection === 'scenes') {
+      const first = Object.values(scenes)[0]
+      if (first) onSelect({ kind: 'scene', sceneState: first.id })
+    } else if (activeSection === 'widgets') {
+      const allApps = [...systemWidgetApps, ...userWidgetApps]
+      const first = allApps[0]
+      if (first) onSelect({ kind: 'app', appId: first.id })
+    } else if (activeSection === 'layouts') {
+      const first = userWidgetLayouts[0]
+      if (first) onSelect({ kind: 'widget-layout', layoutId: first.id })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection])
 
   return (
     <div className="flex w-[240px] shrink-0 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-bg-surface)]/60 px-3 py-4">
@@ -202,16 +217,6 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
               onDoubleClick={() => onActivate({ kind: 'widget-layout', layoutId: layout.id })} />
           ))}
           <AddBtn label="Add New Layout" onClick={() => { void addNewLayout() }} />
-        </>}
-
-        {activeSection === 'sequences' && <>
-          <SectionLabel first>Sequences</SectionLabel>
-          {sequences.map((seq) => (
-            <SidebarBtn key={seq.id} icon="🎞" label={seq.label}
-              active={isActive({ kind: 'sequence', sequenceId: seq.id })}
-              onClick={() => onSelect({ kind: 'sequence', sequenceId: seq.id })} />
-          ))}
-          <AddBtn label="New Blank Sequence" onClick={() => { void addNewSequence() }} />
         </>}
 
       </div>
