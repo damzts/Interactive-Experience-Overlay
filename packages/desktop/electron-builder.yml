@@ -9,8 +9,11 @@ directories:
 files:
   - dist/**/*
   - package.json
-  - node_modules/**
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/bindings/**"
+  - "node_modules/file-uri-to-path/**"
 
+beforePack: ./build/beforePack.cjs
 afterPack: ./build/afterPack.cjs
 
 extraResources:
@@ -22,8 +25,10 @@ extraResources:
 asar: true
 
 asarUnpack:
-  - "**/node_modules/@shinyoshiaki/**"
-  - "**/node_modules/better-sqlite3/**"
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/bindings/**"
+  - "node_modules/file-uri-to-path/**"
+  - "node_modules/@shinyoshiaki/**"
 
 extraMetadata:
   main: dist/main/index.js
@@ -47,7 +52,7 @@ win:
       arch:
         - x64
   icon: build/icon.ico
-  signAndEditExecutable: true
+  signAndEditExecutable: false
   publisherName: IEOM
 
 nsis:

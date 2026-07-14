@@ -1,5 +1,12 @@
 import { app } from 'electron';
 import path from 'path';
+
+// In packaged builds, ensure NODE_ENV is 'production' before any module is
+// imported. This prevents pino from trying to load pino-pretty as a worker
+// thread transport (which cannot resolve inside an asar bundle).
+if (app.isPackaged) {
+  process.env['NODE_ENV'] = 'production';
+}
 import { startServer, stopServer } from './server.js';
 import { createAdminWindow, showAdminWindow, createSplashWindow, closeSplashWindow } from './window.js';
 import { createTray } from './tray.js';
