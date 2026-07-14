@@ -24,6 +24,7 @@ const WIDGET_PROP_RESOLVERS: Partial<Record<WidgetComponentType, (app: Applicati
   }),
   screen: (app) => ({
     defaultMirror: app.screenSettings?.mirror ?? false,
+    sourceId: app.screenSettings?.sourceId,
   }),
 }
 

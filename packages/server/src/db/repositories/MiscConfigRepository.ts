@@ -249,4 +249,21 @@ export class MiscConfigRepository {
       cooldownMs: row.cooldown_ms || undefined,
     }))
   }
+
+  // ── Capture sources ──────────────────────────────────────────────
+
+  loadCaptureSources(): import('@ieomlabs/shared').CaptureSource[] {
+    try {
+      const row = this.db.prepare("SELECT value FROM misc_json WHERE key = 'capture_sources'").get() as { value: string } | undefined
+      if (!row) return []
+      return parseJson(row.value, [] as import('@ieomlabs/shared').CaptureSource[])
+    } catch {
+      return []
+    }
+  }
+
+  saveCaptureSources(sources: import('@ieomlabs/shared').CaptureSource[]): void {
+    this.db.exec(`CREATE TABLE IF NOT EXISTS misc_json (key TEXT PRIMARY KEY, value TEXT NOT NULL)`)
+    this.db.prepare("INSERT OR REPLACE INTO misc_json (key, value) VALUES ('capture_sources', ?)").run(JSON.stringify(sources))
+  }
 }

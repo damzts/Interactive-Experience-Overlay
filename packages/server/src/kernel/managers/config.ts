@@ -226,7 +226,7 @@ export class DesktopConfigService implements Manager, IConfigService {
         'desktopConfig', 'desktopAmbiance', 'widgetLayouts',
         'sourceEvents', 'sourceMedia', 'windowPresets', 'shows',
         'effectAmbiance', 'effectStorms', 'desktopThemeDrift', 'persona',
-        'avatarPresets',
+        'avatarPresets', 'captureSources',
       ])
     }
 
@@ -351,6 +351,7 @@ export class DesktopConfigService implements Manager, IConfigService {
       desktopThemeDrift: this.themeRepo.loadDesktopThemeDrift(),
       persona:          this.themeRepo.loadPersonaConfig(),
       avatarPresets:    this.miscRepo.loadAvatarPresets(),
+      captureSources:   this.miscRepo.loadCaptureSources(),
     }
     return this.withConfigDefaults(base)
   }
@@ -380,6 +381,7 @@ export class DesktopConfigService implements Manager, IConfigService {
           case 'desktopThemeDrift': if (cfg.desktopThemeDrift) this.themeRepo.saveDesktopThemeDrift(cfg.desktopThemeDrift); break
           case 'persona':          if (cfg.persona) this.themeRepo.savePersonaConfig(cfg.persona); break
           case 'avatarPresets':    this.miscRepo.saveAvatarPresets(cfg.avatarPresets ?? []); break
+          case 'captureSources':   this.miscRepo.saveCaptureSources(cfg.captureSources ?? []); break
         }
       }
     })

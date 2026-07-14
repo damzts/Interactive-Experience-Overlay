@@ -23,6 +23,8 @@ export type SelectedItem =
   | { kind: 'sequence'; sequenceId: string }
   /** Self-contained sequences panel (Sequences + Automation tabs). */
   | { kind: 'sequences-panel'; tab?: SequencesTab }
+  /** Capture sources panel. */
+  | { kind: 'capture-sources' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'scene') return 'scene-' + item.sceneState

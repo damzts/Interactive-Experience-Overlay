@@ -27,6 +27,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { SidebarBtn, SectionLabel, NavListBox } from './NavListBox'
 import { SequencesHost } from '../sequences/SequencesHost'
 import { SequencesPanel } from '../sequences/SequencesPanel'
+import { CaptureSourcesPanel } from '../capture-sources/CaptureSourcesPanel'
 
 // ── RightPaneErrorBoundary ─────────────────────────────────────────
 
@@ -136,6 +137,8 @@ function RightPaneContent({ selected, onDeleted, onSelectItem }: {
   )
   if (selected.kind === 'sequence') return <SequencesHost key={selected.sequenceId} sequenceId={selected.sequenceId} onDeleted={onDeleted} />
 
+  if (selected.kind === 'capture-sources') return <CaptureSourcesPanel />
+
   return null
 }
 
@@ -223,6 +226,7 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'audio')             { headerIcon = '🎵'; headerLabel = 'Audio';          headerMeta = 'Integration' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch';         headerMeta = 'Integration' }
     else if (selected.kind === 'developer')         { headerIcon = '🛠'; headerLabel = 'Developer';      headerMeta = 'Engine' }
+    else if (selected.kind === 'capture-sources')   { headerIcon = '🖥️'; headerLabel = 'Capture Sources'; headerMeta = 'Capture' }
     else if (selected.kind === 'sequence')          { headerIcon = '🎞'; headerLabel = 'Sequence';         headerMeta = 'Effect Pipeline' }
   }
 

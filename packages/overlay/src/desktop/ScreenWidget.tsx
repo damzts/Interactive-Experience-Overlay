@@ -6,6 +6,10 @@ import { audioEngine } from '../engine/AudioEngine'
 interface DesktopWidgetProps {
   appId?: string
   defaultMirror?: boolean
+  /** sourceId from CaptureSource — used as the screen-share registry key in
+   *  the new Sources-panel flow. Falls back to appId (then 'screen') when
+   *  not set (legacy per-widget flow). */
+  sourceId?: string
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void
@@ -27,11 +31,11 @@ function getScreenRoleLabel(appId?: string) {
  * admin — the overlay is a passive OBS render target). See ScreenConfigSection
  * in the admin panel to start sharing for this widget.
  */
-export function ScreenWidget({ appId, defaultMirror = false, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
+export function ScreenWidget({ appId, defaultMirror = false, sourceId, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const roleLabel = getScreenRoleLabel(appId)
 
-  const { stream, connecting, error } = useRemoteScreenShare(appId ?? 'screen')
+  const { stream, connecting, error } = useRemoteScreenShare(sourceId ?? appId ?? 'screen')
 
   useEffect(() => {
     if (videoRef.current) {
@@ -45,7 +49,7 @@ export function ScreenWidget({ appId, defaultMirror = false, onClose, onMinimize
   // speakers (the <video> element above already handles this widget's own
   // playback). Unregisters on stream change/unmount so closing the widget
   // stops contributing audio to the internal mix.
-  const widgetId = appId ?? 'screen'
+  const widgetId = sourceId ?? appId ?? 'screen'
   useEffect(() => {
     if (stream && stream.getAudioTracks().length > 0) {
       audioEngine.registerExternalAudioSource(widgetId, stream)

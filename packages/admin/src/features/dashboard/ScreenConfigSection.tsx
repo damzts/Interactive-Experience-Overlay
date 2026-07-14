@@ -1,28 +1,19 @@
-import { useEffect, useRef } from 'react'
 import { ConfigPanel } from '../../components/organisms'
 import { Button } from '../../components/atoms'
 import { useScreenSharePublisher } from '../../hooks/useScreenSharePublisher'
+import { useAdminStore } from '../../store/useAdminStore'
 import type { Application } from '@ieomlabs/shared'
 
 /**
- * Config panel for the 'screen' user widget type — capture audio + mirror,
- * plus the actual screen-share publisher control.
+ * Config panel for the 'screen' user widget type.
  *
- * getDisplayMedia() requires a real user gesture (a click) and the overlay
- * is a passive OBS render target with nobody present to click anything —
- * so capture happens here, in admin, and is relayed to the overlay over
- * WebRTC via the server's local screen-share signaling relay.
+ * When CaptureSource definitions exist (created in the Capture Sources
+ * panel), this section shows a source picker — the widget just subscribes
+ * to whichever source is selected. Start/stop controls live in the
+ * dedicated Capture Sources panel, not here.
  *
- * The share itself is owned by screenSharePublisherRegistry (module-level,
- * outside React), not by this component — closing this panel or switching
- * to a different widget does not stop the share. This panel is just a
- * selector/control surface for whichever screen share is running.
- *
- * When autoStart is enabled this panel calls start() as soon as it mounts
- * (and the share isn't already active). In the desktop app this is fully
- * silent — Electron captures the whole screen without a picker. In a plain
- * browser tab the system picker still pops once per session, but it fires
- * automatically rather than waiting for a manual click.
+ * Falls back to the legacy per-widget start/stop flow when no sources
+ * are defined, so existing setups keep working without migration.
  */
 export function ScreenConfigSection({
   form,
@@ -31,66 +22,125 @@ export function ScreenConfigSection({
   form: Application
   update: (updater: (draft: Application) => void) => void
 }) {
+  const captureSources = useAdminStore((s) => s.config.captureSources ?? [])
+  const sourceId = form.screenSettings?.sourceId ?? ''
   const audio = form.screenSettings?.audio ?? false
-  const autoStart = form.screenSettings?.autoStart ?? false
-  const { active, error, warning, start, stop } = useScreenSharePublisher(form.id, audio)
 
-  // Auto-start the share when the panel mounts if autoStart is enabled and the
-  // share is not already running. We guard with a ref so this only fires once
-  // per mount, not on every re-render or audio/autoStart change.
-  const hasAutoStartedRef = useRef(false)
-  useEffect(() => {
-    if (autoStart && !active && !hasAutoStartedRef.current) {
-      hasAutoStartedRef.current = true
-      start()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // For the legacy fallback path (no sources defined), keep the direct publisher
+  const legacyPublisher = useScreenSharePublisher(form.id, audio)
+  // For the selected-source status badge
+  const selectedSource = captureSources.find((s) => s.id === sourceId)
+  const selectedPublisher = useScreenSharePublisher(sourceId || '__none__', selectedSource?.audio ?? false)
 
-  // Reset the guard if the user turns autoStart off mid-session (so a future
-  // re-mount with autoStart on fires again cleanly).
-  useEffect(() => {
-    if (!autoStart) hasAutoStartedRef.current = false
-  }, [autoStart])
+  const hasSources = captureSources.length > 0
 
   return (
-    <ConfigPanel title="Screen Share Defaults" className="mb-4">
+    <ConfigPanel title="Screen Share" className="mb-4">
       <div className="space-y-3">
-        <div className="text-[10px] text-[var(--color-text-secondary)]">
-          The widget displays video only — no controls. Click below to start sharing your screen to the overlay widget
-          (in the desktop app, this captures your whole screen automatically with no picker; audio, if enabled below,
-          uses system loopback rather than Chrome's tab-only audio capture).
-        </div>
-        <div className="flex items-center gap-2">
-          {active ? (
-            <Button variant="secondary" size="sm" onClick={stop}>⏹ Stop sharing</Button>
-          ) : (
-            <Button variant="primary" size="sm" onClick={start}>🖥️ Start screen share</Button>
-          )}
-          {active && <span className="text-[10px] text-[var(--color-success-400)]">● Sharing to overlay</span>}
-        </div>
-        {error && (
-          <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{error}</div>
+        {hasSources ? (
+          <>
+            <div className="text-[10px] text-[var(--color-text-secondary)]">
+              Select which capture source this widget displays. Manage sources
+              (start/stop, audio, auto-start) in the{' '}
+              <strong className="text-[var(--color-text-primary)]">Capture Sources</strong> panel.
+            </div>
+
+            <div>
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Source</div>
+              <select
+                value={sourceId}
+                onChange={(e) =>
+                  update((d) => {
+                    d.screenSettings = { ...(d.screenSettings ?? {}), sourceId: e.target.value || undefined }
+                  })
+                }
+                className="w-full text-xs"
+              >
+                <option value="">— None —</option>
+                {captureSources.map((src) => (
+                  <option key={src.id} value={src.id}>
+                    {src.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {sourceId && (
+              <div className="flex items-center gap-2">
+                {selectedPublisher.active ? (
+                  <span className="text-[10px] text-[var(--color-success-400)]">● Source is live</span>
+                ) : (
+                  <span className="text-[10px] text-[var(--color-text-muted)]">○ Source is idle</span>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="text-[10px] text-[var(--color-text-secondary)]">
+              No capture sources defined. You can start sharing directly from
+              this widget, or create named sources in the{' '}
+              <strong className="text-[var(--color-text-primary)]">Capture Sources</strong> panel
+              for a more flexible setup.
+            </div>
+            <div className="flex items-center gap-2">
+              {legacyPublisher.active ? (
+                <Button variant="secondary" size="sm" onClick={legacyPublisher.stop}>⏹ Stop sharing</Button>
+              ) : (
+                <Button variant="primary" size="sm" onClick={legacyPublisher.start}>🖥️ Start screen share</Button>
+              )}
+              {legacyPublisher.active && (
+                <span className="text-[10px] text-[var(--color-success-400)]">● Sharing to overlay</span>
+              )}
+            </div>
+            {legacyPublisher.error && (
+              <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">
+                {legacyPublisher.error}
+              </div>
+            )}
+            {!legacyPublisher.error && legacyPublisher.warning && (
+              <div className="rounded border border-[var(--color-warning-500)]/60 bg-[var(--color-warning-500)]/10 px-3 py-2 text-[10px] text-[var(--color-warning-400)]">
+                {legacyPublisher.warning}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                id={`screen-audio-${form.id}`}
+                type="checkbox"
+                checked={audio}
+                onChange={(e) =>
+                  update((d) => {
+                    d.screenSettings = { ...(d.screenSettings ?? {}), audio: e.target.checked }
+                  })
+                }
+              />
+              <label
+                htmlFor={`screen-audio-${form.id}`}
+                className="text-[11px] text-[var(--color-text-primary)] cursor-pointer"
+              >
+                Capture audio
+              </label>
+            </div>
+          </>
         )}
-        {!error && warning && (
-          <div className="rounded border border-[var(--color-warning-500)]/60 bg-[var(--color-warning-500)]/10 px-3 py-2 text-[10px] text-[var(--color-warning-400)]">{warning}</div>
-        )}
+
         <div className="flex items-center gap-2">
-          <input id={`screen-autostart-${form.id}`} type="checkbox" checked={autoStart}
-            onChange={(e) => update((d) => { d.screenSettings = { ...(d.screenSettings ?? {}), autoStart: e.target.checked } })} />
-          <label htmlFor={`screen-autostart-${form.id}`} className="text-[11px] text-[var(--color-text-primary)] cursor-pointer">
-            Auto-start sharing when panel opens
+          <input
+            id={`screen-mirror-${form.id}`}
+            type="checkbox"
+            checked={form.screenSettings?.mirror ?? false}
+            onChange={(e) =>
+              update((d) => {
+                d.screenSettings = { ...(d.screenSettings ?? {}), mirror: e.target.checked }
+              })
+            }
+          />
+          <label
+            htmlFor={`screen-mirror-${form.id}`}
+            className="text-[11px] text-[var(--color-text-primary)] cursor-pointer"
+          >
+            Mirror (flip horizontally)
           </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input id={`screen-audio-${form.id}`} type="checkbox" checked={audio}
-            onChange={(e) => update((d) => { d.screenSettings = { ...(d.screenSettings ?? {}), audio: e.target.checked } })} />
-          <label htmlFor={`screen-audio-${form.id}`} className="text-[11px] text-[var(--color-text-primary)] cursor-pointer">Capture audio (system/tab audio, if supported)</label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input id={`screen-mirror-${form.id}`} type="checkbox" checked={form.screenSettings?.mirror ?? false}
-            onChange={(e) => update((d) => { d.screenSettings = { ...(d.screenSettings ?? {}), mirror: e.target.checked } })} />
-          <label htmlFor={`screen-mirror-${form.id}`} className="text-[11px] text-[var(--color-text-primary)] cursor-pointer">Mirror (flip horizontally)</label>
         </div>
       </div>
     </ConfigPanel>

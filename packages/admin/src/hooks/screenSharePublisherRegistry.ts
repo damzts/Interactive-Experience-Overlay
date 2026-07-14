@@ -19,7 +19,21 @@ const ICE_SERVERS: RTCIceServer[] = [
 ]
 
 /**
- * Module-level registry of active screen-share publishers, keyed by widgetId.
+ * Module-level registry of active screen-share publishers.
+ *
+ * Registry key semantics
+ * ----------------------
+ * The registry is keyed by an arbitrary string whose meaning depends on the
+ * call site:
+ *
+ * - **New Sources-panel flow**: the key is a `sourceId` — the `id` field of a
+ *   `CaptureSource` object chosen in the Sources panel. This decouples the
+ *   share from any particular widget; multiple widgets can subscribe to the
+ *   same source stream using the same key.
+ *
+ * - **Legacy per-widget flow** (no sourceId configured): callers pass the
+ *   widget's `appId` as the key. Backward compatibility is implicit — the
+ *   registry treats the key as an opaque string in both cases.
  *
  * This intentionally lives OUTSIDE React component state. The config panel
  * that starts a share (ScreenConfigSection) is not where the connection

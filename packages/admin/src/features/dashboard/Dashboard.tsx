@@ -74,11 +74,12 @@ function isStillValid(
 
 /** The default SelectedItem when entering a section with no memory. */
 function defaultSelectedForSection(section: string): SelectedItem | null {
-  if (section === 'graphics')     return { kind: 'graphics' }
-  if (section === 'ambiance')     return { kind: 'scheduler', tab: 'events' }
-  if (section === 'sequences')    return { kind: 'sequences-panel' }
-  if (section === 'integrations') return { kind: 'obs' }
-  if (section === 'settings-tab') return { kind: 'settings' }
+  if (section === 'graphics')        return { kind: 'graphics' }
+  if (section === 'ambiance')        return { kind: 'scheduler', tab: 'events' }
+  if (section === 'sequences')       return { kind: 'sequences-panel' }
+  if (section === 'capture-sources') return { kind: 'capture-sources' }
+  if (section === 'integrations')    return { kind: 'obs' }
+  if (section === 'settings-tab')    return { kind: 'settings' }
   // list sections: return null — NavListBox auto-select effect handles first item
   return null
 }
@@ -174,10 +175,11 @@ export function Dashboard() {
     { id: 'scenes',       label: 'Scenes',       icon: Monitor,      subItems: scenesSubItems },
     { id: 'widgets',      label: 'Widgets',      icon: Layers,       subItems: widgetsSubItems },
     { id: 'layouts',      label: 'Layouts',      icon: LayoutGrid,   subItems: layoutsSubItems },
-    { id: 'sequences',    label: 'Sequences',    icon: Film,         subItems: SEQUENCES_SUB_ITEMS },
-    { id: 'graphics',     label: 'Graphics',     icon: Image,        subItems: GRAPHICS_SUB_ITEMS },
-    { id: 'ambiance',     label: 'Ambiance',     icon: Sparkles,     subItems: AMBIANCE_SUB_ITEMS },
-    { id: 'integrations', label: 'Integrations', icon: Plug,         subItems: INTEGRATION_SUB_ITEMS },
+    { id: 'sequences',       label: 'Sequences',       icon: Film,         subItems: SEQUENCES_SUB_ITEMS },
+    { id: 'graphics',        label: 'Graphics',        icon: Image,        subItems: GRAPHICS_SUB_ITEMS },
+    { id: 'ambiance',        label: 'Ambiance',        icon: Sparkles,     subItems: AMBIANCE_SUB_ITEMS },
+    { id: 'capture-sources', label: 'Capture Sources', icon: Monitor },
+    { id: 'integrations',    label: 'Integrations',    icon: Plug,         subItems: INTEGRATION_SUB_ITEMS },
   ], [scenesSubItems, widgetsSubItems, layoutsSubItems])
 
   const endSections = useMemo<TopBarNavSection[]>(() => [
@@ -289,7 +291,7 @@ export function Dashboard() {
         data-tour="main-content"
       >
         {showDashboard ? (
-          <div className="h-full overflow-y-auto px-4 py-3" data-tour="quick-actions">
+          <div className="h-full overflow-hidden px-4 py-3" data-tour="quick-actions">
             <DashboardContainer />
           </div>
         ) : (

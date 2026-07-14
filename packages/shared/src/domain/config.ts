@@ -46,6 +46,24 @@ export interface AudioReactivityConfig {
   smoothing: number
 }
 
+/** A named, persistent screen/window/tab capture source definition.
+ *  The live capture state (RTCPeerConnection, MediaStream) is ephemeral
+ *  and lives only in the admin app's screenSharePublisherRegistry; only
+ *  the definition (name, audio pref, autoStart) is persisted here. */
+export interface CaptureSource {
+  id: string
+  /** Human label shown in the Sources panel and widget picker */
+  name: string
+  /** Capture system/tab audio alongside the video track */
+  audio: boolean
+  /**
+   * Auto-start this source when the admin panel loads.
+   * In the desktop app (Electron) this is fully silent — no picker.
+   * In a browser tab the OS share picker still fires automatically.
+   */
+  autoStart: boolean
+}
+
 /** Root application config — stored in server memory */
 export interface AppConfig {
   scenes: Record<string, Scene>
@@ -105,6 +123,9 @@ export interface AppConfig {
    *  table) — Persona profiles reference one of these by id instead of
    *  embedding avatar config inline. */
   avatarPresets?: AvatarPreset[]
+  /** Named screen/window/tab capture source definitions (CaptureSourcesPanel).
+   *  Live capture state is ephemeral (registry); only definitions persist here. */
+  captureSources?: CaptureSource[]
 }
 
 // ── Twitch config ────────────────────────────────────────────────

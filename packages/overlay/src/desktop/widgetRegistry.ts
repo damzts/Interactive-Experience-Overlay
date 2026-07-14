@@ -5,6 +5,10 @@ export interface DesktopWidgetProps {
   appId: string
   defaultCameraLabel?: string
   defaultMirror?: boolean
+  /** sourceId from CaptureSource — used as the screen-share registry key in
+   *  the new Sources-panel flow. Falls back to appId (then 'screen') when
+   *  not set (legacy per-widget flow). */
+  sourceId?: string
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void

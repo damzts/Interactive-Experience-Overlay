@@ -175,8 +175,17 @@ export interface Application {
      * a user gesture dialog. In a plain browser tab the system picker still
      * appears once per session, but subsequent re-opens of the panel will
      * re-trigger it automatically rather than waiting for a manual click.
+     * @deprecated use autoStart on the CaptureSource instead
      */
     autoStart?: boolean
+    /**
+     * ID of a CaptureSource defined in AppConfig.captureSources.
+     * When set the widget displays whatever that source is sharing;
+     * the widget no longer owns or starts the capture itself.
+     * When absent the widget falls back to the legacy per-widget capture
+     * flow keyed by the widget's own appId.
+     */
+    sourceId?: string
   }
   /** Optional window binding for window-backed widget windows. */
   windowWidgetSettings?: WindowWidgetSettings
