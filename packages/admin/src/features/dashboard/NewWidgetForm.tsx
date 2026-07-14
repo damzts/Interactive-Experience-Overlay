@@ -5,20 +5,8 @@ import { MediaSelectionInput } from '../media-library/MediaLibrary'
 import { IconGlyph } from '../../shared/ui'
 import { Button } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
-import type { UserWidgetBaseComponent } from './widgetHelpers'
+import { USER_WIDGET_TYPES } from './userWidgetTypes'
 import { buildUserWidgetId } from './widgetHelpers'
-
-// ── USER_WIDGET_COMPONENT_OPTIONS ─────────────────────────────────────
-
-const USER_WIDGET_COMPONENT_OPTIONS: Array<{
-  id: UserWidgetBaseComponent
-  label: string
-  icon: string
-  description: string
-}> = [
-  { id: 'camera', label: 'Camera', icon: '📷', description: 'Opens a desktop camera window with per-widget camera defaults.' },
-  { id: 'source', label: 'Source', icon: '🧩', description: 'Opens a desktop window rendering any renderer directly, or a whole scene scaled to fit.' },
-]
 
 // ── NewWidgetForm ─────────────────────────────────────────────────────
 
@@ -27,17 +15,15 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
   const saveConfig      = useAdminStore((s) => s.saveConfig)
   const patchConfig     = useAdminStore((s) => s.patchConfig)
 
-  const [widgetComponent, setWidgetComponent] = useState<UserWidgetBaseComponent>('camera')
+  const [widgetType, setWidgetType] = useState(USER_WIDGET_TYPES[0])
   const [label,    setLabel]    = useState('')
-  const [icon,     setIcon]     = useState(USER_WIDGET_COMPONENT_OPTIONS[0].icon)
+  const [icon,     setIcon]     = useState(USER_WIDGET_TYPES[0].icon)
   const [creating, setCreating] = useState(false)
   const [error,    setError]    = useState('')
 
-  const componentMeta = USER_WIDGET_COMPONENT_OPTIONS.find((option) => option.id === widgetComponent) ?? USER_WIDGET_COMPONENT_OPTIONS[0]
   const existingIds = useMemo(() => new Set(applications.map((app) => app.id)), [applications])
-  const defaultLabel = widgetComponent === 'camera' ? 'Camera Widget' : 'Source Widget'
-  const nextLabel = label.trim() || defaultLabel
-  const previewId = buildUserWidgetId(widgetComponent, nextLabel, existingIds)
+  const nextLabel = label.trim() || widgetType.defaultLabel
+  const previewId = buildUserWidgetId(widgetType.componentType, nextLabel, existingIds)
 
   const handleCreate = () => {
     setCreating(true)
@@ -47,12 +33,11 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
     const nextWidget: Application = {
       id: previewId,
       label: nextLabel,
-      icon: icon.trim() || componentMeta.icon,
+      icon: icon.trim() || widgetType.icon,
       widgetSource: 'user',
-      widgetComponent: widgetComponent === 'source' ? 'window' : widgetComponent,
+      widgetComponent: widgetType.componentType,
       zIndexDefault: nextDefaultZIndex,
-      ...(widgetComponent === 'camera' ? { cameraSettings: { mirror: false } } : {}),
-      ...(widgetComponent === 'source' ? { windowWidgetSettings: { mode: 'renderer' as const, rendererType: 'media-viz' } } : {}),
+      ...widgetType.createDefaults(),
     }
     const nextApplications = [...applications, nextWidget]
     patchConfig({ applications: nextApplications })
@@ -70,14 +55,14 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
           <div>
             <div className="text-[10px] text-[var(--color-text-muted)] mb-1.5">Base Component</div>
             <div className="grid grid-cols-2 gap-2">
-              {USER_WIDGET_COMPONENT_OPTIONS.map((option) => {
-                const active = option.id === widgetComponent
+              {USER_WIDGET_TYPES.map((option) => {
+                const active = option.componentType === widgetType.componentType
                 return (
-                  <button key={option.id} type="button"
+                  <button key={option.componentType} type="button"
                     onClick={() => {
-                      const currentMeta = USER_WIDGET_COMPONENT_OPTIONS.find((entry) => entry.id === widgetComponent)
-                      setWidgetComponent(option.id)
-                      if (!icon.trim() || icon === currentMeta?.icon) setIcon(option.icon)
+                      const currentType = widgetType
+                      setWidgetType(option)
+                      if (!icon.trim() || icon === currentType.icon) setIcon(option.icon)
                     }}
                     className={'rounded border px-3 py-3 text-left transition-colors ' + (
                       active ? 'border-[var(--color-primary-400)]/40 bg-[var(--color-primary-500)]/10 text-[var(--color-primary-200)]' : 'border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-base)]/60'
@@ -94,7 +79,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
           </div>
           <div>
             <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Label</div>
-            <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={defaultLabel} className="w-full text-xs" />
+            <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={widgetType.defaultLabel} className="w-full text-xs" />
           </div>
           <div>
             <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Generated ID</div>
@@ -104,7 +89,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
             <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Icon</div>
             <div className="flex gap-2 items-center">
               <div className="w-11 h-11 flex items-center justify-center bg-[var(--color-bg-elevated)] rounded border border-[var(--color-border-strong)] overflow-hidden shrink-0">
-                <IconGlyph icon={icon || componentMeta.icon} label={nextLabel} size={32} />
+                <IconGlyph icon={icon || widgetType.icon} label={nextLabel} size={32} />
               </div>
               <div className="flex-1 min-w-0">
                 <MediaSelectionInput value={icon} onChange={setIcon} kinds={['image']} modalTitle="Widget Icon"
@@ -114,7 +99,7 @@ export function NewWidgetForm({ onCreated }: { onCreated: (appId: string) => voi
               </div>
             </div>
           </div>
-          {widgetComponent === 'source' && (
+          {widgetType.componentType === 'window' && (
             <div className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-base)]/40 px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-secondary)]">
               Starts with the Media Visualizer renderer. Switch it to any other renderer — or a full scene — in the widget editor after creation.
             </div>

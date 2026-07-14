@@ -412,4 +412,16 @@ export interface ServerToClientEvents {
   'pov-online:relay:offer': (payload: { sdp: string }) => void
   /** POV relay: ICE candidate from server to overlay */
   'pov-online:relay:ice': (candidate: RTCIceCandidateInit) => void
+
+  // ── Screen-share relay (admin ↔ server ↔ overlay WebRTC, local only) ──
+  /** Server → overlay: relayed SDP offer from the admin publisher for widgetId */
+  'screen-share:offer': (payload: { widgetId: string; sdp: string }) => void
+  /** Server → overlay: relayed ICE candidate from the admin publisher */
+  'screen-share:ice:admin': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Server → admin: relayed SDP answer from the overlay subscriber */
+  'screen-share:answer': (payload: { widgetId: string; sdp: string }) => void
+  /** Server → admin: relayed ICE candidate from the overlay subscriber */
+  'screen-share:ice:overlay': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Server → overlay: the publisher stopped sharing — tear down the subscriber PC for widgetId */
+  'screen-share:stop': (payload: { widgetId: string }) => void
 }

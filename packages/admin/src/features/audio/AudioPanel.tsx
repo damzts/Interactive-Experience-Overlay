@@ -5,11 +5,12 @@ import { Slider, ConfigPageIntro, ConfigTable, ConfigChoiceButton } from '../../
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
 import { MediaSelectionInput } from '../media-library/MediaLibrary'
+import { useSystemAudioPublisher } from '../../hooks/useSystemAudioPublisher'
 
 const REACTIVITY_SOURCES: { value: AudioReactiveSourceMode; label: string; desc: string }[] = [
   { value: 'internal', label: 'Internal Engine Audio', desc: 'SFX, music, and ambient — no permission prompt' },
   { value: 'microphone', label: 'Microphone', desc: 'Captures the mic in the overlay’s browser context' },
-  { value: 'system', label: 'Computer Audio', desc: 'Captures system/tab audio via screen-share (audio-only)' },
+  { value: 'system', label: 'Computer Audio', desc: 'Captures system/tab audio from this admin tab and streams it to the overlay' },
 ]
 
 /** Notice component for informational/warning messages within config panels */
@@ -34,6 +35,8 @@ export function AudioPanel() {
   const [audio, setAudio] = useState(() => ({ ...config.audio }))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const systemAudio = useSystemAudioPublisher()
 
   const reactivity = audio.reactivity ?? { enabled: false, source: 'internal' as AudioReactiveSourceMode, sensitivity: 0.5, smoothing: 0.7 }
   const setReactivity = (patch: Partial<typeof reactivity>) =>
@@ -113,13 +116,33 @@ export function AudioPanel() {
               <Slider label="Smoothing" value={reactivity.smoothing}
                 onChange={(v) => setReactivity({ smoothing: v })} />
             </div>
-            {reactivity.source !== 'internal' && (
+            {reactivity.source === 'microphone' && (
               <Notice tone="warning">
-                Microphone/computer-audio permission prompts happen in the <strong>overlay&apos;s own browser context</strong>,
-                not this dashboard — open the overlay URL directly in a normal browser tab once to grant access. OBS Browser
-                Sources may need the <code>--use-fake-ui-for-media-stream</code> launch flag (or a persisted Chromium profile)
-                to skip the prompt inside OBS.
+                Microphone permission prompts happen in the <strong>overlay&apos;s own browser context</strong>, not this
+                dashboard — open the overlay URL directly in a normal browser tab once to grant access. OBS Browser Sources
+                may need the <code>--use-fake-ui-for-media-stream</code> launch flag (or a persisted Chromium profile) to
+                skip the prompt inside OBS.
               </Notice>
+            )}
+            {reactivity.source === 'system' && (
+              <div className="space-y-2">
+                <Notice>
+                  Computer audio is captured from <strong>this admin tab</strong> and streamed live to the overlay — no
+                  need to visit the overlay URL directly. Click below to choose which screen, window, or tab&apos;s audio
+                  to analyze.
+                </Notice>
+                <div className="flex items-center gap-2">
+                  {systemAudio.active ? (
+                    <Button variant="secondary" size="sm" onClick={systemAudio.stop}>⏹ Stop capturing</Button>
+                  ) : (
+                    <Button variant="primary" size="sm" onClick={systemAudio.start}>🖥️ Start capturing computer audio</Button>
+                  )}
+                  {systemAudio.active && <span className="text-[10px] text-[var(--color-success-400)]">● Streaming to overlay</span>}
+                </div>
+                {systemAudio.error && (
+                  <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{systemAudio.error}</div>
+                )}
+              </div>
             )}
             <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>
               {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}

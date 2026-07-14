@@ -116,10 +116,14 @@ class AudioEngine {
 
   /** Switch what audio-reactivity reads from.
    *  'internal' falls back to the SFX/music/ambient bus analyser (no capture needed).
-   *  'microphone'/'system' capture a live MediaStream and analyse it independently —
-   *  never connected to destination, so there's no feedback/echo.
+   *  'microphone' captures a live MediaStream via getUserMedia (safe in the overlay's
+   *  own passive browser context — no user gesture required) and analyses it
+   *  independently — never connected to destination, so there's no feedback/echo.
+   *  'system' does NOT capture here — getDisplayMedia requires a real user gesture,
+   *  which only exists in the admin app. Use setReactiveStream() with the stream
+   *  relayed from admin instead (see useRemoteSystemAudio in the overlay package).
    *  Returns false (state left unchanged) on permission denial or an unsupported API. */
-  async setReactiveSource(mode: AudioReactiveSource): Promise<boolean> {
+  async setReactiveSource(mode: Exclude<AudioReactiveSource, 'system'>): Promise<boolean> {
     this.initContext()
     if (!this.ctx) return false
 
@@ -129,14 +133,7 @@ class AudioEngine {
     }
 
     try {
-      const stream = mode === 'microphone'
-        ? await navigator.mediaDevices.getUserMedia({ audio: true })
-        : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-
-      if (mode === 'system') {
-        // Only audio is needed for analysis — release the video track immediately.
-        for (const track of stream.getVideoTracks()) track.stop()
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       if (stream.getAudioTracks().length === 0) {
         for (const track of stream.getTracks()) { try { track.stop() } catch {} }
         console.warn('[AudioEngine] captured stream has no audio track')
@@ -158,6 +155,35 @@ class AudioEngine {
       console.warn(`[AudioEngine] failed to capture ${mode} audio`, err)
       return false
     }
+  }
+
+  /** Feed audio-reactivity from an externally-supplied MediaStream — used for
+   *  'system' mode, where the actual getDisplayMedia() capture happens in the
+   *  admin app (the overlay has no user gesture to call it with) and the
+   *  resulting stream is relayed here over WebRTC. The stream is only tapped
+   *  for analysis, never connected to destination (no feedback/echo). Its
+   *  video track (getDisplayMedia always includes one) is ignored — only
+   *  audio tracks are analysed. Pass null to stop (e.g. the relay disconnected). */
+  setReactiveStream(stream: MediaStream | null): void {
+    this.initContext()
+    if (!this.ctx) return
+
+    if (!stream || stream.getAudioTracks().length === 0) {
+      this.stopReactiveSource()
+      return
+    }
+
+    this.stopReactiveSource()
+
+    const source = this.ctx.createMediaStreamSource(stream)
+    const analyser = this.ctx.createAnalyser()
+    analyser.fftSize = 1024
+    source.connect(analyser)
+
+    // Not stored in _reactiveStream — its tracks are owned by the caller
+    // (the relay hook), which stops them itself on teardown/reconnect.
+    this._reactiveSource = source
+    this._reactiveAnalyser = analyser
   }
 
   private async preloadAll() {

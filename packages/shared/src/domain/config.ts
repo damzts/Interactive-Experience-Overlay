@@ -30,10 +30,22 @@ export interface ShowDefinition {
 
 /** Where audio-reactivity (beat/energy detection, audio-reactive backgrounds)
  *  reads its signal from. 'internal' taps the engine's own SFX/music/ambient
- *  bus (no permission prompt); 'microphone'/'system' capture a live
- *  MediaStream via getUserMedia/getDisplayMedia in the overlay's own browser
- *  context. */
+ *  bus (no permission prompt); 'microphone' captures the overlay's own mic
+ *  via getUserMedia (no gesture required, safe in a passive browser source);
+ *  'system' is captured in the ADMIN app (getDisplayMedia requires a real
+ *  user gesture, which only exists there) and relayed to the overlay over
+ *  WebRTC — see AUDIO_REACTIVITY_WIDGET_ID and the screen-share relay. */
 export type AudioReactiveSourceMode = 'internal' | 'microphone' | 'system'
+
+/**
+ * Reserved widgetId used to publish/subscribe system-audio reactivity
+ * through the same screen-share signaling relay (screen-share:* socket
+ * events) that screen-share widgets use — it's just another admin-captured
+ * getDisplayMedia stream, audio-only, always-on rather than tied to a
+ * specific widget's lifecycle. Not a real Application id; widgetId is an
+ * opaque string key to the relay.
+ */
+export const AUDIO_REACTIVITY_WIDGET_ID = '__audio-reactivity__'
 
 export interface AudioReactivityConfig {
   enabled: boolean

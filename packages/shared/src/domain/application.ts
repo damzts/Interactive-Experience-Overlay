@@ -7,10 +7,12 @@ export type WidgetLayoutSource = 'system' | 'user'
 
 /**
  * Derived from WIDGET_DEFINITIONS — adding a widget definition extends
- * this union automatically. 'window' (renderer/scene host) and 'generic'
- * (fallback chrome) are the only component types without definitions.
+ * this union automatically. 'window' (renderer/scene host), 'screen'
+ * (display-media capture widget) and 'generic' (fallback chrome) are the
+ * only component types without definitions — they're user-creatable base
+ * components rather than system widgets.
  */
-export type WidgetComponentType = DefinedWidgetComponentType | 'window' | 'generic'
+export type WidgetComponentType = DefinedWidgetComponentType | 'window' | 'screen' | 'generic'
 
 // ── Widget theme types ────────────────────────────────────────────
 
@@ -158,6 +160,12 @@ export interface Application {
   /** Optional per-widget defaults for camera widget runtime behavior. */
   cameraSettings?: {
     preferredDeviceLabel?: string
+    mirror?: boolean
+  }
+  /** Optional per-widget defaults for screen-share widget runtime behavior. */
+  screenSettings?: {
+    /** Capture system/tab audio alongside the video track. Default: false. */
+    audio?: boolean
     mirror?: boolean
   }
   /** Optional window binding for window-backed widget windows. */

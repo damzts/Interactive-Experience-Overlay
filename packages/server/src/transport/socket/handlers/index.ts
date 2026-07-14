@@ -24,6 +24,8 @@ import { registerConfigHandlers } from './config.js'
 import { registerPersonaHandlers } from './persona.js'
 import { registerDiagnosticsHandlers, queueRuntimeDiagnosticsEmit } from './diagnostics.js'
 import { registerKernelSignalBridge, makeKernelSignalFrame } from './kernelSignal.js'
+import { registerScreenShareHandlers } from './screen-share.js'
+import { ScreenShareRelay } from '../../webrtc/screen-share-relay.js'
 
 export function setupSocketHandlers(
   io: IO,
@@ -60,6 +62,7 @@ export function setupSocketHandlers(
     cachedUserConfig: DEFAULT_CONFIG as unknown as AppConfig,
 
     socketClientTypes: new Map(),
+    screenShareRelay: new ScreenShareRelay(),
   }
 
   if (options?.configService) {
@@ -103,6 +106,7 @@ export function setupSocketHandlers(
       ambianceManager.recordHistory('leader-elected', 'overlay connected', { leaderSocketId: socket.id })
       ctx.bus.emit('overlay:connected', { socketId: socket.id })
       io.emit('overlay:owner', { socketId: socket.id })
+      ctx.screenShareRelay?.setOverlaySocket(socket)
       queueRuntimeDiagnosticsEmit(ctx)
     }
 
@@ -147,11 +151,13 @@ export function setupSocketHandlers(
     registerConfigHandlers(ctx, socket)
     registerPersonaHandlers(ctx, socket)
     registerDiagnosticsHandlers(ctx, socket)
+    registerScreenShareHandlers(ctx, socket)
 
 
     socket.on('disconnect', () => {
       logger.info(`[socket] disconnected: ${socket.id}`)
       ctx.socketClientTypes.delete(socket.id)
+      ctx.screenShareRelay?.handleSocketDisconnect(socket)
       if (socket.id === ctx.runtimeState.overlaySocketId) {
         ctx.runtimeState.setOverlaySocketId(null)
         ctx.runtimeState.resetSimulationMetrics()
@@ -160,6 +166,7 @@ export function setupSocketHandlers(
         ambianceManager.recordHistory('leader-cleared', 'overlay disconnected', {})
         ctx.bus.emit('overlay:disconnected', {})
         io.emit('overlay:owner', { socketId: null })
+        ctx.screenShareRelay?.setOverlaySocket(null)
         queueRuntimeDiagnosticsEmit(ctx)
       }
     })

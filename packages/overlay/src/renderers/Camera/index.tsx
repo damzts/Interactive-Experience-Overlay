@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import { useMediaCaptureSource } from '../../services/useMediaCaptureSource'
 
 function isAdminPreviewFrame() {
   if (typeof window === 'undefined') return false
@@ -54,73 +55,20 @@ export function CameraRenderer({ config }: import('../registry').RendererProps) 
   const objectFit   = String(config.objectFit ?? 'cover') as 'cover' | 'contain'
 
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [error, setError] = useState<string | null>(null)
+  const blocked = shouldBlockCameraCapture()
+
+  const { stream, error: captureError } = useMediaCaptureSource({
+    deviceLabel: deviceLabel !== 'default' ? deviceLabel : '',
+    disabled: blocked,
+  })
 
   useEffect(() => {
-    let stream: MediaStream | null = null
-    let cancelled = false
+    if (videoRef.current) videoRef.current.srcObject = stream
+  }, [stream])
 
-    if (shouldBlockCameraCapture()) {
-      setError('Camara desactivada en vista previa para evitar conflicto de dispositivo.')
-      return
-    }
-
-    async function startCamera() {
-      try {
-        let deviceId: ConstrainDOMString | undefined
-
-        // Buscar el dispositivo por nombre si no es "default"
-        if (deviceLabel && deviceLabel !== 'default') {
-          try {
-            const devices = await navigator.mediaDevices.enumerateDevices()
-            const match = devices.find(
-              (d) =>
-                d.kind === 'videoinput' &&
-                d.label.toLowerCase().includes(deviceLabel.toLowerCase()),
-            )
-            if (match) deviceId = { exact: match.deviceId }
-          } catch {
-            // enumerateDevices puede fallar en algunos contextos — seguir con default
-          }
-        }
-
-        const constraints: MediaStreamConstraints = {
-          video: {
-            width:     { ideal: 1920 },
-            height:    { ideal: 1080 },
-            frameRate: { ideal: 60 },
-            ...(deviceId ? { deviceId } : {}),
-          },
-          audio: false,
-        }
-
-        stream = await navigator.mediaDevices.getUserMedia(constraints)
-
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop())
-          return
-        }
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-        }
-        setError(null)
-      } catch (err) {
-        if (cancelled) return
-        const msg = err instanceof Error ? err.message : 'Camera unavailable'
-        setError(msg)
-        console.warn('[CameraPlugin]', deviceLabel, '—', msg)
-      }
-    }
-
-    void startCamera()
-
-    return () => {
-      cancelled = true
-      if (stream) stream.getTracks().forEach((t) => t.stop())
-      if (videoRef.current) videoRef.current.srcObject = null
-    }
-  }, [deviceLabel])
+  const error = blocked
+    ? 'Camara desactivada en vista previa para evitar conflicto de dispositivo.'
+    : captureError
 
   const borderRadius =
     shape === 'circle'  ? '50%'  :

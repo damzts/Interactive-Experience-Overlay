@@ -26,6 +26,7 @@ export * from './contracts/effects.js'
 // Import from signals/commands/queries directly for focused access
 export * from './contracts/socket.js'
 export type { BusFrame } from './contracts/signals.js'
+export * from './contracts/webrtc-types.js'
 export * from './contracts/diagnostics.js'
 export * from './contracts/online-socket.js'
 export * from './contracts/widget.js'

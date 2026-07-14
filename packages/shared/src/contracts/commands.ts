@@ -191,4 +191,21 @@ export interface ClientToServerEvents {
   'pov-online:relay:answer': (payload: { sdp: string }) => void
   /** ICE candidate from overlay to server for the relay connection */
   'pov-online:relay:ice': (candidate: RTCIceCandidateInit) => void
+
+  // ── Screen-share relay (admin ↔ server ↔ overlay WebRTC, local only) ──
+  // getDisplayMedia() requires a real user gesture, which only exists in
+  // the admin app (the overlay is a passive OBS render target with nobody
+  // to click anything). Admin captures the stream and publishes it here;
+  // the server relays signaling to the single connected overlay socket —
+  // no cloud/room involved, this is same-machine P2P.
+  /** Admin → server: SDP offer publishing a screen-share capture for widgetId */
+  'screen-share:offer': (payload: { widgetId: string; sdp: string }) => void
+  /** Admin → server: ICE candidate for its publisher connection */
+  'screen-share:ice:admin': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Overlay → server: SDP answer accepting a relayed screen-share offer */
+  'screen-share:answer': (payload: { widgetId: string; sdp: string }) => void
+  /** Overlay → server: ICE candidate for its subscriber connection */
+  'screen-share:ice:overlay': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Admin → server: publisher stopped sharing (browser "Stop sharing" or widget closed) */
+  'screen-share:stop': (payload: { widgetId: string }) => void
 }

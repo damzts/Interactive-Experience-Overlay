@@ -4,7 +4,6 @@ import {
   DEFAULT_WIDGET_THEME_PRESETS,
   getWidgetSource,
   isSystemWidget,
-  RENDERER_CATALOG,
   withDesktopConfigDefaults,
 } from '@ieomlabs/shared'
 import type {
@@ -35,6 +34,8 @@ import { ConfigPanel } from '../../components/organisms'
 import { WIDGET_HEIGHT_MAX, WIDGET_HEIGHT_MIN, WIDGET_WIDTH_MAX, WIDGET_WIDTH_MIN, WIDGET_Z_INDEX_MAX, WIDGET_Z_INDEX_MIN } from './constants'
 const postPreviewConfigPatch = (_patch: unknown) => {} // no-op: embedded preview removed
 import { StickyNotesConfigSection } from './DefaultStylingEditor'
+import { getUserWidgetType } from './userWidgetTypes'
+import type { WidgetConfigSectionContext } from './userWidgetTypes'
 import {
   clampWidgetDimension,
   getDefaultWidgetSize,
@@ -122,13 +123,20 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
   const isProtectedSystemWidget = isSystemWidget(form)
   const isStickyNotesWidget    = form.id === 'sticky-notes'
   const stickyNotesConfig = form.stickyNotesSettings ?? DEFAULT_STICKY_NOTES_SETTINGS
-  const sourceMode = form.windowWidgetSettings?.mode
-    ?? (form.windowWidgetSettings?.rendererType ? 'renderer' : form.windowWidgetSettings?.sceneId ? 'scene' : '')
+  const userWidgetType = getUserWidgetType(widgetComponent)
 
   useEffect(() => {
     if (widgetComponent !== 'camera') return
     void enumerateCameras(false)
   }, [widgetComponent, enumerateCameras])
+
+  const widgetConfigSectionCtx: WidgetConfigSectionContext = {
+    detectedCameras,
+    detectingCameras,
+    cameraLabelsGranted,
+    enumerateCameras,
+    config,
+  }
 
   const sourceWidgetPosition      = resolveWidgetPositionFromConfig(persistedApp)
   const sourceWidgetSize          = resolveWidgetSizeFromConfig(persistedApp)
@@ -535,99 +543,8 @@ function AppForm({ app, onDelete, embedded = false, onDirtyChange }, ref) {
           <StickyNotesConfigSection value={stickyNotesConfig} onChange={updateStickyNotesConfig} />
         )}
 
-        {widgetComponent === 'camera' && (
-          <ConfigPanel title="Camera Defaults" className="mb-4">
-            <div className="space-y-3">
-              <div className="text-[10px] text-[var(--color-text-secondary)]">
-                Configure the camera for this widget. The widget displays video only — no controls. Open OBS with <span className="font-mono text-[var(--color-text-primary)]">?obs=1</span> in the browser source URL.
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-[10px] text-[var(--color-text-muted)]">Camera device</div>
-                  {!cameraLabelsGranted && (
-                    <Button variant="secondary" size="sm" disabled={detectingCameras} onClick={() => void enumerateCameras(true)}>
-                      {detectingCameras ? 'Detecting...' : '🔓 Get real names'}
-                    </Button>
-                  )}
-                </div>
-                {detectingCameras && detectedCameras.length === 0 ? (
-                  <div className="text-[10px] text-[var(--color-text-muted)] italic">Detecting devices...</div>
-                ) : (
-                  <select value={form.cameraSettings?.preferredDeviceLabel ?? ''}
-                    onChange={(e) => update((d) => { d.cameraSettings = { ...(d.cameraSettings ?? {}), preferredDeviceLabel: e.target.value } })}
-                    className="w-full text-xs">
-                    <option value="">— No preference (first device) —</option>
-                    {detectedCameras.map((cam) => <option key={cam.deviceId} value={cam.label}>{cam.label}</option>)}
-                    {form.cameraSettings?.preferredDeviceLabel && !detectedCameras.some((c) => c.label === form.cameraSettings?.preferredDeviceLabel) && (
-                      <option value={form.cameraSettings.preferredDeviceLabel}>{form.cameraSettings.preferredDeviceLabel} (saved)</option>
-                    )}
-                  </select>
-                )}
-                <div className="text-[10px] text-[var(--color-text-muted)] mt-1">
-                  {!cameraLabelsGranted && detectedCameras.length > 0
-                    ? 'Generic names — click "Get real names" to see actual system labels.'
-                    : 'The label is saved on the server. OBS uses it to find the same camera automatically.'}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <input id={`cam-mirror-${form.id}`} type="checkbox" checked={form.cameraSettings?.mirror ?? false}
-                  onChange={(e) => update((d) => { d.cameraSettings = { ...(d.cameraSettings ?? {}), mirror: e.target.checked } })} />
-                <label htmlFor={`cam-mirror-${form.id}`} className="text-[11px] text-[var(--color-text-primary)] cursor-pointer">Mirror (flip horizontally)</label>
-              </div>
-            </div>
-          </ConfigPanel>
-        )}
-
-        {widgetComponent === 'window' && (
-          <ConfigPanel title="Widget Source" className="mb-4">
-            <div className="space-y-3">
-              <div className="text-[10px] text-[var(--color-text-secondary)]">
-                Source widgets render either a single renderer directly, or a whole scene scaled to fit the widget window.
-              </div>
-              <div>
-                <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Source type</div>
-                <select value={sourceMode}
-                  onChange={(e) => update((d) => {
-                    const nextMode = e.target.value as '' | 'renderer' | 'scene'
-                    d.windowWidgetSettings = nextMode === 'renderer'
-                      ? { mode: 'renderer', rendererType: d.windowWidgetSettings?.rendererType ?? 'media-viz' }
-                      : nextMode === 'scene'
-                        ? { mode: 'scene', sceneId: d.windowWidgetSettings?.sceneId ?? Object.keys(config.scenes)[0] ?? '' }
-                        : undefined
-                  })}
-                  className="w-full text-xs">
-                  <option value="">— No source —</option>
-                  <option value="renderer">Renderer</option>
-                  <option value="scene">Full scene</option>
-                </select>
-              </div>
-              {sourceMode === 'renderer' && (
-                <div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Renderer</div>
-                  <select value={form.windowWidgetSettings?.rendererType ?? ''}
-                    onChange={(e) => update((d) => { d.windowWidgetSettings = { mode: 'renderer', rendererType: e.target.value } })}
-                    className="w-full text-xs">
-                    {RENDERER_CATALOG.map((entry) => (
-                      <option key={entry.id} value={entry.id} title={entry.desc}>{entry.icon} {entry.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {sourceMode === 'scene' && (
-                <div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Scene</div>
-                  <select value={form.windowWidgetSettings?.sceneId ?? ''}
-                    onChange={(e) => update((d) => { d.windowWidgetSettings = { mode: 'scene', sceneId: e.target.value } })}
-                    className="w-full text-xs">
-                    <option value="">— Select scene —</option>
-                    {Object.values(config.scenes).map((scene) => (
-                      <option key={scene.id} value={scene.id}>{scene.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          </ConfigPanel>
+        {userWidgetType?.ConfigSection && (
+          <userWidgetType.ConfigSection form={form} update={update} ctx={widgetConfigSectionCtx} />
         )}
 
         {form.id === 'gallery' && (

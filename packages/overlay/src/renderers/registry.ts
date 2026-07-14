@@ -46,6 +46,7 @@ export const rendererManifest: RendererManifest = {
   'noise-grain':     () => import('./NoiseGrain').then((m) => ({ component: m.NoiseGrainRenderer })),
   'clock-widget':    () => import('./ClockWidget').then((m) => ({ component: m.ClockWidgetRenderer })),
   'camera':          () => import('./Camera').then((m) => ({ component: m.CameraRenderer })),
+  'screen-share':    () => import('./ScreenShare').then((m) => ({ component: m.ScreenShareRenderer })),
   'pov-stream':      () => import('./PovStream').then((m) => ({ component: m.PovStreamRenderer })),
   // Builtin tier renderers — wrap legacy layer components as renderers
   'builtin:background': () => import('./builtins/Background').then((m) => ({ component: m.BuiltinBackgroundRenderer })),

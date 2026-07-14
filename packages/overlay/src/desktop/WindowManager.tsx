@@ -1,4 +1,4 @@
-import type { Application } from '@ieomlabs/shared'
+import type { Application, WidgetComponentType } from '@ieomlabs/shared'
 import { getWidgetComponent } from '@ieomlabs/shared'
 import { AppGlyph } from './AppGlyph'
 import { DesktopWindow } from './DesktopWindow'
@@ -9,6 +9,26 @@ import './styles/windows.css'
 function resolveWidgetComponent(app: Application) {
   const widgetComponent = getWidgetComponent(app)
   return getDesktopWidgetRenderer(widgetComponent)
+}
+
+/**
+ * Per-componentType prop resolvers — each widget type contributes only the
+ * extra props it needs, keyed off its own settings block. Adding a new
+ * user-creatable widget type means adding one entry here, not branching
+ * inline on every widget's componentType.
+ */
+const WIDGET_PROP_RESOLVERS: Partial<Record<WidgetComponentType, (app: Application) => Partial<DesktopWidgetProps>>> = {
+  camera: (app) => ({
+    defaultCameraLabel: app.cameraSettings?.preferredDeviceLabel ?? '',
+    defaultMirror: app.cameraSettings?.mirror ?? false,
+  }),
+  screen: (app) => ({
+    defaultMirror: app.screenSettings?.mirror ?? false,
+  }),
+}
+
+function resolveExtraWidgetProps(app: Application, widgetComponent: WidgetComponentType): Partial<DesktopWidgetProps> {
+  return WIDGET_PROP_RESOLVERS[widgetComponent]?.(app) ?? {}
 }
 
 /** Loading placeholder shown while the widget's lazy chunk is being fetched. */
@@ -93,8 +113,7 @@ export function WindowManager({
         const WidgetComp = resolveWidgetComponent(a)
         const widgetProps: DesktopWidgetProps = {
           appId: a.id,
-          defaultCameraLabel: widgetComponent === 'camera' ? (a.cameraSettings?.preferredDeviceLabel ?? '') : undefined,
-          defaultMirror: widgetComponent === 'camera' ? (a.cameraSettings?.mirror ?? false) : undefined,
+          ...resolveExtraWidgetProps(a, widgetComponent),
           onClose: () => onWidgetClose(a.id),
           onMinimize: () => minimizeWidget(a.id),
           onFocus: () => focusWidget(a.id),

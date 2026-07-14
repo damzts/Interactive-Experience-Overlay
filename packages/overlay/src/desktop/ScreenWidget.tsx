@@ -1,11 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { useAppStore } from '../store/useAppStore'
 import { DesktopWindow } from './DesktopWindow'
-import { useMediaCaptureSource } from '../services/useMediaCaptureSource'
+import { useRemoteScreenShare } from '../services/useRemoteScreenShare'
 
 interface DesktopWidgetProps {
   appId?: string
-  defaultCameraLabel?: string
   defaultMirror?: boolean
   onClose: () => void
   onMinimize?: () => void
@@ -14,29 +12,25 @@ interface DesktopWidgetProps {
   zIndex?: number
 }
 
-function getCameraRoleLabel(appId?: string) {
-  if (!appId || appId === 'camera') return 'Host'
-  const match = appId.match(/^camera[-:_](.+)$/i)
-  if (!match) return 'Camera'
+function getScreenRoleLabel(appId?: string) {
+  if (!appId || appId === 'screen') return 'Host'
+  const match = appId.match(/^screen[-:_](.+)$/i)
+  if (!match) return 'Screen'
   const token = match[1].trim().toLowerCase()
-  if (token === '2' || token === 'a' || token === 'source-a' || token === 'sourcea') return 'Source A'
-  if (token === '3' || token === 'b' || token === 'source-b' || token === 'sourceb') return 'Source B'
   return token.split(/[-_\s]+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
 }
 
-/** Desktop widget that captures a physical/virtual camera device via getUserMedia. */
-export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
+/**
+ * Desktop widget that renders a screen/window/tab share published from the
+ * admin app (getDisplayMedia requires a user gesture, which only exists in
+ * admin — the overlay is a passive OBS render target). See ScreenConfigSection
+ * in the admin panel to start sharing for this widget.
+ */
+export function ScreenWidget({ appId, defaultMirror = false, onClose, onMinimize, onFocus, windowState = 'open', zIndex }: DesktopWidgetProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const setCameraPermissionState = useAppStore((s) => s.setCameraPermissionState)
-  const roleLabel = getCameraRoleLabel(appId)
+  const roleLabel = getScreenRoleLabel(appId)
 
-  const { stream, loading, error, permissionGranted } = useMediaCaptureSource({
-    deviceLabel: defaultCameraLabel ?? '',
-  })
-
-  useEffect(() => {
-    setCameraPermissionState(permissionGranted ? 'granted' : error ? 'denied' : 'unknown')
-  }, [permissionGranted, error, setCameraPermissionState])
+  const { stream, connecting, error } = useRemoteScreenShare(appId ?? 'screen')
 
   useEffect(() => {
     if (videoRef.current) {
@@ -45,11 +39,13 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
     }
   }, [stream])
 
+  const idle = !stream && !connecting && !error
+
   return (
     <DesktopWindow
-      id={appId ?? 'camera'}
-      title={`📷 Camera - ${roleLabel}`}
-      width={400}
+      id={appId ?? 'screen'}
+      title={`🖥️ Screen - ${roleLabel}`}
+      width={480}
       height={300}
       defaultPosition={{ x: 260, y: 80 }}
       zIndex={zIndex}
@@ -62,12 +58,15 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
       bodyStyle={{ padding: 12 }}
     >
       <div className="widget-panel widget-camera-frame">
-        {loading && !error && (
-          <span className="widget-empty-state">Iniciando cámara...</span>
+        {idle && (
+          <span className="widget-empty-state">Waiting for screen share to start (start it from the admin panel)...</span>
+        )}
+        {connecting && (
+          <span className="widget-empty-state">Connecting to screen share...</span>
         )}
         {error && (
           <div className="widget-camera-status">
-            <span className="widget-camera-status-icon">📷</span>
+            <span className="widget-camera-status-icon">🖥️</span>
             <span className="widget-empty-state widget-empty-state--error">{error}</span>
           </div>
         )}
@@ -81,9 +80,9 @@ export function CameraWidget({ appId, defaultCameraLabel, defaultMirror = false,
             inset:     0,
             width:     '100%',
             height:    '100%',
-            objectFit: 'cover',
+            objectFit: 'contain',
             transform: defaultMirror ? 'scaleX(-1)' : 'none',
-            display:   error ? 'none' : 'block',
+            display:   stream ? 'block' : 'none',
           }}
         />
       </div>

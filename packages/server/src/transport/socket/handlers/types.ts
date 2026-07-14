@@ -32,6 +32,9 @@ export interface HandlerContext {
   bus: KernelBus
   obsBridge?: ObsBridgeManager
 
+  /** Local admin↔overlay screen-share signaling relay (see screen-share-relay.ts). */
+  screenShareRelay?: import('../../webrtc/screen-share-relay.js').ScreenShareRelay
+
   runtimeConfig: RuntimeConfig
   cachedUserConfig: AppConfig
 
