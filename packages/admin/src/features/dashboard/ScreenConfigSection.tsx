@@ -25,13 +25,15 @@ export function ScreenConfigSection({
   update: (updater: (draft: Application) => void) => void
 }) {
   const audio = form.screenSettings?.audio ?? false
-  const { active, error, start, stop } = useScreenSharePublisher(form.id, audio)
+  const { active, error, warning, start, stop } = useScreenSharePublisher(form.id, audio)
 
   return (
     <ConfigPanel title="Screen Share Defaults" className="mb-4">
       <div className="space-y-3">
         <div className="text-[10px] text-[var(--color-text-secondary)]">
-          The widget displays video only — no controls. Click below to choose a screen, window, or tab to share; it streams live to the overlay widget while this browser tab stays open.
+          The widget displays video only — no controls. Click below to start sharing your screen to the overlay widget
+          (in the desktop app, this captures your whole screen automatically with no picker; audio, if enabled below,
+          uses system loopback rather than Chrome's tab-only audio capture).
         </div>
         <div className="flex items-center gap-2">
           {active ? (
@@ -43,6 +45,9 @@ export function ScreenConfigSection({
         </div>
         {error && (
           <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{error}</div>
+        )}
+        {!error && warning && (
+          <div className="rounded border border-[var(--color-warning-500)]/60 bg-[var(--color-warning-500)]/10 px-3 py-2 text-[10px] text-[var(--color-warning-400)]">{warning}</div>
         )}
         <div className="flex items-center gap-2">
           <input id={`screen-audio-${form.id}`} type="checkbox" checked={audio}

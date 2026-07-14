@@ -4,13 +4,13 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { Slider, ConfigPageIntro, ConfigTable, ConfigChoiceButton } from '../../shared/ui'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
+import { VuMeter } from '../../components/molecules'
 import { MediaSelectionInput } from '../media-library/MediaLibrary'
-import { useSystemAudioPublisher } from '../../hooks/useSystemAudioPublisher'
+import { useAudioLevelMeter } from '../../hooks/useAudioLevelMeter'
 
 const REACTIVITY_SOURCES: { value: AudioReactiveSourceMode; label: string; desc: string }[] = [
-  { value: 'internal', label: 'Internal Engine Audio', desc: 'SFX, music, and ambient — no permission prompt' },
+  { value: 'internal', label: 'Internal Engine Audio', desc: 'SFX, music, ambient, and any currently-open screen-share widget\u2019s audio — no permission prompt' },
   { value: 'microphone', label: 'Microphone', desc: 'Captures the mic in the overlay’s browser context' },
-  { value: 'system', label: 'Computer Audio', desc: 'Captures system/tab audio from this admin tab and streams it to the overlay' },
 ]
 
 /** Notice component for informational/warning messages within config panels */
@@ -36,9 +36,8 @@ export function AudioPanel() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const systemAudio = useSystemAudioPublisher()
-
   const reactivity = audio.reactivity ?? { enabled: false, source: 'internal' as AudioReactiveSourceMode, sensitivity: 0.5, smoothing: 0.7 }
+  const audioLevel = useAudioLevelMeter()
   const setReactivity = (patch: Partial<typeof reactivity>) =>
     setAudio((a) => ({ ...a, reactivity: { ...(a.reactivity ?? reactivity), ...patch } }))
 
@@ -110,12 +109,28 @@ export function AudioPanel() {
                 ))}
               </div>
             </div>
+            <div className="space-y-1">
+              <div className="admin-text-body text-xs uppercase tracking-wide text-[var(--color-text-muted)]">Live Level</div>
+              <VuMeter level={audioLevel} label="Signal" />
+              <div className="text-[10px] text-[var(--color-text-muted)]">
+                Reflects the overlay&apos;s analyser for the source above, independent of the Enable toggle — use this to
+                confirm audio is reaching it (e.g. a screen-share widget&apos;s captured audio under Internal) before
+                turning reactivity on.
+              </div>
+            </div>
             <div className="space-y-2">
               <Slider label="Sensitivity" value={reactivity.sensitivity}
                 onChange={(v) => setReactivity({ sensitivity: v })} />
               <Slider label="Smoothing" value={reactivity.smoothing}
                 onChange={(v) => setReactivity({ smoothing: v })} />
             </div>
+            {reactivity.source === 'internal' && (
+              <Notice>
+                Automatically includes the audio of any screen-share widget that&apos;s currently open in the overlay —
+                open a Screen widget and start sharing (with &quot;Capture audio&quot; enabled) from its own config panel;
+                no separate capture or permission prompt needed here.
+              </Notice>
+            )}
             {reactivity.source === 'microphone' && (
               <Notice tone="warning">
                 Microphone permission prompts happen in the <strong>overlay&apos;s own browser context</strong>, not this
@@ -123,26 +138,6 @@ export function AudioPanel() {
                 may need the <code>--use-fake-ui-for-media-stream</code> launch flag (or a persisted Chromium profile) to
                 skip the prompt inside OBS.
               </Notice>
-            )}
-            {reactivity.source === 'system' && (
-              <div className="space-y-2">
-                <Notice>
-                  Computer audio is captured from <strong>this admin tab</strong> and streamed live to the overlay — no
-                  need to visit the overlay URL directly. Click below to choose which screen, window, or tab&apos;s audio
-                  to analyze.
-                </Notice>
-                <div className="flex items-center gap-2">
-                  {systemAudio.active ? (
-                    <Button variant="secondary" size="sm" onClick={systemAudio.stop}>⏹ Stop capturing</Button>
-                  ) : (
-                    <Button variant="primary" size="sm" onClick={systemAudio.start}>🖥️ Start capturing computer audio</Button>
-                  )}
-                  {systemAudio.active && <span className="text-[10px] text-[var(--color-success-400)]">● Streaming to overlay</span>}
-                </div>
-                {systemAudio.error && (
-                  <div className="rounded border border-[var(--color-danger-500)]/60 bg-[var(--color-danger-500)]/10 px-3 py-2 text-[10px] text-[var(--color-danger-400)]">{systemAudio.error}</div>
-                )}
-              </div>
             )}
             <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>
               {saved ? '✔ Saved' : saving ? 'Saving…' : 'Apply Changes'}

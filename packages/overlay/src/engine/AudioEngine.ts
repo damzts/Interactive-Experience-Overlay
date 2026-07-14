@@ -13,7 +13,7 @@ type SoundId =
 
 type SyntheticAmbientKind = 'server-hum' | 'keyboard-clicks' | 'crt-buzz' | 'rain'
 
-export type AudioReactiveSource = 'internal' | 'microphone' | 'system'
+export type AudioReactiveSource = 'internal' | 'microphone'
 
 const URL_CACHE_MAX = 20
 
@@ -24,11 +24,19 @@ class AudioEngine {
   private analyser: AnalyserNode | null = null
 
   // Reactivity tap — independent of the playback graph above. Feeds
-  // useAudioLevel()/beat detection from an external source (mic/system audio)
-  // instead of the engine's own SFX/music/ambient bus.
+  // useAudioLevel()/beat detection from an external source (mic) instead of
+  // the engine's own SFX/music/ambient bus.
   private _reactiveAnalyser: AnalyserNode | null = null
   private _reactiveStream: MediaStream | null = null
   private _reactiveSource: MediaStreamAudioSourceNode | null = null
+
+  // External audio sources (screen-share widgets) mixed into 'internal'
+  // analysis — NOT connected to destination, so they're analysed but never
+  // double-played (the widget's own <video> or OBS already handles playback).
+  // Keyed by widgetId so multiple screen-share widgets can contribute at once.
+  private _externalMixGain: GainNode | null = null
+  private _externalSources = new Map<string, { source: MediaStreamAudioSourceNode; stream: MediaStream }>()
+  private _internalAnalyser: AnalyserNode | null = null
 
   // Music track (switches per scene)
   private _musicEl: HTMLAudioElement | null = null
@@ -72,11 +80,22 @@ class AudioEngine {
       this.masterGain = this.ctx.createGain()
       this.masterGain.gain.value = 0.7
 
-      // Insert analyser between masterGain and destination
+      // Insert analyser between masterGain and destination (playback path — unaffected by reactivity).
       this.analyser = this.ctx.createAnalyser()
       this.analyser.fftSize = 2048
       this.masterGain.connect(this.analyser)
       this.analyser.connect(this.ctx.destination)
+
+      // 'internal' reactivity analysis path: masterGain (engine's own SFX/music/
+      // ambient bus) + any registered external sources (screen-share widget audio),
+      // summed into _externalMixGain and analysed by _internalAnalyser. This mix
+      // node is NEVER connected to destination — analysis-only, no double playback.
+      this._externalMixGain = this.ctx.createGain()
+      this._externalMixGain.gain.value = 1
+      this.masterGain.connect(this._externalMixGain)
+      this._internalAnalyser = this.ctx.createAnalyser()
+      this._internalAnalyser.fftSize = 2048
+      this._externalMixGain.connect(this._internalAnalyser)
 
       this.preloadAll()
     } catch {
@@ -92,16 +111,57 @@ class AudioEngine {
     }
   }
 
-  /** Access the AnalyserNode for real-time frequency/energy data. */
+  /** Access the AnalyserNode for real-time frequency/energy data (playback bus only — SFX/music/ambient/persona, no external sources). */
   getAnalyser(): AnalyserNode | null {
     return this.analyser
   }
 
+  /** Register a widget's captured audio (e.g. a screen-share widget) so 'internal'
+   *  reactivity analysis includes it. Never connected to destination — analysed
+   *  only, not played (the widget's own <video> element or OBS handles playback).
+   *  Safe to call again with a new stream for the same id (replaces the old one). */
+  registerExternalAudioSource(id: string, stream: MediaStream): void {
+    this.unlockContext()
+    if (!this.ctx || !this._externalMixGain) return
+    if (stream.getAudioTracks().length === 0) return
+
+    this.unregisterExternalAudioSource(id)
+
+    try {
+      const source = this.ctx.createMediaStreamSource(stream)
+      source.connect(this._externalMixGain)
+      this._externalSources.set(id, { source, stream })
+    } catch (err) {
+      console.warn(`[AudioEngine] failed to register external audio source "${id}"`, err)
+    }
+  }
+
+  /** Stop analysing a previously registered external audio source. Does not
+   *  stop the stream's tracks — the caller (e.g. useRemoteScreenShare) owns them. */
+  unregisterExternalAudioSource(id: string): void {
+    const entry = this._externalSources.get(id)
+    if (!entry) return
+    try { entry.source.disconnect() } catch {}
+    this._externalSources.delete(id)
+  }
+
   /** Analyser to use for audio-reactivity (backgrounds, beat detection): an
-   *  external mic/system tap if configured, else falls back to the internal
-   *  engine bus analyser above. */
+   *  external mic tap if configured (setReactiveSource), else the 'internal'
+   *  mix — the engine's own SFX/music/ambient bus PLUS any registered
+   *  external sources (screen-share widget audio, see registerExternalAudioSource).
+   *  Lazily creates AND resumes the AudioContext on first call — 'internal'
+   *  reactivity (and the VU meter) works even if nothing has played an SFX or
+   *  called setReactiveSource() yet. AudioContext creation is deferred for
+   *  autoplay-policy compliance, and a freshly-created context always starts
+   *  'suspended' — without resuming it here, connected nodes never process
+   *  audio and the analyser silently reads zeros forever. resume() itself
+   *  may still be blocked by the browser until a user gesture happens
+   *  anywhere on the page; OBS browser sources are generally exempt from
+   *  autoplay restrictions, but a plain Chrome tab opened to the overlay
+   *  URL may need one click anywhere on the page first. */
   getReactiveAnalyser(): AnalyserNode | null {
-    return this._reactiveAnalyser ?? this.analyser
+    this.unlockContext()
+    return this._reactiveAnalyser ?? this._internalAnalyser ?? this.analyser
   }
 
   /** Stop and tear down any external reactivity capture (mic/system). Safe to call anytime. */
@@ -115,16 +175,14 @@ class AudioEngine {
   }
 
   /** Switch what audio-reactivity reads from.
-   *  'internal' falls back to the SFX/music/ambient bus analyser (no capture needed).
+   *  'internal' falls back to the SFX/music/ambient bus + external sources mix
+   *  (no capture needed — see registerExternalAudioSource for screen-share widgets).
    *  'microphone' captures a live MediaStream via getUserMedia (safe in the overlay's
    *  own passive browser context — no user gesture required) and analyses it
    *  independently — never connected to destination, so there's no feedback/echo.
-   *  'system' does NOT capture here — getDisplayMedia requires a real user gesture,
-   *  which only exists in the admin app. Use setReactiveStream() with the stream
-   *  relayed from admin instead (see useRemoteSystemAudio in the overlay package).
    *  Returns false (state left unchanged) on permission denial or an unsupported API. */
-  async setReactiveSource(mode: Exclude<AudioReactiveSource, 'system'>): Promise<boolean> {
-    this.initContext()
+  async setReactiveSource(mode: AudioReactiveSource): Promise<boolean> {
+    this.unlockContext()
     if (!this.ctx) return false
 
     if (mode === 'internal') {
@@ -155,35 +213,6 @@ class AudioEngine {
       console.warn(`[AudioEngine] failed to capture ${mode} audio`, err)
       return false
     }
-  }
-
-  /** Feed audio-reactivity from an externally-supplied MediaStream — used for
-   *  'system' mode, where the actual getDisplayMedia() capture happens in the
-   *  admin app (the overlay has no user gesture to call it with) and the
-   *  resulting stream is relayed here over WebRTC. The stream is only tapped
-   *  for analysis, never connected to destination (no feedback/echo). Its
-   *  video track (getDisplayMedia always includes one) is ignored — only
-   *  audio tracks are analysed. Pass null to stop (e.g. the relay disconnected). */
-  setReactiveStream(stream: MediaStream | null): void {
-    this.initContext()
-    if (!this.ctx) return
-
-    if (!stream || stream.getAudioTracks().length === 0) {
-      this.stopReactiveSource()
-      return
-    }
-
-    this.stopReactiveSource()
-
-    const source = this.ctx.createMediaStreamSource(stream)
-    const analyser = this.ctx.createAnalyser()
-    analyser.fftSize = 1024
-    source.connect(analyser)
-
-    // Not stored in _reactiveStream — its tracks are owned by the caller
-    // (the relay hook), which stops them itself on teardown/reconnect.
-    this._reactiveSource = source
-    this._reactiveAnalyser = analyser
   }
 
   private async preloadAll() {

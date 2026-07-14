@@ -13,3 +13,4 @@ export * from './Field';
 export * from './SearchResult';
 export * from './StatusIndicator';
 export * from './Toast';
+export * from './VuMeter';

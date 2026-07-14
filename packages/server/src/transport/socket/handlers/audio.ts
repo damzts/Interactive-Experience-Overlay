@@ -1,4 +1,4 @@
-import type { AudioBeatPayload, AudioEnergyPayload } from '@ieomlabs/shared'
+import type { AudioBeatPayload, AudioEnergyPayload, AudioLevelPayload } from '@ieomlabs/shared'
 import type { HandlerContext, AppSocket } from './types.js'
 
 /**
@@ -29,5 +29,14 @@ export function registerAudioHandlers(ctx: HandlerContext, socket: AppSocket): v
   socket.on('audio:silence', () => {
     if (socket.id !== ctx.runtimeState.overlaySocketId) return
     ctx.bus.emit('audio:silence', {})
+  })
+
+  // Live VU meter feed for the Admin Audio panel — a raw passthrough, NOT
+  // promoted onto the KernelBus (unlike beat/energy/silence above). It's a
+  // ~10Hz continuous telemetry stream for a UI meter, not a discrete event
+  // automation rules should be able to trigger on.
+  socket.on('audio:level', (payload: AudioLevelPayload) => {
+    if (socket.id !== ctx.runtimeState.overlaySocketId) return
+    ctx.io.emit('audio:level', payload)
   })
 }

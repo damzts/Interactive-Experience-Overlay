@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useRemoteScreenShare } from '../../services/useRemoteScreenShare'
+import { audioEngine } from '../../engine/AudioEngine'
 
 /**
  * ScreenShareRenderer — renders a screen/window/tab share published from the
@@ -37,6 +38,19 @@ export function ScreenShareRenderer({ config, instanceId }: import('../registry'
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = stream
   }, [stream])
+
+  // Feed this widget's captured audio into 'internal' reactivity analysis —
+  // automatic, no separate capture/prompt. Analysis-only: never routed to
+  // speakers (the <video> element above already handles this widget's own
+  // playback). Unregisters on stream change/unmount.
+  useEffect(() => {
+    if (stream && stream.getAudioTracks().length > 0) {
+      audioEngine.registerExternalAudioSource(widgetId, stream)
+    } else {
+      audioEngine.unregisterExternalAudioSource(widgetId)
+    }
+    return () => audioEngine.unregisterExternalAudioSource(widgetId)
+  }, [widgetId, stream])
 
   const borderRadius =
     shape === 'circle'  ? '50%'  :

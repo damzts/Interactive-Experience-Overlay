@@ -25,6 +25,7 @@ import type {
   WidgetSimulationIntentPayload,
   AudioBeatPayload,
   AudioEnergyPayload,
+  AudioLevelPayload,
 } from './signals.js'
 
 // ── Command-only payload types ────────────────────────────────────
@@ -169,6 +170,12 @@ export interface ClientToServerEvents {
   'audio:energy:low': (payload: AudioEnergyPayload) => void
   /** Overlay reports sustained silence from its audio reactivity monitor */
   'audio:silence': () => void
+  /** Overlay reports a throttled live level sample from whatever analyser
+   *  audioEngine.getReactiveAnalyser() currently points at — decoupled from
+   *  the reactivity enabled/disabled toggle so operators can verify a source
+   *  (e.g. a screen-share widget's audio) is actually reaching the analyser
+   *  before turning reactivity on. Only emitted while an analyser exists. */
+  'audio:level': (payload: AudioLevelPayload) => void
 
   // ── Queries (request/response via callback) ──────────────────────
   /** Request current scene state */

@@ -3,6 +3,10 @@ import { socket } from '../socket/client'
 export interface ScreenSharePublisherSnapshot {
   active: boolean
   error: string | null
+  /** Non-fatal: the share is live, but audio was requested and the browser
+   *  didn't grant an audio track (e.g. sharing a Window, or "Entire Screen"
+   *  on macOS — Chrome only supports audio capture when sharing a Tab). */
+  warning: string | null
 }
 
 interface PublisherEntry {
@@ -32,6 +36,7 @@ const ICE_SERVERS: RTCIceServer[] = [
 class ScreenSharePublisherRegistry {
   private entries = new Map<string, PublisherEntry>()
   private errors = new Map<string, string | null>()
+  private warnings = new Map<string, string | null>()
   private listeners = new Map<string, Set<() => void>>()
   private snapshots = new Map<string, ScreenSharePublisherSnapshot>()
   private wired = false
@@ -78,6 +83,7 @@ class ScreenSharePublisherRegistry {
     const next: ScreenSharePublisherSnapshot = {
       active: this.entries.has(widgetId),
       error: this.errors.get(widgetId) ?? null,
+      warning: this.warnings.get(widgetId) ?? null,
     }
     this.snapshots.set(widgetId, next)
     return next
@@ -89,6 +95,7 @@ class ScreenSharePublisherRegistry {
       entry.pc.close()
       entry.stream.getTracks().forEach((t) => t.stop())
       this.entries.delete(widgetId)
+      this.warnings.set(widgetId, null)
       if (opts.emitStop) socket.emit('screen-share:stop', { widgetId })
     }
     this.notify(widgetId)
@@ -102,6 +109,7 @@ class ScreenSharePublisherRegistry {
     this.ensureWired()
     this.teardown(widgetId, { emitStop: true })
     this.errors.set(widgetId, null)
+    this.warnings.set(widgetId, null)
     this.notify(widgetId)
 
     try {
@@ -109,6 +117,23 @@ class ScreenSharePublisherRegistry {
         video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
         audio,
       })
+
+      if (audio && stream.getAudioTracks().length === 0) {
+        // getDisplayMedia() doesn't throw here — it silently returns a stream
+        // with no audio track. In the desktop app this is normally handled
+        // by the Electron main process (see desktop-audio-capture.ts, which
+        // forces system-audio loopback) — if it's still missing there, the
+        // platform doesn't support it (macOS 12 and earlier cannot capture
+        // desktop audio at all; macOS 14.2+ needs the app's audio-capture
+        // permission granted). In a plain browser tab (no Electron shell),
+        // Chrome only captures audio when "Chrome Tab" is picked in the
+        // share dialog — a Window, or "Entire Screen" on macOS, drops audio
+        // regardless of this setting.
+        this.warnings.set(
+          widgetId,
+          'No audio track was captured. If a share picker appeared, Chrome only captures audio when you choose "Chrome Tab" (not a Window, and not "Entire Screen" on macOS). In the desktop app, this usually means system audio capture isn\'t supported on this OS version (macOS 12 and earlier can\'t capture desktop audio at all).',
+        )
+      }
 
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
       this.entries.set(widgetId, { pc, stream })

@@ -252,6 +252,16 @@ export interface AudioEnergyPayload {
   bands: AudioBandLevels
 }
 
+/** Throttled live level sample for the Admin Audio panel's VU meter —
+ *  decoupled from beat/energy/silence event thresholds, just a continuous
+ *  "how loud is the analyser right now" readout. */
+export interface AudioLevelPayload {
+  /** Overall smoothed RMS level (0-1). */
+  level: number
+  /** Per-band levels (0-1 each). */
+  bands: AudioBandLevels
+}
+
 export interface AmbianceSimulationPayload {
   actionId: string
   /** Target ID — widget ID for widget actions, layout ID or scene ID for select actions. */
@@ -408,6 +418,9 @@ export interface ServerToClientEvents {
   'kernel:signal': (frame: BusFrame) => void
   /** Bus trace frames batch (for dev tooling subscribers) */
   'bus:trace:frames': (frames: BusFrame[]) => void
+  /** Server → admin: passthrough relay of the overlay's throttled audio:level
+   *  sample, for the Audio panel's live VU meter. */
+  'audio:level': (payload: AudioLevelPayload) => void
   /** POV relay: SDP offer from server to overlay for active participant stream */
   'pov-online:relay:offer': (payload: { sdp: string }) => void
   /** POV relay: ICE candidate from server to overlay */

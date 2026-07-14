@@ -6,6 +6,7 @@ import { createTray } from './tray.js';
 import { registerProtocolHandler, handleDeepLink } from './deeplink.js';
 import { validateLicense, startLicenseRevalidation } from './license.js';
 import { registerIpcHandlers } from './ipc-handlers.js';
+import { registerDesktopAudioCapture } from './desktop-audio-capture.js';
 import { initAutoUpdater, checkForUpdates, cleanupAutoUpdater } from './auto-updater.js';
 import { initConnectivityMonitor, cleanupConnectivityMonitor } from './connectivity.js';
 import { isAutoLaunched, openAppSettingsDb, closeAppSettingsDb } from './startup.js';
@@ -115,6 +116,13 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     // Register IPC handlers before creating windows
     registerIpcHandlers();
+
+    // Intercept getDisplayMedia() so the admin panel's existing screen-share
+    // capture (ScreenConfigSection) gets system-audio loopback automatically,
+    // instead of being limited by Chrome's "must share a Tab" audio
+    // restriction. Must run before any window that calls getDisplayMedia()
+    // is created. See desktop-audio-capture.ts for full rationale/caveats.
+    registerDesktopAudioCapture();
 
     const splashWindow = createSplashWindow();
 

@@ -5,6 +5,7 @@ import { useSocket } from './socket/useSocket'
 import { onKernelSignal } from './socket/kernelSignals'
 import { audioEngine } from './engine/AudioEngine'
 import { startAudioReactivityMonitor } from './engine/audioReactivityMonitor'
+import { startAudioLevelMeter } from './engine/audioLevelMeter'
 import { startPerfMonitor } from './engine/perfMonitor'
 import { TransitionEngine } from './engine/TransitionEngine'
 import { SceneCompositor } from './layers/SceneCompositor'
@@ -15,7 +16,6 @@ import { resolveScene } from './services/SceneResolver.js'
 import { RtcStreamProvider } from './rtc/RtcStreamContext'
 import { runChatBubble } from './transitions/ChatBubble'
 import { runPersonaAvatar, ensurePersonaAvatar, retirePersistentAvatar } from './transitions/PersonaAvatar'
-import { useRemoteSystemAudio } from './services/useRemoteSystemAudio'
 
 export default function App() {
   const visualState = useAppStore((s) => s.visualState)
@@ -33,6 +33,11 @@ export default function App() {
 
   useSocket()
   useEffect(() => { audioEngine.init() }, [])
+  // Live VU meter feed for the Admin Audio panel — always on, independent of
+  // the reactivity enabled/disabled toggle, so operators can verify a source
+  // (mic, or a screen-share widget's audio routed into 'internal') is
+  // actually reaching the analyser before enabling reactivity/automation.
+  useEffect(() => startAudioLevelMeter(), [])
   // Render-performance telemetry — always on; reports fps/long-frame
   // samples to kernel diagnostics every few seconds.
   useEffect(() => startPerfMonitor(), [])
@@ -46,33 +51,24 @@ export default function App() {
   // monitor as the operator toggles it in the Admin Audio panel. Disabled by
   // default — no analyser polling, no getUserMedia prompts.
   //
-  // 'system' is special: getDisplayMedia() requires a real user gesture,
-  // which only exists in the admin app (this overlay is a passive OBS render
-  // target). System audio is captured in admin and relayed here over WebRTC
-  // (see useRemoteSystemAudio) — the hook runs unconditionally (React rules)
-  // but only actually subscribes/negotiates once 'system' + enabled below
-  // hands its stream to the engine.
+  // 'internal' automatically includes the audio of any currently-open
+  // screen-share widget — see AudioEngine.registerExternalAudioSource(),
+  // wired from ScreenWidget.tsx / renderers/ScreenShare — no separate
+  // capture or permission prompt needed for that case.
   const reactivity = config.audio.reactivity
-  const systemAudio = useRemoteSystemAudio(!!reactivity?.enabled && reactivity.source === 'system')
 
   useEffect(() => {
     if (!reactivity?.enabled) {
       audioEngine.stopReactiveSource()
-      audioEngine.setReactiveStream(null)
       return
     }
-    if (reactivity.source === 'system') {
-      audioEngine.setReactiveStream(systemAudio.stream)
-    } else {
-      void audioEngine.setReactiveSource(reactivity.source)
-    }
+    void audioEngine.setReactiveSource(reactivity.source)
     const stop = startAudioReactivityMonitor()
     return () => {
       stop()
       audioEngine.stopReactiveSource()
-      audioEngine.setReactiveStream(null)
     }
-  }, [reactivity?.enabled, reactivity?.source, systemAudio.stream])
+  }, [reactivity?.enabled, reactivity?.source])
 
   // Persona: chat-to-voice companion. A spoken line is independent of any
   // open widget, so it's wired globally here rather than in ChatWidget.

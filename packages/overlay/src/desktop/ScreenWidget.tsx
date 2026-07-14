@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { DesktopWindow } from './DesktopWindow'
 import { useRemoteScreenShare } from '../services/useRemoteScreenShare'
+import { audioEngine } from '../engine/AudioEngine'
 
 interface DesktopWidgetProps {
   appId?: string
@@ -38,6 +39,21 @@ export function ScreenWidget({ appId, defaultMirror = false, onClose, onMinimize
       if (stream) void videoRef.current.play().catch(() => {})
     }
   }, [stream])
+
+  // Feed this widget's captured audio into 'internal' reactivity analysis —
+  // automatic, no separate capture/prompt. Analysis-only: never routed to
+  // speakers (the <video> element above already handles this widget's own
+  // playback). Unregisters on stream change/unmount so closing the widget
+  // stops contributing audio to the internal mix.
+  const widgetId = appId ?? 'screen'
+  useEffect(() => {
+    if (stream && stream.getAudioTracks().length > 0) {
+      audioEngine.registerExternalAudioSource(widgetId, stream)
+    } else {
+      audioEngine.unregisterExternalAudioSource(widgetId)
+    }
+    return () => audioEngine.unregisterExternalAudioSource(widgetId)
+  }, [widgetId, stream])
 
   const idle = !stream && !connecting && !error
 

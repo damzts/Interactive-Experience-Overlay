@@ -5,6 +5,8 @@ export interface ScreenSharePublisherState {
   /** True while a share is active for this widgetId (publishing to the overlay). */
   active: boolean
   error: string | null
+  /** Non-fatal: share is live but no audio track was captured (see registry). */
+  warning: string | null
   /** Begin capture — must be called from a click handler (getDisplayMedia requires a user gesture). */
   start: () => void
   /** Stop sharing and tear down the publisher connection. */
@@ -43,5 +45,5 @@ export function useScreenSharePublisher(widgetId: string, audio: boolean): Scree
     screenSharePublisherRegistry.stop(widgetId)
   }, [widgetId])
 
-  return { active: snapshot.active, error: snapshot.error, start, stop }
+  return { active: snapshot.active, error: snapshot.error, warning: snapshot.warning, start, stop }
 }
