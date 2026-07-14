@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { ConfigPanel } from '../../components/organisms'
 import { Button } from '../../components/atoms'
 import { useScreenSharePublisher } from '../../hooks/useScreenSharePublisher'
@@ -16,6 +17,12 @@ import type { Application } from '@ieomlabs/shared'
  * outside React), not by this component — closing this panel or switching
  * to a different widget does not stop the share. This panel is just a
  * selector/control surface for whichever screen share is running.
+ *
+ * When autoStart is enabled this panel calls start() as soon as it mounts
+ * (and the share isn't already active). In the desktop app this is fully
+ * silent — Electron captures the whole screen without a picker. In a plain
+ * browser tab the system picker still pops once per session, but it fires
+ * automatically rather than waiting for a manual click.
  */
 export function ScreenConfigSection({
   form,
@@ -25,7 +32,26 @@ export function ScreenConfigSection({
   update: (updater: (draft: Application) => void) => void
 }) {
   const audio = form.screenSettings?.audio ?? false
+  const autoStart = form.screenSettings?.autoStart ?? false
   const { active, error, warning, start, stop } = useScreenSharePublisher(form.id, audio)
+
+  // Auto-start the share when the panel mounts if autoStart is enabled and the
+  // share is not already running. We guard with a ref so this only fires once
+  // per mount, not on every re-render or audio/autoStart change.
+  const hasAutoStartedRef = useRef(false)
+  useEffect(() => {
+    if (autoStart && !active && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true
+      start()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reset the guard if the user turns autoStart off mid-session (so a future
+  // re-mount with autoStart on fires again cleanly).
+  useEffect(() => {
+    if (!autoStart) hasAutoStartedRef.current = false
+  }, [autoStart])
 
   return (
     <ConfigPanel title="Screen Share Defaults" className="mb-4">
@@ -49,6 +75,13 @@ export function ScreenConfigSection({
         {!error && warning && (
           <div className="rounded border border-[var(--color-warning-500)]/60 bg-[var(--color-warning-500)]/10 px-3 py-2 text-[10px] text-[var(--color-warning-400)]">{warning}</div>
         )}
+        <div className="flex items-center gap-2">
+          <input id={`screen-autostart-${form.id}`} type="checkbox" checked={autoStart}
+            onChange={(e) => update((d) => { d.screenSettings = { ...(d.screenSettings ?? {}), autoStart: e.target.checked } })} />
+          <label htmlFor={`screen-autostart-${form.id}`} className="text-[11px] text-[var(--color-text-primary)] cursor-pointer">
+            Auto-start sharing when panel opens
+          </label>
+        </div>
         <div className="flex items-center gap-2">
           <input id={`screen-audio-${form.id}`} type="checkbox" checked={audio}
             onChange={(e) => update((d) => { d.screenSettings = { ...(d.screenSettings ?? {}), audio: e.target.checked } })} />

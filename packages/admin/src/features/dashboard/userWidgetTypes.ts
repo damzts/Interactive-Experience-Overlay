@@ -60,7 +60,7 @@ export const USER_WIDGET_TYPES: readonly UserWidgetTypeDescriptor[] = [
     icon: '🖥️',
     description: 'Opens a desktop window sharing a screen, window, or browser tab.',
     defaultLabel: 'Screen Widget',
-    createDefaults: () => ({ screenSettings: { audio: false, mirror: false } }),
+    createDefaults: () => ({ screenSettings: { audio: false, mirror: false, autoStart: false } }),
     ConfigSection: ScreenConfigSection,
   },
   {

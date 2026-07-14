@@ -167,6 +167,16 @@ export interface Application {
     /** Capture system/tab audio alongside the video track. Default: false. */
     audio?: boolean
     mirror?: boolean
+    /**
+     * When true, the admin panel will automatically call start() when
+     * ScreenConfigSection mounts (i.e. the user opens the widget config or
+     * navigates back to the dashboard). In the desktop app this is fully
+     * silent — no picker — because Electron captures the whole screen without
+     * a user gesture dialog. In a plain browser tab the system picker still
+     * appears once per session, but subsequent re-opens of the panel will
+     * re-trigger it automatically rather than waiting for a manual click.
+     */
+    autoStart?: boolean
   }
   /** Optional window binding for window-backed widget windows. */
   windowWidgetSettings?: WindowWidgetSettings
