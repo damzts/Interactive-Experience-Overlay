@@ -12,6 +12,11 @@ import type { Application } from '@ieomlabs/shared'
  * to whichever source is selected. Start/stop controls live in the
  * dedicated Capture Sources panel, not here.
  *
+ * sourceId is auto-saved on change (no Apply needed) so the overlay
+ * widget immediately gets the updated key and can start receiving the
+ * share. Other settings (mirror) still go through the normal draft/apply
+ * flow since they don't affect the WebRTC connection.
+ *
  * Falls back to the legacy per-widget start/stop flow when no sources
  * are defined, so existing setups keep working without migration.
  */
@@ -23,6 +28,7 @@ export function ScreenConfigSection({
   update: (updater: (draft: Application) => void) => void
 }) {
   const captureSources = useAdminStore((s) => s.config.captureSources ?? [])
+  const saveConfig     = useAdminStore((s) => s.saveConfig)
   const sourceId = form.screenSettings?.sourceId ?? ''
   const audio = form.screenSettings?.audio ?? false
 
@@ -33,6 +39,24 @@ export function ScreenConfigSection({
   const selectedPublisher = useScreenSharePublisher(sourceId || '__none__', selectedSource?.audio ?? false)
 
   const hasSources = captureSources.length > 0
+
+  // Auto-save sourceId immediately so the overlay gets the updated key right
+  // away and can request a re-offer. Without this the overlay would sit on
+  // the old (or absent) key until the user manually hits Apply.
+  const handleSourceChange = (newSourceId: string) => {
+    const next = newSourceId || undefined
+    // Update local draft so the UI reflects the change immediately
+    update((d) => { d.screenSettings = { ...(d.screenSettings ?? {}), sourceId: next } })
+    // Persist right away — bypasses the Apply button for this field only
+    const currentApps = useAdminStore.getState().config.applications
+    void saveConfig({
+      applications: currentApps.map((a) =>
+        a.id === form.id
+          ? { ...a, screenSettings: { ...(a.screenSettings ?? {}), sourceId: next } }
+          : a,
+      ),
+    })
+  }
 
   return (
     <ConfigPanel title="Screen Share" className="mb-4">
@@ -49,11 +73,7 @@ export function ScreenConfigSection({
               <div className="text-[10px] text-[var(--color-text-muted)] mb-1">Source</div>
               <select
                 value={sourceId}
-                onChange={(e) =>
-                  update((d) => {
-                    d.screenSettings = { ...(d.screenSettings ?? {}), sourceId: e.target.value || undefined }
-                  })
-                }
+                onChange={(e) => handleSourceChange(e.target.value)}
                 className="w-full text-xs"
               >
                 <option value="">— None —</option>
