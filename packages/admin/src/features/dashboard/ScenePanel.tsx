@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STATE } from '@ieomlabs/shared'
-import type { Scene, Sequence, SequenceStep, WindowInstance } from '@ieomlabs/shared'
+import { STATE, RENDERER_CATALOG, resolveWindowInstance } from '@ieomlabs/shared'
+import type { Scene, Sequence, SequenceStep, WindowInstance, TierName } from '@ieomlabs/shared'
 import { useAdminStore } from '../../store/useAdminStore'
 import { Btn, ConfigApplyBar, isSameDraft } from '../../shared/ui'
 import { ConfigPanel } from '../../components/organisms'
-import { SourcesEditor } from './SceneConfig'
 import { ScenePreview } from './ScenePreview'
 import { DesktopThemeEditor } from './DesktopThemePanel'
 import { fetchSequences } from '../../api/sequencesApi'
@@ -36,6 +35,300 @@ function buildDraft(
     showDesktop: scene?.showDesktop ?? false,
   }
 }
+
+// ── WindowsPanel ──────────────────────────────────────────────────
+// Left: inline-expandable renderer list + add button
+// Right: scene preview (drag canvas) only
+
+const TIERS: TierName[] = ['background', 'particles', 'content', 'post', 'transition']
+
+function RendererRow({
+  win,
+  windowPresets,
+  expanded,
+  onToggleExpand,
+  onChange,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
+}: {
+  win: WindowInstance
+  windowPresets: ReturnType<typeof useAdminStore.getState>['config']['windowPresets']
+  expanded: boolean
+  onToggleExpand: () => void
+  onChange: (updated: WindowInstance) => void
+  onRemove: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  isFirst: boolean
+  isLast: boolean
+}) {
+  const captureSources = useAdminStore((s) => s.config.captureSources ?? [])
+  const resolved = resolveWindowInstance(win, windowPresets)
+  const rt = resolved?.rendererType ?? win.rendererType ?? ''
+  const meta = RENDERER_CATALOG.find((c) => c.id === rt)
+  const cfg = win.config ?? {}
+
+  const updateField = (key: string, value: unknown) =>
+    onChange({ ...win, config: { ...win.config, [key]: value } })
+
+  const updateRendererType = (rendererType: string) => {
+    const entry = RENDERER_CATALOG.find((c) => c.id === rendererType)
+    onChange({ ...win, rendererType, windowPresetId: undefined, config: entry?.defaultConfig ? { ...entry.defaultConfig } : {} })
+  }
+
+  return (
+    <div className="mb-1.5">
+      {/* collapsed / header row */}
+      <div
+        className={
+          'group flex items-center gap-1.5 rounded-xl border px-2.5 py-2 cursor-pointer transition-colors ' +
+          (expanded
+            ? 'border-cyan-400/30 bg-cyan-500/10 text-zinc-100'
+            : 'border-white/5 bg-white/[0.02] text-zinc-400 hover:border-white/12 hover:bg-white/[0.04] hover:text-zinc-200')
+        }
+        onClick={onToggleExpand}
+      >
+        {/* visibility dot */}
+        <button type="button" title={win.visible ? 'Hide' : 'Show'}
+          onClick={(e) => { e.stopPropagation(); onChange({ ...win, visible: !win.visible }) }}
+          className={'h-1.5 w-1.5 shrink-0 rounded-full transition-colors ' + (win.visible ? 'bg-emerald-400' : 'bg-zinc-700 hover:bg-zinc-500')}
+        />
+        {/* lock toggle */}
+        <button type="button" title={win.locked ? 'Unlock (allow drag/resize in canvas)' : 'Lock (exclude from drag canvas)'}
+          onClick={(e) => { e.stopPropagation(); onChange({ ...win, locked: !win.locked }) }}
+          className={'shrink-0 text-[11px] leading-none transition-colors ' + (win.locked ? 'text-amber-400' : 'text-zinc-700 opacity-0 group-hover:opacity-100 hover:text-zinc-400')}
+        >
+          {win.locked ? '🔒' : '🔓'}
+        </button>
+        <span className="shrink-0 text-[12px] leading-none">{meta?.icon ?? '▣'}</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] font-medium leading-tight">
+          {meta?.label ?? (rt || 'Unset')}
+        </span>
+        <span className="shrink-0 rounded bg-white/[0.06] px-1 py-0.5 text-[9px] leading-none text-zinc-500">{win.tier ?? 'content'}</span>
+        {/* reorder */}
+        <div className="flex shrink-0 flex-col gap-px opacity-0 group-hover:opacity-100 transition-opacity">
+          <button type="button" onClick={(e) => { e.stopPropagation(); onMoveUp() }} disabled={isFirst}
+            className="px-0.5 text-[9px] leading-none text-zinc-500 hover:text-zinc-300 disabled:opacity-20">↑</button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onMoveDown() }} disabled={isLast}
+            className="px-0.5 text-[9px] leading-none text-zinc-500 hover:text-zinc-300 disabled:opacity-20">↓</button>
+        </div>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onRemove() }}
+          className="shrink-0 px-0.5 text-[10px] text-zinc-600 opacity-0 transition-all hover:text-red-400 group-hover:opacity-100">
+          ✕
+        </button>
+      </div>
+
+      {/* inline expanded config */}
+      {expanded && (
+        <div className="mx-1 mb-2 space-y-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+          {/* Renderer type */}
+          <div>
+            <div className="text-[10px] text-zinc-600 mb-0.5">Type</div>
+            <select value={rt} onChange={(e) => updateRendererType(e.target.value)} className="w-full text-xs">
+              <option value="">— choose —</option>
+              {RENDERER_CATALOG.map((c) => (
+                <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tier */}
+          <div>
+            <div className="text-[10px] text-zinc-600 mb-0.5">Tier</div>
+            <select value={win.tier ?? 'content'}
+              onChange={(e) => onChange({ ...win, tier: e.target.value as TierName })}
+              className="w-full text-xs">
+              {TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          {/* Renderer-specific fields */}
+          {meta?.fields && meta.fields.length > 0 && (
+            <div className="space-y-2 border-t border-white/8 pt-2">
+              {meta.fields.map((field) => {
+                const val = cfg[field.key]
+
+                // screen-share: widgetId → capture source picker
+                if (rt === 'screen-share' && field.key === 'widgetId') return (
+                  <div key={field.key}>
+                    <div className="text-[10px] text-zinc-600 mb-0.5">Capture Source</div>
+                    {captureSources.length === 0 ? (
+                      <div className="rounded border border-white/8 bg-white/[0.02] px-2.5 py-1.5 text-[10px] italic text-zinc-600">
+                        No sources — add one above.
+                      </div>
+                    ) : (
+                      <select value={String(val ?? '')}
+                        onChange={(e) => updateField('widgetId', e.target.value)}
+                        className="w-full text-xs">
+                        <option value="">— select source —</option>
+                        {captureSources.map((src) => (
+                          <option key={src.id} value={src.id}>{src.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )
+
+                if (field.type === 'boolean') return (
+                  <label key={field.key} className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={Boolean(val)}
+                      onChange={(e) => updateField(field.key, e.target.checked)}
+                      className="h-3.5 w-3.5 accent-cyan-400" />
+                    <span className="text-[11px] text-zinc-400">{field.label}</span>
+                  </label>
+                )
+                if (field.type === 'select') return (
+                  <div key={field.key}>
+                    <div className="text-[10px] text-zinc-600 mb-0.5">{field.label}</div>
+                    <select value={String(val ?? '')}
+                      onChange={(e) => updateField(field.key, e.target.value)}
+                      className="w-full text-xs">
+                      {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                )
+                if (field.type === 'number') return (
+                  <div key={field.key}>
+                    <div className="text-[10px] text-zinc-600 mb-0.5">{field.label}</div>
+                    <input type="number" value={val != null ? Number(val) : ''}
+                      min={field.min} max={field.max} step={field.step}
+                      onChange={(e) => updateField(field.key, Number(e.target.value))}
+                      className="w-full text-xs" />
+                  </div>
+                )
+                if (field.type === 'color') return (
+                  <div key={field.key} className="flex items-center gap-2">
+                    <span className="flex-1 text-[10px] text-zinc-600">{field.label}</span>
+                    <input type="color" value={String(val ?? '#000000')}
+                      onChange={(e) => updateField(field.key, e.target.value)}
+                      className="h-6 w-10 cursor-pointer rounded border-0 bg-transparent p-0" />
+                  </div>
+                )
+                return (
+                  <div key={field.key}>
+                    <div className="text-[10px] text-zinc-600 mb-0.5">{field.label}</div>
+                    <input type="text" value={String(val ?? '')} placeholder={field.placeholder ?? ''}
+                      onChange={(e) => updateField(field.key, e.target.value)}
+                      className="w-full text-xs" />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WindowsPanel({
+  windows,
+  windowPresets,
+  selectedId,
+  onSelect,
+  onChange,
+  onChangePosition,
+}: {
+  windows: WindowInstance[]
+  windowPresets: ReturnType<typeof useAdminStore.getState>['config']['windowPresets']
+  selectedId: string | null
+  onSelect: (id: string | null) => void
+  onChange: (next: WindowInstance[]) => void
+  onChangePosition: (id: string, pos: { x: number; y: number; width: number; height: number }) => void
+}) {
+  const sorted = [...windows].sort((a, b) => a.zIndex - b.zIndex)
+  const dragId = useRef<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+
+  const reorder = (fromId: string, toId: string) => {
+    if (fromId === toId) return
+    const ordered = [...windows].sort((a, b) => a.zIndex - b.zIndex)
+    const fromIdx = ordered.findIndex((w) => w.id === fromId)
+    const toIdx   = ordered.findIndex((w) => w.id === toId)
+    if (fromIdx < 0 || toIdx < 0) return
+    const next = [...ordered]
+    const [moved] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, moved)
+    onChange(next.map((w, idx) => ({ ...w, zIndex: idx })))
+  }
+
+  const moveUp = (id: string) => {
+    const ordered = [...windows].sort((a, b) => a.zIndex - b.zIndex)
+    const i = ordered.findIndex((w) => w.id === id)
+    if (i <= 0) return
+    ;[ordered[i - 1], ordered[i]] = [ordered[i], ordered[i - 1]]
+    onChange(ordered.map((w, idx) => ({ ...w, zIndex: idx })))
+  }
+  const moveDown = (id: string) => {
+    const ordered = [...windows].sort((a, b) => a.zIndex - b.zIndex)
+    const i = ordered.findIndex((w) => w.id === id)
+    if (i < 0 || i === ordered.length - 1) return
+    ;[ordered[i], ordered[i + 1]] = [ordered[i + 1], ordered[i]]
+    onChange(ordered.map((w, idx) => ({ ...w, zIndex: idx })))
+  }
+  const addWindow = () => {
+    const newWin: WindowInstance = {
+      id: `win-${Date.now()}`,
+      position: { x: 0, y: 0, width: 1920, height: 1080 },
+      zIndex: windows.length,
+      visible: true,
+    }
+    onChange([...windows, newWin])
+    onSelect(newWin.id)
+  }
+
+  return (
+    <div className="flex gap-3 min-h-0">
+      {/* ── Left: renderer list ───────────────────────────── */}
+      <div className="flex w-[220px] shrink-0 flex-col overflow-y-auto max-h-[70vh]">
+        {sorted.map((w, idx) => (
+          <div
+            key={w.id}
+            draggable
+            onDragStart={() => { dragId.current = w.id }}
+            onDragEnd={() => { dragId.current = null; setDragOverId(null) }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverId(w.id) }}
+            onDrop={(e) => { e.preventDefault(); if (dragId.current) reorder(dragId.current, w.id); setDragOverId(null) }}
+            className={dragOverId === w.id && dragId.current !== w.id ? 'border-t-2 border-cyan-400' : ''}
+          >
+            <RendererRow
+              win={w}
+              windowPresets={windowPresets}
+              expanded={selectedId === w.id}
+              onToggleExpand={() => onSelect(selectedId === w.id ? null : w.id)}
+              onChange={(updated) => onChange(windows.map((x) => x.id === w.id ? updated : x))}
+              onRemove={() => { onChange(windows.filter((x) => x.id !== w.id)); if (selectedId === w.id) onSelect(null) }}
+              onMoveUp={() => moveUp(w.id)}
+              onMoveDown={() => moveDown(w.id)}
+              isFirst={idx === 0}
+              isLast={idx === sorted.length - 1}
+            />
+          </div>
+        ))}
+        <button type="button" onClick={addWindow}
+          className="mt-1 flex items-center gap-1.5 rounded-xl border border-dashed border-white/10 px-3 py-2 text-[11px] text-zinc-500 transition-colors hover:border-cyan-500/35 hover:bg-cyan-500/8 hover:text-cyan-200">
+          <span className="w-4 shrink-0 text-center text-sm">+</span>
+          <span>Add renderer</span>
+        </button>
+      </div>
+
+      {/* ── Right: preview only ───────────────────────────── */}
+      <div className="flex flex-1 min-w-0 flex-col">
+        <ScenePreview
+          windows={windows}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onChangePosition={onChangePosition}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── ScenePanel ────────────────────────────────────────────────────
 
 export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?: () => void }) {
   const config        = useAdminStore((s) => s.config)
@@ -136,22 +429,17 @@ export function ScenePanel({ sceneId, onDeleted }: { sceneId: string; onDeleted?
 
       {/* ── Windows tab ──────────────────────────────────── */}
       {tab === 'windows' && (
-        <div className="space-y-3">
-          <ScenePreview
-            windows={draft.windows}
-            selectedId={selectedWindowId}
-            onSelect={setSelectedWindowId}
-            onChangePosition={(id, pos) => update((d) => {
-              const w = d.windows.find((x) => x.id === id)
-              if (w) w.position = pos
-            })}
-          />
-          <SourcesEditor
-            sources={draft.windows}
-            windowPresets={windowPresets}
-            onChange={(next) => update((d) => { d.windows = next })}
-          />
-        </div>
+        <WindowsPanel
+          windows={draft.windows}
+          windowPresets={windowPresets}
+          selectedId={selectedWindowId}
+          onSelect={setSelectedWindowId}
+          onChange={(next) => update((d) => { d.windows = next })}
+          onChangePosition={(id, pos) => update((d) => {
+            const w = d.windows.find((x) => x.id === id)
+            if (w) w.position = pos
+          })}
+        />
       )}
 
       {/* ── Settings tab ─────────────────────────────────── */}

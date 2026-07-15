@@ -580,6 +580,24 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
       { key: 'brightness', label: 'Brightness', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
+  // ── Screen share renderer ────────────────────────────────────────
+  {
+    id: 'screen-share', label: 'Screen Share', icon: '🖥️', category: 'media', defaultTier: 'content',
+    desc: 'Displays a live screen/window/tab capture published from the admin panel. Set widgetId to a Capture Source ID.',
+    defaultConfig: { widgetId: '', objectFit: 'contain', mirror: false, opacity: 1, shape: 'rectangle', brightness: 1, contrast: 1, saturation: 1, frameUrl: '' },
+    fields: [
+      { key: 'widgetId',   label: 'Capture Source ID', type: 'text' },
+      { key: 'objectFit',  label: 'Fit',               type: 'select', options: ['contain', 'cover'] },
+      { key: 'shape',      label: 'Shape',             type: 'select', options: ['rectangle', 'rounded', 'circle'] },
+      { key: 'mirror',     label: 'Mirror',            type: 'boolean' },
+      { key: 'opacity',    label: 'Opacity',           type: 'number', min: 0, max: 1,   step: 0.05 },
+      { key: 'brightness', label: 'Brightness',        type: 'number', min: 0, max: 2,   step: 0.05 },
+      { key: 'contrast',   label: 'Contrast',          type: 'number', min: 0, max: 2,   step: 0.05 },
+      { key: 'saturation', label: 'Saturation',        type: 'number', min: 0, max: 2,   step: 0.05 },
+      { key: 'frameUrl',   label: 'Frame overlay URL', type: 'text' },
+    ],
+    defaultPosition: { x: 0, y: 0, width: 1280, height: 720 },
+  },
 ]
 
 export function findRendererCatalogEntry(rendererType: string | undefined): RendererCatalogEntry | undefined {

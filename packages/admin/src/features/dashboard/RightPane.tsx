@@ -226,7 +226,6 @@ export function RightPane({ selected, onClose, onSelectItem, onSelect, onActivat
     else if (selected.kind === 'audio')             { headerIcon = '🎵'; headerLabel = 'Audio';          headerMeta = 'Integration' }
     else if (selected.kind === 'twitch')            { headerIcon = '💬'; headerLabel = 'Twitch';         headerMeta = 'Integration' }
     else if (selected.kind === 'developer')         { headerIcon = '🛠'; headerLabel = 'Developer';      headerMeta = 'Engine' }
-    else if (selected.kind === 'capture-sources')   { headerIcon = '🖥️'; headerLabel = 'Capture Sources'; headerMeta = 'Capture' }
     else if (selected.kind === 'sequence')          { headerIcon = '🎞'; headerLabel = 'Sequence';         headerMeta = 'Effect Pipeline' }
   }
 

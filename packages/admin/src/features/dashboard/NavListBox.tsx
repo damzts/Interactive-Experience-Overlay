@@ -1,13 +1,14 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAdminStore } from '../../store/useAdminStore'
 import { STATE, withDesktopConfigDefaults, getWidgetSource } from '@ieomlabs/shared'
-import type { Application, Scene } from '@ieomlabs/shared'
+import type { Application, CaptureSource, Scene } from '@ieomlabs/shared'
 import { socket } from '../../socket/client'
 import { IconGlyph } from '../../shared/ui'
 import { itemKey } from './types'
 import type { SelectedItem } from './types'
 import { createWidgetLayoutFromCurrentState } from './widgetHelpers'
 import type { MediaRecord } from '../../shared/catalog'
+import { useScreenSharePublisher } from '../../hooks/useScreenSharePublisher'
 
 // ── SidebarBtn ─────────────────────────────────────────────────────
 
@@ -95,6 +96,179 @@ export function MediaSection({ title, items, selectedId, onSelect }: {
   )
 }
 
+// ── CaptureSidebarRow ──────────────────────────────────────────────
+
+function CaptureSidebarRow({
+  source,
+  expanded,
+  onToggleExpand,
+  onUpdate,
+  onRemove,
+}: {
+  source: CaptureSource
+  expanded: boolean
+  onToggleExpand: () => void
+  onUpdate: (updated: CaptureSource) => void
+  onRemove: () => void
+}) {
+  const { active, error, warning, start, stop } = useScreenSharePublisher(source.id, source.audio)
+
+  return (
+    <div className="mb-1.5">
+      {/* collapsed / header row */}
+      <SidebarBtn
+        icon="🖥️"
+        label={source.name || 'Unnamed source'}
+        active={expanded}
+        statusLabel={active ? '● Live' : undefined}
+        statusClassName="text-emerald-400"
+        onClick={onToggleExpand}
+      />
+
+      {/* expanded inline config */}
+      {expanded && (
+        <div className="mx-1 mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 space-y-2.5">
+          {/* name */}
+          <input
+            type="text"
+            value={source.name}
+            onChange={(e) => onUpdate({ ...source, name: e.target.value })}
+            placeholder="Source name…"
+            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500/50 focus:ring-0"
+          />
+
+          {/* toggles */}
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={source.audio}
+                onChange={(e) => onUpdate({ ...source, audio: e.target.checked })}
+                className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-cyan-400"
+              />
+              <span className="text-[11px] text-zinc-400">Capture audio</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={source.autoStart}
+                onChange={(e) => onUpdate({ ...source, autoStart: e.target.checked })}
+                className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-cyan-400"
+              />
+              <span className="text-[11px] text-zinc-400">Auto-start on open</span>
+            </label>
+          </div>
+
+          {/* start / stop */}
+          <div className="flex items-center gap-2">
+            {active ? (
+              <button
+                type="button"
+                onClick={stop}
+                className="rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
+              >
+                ⏹ Stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={start}
+                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-300 transition-colors hover:border-cyan-500/50 hover:bg-cyan-500/15 hover:text-cyan-200"
+              >
+                🖥️ Share
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={active}
+              className="ml-auto rounded-lg border border-white/8 px-2 py-1 text-[11px] text-zinc-600 transition-colors hover:border-red-500/30 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Remove source"
+            >
+              🗑
+            </button>
+          </div>
+
+          {/* error / warning */}
+          {error && (
+            <div className="rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[10px] text-red-400">
+              {error}
+            </div>
+          )}
+          {!error && warning && (
+            <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] text-amber-400">
+              {warning}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── CaptureSourcesSection ──────────────────────────────────────────
+
+function CaptureSourcesSection() {
+  const sources    = useAdminStore((s) => s.config.captureSources ?? [])
+  const patchConfig = useAdminStore((s) => s.patchConfig)
+  const saveConfig  = useAdminStore((s) => s.saveConfig)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const persist = useCallback(async (next: CaptureSource[]) => {
+    patchConfig({ captureSources: next })
+    try {
+      await saveConfig({ captureSources: next })
+    } catch {
+      // store already patched; silently swallow — error visible in console
+    }
+  }, [patchConfig, saveConfig])
+
+  const handleUpdate = (id: string, updated: CaptureSource) => {
+    void persist(sources.map((s) => (s.id === id ? updated : s)))
+  }
+
+  const handleRemove = (id: string) => {
+    if (expandedId === id) setExpandedId(null)
+    void persist(sources.filter((s) => s.id !== id))
+  }
+
+  const handleAdd = () => {
+    const next: CaptureSource = {
+      id: crypto.randomUUID(),
+      name: `Source ${sources.length + 1}`,
+      audio: false,
+      autoStart: false,
+    }
+    void persist([...sources, next])
+    setExpandedId(next.id)
+  }
+
+  return (
+    <>
+      <SectionLabel first>Capture Sources</SectionLabel>
+
+      {sources.length === 0 && (
+        <div className="px-2.5 pb-1 text-[10px] italic text-zinc-600">
+          No sources. Add one below.
+        </div>
+      )}
+
+      {sources.map((source) => (
+        <CaptureSidebarRow
+          key={source.id}
+          source={source}
+          expanded={expandedId === source.id}
+          onToggleExpand={() => setExpandedId((prev) => (prev === source.id ? null : source.id))}
+          onUpdate={(updated) => handleUpdate(source.id, updated)}
+          onRemove={() => handleRemove(source.id)}
+        />
+      ))}
+
+      <AddBtn label="Add Source" onClick={handleAdd} />
+    </>
+  )
+}
+
 // ── helpers ────────────────────────────────────────────────────────
 
 /** Returns true if the currently selected item "belongs" to the given section. */
@@ -165,7 +339,8 @@ export function NavListBox({ selected, onSelect, onActivate, activeSection = 'sc
       <div className="flex-1 overflow-y-auto pb-2 pr-1">
 
         {activeSection === 'scenes' && <>
-          <SectionLabel first>Scenes</SectionLabel>
+          <CaptureSourcesSection />
+          <SectionLabel>Scenes</SectionLabel>
           {Object.values(scenes)
             .map((scene) => (
               <SidebarBtn key={scene.id} icon={scene.id === STATE.DESKTOP ? '🖥' : '🎬'} label={scene.label}
