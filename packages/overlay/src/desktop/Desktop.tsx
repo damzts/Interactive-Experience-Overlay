@@ -96,7 +96,7 @@ const ICON_RENDER_H: Record<IconSize, number> = { small: 74, normal: 86, large: 
 const ICON_SLOT_H  = 88
 const DESKTOP_PAD  = 16
 const TASKBAR_H    = 40
-const CANVAS_H     = 1080
+const CANVAS_H_FALLBACK = 1080 // used only before the desktop container has been measured
 const DRAG_THRESHOLD_PX = 4
 
 function resolveWidgetStackPreference(
@@ -236,9 +236,10 @@ function computeArrangementPositions(
 function computeGridPositions(
   apps: Application[],
   defaultIconSize: IconSize,
+  availableHeight: number,
 ): Map<string, { x: number; y: number }> {
   const slotW     = ICON_SLOT_W[defaultIconSize] ?? ICON_SLOT_W.normal
-  const availH    = CANVAS_H - TASKBAR_H - DESKTOP_PAD * 2
+  const availH    = availableHeight - TASKBAR_H - DESKTOP_PAD * 2
   const perColumn = Math.max(1, Math.floor(availH / ICON_SLOT_H))
   const result    = new Map<string, { x: number; y: number }>()
 
@@ -295,6 +296,20 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
     pending: null,
   })
   const overlayRuntimeStatusSignatureRef = useRef('')
+
+  // Real measured size of the desktop container — used instead of a
+  // hardcoded 1920x1080 assumption so icon grid layout adapts to any
+  // OBS Browser Source resolution/orientation (e.g. vertical/mobile).
+  const [desktopSize, setDesktopSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const el = desktopRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      setDesktopSize({ width: el.clientWidth, height: el.clientHeight })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const config = useAppStore((s) => s.config)
   const desktopConfig = useMemo(() => withDesktopConfigDefaults(config.desktopConfig), [config.desktopConfig])
@@ -699,9 +714,10 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
 
   const autoArrangeIcons = desktopConfig.autoArrangeIcons
   const defaultIconSize  = desktopConfig.defaultIconSize
+  const desktopAvailableHeight = desktopSize.height || CANVAS_H_FALLBACK
   const arrangedGridPositions = useMemo(
-    () => computeGridPositions(desktopApps, defaultIconSize),
-    [defaultIconSize, desktopApps],
+    () => computeGridPositions(desktopApps, defaultIconSize, desktopAvailableHeight),
+    [defaultIconSize, desktopApps, desktopAvailableHeight],
   )
 
   // Compute collision-free grid positions. In auto-arrange mode every icon
@@ -711,8 +727,8 @@ export function Desktop({ apps, overlayStyle: desktopStyle }: DesktopProps) {
     const toArrange = autoArrangeIcons
       ? desktopApps
       : desktopApps.filter((a) => !a.iconPosition)
-    return computeGridPositions(toArrange, defaultIconSize)
-  }, [desktopApps, autoArrangeIcons, defaultIconSize])
+    return computeGridPositions(toArrange, defaultIconSize, desktopAvailableHeight)
+  }, [desktopApps, autoArrangeIcons, defaultIconSize, desktopAvailableHeight])
 
   const launchableApps = useMemo(
     () => desktopApps,

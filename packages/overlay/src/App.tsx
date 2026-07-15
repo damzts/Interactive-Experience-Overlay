@@ -16,6 +16,37 @@ import { RtcStreamProvider } from './rtc/RtcStreamContext'
 import { runChatBubble } from './transitions/ChatBubble'
 import { runPersonaAvatar, ensurePersonaAvatar, retirePersistentAvatar } from './transitions/PersonaAvatar'
 
+/**
+ * Scene sources are authored (positioned/sized) against a fixed 1920x1080
+ * design canvas — same convention as the WindowWidget "TV" scene-embed.
+ * The stage below scales that canvas to fully cover whatever the real OBS
+ * Browser Source resolution is (any aspect ratio, e.g. vertical/mobile),
+ * cropping overflow instead of leaving unfilled space. Existing 16:9 setups
+ * are unaffected: at a 1920x1080 output the scale factor is exactly 1.
+ */
+const STAGE_W = 1920
+const STAGE_H = 1080
+
+function useStageScale() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (width > 0 && height > 0) {
+        setScale(Math.max(width / STAGE_W, height / STAGE_H))
+      }
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  return { ref, scale }
+}
+
 export default function App() {
   const visualState = useAppStore((s) => s.visualState)
   const config      = useAppStore((s) => s.config)
@@ -82,6 +113,7 @@ export default function App() {
   }, [personaAvatarKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { scene, visibleWindows, overlayStyle, showDesktop } = resolveScene(config, visualState)
+  const { ref: stageContainerRef, scale: stageScale } = useStageScale()
 
   // Scene-level track overrides the global one; playAmbient no-ops when the URL is unchanged.
   const ambientTrack = scene?.ambientTrack || config.audio.ambientTrack || null
@@ -96,12 +128,27 @@ export default function App() {
         className={`state-${visualState.toLowerCase()}`}
         data-desktop={String(showDesktop)}
       >
-        <LayerErrorBoundary name="scene">
-          <SceneCompositor
-            windows={visibleWindows}
-            sceneAge={sceneAge}
-          />
-        </LayerErrorBoundary>
+        <div ref={stageContainerRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+          {stageScale > 0 ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: STAGE_W,
+                height: STAGE_H,
+                transform: `translate(-50%, -50%) scale(${stageScale})`,
+              }}
+            >
+              <LayerErrorBoundary name="scene">
+                <SceneCompositor
+                  windows={visibleWindows}
+                  sceneAge={sceneAge}
+                />
+              </LayerErrorBoundary>
+            </div>
+          ) : null}
+        </div>
 
         <div id="desktop-layer">
           <LayerErrorBoundary name="desktop">
