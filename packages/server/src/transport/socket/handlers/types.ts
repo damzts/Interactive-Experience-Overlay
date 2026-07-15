@@ -32,10 +32,13 @@ export interface HandlerContext {
   bus: KernelBus
   obsBridge?: ObsBridgeManager
 
+  /** Local admin↔overlay screen-share signaling relay (see screen-share-relay.ts). */
+  screenShareRelay?: import('../../webrtc/screen-share-relay.js').ScreenShareRelay
+
   runtimeConfig: RuntimeConfig
   cachedUserConfig: AppConfig
 
-  socketClientTypes: Map<string, 'overlay' | 'admin' | 'unknown'>
+  socketClientTypes: Map<string, 'overlay' | 'admin' | 'preview' | 'unknown'>
 
   /** Last render-performance sample from the connected overlay (RAM-only). */
   lastOverlayPerf?: import('@ieomlabs/shared').OverlayPerfPayload | null

@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > Update this catalog when signals or commands are added or removed.
 > The ground truth is `packages/shared/src/contracts/signals.ts` and `commands.ts`.
-> This file provides prose context that type definitions alone don't convey.
+> This file provides prose context that type definitions alone don't convey. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 
@@ -38,8 +38,7 @@ Two planes, both defined in `packages/shared/src/contracts/signals.ts`:
 | `overlay:owner` | `{ socketId }` | Overlay slot changes | Track overlay ownership in admin |
 | `overlay:resync` | `{ reason }` | Slot reconnect or reset | Re-request full state snapshot |
 | `overlay:rejected` | `{ reason }` | Second overlay tries to connect | Show "already open" message, disconnect |
-| `ambiance:simulate` | `AmbianceSimulationPayload` | AmbianceManager picks an action | Leader executes the simulation |
-| `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Kernel forwards widget interaction | Widget receives DOM intent (gallery:next, etc.) |
+| `ambiance:simulate` | `AmbianceSimulationPayload` | AmbianceManager picks an action | Leader executes the simulation, then dispatches the shared intent locally (no server round-trip) |
 | `widget:toggle` | `widgetId: string` | Widget open/close triggered | Toggle widget window |
 | `widget:layout:apply` | `layoutId: string` | Layout preset activated | Apply named widget layout |
 | `widget:layout:apply:items` | `WidgetLayoutItem[]` | Layout items applied | Apply raw widget positions/sizes |
@@ -101,7 +100,6 @@ Defined in `packages/shared/src/contracts/commands.ts` as `ClientToServerEvents`
 | `ambiance:history:clear` | — | Admin diagnostics | Clear ambiance history log |
 | `ambiance:simulate:accepted` | `AmbianceSimulationAcceptedPayload` | Overlay leader accepts | Kernel records accept, clears pending timeout |
 | `ambiance:simulate:done` | `AmbianceSimulationDonePayload` | Overlay finishes simulation | Kernel records outcome, updates metrics |
-| `widget:simulate:intent` | `WidgetSimulationIntentPayload` | Widget interaction | Kernel broadcasts to all clients |
 | `widget:signal` | `{ source, event, payload }` | Widget/renderer emits a signal | Forwarded to the kernel; both sides evaluate automation rules |
 | `desktop:notify` | `DesktopNotificationPayload` | Admin send notification | Broadcast notification to overlay |
 | `presentation:state` | `PresentationStateReportPayload` | Overlay reports a skin fact (start menu, recycle bin, …) | Store opaquely in RuntimeStateStore + rebroadcast; `activity: true` also pings the idle scheduler |

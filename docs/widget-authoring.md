@@ -1,3 +1,9 @@
+> **AI Agent Notes**
+> This is a how-to guide, not a conceptual model doc — keep it in sync with the actual widget registration code, not the other way around.
+> If a step here no longer matches `widgetRegistry.ts` or the widget definition shape, fix the doc.
+
+---
+
 # Widget Authoring Guide
 
 A widget is a React component rendered inside a `DesktopWindow`. It can own
@@ -13,7 +19,7 @@ independent — you use one, both, or neither.
 packages/shared/src/widgets/scoreboard/definition.ts  ← declare metadata (Step 1)
 packages/overlay/src/desktop/ScoreboardWidget.tsx      ← your component (Step 2)
 packages/overlay/src/desktop/widgetRegistry.ts         ← register for lazy loading (Step 3)
-packages/shared/src/contracts/socket.ts                ← add intent kinds here (if signalable)
+packages/shared/src/contracts/signals.ts               ← add intent kinds here (if signalable)
 ```
 
 The `definition.ts` file is the single source of truth for the widget's metadata:
@@ -101,10 +107,10 @@ export function ScoreboardWidget({
   const app = applications.find((a) => a.id === appId)
   const title = app?.label ?? 'Scoreboard.exe'
 
-  // --- Server-signaled updates (simulation intents) ---
-  // The server (or admin panel) can call widget:simulate:intent to push
-  // a named action into this widget. The intent is broadcast via a DOM
-  // CustomEvent so no prop drilling is needed.
+  // --- Ambiance-signaled updates (simulation intents) ---
+  // The ambiance engine can push a named action into this widget while
+  // simulating activity. The intent is dispatched on the overlay's local
+  // DOM CustomEvent bus (no server round-trip), so no prop drilling is needed.
   useEffect(() => {
     return addWidgetSimulationIntentListener((payload) => {
       // Guard: only handle intents for this widget instance
@@ -176,26 +182,18 @@ In `widgetRegistry.ts`, add one line to `widgetManifest`:
 This is the only registration needed. The component loads lazily on first open
 and caches for all subsequent opens.
 
-You also need to add `'scoreboard'` to `WidgetComponentType` in
-`packages/shared/src/domain/application.ts`. This links an `Application` config
-entry to your component:
-
-```ts
-export type WidgetComponentType =
-  | 'scoreboard'   // ← add here
-  | 'music'
-  | 'chat'
-  // ...
-```
+`WidgetComponentType` in `packages/shared/src/domain/application.ts` is **derived**
+from `WIDGET_DEFINITIONS` (`DefinedWidgetComponentType` in `widgets/index.ts`) —
+adding your `componentType` in Step 1's definition is enough. You never edit
+`application.ts` by hand for a new widget.
 
 ---
 
 ## Step 4 — Add simulation intent kinds (if signalable)
 
-If you want the server (via ambiance, events, or the admin panel) to signal your
-widget, extend the two union types in `packages/shared/src/contracts/signals.ts`
-(`WidgetSimulationIntentSeed`, `WidgetSimulationIntentPayload`) and `commands.ts`
-(`ClientToServerEvents`):
+If you want the ambiance engine to signal your widget, extend the two union
+types in `packages/shared/src/contracts/signals.ts`
+(`WidgetSimulationIntentSeed`, `WidgetSimulationIntentPayload`):
 
 ```ts
 export type WidgetSimulationIntentSeed =
@@ -209,24 +207,25 @@ export type WidgetSimulationIntentPayload =
   // ... existing entries
 ```
 
-`WidgetSimulationIntentSeed` is what the admin panel sends (no `actionId` yet).
-`WidgetSimulationIntentPayload` is what reaches the widget (server adds `actionId`).
-They must be kept in sync — same kinds, same extra fields.
+`WidgetSimulationIntentSeed` is what `pickAmbianceInteractionIntent` returns
+(no `actionId` yet). `WidgetSimulationIntentPayload` is what reaches the
+widget (the ambiance manager adds `actionId`). They must be kept in sync —
+same kinds, same extra fields.
 
-The server handler in `packages/server/src/socket/handlers/widget.ts` picks up
-the new kinds automatically. No server changes are required.
+Also register the new kind in `pickAmbianceInteractionIntent` /
+`getAmbianceInteractMirrorPolicy` (see [widget-communication.md](widget-communication.md))
+so the ambiance engine knows when to pick it.
 
 ---
 
 ## How the signal flow works
 
 ```
-Admin panel / ambiance engine
-  └─ socket.emit('widget:simulate:intent', { widgetId, kind, ...extras })
-       └─ server: widget.ts handler broadcasts to overlay namespace
-            └─ overlay: useSceneEvents picks up 'widget:simulate:intent'
-                 └─ dispatchWidgetSimulationIntent(payload)   ← DOM CustomEvent
-                      └─ addWidgetSimulationIntentListener callback in your widget
+AmbianceManager (server) picks an interaction
+  └─ emits ambiance:simulate to the overlay leader only
+       └─ Desktop.tsx: runs the cursor animation, then
+            └─ dispatchWidgetSimulationIntent(payload.sharedIntent)   ← local DOM CustomEvent, no socket hop
+                 └─ addWidgetSimulationIntentListener callback in your widget
 ```
 
 The DOM CustomEvent bus (`widgetSimulationEvents.ts`) decouples the socket layer
@@ -253,6 +252,8 @@ instance is ever open, matching on the hardcoded component name (e.g.
 intent bus. If you genuinely need a socket event that isn't a simulation intent,
 add it to `useSceneEvents.ts` and propagate it through the store or a custom
 DOM event — same pattern.
+
+**Lazy-load flash is intentional.** If a widget opens before its dynamic import resolves, the overlay shows a generic fallback for one frame then replaces it once the import settles. Don't try to eliminate this — it's a `forceUpdate`-after-load re-render, not a bug.
 
 **Exit animation.** If you want a closing animation, watch `windowState`:
 

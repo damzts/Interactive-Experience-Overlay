@@ -20,7 +20,7 @@ interface Props {
 
 export function ScenePreview({ windows, selectedId, onSelect, onChangePosition }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const overlayUrl = import.meta.env.DEV ? getOverlayDevOrigin() : getOverlayRuntimeOrigin()
+  const overlayUrl = (import.meta.env.DEV ? getOverlayDevOrigin() : getOverlayRuntimeOrigin()) + '?preview=1'
 
   const lockedVisibleCount = windows.filter((w) => w.visible && w.locked).length
 

@@ -1,8 +1,8 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;700&family=Audiowide&family=Electrolize&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Orbitron:wght@400;500;700&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;700&family=Audiowide&family=Electrolize&display=swap');
 
 /* â”€â”€ Reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+html, body { margin: 0; padding: 0; overflow: hidden; }
 
 /* â”€â”€ Overlay root â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #overlay-root {

@@ -14,6 +14,7 @@
 import OBSWebSocket from 'obs-websocket-js'
 import type { Server } from 'socket.io'
 import type { Manager, ManagerStatus, ObsStatusPayload } from '@ieomlabs/shared'
+import { DEFAULT_CONFIG } from '@ieomlabs/shared'
 import logger from '../../lib/logger.js'
 import type { SceneManager } from './scene.js'
 import type { KernelBus } from '../bus.js'
@@ -24,7 +25,7 @@ export class ObsBridgeManager implements Manager {
   private obs = new OBSWebSocket()
   private connected = false
   private connecting = false
-  private currentUrl = 'ws://localhost:4455'
+  private currentUrl = DEFAULT_CONFIG.obs.url
   private currentPassword = ''
   private lastError: string | null = null
   private reconnectAttempt = 0
@@ -55,7 +56,7 @@ export class ObsBridgeManager implements Manager {
     this.obs.on('CurrentProgramSceneChanged', () => { this.emitStatus() })
   }
 
-  connect(url = 'ws://localhost:4455', password = '') {
+  connect(url = DEFAULT_CONFIG.obs.url, password = DEFAULT_CONFIG.obs.password) {
     this.updateConnection(url, password)
   }
 

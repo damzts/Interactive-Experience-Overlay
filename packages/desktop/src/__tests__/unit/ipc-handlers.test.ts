@@ -25,6 +25,21 @@ vi.mock('../../main/oauth-flow.js', () => ({
   startOAuthFlow: () => mockStartOAuthFlow(),
 }));
 
+// ipc-handlers.js imports installUpdate from auto-updater.js, which
+// destructures `autoUpdater` from electron-updater's default export at
+// module load time. Without this mock, the real package would construct
+// a live NsisUpdater and call the real (unmocked) Electron app APIs.
+vi.mock('electron-updater', () => {
+  const mockAutoUpdater = {
+    autoDownload: false,
+    autoInstallOnAppQuit: false,
+    checkForUpdates: vi.fn().mockResolvedValue(undefined),
+    quitAndInstall: vi.fn(),
+    on: vi.fn(),
+  };
+  return { default: { autoUpdater: mockAutoUpdater }, autoUpdater: mockAutoUpdater };
+});
+
 vi.mock('electron', () => ({
   ipcMain: {
     handle: (...args: unknown[]) => mockHandle(...args),

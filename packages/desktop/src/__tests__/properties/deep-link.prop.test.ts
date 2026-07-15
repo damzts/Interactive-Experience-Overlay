@@ -13,6 +13,21 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
 
+// deeplink.js imports broadcastAuthStatus from ipc-handlers.js, which
+// imports installUpdate from auto-updater.js — that module destructures
+// `autoUpdater` from electron-updater's default export at load time.
+// Mock it so the real package doesn't construct a live NsisUpdater.
+vi.mock('electron-updater', () => {
+  const mockAutoUpdater = {
+    autoDownload: false,
+    autoInstallOnAppQuit: false,
+    checkForUpdates: vi.fn().mockResolvedValue(undefined),
+    quitAndInstall: vi.fn(),
+    on: vi.fn(),
+  };
+  return { default: { autoUpdater: mockAutoUpdater }, autoUpdater: mockAutoUpdater };
+});
+
 // Mock electron and token-storage to allow importing deeplink module in test env
 vi.mock('electron', () => ({
   app: {

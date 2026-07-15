@@ -1,5 +1,5 @@
 > **AI Agent Notes**
-> Focus on the data flow and configuration. Don't describe the IRC protocol in detail — the implementation is readable. Document why anonymous mode works and the two convergence paths into ChatWidget.
+> Focus on the data flow and configuration. Don't describe the IRC protocol in detail — the implementation is readable. Document why anonymous mode works and the two convergence paths into ChatWidget. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

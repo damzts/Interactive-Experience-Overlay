@@ -1,10 +1,20 @@
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
+/** A single item within a section's hover submenu. */
+export interface TopBarSubItem {
+  id: string;
+  label: string;
+  /** Emoji or short string icon rendered before the label. */
+  icon?: string;
+}
+
 export interface TopBarNavSection {
   id: string;
   label: string;
   icon: LucideIcon;
+  /** Optional submenu items shown on hover (Task 1 — rendering deferred). */
+  subItems?: TopBarSubItem[];
 }
 
 export interface TopBarProps {
@@ -28,6 +38,9 @@ export interface TopBarProps {
   activeSection?: string;
   /** Callback when a navigation section is selected */
   onNavigate?: (section: string) => void;
+  /** Callback when a submenu item is selected (hover menu — Task 1).
+   *  Wired here as a foundation; the visual dropdown is deferred. */
+  onSubNavigate?: (sectionId: string, subItemId: string) => void;
 }
 
 function StatusDot({ label, status }: { label: string; status: 'connected' | 'disconnected' }) {
@@ -47,13 +60,20 @@ function StatusDot({ label, status }: { label: string; status: 'connected' | 'di
   );
 }
 
-function NavItem({ section, active, onClick }: { section: TopBarNavSection; active: boolean; onClick: () => void }) {
+function NavItem({ section, active, onClick, onSubNavigate }: {
+  section: TopBarNavSection;
+  active: boolean;
+  onClick: () => void;
+  /** Forwarded from TopBarProps — will be used by the hover menu in Task 1. */
+  onSubNavigate?: (sectionId: string, subItemId: string) => void;
+}) {
   const Icon = section.icon;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
+      aria-haspopup={section.subItems && section.subItems.length > 0 ? 'menu' : undefined}
       className={cn(
         'flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3',
         'text-[var(--text-sm)] font-medium transition-colors duration-[var(--duration-fast)] ease-[var(--ease-default)]',
@@ -79,6 +99,7 @@ export function TopBar({
   endSections,
   activeSection,
   onNavigate,
+  onSubNavigate,
 }: TopBarProps) {
   const userInitial = userName.charAt(0).toUpperCase();
 
@@ -119,6 +140,7 @@ export function TopBar({
                 section={section}
                 active={activeSection === section.id}
                 onClick={() => onNavigate?.(section.id)}
+                onSubNavigate={onSubNavigate}
               />
             ))}
           </nav>
@@ -132,6 +154,7 @@ export function TopBar({
             section={section}
             active={activeSection === section.id}
             onClick={() => onNavigate?.(section.id)}
+            onSubNavigate={onSubNavigate}
           />
         ))}
         {overlayStatus && <StatusDot label="Overlay" status={overlayStatus} />}

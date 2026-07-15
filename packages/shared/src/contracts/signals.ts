@@ -252,6 +252,16 @@ export interface AudioEnergyPayload {
   bands: AudioBandLevels
 }
 
+/** Throttled live level sample for the Admin Audio panel's VU meter —
+ *  decoupled from beat/energy/silence event thresholds, just a continuous
+ *  "how loud is the analyser right now" readout. */
+export interface AudioLevelPayload {
+  /** Overall smoothed RMS level (0-1). */
+  level: number
+  /** Per-band levels (0-1 each). */
+  bands: AudioBandLevels
+}
+
 export interface AmbianceSimulationPayload {
   actionId: string
   /** Target ID — widget ID for widget actions, layout ID or scene ID for select actions. */
@@ -388,8 +398,6 @@ export interface ServerToClientEvents {
   'overlay:resync': (payload: { reason: string }) => void
   /** Overlay slot rejected — already taken */
   'overlay:rejected': (payload: { reason: string }) => void
-  /** Kernel wants a specific widget interaction (e.g. gallery:next) */
-  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   /** Toggle a widget open/closed */
   'widget:toggle': (widgetId: string) => void
   /** Apply a named layout preset */
@@ -410,8 +418,23 @@ export interface ServerToClientEvents {
   'kernel:signal': (frame: BusFrame) => void
   /** Bus trace frames batch (for dev tooling subscribers) */
   'bus:trace:frames': (frames: BusFrame[]) => void
+  /** Server → admin: passthrough relay of the overlay's throttled audio:level
+   *  sample, for the Audio panel's live VU meter. */
+  'audio:level': (payload: AudioLevelPayload) => void
   /** POV relay: SDP offer from server to overlay for active participant stream */
   'pov-online:relay:offer': (payload: { sdp: string }) => void
   /** POV relay: ICE candidate from server to overlay */
   'pov-online:relay:ice': (candidate: RTCIceCandidateInit) => void
+
+  // ── Screen-share relay (admin ↔ server ↔ overlay WebRTC, local only) ──
+  /** Server → overlay: relayed SDP offer from the admin publisher for widgetId */
+  'screen-share:offer': (payload: { widgetId: string; sdp: string }) => void
+  /** Server → overlay: relayed ICE candidate from the admin publisher */
+  'screen-share:ice:admin': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Server → admin: relayed SDP answer from the overlay subscriber */
+  'screen-share:answer': (payload: { widgetId: string; sdp: string }) => void
+  /** Server → admin: relayed ICE candidate from the overlay subscriber */
+  'screen-share:ice:overlay': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Server → overlay: the publisher stopped sharing — tear down the subscriber PC for widgetId */
+  'screen-share:stop': (payload: { widgetId: string }) => void
 }

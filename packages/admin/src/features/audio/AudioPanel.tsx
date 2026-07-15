@@ -4,12 +4,13 @@ import { useAdminStore } from '../../store/useAdminStore'
 import { Slider, ConfigPageIntro, ConfigTable, ConfigChoiceButton } from '../../shared/ui'
 import { Button, Toggle } from '../../components/atoms'
 import { ConfigPanel } from '../../components/organisms'
+import { VuMeter } from '../../components/molecules'
 import { MediaSelectionInput } from '../media-library/MediaLibrary'
+import { useAudioLevelMeter } from '../../hooks/useAudioLevelMeter'
 
 const REACTIVITY_SOURCES: { value: AudioReactiveSourceMode; label: string; desc: string }[] = [
-  { value: 'internal', label: 'Internal Engine Audio', desc: 'SFX, music, and ambient — no permission prompt' },
+  { value: 'internal', label: 'Internal Engine Audio', desc: 'SFX, music, ambient, and any currently-open screen-share widget\u2019s audio — no permission prompt' },
   { value: 'microphone', label: 'Microphone', desc: 'Captures the mic in the overlay’s browser context' },
-  { value: 'system', label: 'Computer Audio', desc: 'Captures system/tab audio via screen-share (audio-only)' },
 ]
 
 /** Notice component for informational/warning messages within config panels */
@@ -36,6 +37,7 @@ export function AudioPanel() {
   const [saved, setSaved] = useState(false)
 
   const reactivity = audio.reactivity ?? { enabled: false, source: 'internal' as AudioReactiveSourceMode, sensitivity: 0.5, smoothing: 0.7 }
+  const audioLevel = useAudioLevelMeter()
   const setReactivity = (patch: Partial<typeof reactivity>) =>
     setAudio((a) => ({ ...a, reactivity: { ...(a.reactivity ?? reactivity), ...patch } }))
 
@@ -107,18 +109,34 @@ export function AudioPanel() {
                 ))}
               </div>
             </div>
+            <div className="space-y-1">
+              <div className="admin-text-body text-xs uppercase tracking-wide text-[var(--color-text-muted)]">Live Level</div>
+              <VuMeter level={audioLevel} label="Signal" />
+              <div className="text-[10px] text-[var(--color-text-muted)]">
+                Reflects the overlay&apos;s analyser for the source above, independent of the Enable toggle — use this to
+                confirm audio is reaching it (e.g. a screen-share widget&apos;s captured audio under Internal) before
+                turning reactivity on.
+              </div>
+            </div>
             <div className="space-y-2">
               <Slider label="Sensitivity" value={reactivity.sensitivity}
                 onChange={(v) => setReactivity({ sensitivity: v })} />
               <Slider label="Smoothing" value={reactivity.smoothing}
                 onChange={(v) => setReactivity({ smoothing: v })} />
             </div>
-            {reactivity.source !== 'internal' && (
+            {reactivity.source === 'internal' && (
+              <Notice>
+                Automatically includes the audio of any screen-share widget that&apos;s currently open in the overlay —
+                open a Screen widget and start sharing (with &quot;Capture audio&quot; enabled) from its own config panel;
+                no separate capture or permission prompt needed here.
+              </Notice>
+            )}
+            {reactivity.source === 'microphone' && (
               <Notice tone="warning">
-                Microphone/computer-audio permission prompts happen in the <strong>overlay&apos;s own browser context</strong>,
-                not this dashboard — open the overlay URL directly in a normal browser tab once to grant access. OBS Browser
-                Sources may need the <code>--use-fake-ui-for-media-stream</code> launch flag (or a persisted Chromium profile)
-                to skip the prompt inside OBS.
+                Microphone permission prompts happen in the <strong>overlay&apos;s own browser context</strong>, not this
+                dashboard — open the overlay URL directly in a normal browser tab once to grant access. OBS Browser Sources
+                may need the <code>--use-fake-ui-for-media-stream</code> launch flag (or a persisted Chromium profile) to
+                skip the prompt inside OBS.
               </Notice>
             )}
             <Button variant="primary" size="md" onClick={handleSave} disabled={saving}>

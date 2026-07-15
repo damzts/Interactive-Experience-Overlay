@@ -5,6 +5,7 @@ import { useSocket } from './socket/useSocket'
 import { onKernelSignal } from './socket/kernelSignals'
 import { audioEngine } from './engine/AudioEngine'
 import { startAudioReactivityMonitor } from './engine/audioReactivityMonitor'
+import { startAudioLevelMeter } from './engine/audioLevelMeter'
 import { startPerfMonitor } from './engine/perfMonitor'
 import { TransitionEngine } from './engine/TransitionEngine'
 import { SceneCompositor } from './layers/SceneCompositor'
@@ -63,6 +64,11 @@ export default function App() {
 
   useSocket()
   useEffect(() => { audioEngine.init() }, [])
+  // Live VU meter feed for the Admin Audio panel — always on, independent of
+  // the reactivity enabled/disabled toggle, so operators can verify a source
+  // (mic, or a screen-share widget's audio routed into 'internal') is
+  // actually reaching the analyser before enabling reactivity/automation.
+  useEffect(() => startAudioLevelMeter(), [])
   // Render-performance telemetry — always on; reports fps/long-frame
   // samples to kernel diagnostics every few seconds.
   useEffect(() => startPerfMonitor(), [])
@@ -74,8 +80,14 @@ export default function App() {
 
   // Audio reactivity: switch capture source and start/stop the beat/energy
   // monitor as the operator toggles it in the Admin Audio panel. Disabled by
-  // default — no analyser polling, no getUserMedia/getDisplayMedia prompts.
+  // default — no analyser polling, no getUserMedia prompts.
+  //
+  // 'internal' automatically includes the audio of any currently-open
+  // screen-share widget — see AudioEngine.registerExternalAudioSource(),
+  // wired from ScreenWidget.tsx / renderers/ScreenShare — no separate
+  // capture or permission prompt needed for that case.
   const reactivity = config.audio.reactivity
+
   useEffect(() => {
     if (!reactivity?.enabled) {
       audioEngine.stopReactiveSource()

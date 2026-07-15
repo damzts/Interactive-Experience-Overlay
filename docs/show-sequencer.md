@@ -1,5 +1,5 @@
 > **AI Agent Notes**
-> Document why this system exists and the key dispatch pattern. Don't repeat type signatures verbatim.
+> Document why this system exists and the key dispatch pattern. Don't repeat type signatures verbatim. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

@@ -1,5 +1,6 @@
 import type { OverlayStyle } from '@ieomlabs/shared'
 import type { SchedulerTab } from '../scheduler/SchedulerHost'
+import type { SequencesTab } from '../sequences/SequencesPanel'
 
 export type ThemeAppearance = Pick<OverlayStyle, 'fontFamily' | 'accentColor' | 'textColor'>
 
@@ -16,10 +17,14 @@ export type SelectedItem =
   | { kind: 'graphics'; tab?: 'sources' | 'events' | 'catalog' | 'avatar' }
   | { kind: 'ai' }
   | { kind: 'tts' }
-  | { kind: 'shows' }
+  | { kind: 'audio' }
   | { kind: 'twitch' }
   | { kind: 'developer' }
   | { kind: 'sequence'; sequenceId: string }
+  /** Self-contained sequences panel (Sequences + Automation tabs). */
+  | { kind: 'sequences-panel'; tab?: SequencesTab }
+  /** Capture sources panel. */
+  | { kind: 'capture-sources' }
 
 export function itemKey(item: SelectedItem): string {
   if (item.kind === 'scene') return 'scene-' + item.sceneState
@@ -30,5 +35,6 @@ export function itemKey(item: SelectedItem): string {
   if (item.kind === 'sequence') return 'sequence-' + item.sequenceId
   if (item.kind === 'scheduler') return 'scheduler-' + item.tab
   if (item.kind === 'graphics') return 'graphics-' + (item.tab ?? 'sources')
+  if (item.kind === 'sequences-panel') return 'sequences-panel-' + (item.tab ?? 'sequences')
   return item.kind
 }

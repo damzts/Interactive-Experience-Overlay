@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > The server-side and client-side state splits mirror each other intentionally.
 > The ownership rule below is the load-bearing constraint — violations cause stale reads on hot paths.
-> If a new kind of state is added, the first question is always: does this survive a restart?
+> If a new kind of state is added, the first question is always: does this survive a restart? If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

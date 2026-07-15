@@ -7,10 +7,12 @@ export type WidgetLayoutSource = 'system' | 'user'
 
 /**
  * Derived from WIDGET_DEFINITIONS — adding a widget definition extends
- * this union automatically. 'window' (renderer/scene host) and 'generic'
- * (fallback chrome) are the only component types without definitions.
+ * this union automatically. 'window' (renderer/scene host), 'screen'
+ * (display-media capture widget) and 'generic' (fallback chrome) are the
+ * only component types without definitions — they're user-creatable base
+ * components rather than system widgets.
  */
-export type WidgetComponentType = DefinedWidgetComponentType | 'window' | 'generic'
+export type WidgetComponentType = DefinedWidgetComponentType | 'window' | 'screen' | 'generic'
 
 // ── Widget theme types ────────────────────────────────────────────
 
@@ -159,6 +161,31 @@ export interface Application {
   cameraSettings?: {
     preferredDeviceLabel?: string
     mirror?: boolean
+  }
+  /** Optional per-widget defaults for screen-share widget runtime behavior. */
+  screenSettings?: {
+    /** Capture system/tab audio alongside the video track. Default: false. */
+    audio?: boolean
+    mirror?: boolean
+    /**
+     * When true, the admin panel will automatically call start() when
+     * ScreenConfigSection mounts (i.e. the user opens the widget config or
+     * navigates back to the dashboard). In the desktop app this is fully
+     * silent — no picker — because Electron captures the whole screen without
+     * a user gesture dialog. In a plain browser tab the system picker still
+     * appears once per session, but subsequent re-opens of the panel will
+     * re-trigger it automatically rather than waiting for a manual click.
+     * @deprecated use autoStart on the CaptureSource instead
+     */
+    autoStart?: boolean
+    /**
+     * ID of a CaptureSource defined in AppConfig.captureSources.
+     * When set the widget displays whatever that source is sharing;
+     * the widget no longer owns or starts the capture itself.
+     * When absent the widget falls back to the legacy per-widget capture
+     * flow keyed by the widget's own appId.
+     */
+    sourceId?: string
   }
   /** Optional window binding for window-backed widget windows. */
   windowWidgetSettings?: WindowWidgetSettings

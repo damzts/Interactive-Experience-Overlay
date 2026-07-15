@@ -4,6 +4,8 @@ import type { ServerToClientEvents, ClientToServerEvents } from '@ieomlabs/share
 const overlayPort = typeof window !== 'undefined'
   ? (window.location.port || (window.location.protocol === 'https:' ? '443' : '80'))
   : ''
+const isPreview = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('preview') === '1'
 const overlayKind = overlayPort === '3000'
   ? 'runtime'
   : overlayPort === '3001'
@@ -19,7 +21,9 @@ const overlayLabel = overlayKind === 'runtime'
 export const socket = io('/', {
   autoConnect: false,
   auth: {
-    clientType: 'overlay',
+    // 'preview' type connects as observer — server sends events but does not
+    // assign the singleton overlay slot, so the real overlay can still connect.
+    clientType: isPreview ? 'preview' : 'overlay',
     overlayKind,
     overlayPort,
     overlayLabel,

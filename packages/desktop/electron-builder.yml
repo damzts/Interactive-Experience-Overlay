@@ -9,8 +9,11 @@ directories:
 files:
   - dist/**/*
   - package.json
-  - node_modules/**
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/bindings/**"
+  - "node_modules/file-uri-to-path/**"
 
+beforePack: ./build/beforePack.cjs
 afterPack: ./build/afterPack.cjs
 
 extraResources:
@@ -22,8 +25,10 @@ extraResources:
 asar: true
 
 asarUnpack:
-  - "**/node_modules/@shinyoshiaki/**"
-  - "**/node_modules/better-sqlite3/**"
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/bindings/**"
+  - "node_modules/file-uri-to-path/**"
+  - "node_modules/@shinyoshiaki/**"
 
 extraMetadata:
   main: dist/main/index.js
@@ -47,7 +52,7 @@ win:
       arch:
         - x64
   icon: build/icon.ico
-  signAndEditExecutable: true
+  signAndEditExecutable: false
   publisherName: IEOM
 
 nsis:
@@ -77,6 +82,13 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   # Code signing - set CSC_LINK and CSC_KEY_PASSWORD env vars in CI
   # identity: "Developer ID Application: IEOM (TEAM_ID)"
+  # Required on macOS 14.2+ (Sonoma) for desktopCapturer to capture system
+  # audio via the CoreAudio Tap API — without it the audio track is created
+  # but stays silent with no error (see src/main/desktop-audio-capture.ts).
+  extendInfo:
+    NSAudioCaptureUsageDescription: >-
+      IEOM captures system audio so the overlay's audio-reactive effects can
+      respond to your screen share.
 
 dmg:
   contents:

@@ -177,11 +177,6 @@ export function registerWidgetHandlers(ctx: HandlerContext, socket: AppSocket): 
     ctx.io.emit('widget:layout:apply:items', validItems)
   })
 
-  socket.on('widget:simulate:intent', (payload) => {
-    if (socket.id !== ctx.runtimeState.overlaySocketId) return
-    ctx.io.emit('widget:simulate:intent', payload)
-  })
-
   // Forward widget/renderer signals onto the KernelBus — AutomationManager
   // evaluates widget-trigger rules there (authoritative open/close/toggle
   // plus every server-side action kind). Custom widget:action rules are

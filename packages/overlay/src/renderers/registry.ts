@@ -46,6 +46,7 @@ export const rendererManifest: RendererManifest = {
   'noise-grain':     () => import('./NoiseGrain').then((m) => ({ component: m.NoiseGrainRenderer })),
   'clock-widget':    () => import('./ClockWidget').then((m) => ({ component: m.ClockWidgetRenderer })),
   'camera':          () => import('./Camera').then((m) => ({ component: m.CameraRenderer })),
+  'screen-share':    () => import('./ScreenShare').then((m) => ({ component: m.ScreenShareRenderer })),
   'pov-stream':      () => import('./PovStream').then((m) => ({ component: m.PovStreamRenderer })),
   // Builtin tier renderers — wrap legacy layer components as renderers
   'builtin:background': () => import('./builtins/Background').then((m) => ({ component: m.BuiltinBackgroundRenderer })),
@@ -70,6 +71,7 @@ export const rendererManifest: RendererManifest = {
   'rpg-hud':         () => import('./RpgHudRenderer').then((m) => ({ component: m.RpgHudRenderer })),
   'winamp-viz':      () => import('./WinampVizRenderer').then((m) => ({ component: m.WinampVizRenderer })),
   'media-viz':       () => import('./MediaVizRenderer').then((m) => ({ component: m.MediaVizRenderer })),
+  'audio-bars':      () => import('./AudioBarsRenderer').then((m) => ({ component: m.AudioBarsRenderer })),
   'matrix-rain':     () => import('./MatrixRainRenderer').then((m) => ({ component: m.MatrixRainRenderer })),
   'neon-border':     () => import('./NeonBorderRenderer').then((m) => ({ component: m.NeonBorderRenderer })),
   'combat-log':      () => import('./CombatLogRenderer').then((m) => ({ component: m.CombatLogRenderer })),

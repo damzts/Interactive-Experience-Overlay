@@ -449,6 +449,7 @@ const KNOWN_WIDGET_COMPONENTS_BY_ID: Record<string, Exclude<WidgetComponentType,
 const ALL_WIDGET_COMPONENT_TYPES = new Set<WidgetComponentType>([
   ...WIDGET_DEFINITIONS.map((d) => d.componentType),
   'window',
+  'screen',
   'generic',
 ])
 
@@ -457,6 +458,7 @@ const _componentSizeMap = new Map<WidgetComponentType, { width: number; height: 
 )
 _componentSizeMap.set('window',  { width: 420, height: 320 })
 _componentSizeMap.set('camera',  { width: 400, height: 300 })
+_componentSizeMap.set('screen',  { width: 480, height: 300 })
 _componentSizeMap.set('generic', { width: 260, height: 240 })
 
 const DEFAULT_WIDGET_COMPONENT_WINDOW_SIZES: Record<WidgetComponentType, { width: number; height: number }> =
@@ -466,6 +468,7 @@ const _componentZIndexMap = new Map<WidgetComponentType, number>(
   WIDGET_DEFINITIONS.map((d) => [d.componentType, d.zIndex])
 )
 _componentZIndexMap.set('window',  25)
+_componentZIndexMap.set('screen',  50)
 _componentZIndexMap.set('generic', 0)
 
 const DEFAULT_WIDGET_COMPONENT_Z_INDICES: Record<WidgetComponentType, number> =
@@ -521,6 +524,7 @@ export function getWidgetComponent(app: Pick<Application, 'id' | 'widgetComponen
   if (KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]) return KNOWN_WIDGET_COMPONENTS_BY_ID[app.id]
   if (isWidgetComponentType(app.widgetComponent) && app.widgetComponent !== 'generic') return app.widgetComponent
   if (/^camera(?:[-:_].+)?$/i.test(app.id)) return 'camera'
+  if (/^screen(?:[-:_].+)?$/i.test(app.id)) return 'screen'
   if (/^window(?:[-:_].+)?$/i.test(app.id)) return 'window'
   if (isWidgetComponentType(app.widgetComponent)) return app.widgetComponent
   return 'generic'

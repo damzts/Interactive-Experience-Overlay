@@ -1,6 +1,6 @@
 > **AI Agent Notes**
 > This file documents how to add a new kernel manager. Update if the Kernel class or Manager interface changes.
-> Document **why** patterns exist, not just what they are.
+> Document **why** patterns exist, not just what they are. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

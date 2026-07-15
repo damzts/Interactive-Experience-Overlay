@@ -25,6 +25,7 @@ import type {
   WidgetSimulationIntentPayload,
   AudioBeatPayload,
   AudioEnergyPayload,
+  AudioLevelPayload,
 } from './signals.js'
 
 // ── Command-only payload types ────────────────────────────────────
@@ -95,7 +96,7 @@ export interface OverlaySyncSnapshot {
  *                   desktop:notify, runtime:config:reset, runtime:config:widget:reset, runtime:config:widget-layout:reset
  *   State reports — presentation:state, overlay:runtime:status,
  *                   desktop:icon:drag, desktop:widget:drag, desktop:widget:resize
- *   Ambiance      — ambiance:simulate:accepted/started/done, widget:simulate:intent,
+ *   Ambiance      — ambiance:simulate:accepted/started/done,
  *                   widget:simulate, widget:simulate:action, widget:signal
  *   Queries       — state:request, desktop:state:request, overlay:sync
  *   Audio         — audio:beat, audio:energy:high, audio:energy:low, audio:silence
@@ -155,8 +156,6 @@ export interface ClientToServerEvents {
   'ambiance:simulate:started': (payload: AmbianceSimulationStartedPayload) => void
   /** Overlay finished an ambiance simulation action */
   'ambiance:simulate:done': (payload: AmbianceSimulationDonePayload) => void
-  /** Widget-to-widget simulation intent forwarded through kernel */
-  'widget:simulate:intent': (payload: WidgetSimulationIntentPayload) => void
   /** Simulate a widget open (ambiance-style) */
   'widget:simulate': (widgetId: string) => void
   /** Explicit widget action command */
@@ -171,6 +170,12 @@ export interface ClientToServerEvents {
   'audio:energy:low': (payload: AudioEnergyPayload) => void
   /** Overlay reports sustained silence from its audio reactivity monitor */
   'audio:silence': () => void
+  /** Overlay reports a throttled live level sample from whatever analyser
+   *  audioEngine.getReactiveAnalyser() currently points at — decoupled from
+   *  the reactivity enabled/disabled toggle so operators can verify a source
+   *  (e.g. a screen-share widget's audio) is actually reaching the analyser
+   *  before turning reactivity on. Only emitted while an analyser exists. */
+  'audio:level': (payload: AudioLevelPayload) => void
 
   // ── Queries (request/response via callback) ──────────────────────
   /** Request current scene state */
@@ -193,4 +198,29 @@ export interface ClientToServerEvents {
   'pov-online:relay:answer': (payload: { sdp: string }) => void
   /** ICE candidate from overlay to server for the relay connection */
   'pov-online:relay:ice': (candidate: RTCIceCandidateInit) => void
+
+  // ── Screen-share relay (admin ↔ server ↔ overlay WebRTC, local only) ──
+  // getDisplayMedia() requires a real user gesture, which only exists in
+  // the admin app (the overlay is a passive OBS render target with nobody
+  // to click anything). Admin captures the stream and publishes it here;
+  // the server relays signaling to the single connected overlay socket —
+  // no cloud/room involved, this is same-machine P2P.
+  /** Admin → server: SDP offer publishing a screen-share capture for widgetId */
+  'screen-share:offer': (payload: { widgetId: string; sdp: string }) => void
+  /** Admin → server: ICE candidate for its publisher connection */
+  'screen-share:ice:admin': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Overlay → server: SDP answer accepting a relayed screen-share offer */
+  'screen-share:answer': (payload: { widgetId: string; sdp: string }) => void
+  /** Overlay → server: ICE candidate for its subscriber connection */
+  'screen-share:ice:overlay': (payload: { widgetId: string; candidate: RTCIceCandidateInit }) => void
+  /** Admin → server: publisher stopped sharing (browser "Stop sharing" or widget closed) */
+  'screen-share:stop': (payload: { widgetId: string }) => void
+  /**
+   * Overlay → server → admin: overlay subscriber has mounted (or changed its
+   * watched widgetId) and is now ready to receive an offer. If the admin has
+   * an active publisher for this widgetId it should re-create and re-send the
+   * SDP offer so the overlay can complete the WebRTC handshake even when it
+   * joined after the initial offer was already forwarded.
+   */
+  'screen-share:request-offer': (payload: { widgetId: string }) => void
 }

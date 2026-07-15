@@ -160,14 +160,23 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   if (existsSync(adminDir)) {
     await app.register(fastifyStatic, { root: adminDir, prefix: '/admin/', decorateReply: true })
     const adminAssetsDir = join(adminDir, 'assets')
-    // Serve both admin Vite chunks and project assets (images/audio/video) under /assets/.
-    // @fastify/static v9 tries each root in order, so hashed Vite filenames in adminAssetsDir
-    // are found first; project assets in subdirectories (images/, audio/, etc.) come from assetsDir.
-    const assetsRoots: string[] = existsSync(adminAssetsDir) ? [adminAssetsDir, assetsDir] : [assetsDir]
+    const overlayAssetsDir = join(overlayDir, 'assets')
+    // Serve Vite chunks (admin + overlay) and project assets under /assets/.
+    // @fastify/static v9 tries each root in order: hashed chunks first, then project assets.
+    const assetsRoots: string[] = [
+      ...(existsSync(adminAssetsDir) ? [adminAssetsDir] : []),
+      ...(existsSync(overlayAssetsDir) ? [overlayAssetsDir] : []),
+      assetsDir,
+    ]
     await app.register(fastifyStatic, { root: assetsRoots, prefix: '/assets/', decorateReply: false })
     app.get('/admin', async (_req, reply) => reply.sendFile('index.html', adminDir))
   } else {
-    await app.register(fastifyStatic, { root: assetsDir, prefix: '/assets/', decorateReply: false })
+    // No admin dist — still decorate reply so overlay sendFile works below
+    await app.register(fastifyStatic, { root: assetsDir, prefix: '/assets/', decorateReply: true })
+    const overlayAssetsDir = join(overlayDir, 'assets')
+    if (existsSync(overlayAssetsDir)) {
+      await app.register(fastifyStatic, { root: overlayAssetsDir, prefix: '/assets/', decorateReply: false })
+    }
   }
   await app.register(fastifyStatic, { root: assetsDir, prefix: '/media/', decorateReply: false })
 
@@ -266,6 +275,7 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   const scheduler = new EventScheduler(machine, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const ambianceManager = new AmbianceManager(io, () => configService.cachedConfig ?? DEFAULT_CONFIG as unknown as AppConfig, kernel.bus)
   const obsBridge = new ObsBridgeManager(io, machine, kernel.bus)
+  obsBridge.setOverlayUrl(`http://localhost:${port}/overlay`)
   const roomHub = new RoomHub()
   const povOrchestrator = new POVOrchestrator(roomHub)
   const automationRepo = new AutomationRuleRepository(db)
@@ -495,8 +505,8 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   }
 
   // ── OBS config sync ───────────────────────────────────────────
-  const defaultObsUrl = process.env.OBS_URL ?? 'ws://localhost:4455'
-  const defaultObsPassword = process.env.OBS_PASSWORD ?? ''
+  const defaultObsUrl = process.env.OBS_URL ?? DEFAULT_CONFIG.obs.url
+  const defaultObsPassword = process.env.OBS_PASSWORD ?? DEFAULT_CONFIG.obs.password
   let activeObsUrl = defaultObsUrl
   let activeObsPassword = defaultObsPassword
   let activeAmbianceIntervalSeconds = withDesktopAmbianceDefaults(DEFAULT_CONFIG.desktopAmbiance).widgetSimulation.intervalSeconds
@@ -519,8 +529,16 @@ export async function createDesktopServer(options: DesktopServerOptions): Promis
   })
 
   // ── Overlay static files ──────────────────────────────────────
+  // The overlay's Vite chunks (/assets/*.js, /assets/*.css) are already served
+  // via the /assets/ prefix registered above (overlayAssetsDir included in roots).
+  // Here we only need to serve index.html for GET / and SPA deep routes.
   if (existsSync(overlayDir)) {
-    await app.register(fastifyStatic, { root: overlayDir, prefix: '/', wildcard: false, decorateReply: false })
+    app.get('/', async (_req, reply) => {
+      return reply.type('text/html').sendFile('index.html', overlayDir)
+    })
+    app.setNotFoundHandler(async (_req, reply) => {
+      return reply.type('text/html').sendFile('index.html', overlayDir)
+    })
   }
 
   // ── Global crash handler ────────────────────────────────────────

@@ -16,19 +16,27 @@ const mockCheckForUpdates = vi.fn().mockResolvedValue(undefined);
 const mockQuitAndInstall = vi.fn();
 const autoUpdaterListeners: Record<string, ((...args: unknown[]) => void)[]> = {};
 
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    checkForUpdates: () => mockCheckForUpdates(),
-    quitAndInstall: () => mockQuitAndInstall(),
-    on: (event: string, handler: (...args: unknown[]) => void) => {
-      if (!autoUpdaterListeners[event]) {
-        autoUpdaterListeners[event] = [];
-      }
-      autoUpdaterListeners[event].push(handler);
-    },
+const mockAutoUpdater = {
+  autoDownload: false,
+  autoInstallOnAppQuit: false,
+  checkForUpdates: () => mockCheckForUpdates(),
+  quitAndInstall: () => mockQuitAndInstall(),
+  on: (event: string, handler: (...args: unknown[]) => void) => {
+    if (!autoUpdaterListeners[event]) {
+      autoUpdaterListeners[event] = [];
+    }
+    autoUpdaterListeners[event].push(handler);
   },
+};
+
+// Source imports electron-updater's default export and destructures
+// `autoUpdater` from it (see auto-updater.ts) to match the package's
+// CommonJS-only default-export shape under Node's ESM loader. Mock both
+// `default` and the named export so the module shape matches regardless
+// of how it's accessed.
+vi.mock('electron-updater', () => ({
+  default: { autoUpdater: mockAutoUpdater },
+  autoUpdater: mockAutoUpdater,
 }));
 
 const mockNotificationShow = vi.fn();

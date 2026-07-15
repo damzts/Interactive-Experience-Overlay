@@ -158,10 +158,8 @@ export function removeWidgetFromDesktopConfig(desktopConfig: import('@ieomlabs/s
 
 // ── User widget creation helpers ──────────────────────────────────────
 
-export type UserWidgetBaseComponent = 'camera' | 'source'
-
 export function buildUserWidgetId(
-  widgetComponent: UserWidgetBaseComponent,
+  widgetComponent: WidgetComponentType,
   label: string,
   existingIds: Set<string>,
 ) {

@@ -272,9 +272,14 @@ export function MediaLibraryContent() {
 
 // ── Panel (no self-wrapping provider — caller must supply MediaLibraryProvider) ──
 
-function MediaLibraryPanelInner({ tab }: { tab: MediaLibraryTab }) {
+function MediaLibraryPanelInner({ tab, onTabChange }: { tab: MediaLibraryTab; onTabChange?: (tab: MediaLibraryTab) => void }) {
   const { tab: activeTab, setTab } = useMediaLibrary()
   useEffect(() => { setTab(tab) }, [tab, setTab])
+
+  const handleTabClick = (t: MediaLibraryTab) => {
+    setTab(t)
+    onTabChange?.(t)
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -283,7 +288,7 @@ function MediaLibraryPanelInner({ tab }: { tab: MediaLibraryTab }) {
           <button
             key={t}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => handleTabClick(t)}
             className={
               '-mb-px flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-2 text-xs font-medium transition-colors ' +
               (activeTab === t
@@ -310,6 +315,6 @@ function MediaLibraryPanelInner({ tab }: { tab: MediaLibraryTab }) {
   )
 }
 
-export function MediaLibraryPanel({ tab = 'sources' }: { tab?: MediaLibraryTab }) {
-  return <MediaLibraryPanelInner tab={tab} />
+export function MediaLibraryPanel({ tab = 'sources', onTabChange }: { tab?: MediaLibraryTab; onTabChange?: (tab: MediaLibraryTab) => void }) {
+  return <MediaLibraryPanelInner tab={tab} onTabChange={onTabChange} />
 }

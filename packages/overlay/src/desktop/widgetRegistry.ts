@@ -5,6 +5,10 @@ export interface DesktopWidgetProps {
   appId: string
   defaultCameraLabel?: string
   defaultMirror?: boolean
+  /** sourceId from CaptureSource — used as the screen-share registry key in
+   *  the new Sources-panel flow. Falls back to appId (then 'screen') when
+   *  not set (legacy per-widget flow). */
+  sourceId?: string
   onClose: () => void
   onMinimize?: () => void
   onFocus?: () => void
@@ -26,6 +30,7 @@ const widgetManifest: Record<RegisteredWidgetComponentType, WidgetManifestEntry>
   'broadcast-scheduler': { load: () => import('./BroadcastSchedulerWidget').then((m) => m.BroadcastSchedulerWidget), defaultPosition: { x: 314,  y: 124 }, defaultSize: { width: 430              } },
   'cd-ripper':           { load: () => import('./CDRipperWidget').then((m) => m.CDRipperWidget),                     defaultPosition: { x: 230,  y: 118 }, defaultSize: { width: 420              } },
   'camera':              { load: () => import('./CameraWidget').then((m) => m.CameraWidget),                         defaultPosition: { x: 260,  y: 80  }, defaultSize: { width: 400, height: 300 } },
+  'screen':              { load: () => import('./ScreenWidget').then((m) => m.ScreenWidget),                         defaultPosition: { x: 260,  y: 80  }, defaultSize: { width: 480, height: 300 } },
   'chat':                { load: () => import('./ChatWidget').then((m) => m.ChatWidget),                             defaultPosition: { x: 1580, y: 60  }, defaultSize: { width: 280              } },
   'city-navigator':      { load: () => import('./CityNavigatorWidget').then((m) => m.CityNavigatorWidget),           defaultPosition: { x: 474,  y: 176 }, defaultSize: { width: 450              } },
   'clock-tower':         { load: () => import('./ClockTowerWidget').then((m) => m.ClockTowerWidget),                 defaultPosition: { x: 392,  y: 168 }, defaultSize: { width: 500              } },

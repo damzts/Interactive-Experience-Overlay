@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > WebRTC constraints change rarely but are painful when they bite. The werift-specific gotchas at the bottom are load-bearing — don't remove them.
 > The LAN flow and cloud flow share the same hub and POV pipeline. Any change to one affects the other.
-> ICE candidate ordering is the most common source of connection failures during development.
+> ICE candidate ordering is the most common source of connection failures during development. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 

@@ -355,6 +355,18 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
     ],
   },
   {
+    id: 'audio-bars', label: 'Audio Bars', icon: '📶', category: 'overlay', defaultTier: 'content',
+    desc: 'Minimal reactive audio bar visualizer driven by the real audio graph — just the bars, no other presets',
+    defaultConfig: { colorA: '#2cf7ff', colorB: '#ff6dff', bgColor: '#05060c', sensitivity: 1, barCount: 32 },
+    fields: [
+      { key: 'colorA', label: 'Color A', type: 'color' },
+      { key: 'colorB', label: 'Color B', type: 'color' },
+      { key: 'bgColor', label: 'Background', type: 'color' },
+      { key: 'sensitivity', label: 'Sensitivity', type: 'number', min: 0.2, max: 3, step: 0.1 },
+      { key: 'barCount', label: 'Bar Count', type: 'number', min: 4, max: 64, step: 1 },
+    ],
+  },
+  {
     id: 'matrix-rain', label: 'Matrix Rain', icon: '🟩', category: 'background', defaultTier: 'background',
     desc: 'Falling digital rain background, Matrix-style',
     defaultConfig: { color: '#00ff41', rainbow: false, fontSize: 18, bgOpacity: 0.08 },
@@ -567,6 +579,18 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
       { key: 'baseColor', label: 'Base Color', type: 'color' },
       { key: 'brightness', label: 'Brightness', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
+  },
+  // ── Screen share renderer ────────────────────────────────────────
+  {
+    id: 'screen-share', label: 'Screen Share', icon: '🖥️', category: 'media', defaultTier: 'content',
+    desc: 'Displays a live screen/window/tab capture published from the admin panel. Set widgetId to a Capture Source ID.',
+    defaultConfig: { widgetId: '', objectFit: 'contain', mirror: false },
+    fields: [
+      { key: 'widgetId',  label: 'Capture Source', type: 'text' },
+      { key: 'objectFit', label: 'Fit',            type: 'select', options: ['contain', 'cover'] },
+      { key: 'mirror',    label: 'Mirror',         type: 'boolean' },
+    ],
+    defaultPosition: { x: 0, y: 0, width: 1280, height: 720 },
   },
 ]
 

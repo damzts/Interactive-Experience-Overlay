@@ -1,7 +1,7 @@
 > **AI Agent Notes**
 > The domain split is about merge safety and reasoning locality, not performance.
 > The HandlerContext pattern is the key constraint — understand it before modifying any handler.
-> Adding a new socket event means touching one domain file. If you find yourself touching more than one, the event belongs in a different domain or the domain boundaries need revisiting.
+> Adding a new socket event means touching one domain file. If you find yourself touching more than one, the event belongs in a different domain or the domain boundaries need revisiting. If something here contradicts the code, the code wins — fix the doc.
 
 ---
 
@@ -45,3 +45,7 @@ If the overlay disconnects, the slot is immediately freed, pending overrides are
 The one non-obvious dependency: the scene handler imports helpers from the widget handler. This is intentional — scene changes can trigger widget layout changes (opening/closing widgets as part of a scene transition). The dependency is one-way: scene imports from widget, widget never imports from scene.
 
 No other cross-domain imports exist. If a new event needs logic from two domains, that logic belongs in a shared utility (like `runtimeOverride.ts`), not as a cross-import between domain files.
+
+## Gotcha: `config:update` / `config:patch` are not machine events
+
+These two events are emitted by the config service directly on the socket, not via the state machine. Any `machine.on('config:update')` listener is dead code — the config service owns that broadcast, not `SceneMachine`.

@@ -98,6 +98,9 @@ Key variables:
 | `TURN_URL` | TURN server URL (optional, for remote guests) | — |
 | `TURN_USERNAME` | TURN username | `ieom` |
 | `TURN_CREDENTIAL` | TURN password | — |
+| `IEOM_CLOUD_URL` | Cloud API URL for online room connections (only needed for multi-participant features over the internet) | — |
+| `JOIN_CODE_DISABLED` | Skip the LAN studio join-code check in fully trusted local environments | `false` |
+| `ANTHROPIC_API_KEY` | Enables the Persona manager's LLM brain (Anthropic); omit to use local Ollama instead | — |
 
 ---
 
@@ -124,3 +127,18 @@ pnpm build
 ```
 
 This compiles TypeScript and bundles the overlay/admin for production.
+
+## Desktop Packaging
+
+```bash
+pnpm dev:desktop      # Build all then run Electron (hardware) app
+pnpm build:desktop    # Build all packages for desktop distribution
+
+# Package distributables (run from packages/desktop/)
+pnpm package:win      # Windows NSIS installer (.exe)
+pnpm package:mac      # macOS DMG (.dmg)
+pnpm package:linux    # Linux AppImage
+```
+
+Output lands in `packages/desktop/release/`.
+

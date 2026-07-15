@@ -8,62 +8,13 @@ import type {
   AmbianceHistoryEntry,
   AmbianceSimulationDonePayload,
   AmbianceSimulationPayload,
-  AmbianceWidgetBehavior,
   AmbianceNavBehavior,
 } from '@ieomlabs/shared'
+import { DEFAULT_BEHAVIOR, shouldTrigger, pickWeightedAction, type AmbianceCandidateAction } from './ambiance/candidateSelection.js'
+import { AmbianceHistoryBuffer } from './ambiance/historyBuffer.js'
 
 const SIMULATION_PENDING_TIMEOUT_MS = 5000    // "if no ack in 5s, cancel"
 const SIMULATION_FALLBACK_TIMEOUT_MS = 30000
-const AMBIANCE_HISTORY_LIMIT = 10             // circular buffer
-const DEFAULT_BEHAVIOR: AmbianceWidgetBehavior = {
-  enabled: true,
-  openChance: 0.18,
-  closeChance: 0.12,
-  interactChance: 0.65,
-}
-type AmbianceCandidateAction = Pick<AmbianceSimulationPayload, 'widgetId' | 'action'> & {
-  targetKind?: AmbianceSimulationPayload['targetKind']
-}
-
-function shouldTrigger(chance: number): boolean {
-  if (chance <= 0) return false
-  if (chance >= 1) return true
-  return Math.random() < chance
-}
-
-function pickWeightedAction(
-  candidates: AmbianceCandidateAction[],
-  minActionGapMs: number,
-  lastActionAtByWidget: Map<string, number>,
-  lastWidgetId: string | null,
-): AmbianceCandidateAction | null {
-  if (candidates.length === 0) return null
-  if (candidates.length === 1) return candidates[0]
-
-  const now = Date.now()
-  const weights = candidates.map((candidate) => {
-    const age = now - (lastActionAtByWidget.get(candidate.widgetId) ?? 0)
-    let weight = Math.max(0.1, age / Math.max(1, minActionGapMs))
-    if (lastWidgetId && candidate.widgetId === lastWidgetId && candidates.some((c) => c.widgetId !== lastWidgetId)) {
-      weight *= 0.2
-    }
-    weight += Math.random() * 0.75
-    return weight
-  })
-
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0)
-  let target = Math.random() * totalWeight
-  let picked = candidates[candidates.length - 1]
-  for (let index = 0; index < candidates.length; index += 1) {
-    target -= weights[index]
-    if (target <= 0) {
-      picked = candidates[index]
-      break
-    }
-  }
-
-  return picked
-}
 
 export class AmbianceManager implements Manager {
   readonly name = 'AmbianceManager'
@@ -86,8 +37,7 @@ export class AmbianceManager implements Manager {
   private lastAction: 'open' | 'close' | 'interact' | 'select' | null = null
   private lastSkipReason: string | null = null
   private overlayReady = false
-  private history: AmbianceHistoryEntry[] = []
-  private historySequence = 0
+  private historyBuffer = new AmbianceHistoryBuffer()
   private diagnosticsListener?: (payload: AmbianceDiagnosticsPayload) => void
 
   constructor(private io: Server, private getConfig: () => AppConfig, private bus?: KernelBus) {}
@@ -166,9 +116,7 @@ export class AmbianceManager implements Manager {
   }
 
   clearHistory() {
-    if (this.history.length === 0) return
-    this.history = []
-    this.emitDiagnostics()
+    if (this.historyBuffer.clear()) this.emitDiagnostics()
   }
 
   recordHistory(
@@ -176,14 +124,7 @@ export class AmbianceManager implements Manager {
     message: string,
     metadata: Omit<Partial<AmbianceHistoryEntry>, 'id' | 'timestamp' | 'type' | 'message'> = {},
   ) {
-    const entry: AmbianceHistoryEntry = {
-      id: `ambiance-history-${Date.now()}-${++this.historySequence}`,
-      timestamp: Date.now(),
-      type,
-      message,
-      ...metadata,
-    }
-    this.history = [entry, ...this.history].slice(0, AMBIANCE_HISTORY_LIMIT)
+    this.historyBuffer.record(type, message, metadata)
     this.emitDiagnostics()
   }
 
@@ -315,7 +256,7 @@ export class AmbianceManager implements Manager {
       pendingActionId: this.inFlightActionId,
       leaderSocketId,
       overlayReady: this.overlayReady,
-      history: this.history,
+      history: this.historyBuffer.get(),
       openWidgetCount,
       enabledWidgetCount,
       maxOpenWidgets: Math.max(1, simConfig.maxOpenWidgets ?? 2),

@@ -30,10 +30,12 @@ export interface ShowDefinition {
 
 /** Where audio-reactivity (beat/energy detection, audio-reactive backgrounds)
  *  reads its signal from. 'internal' taps the engine's own SFX/music/ambient
- *  bus (no permission prompt); 'microphone'/'system' capture a live
- *  MediaStream via getUserMedia/getDisplayMedia in the overlay's own browser
- *  context. */
-export type AudioReactiveSourceMode = 'internal' | 'microphone' | 'system'
+ *  bus AND the audio of any currently-open screen-share widget (see
+ *  AudioEngine.registerExternalAudioSource, wired from ScreenWidget/
+ *  ScreenShareRenderer) — no separate capture or permission prompt needed.
+ *  'microphone' captures the overlay's own mic via getUserMedia (no gesture
+ *  required, safe in a passive browser source). */
+export type AudioReactiveSourceMode = 'internal' | 'microphone'
 
 export interface AudioReactivityConfig {
   enabled: boolean
@@ -42,6 +44,24 @@ export interface AudioReactivityConfig {
   sensitivity: number
   /** 0–1, level smoothing factor fed to useAudioLevel */
   smoothing: number
+}
+
+/** A named, persistent screen/window/tab capture source definition.
+ *  The live capture state (RTCPeerConnection, MediaStream) is ephemeral
+ *  and lives only in the admin app's screenSharePublisherRegistry; only
+ *  the definition (name, audio pref, autoStart) is persisted here. */
+export interface CaptureSource {
+  id: string
+  /** Human label shown in the Sources panel and widget picker */
+  name: string
+  /** Capture system/tab audio alongside the video track */
+  audio: boolean
+  /**
+   * Auto-start this source when the admin panel loads.
+   * In the desktop app (Electron) this is fully silent — no picker.
+   * In a browser tab the OS share picker still fires automatically.
+   */
+  autoStart: boolean
 }
 
 /** Root application config — stored in server memory */
@@ -103,6 +123,9 @@ export interface AppConfig {
    *  table) — Persona profiles reference one of these by id instead of
    *  embedding avatar config inline. */
   avatarPresets?: AvatarPreset[]
+  /** Named screen/window/tab capture source definitions (CaptureSourcesPanel).
+   *  Live capture state is ephemeral (registry); only definitions persist here. */
+  captureSources?: CaptureSource[]
 }
 
 // ── Twitch config ────────────────────────────────────────────────

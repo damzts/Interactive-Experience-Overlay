@@ -45,6 +45,13 @@ function mountApp() {
 }
 
 async function boot() {
+  // ?preview=1 is used by the admin panel's ScenePreview iframe — it observes
+  // the overlay visually but must not claim the singleton socket slot.
+  const isPreview = new URLSearchParams(window.location.search).get('preview') === '1'
+  if (isPreview) {
+    mountApp()
+    return
+  }
   if (await checkSlotTaken()) {
     showGate()
   } else {

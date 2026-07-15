@@ -8,10 +8,26 @@
 import { app, dialog, Notification, BrowserWindow } from 'electron';
 import { randomBytes } from 'node:crypto';
 import path from 'path';
-import { createDesktopServer } from '@ieom/server/desktop-entry';
+import { pathToFileURL } from 'node:url';
 import type { DesktopServer } from '@ieom/server/desktop-entry';
 import { getDesktopServerPort } from './runtime-config.js';
 import { loadToken } from './token-storage.js';
+
+/**
+ * Lazily import the server entry.
+ *
+ * In development, resolve via the normal workspace package path.
+ * In production (packaged), load the pre-bundled server-bundle.mjs which has
+ * all JS dependencies inlined — avoiding pnpm symlink issues at runtime.
+ */
+async function importServerEntry(): Promise<{ createDesktopServer: typeof import('@ieom/server/desktop-entry')['createDesktopServer'] }> {
+  if (app.isPackaged) {
+    const bundlePath = path.join(app.getAppPath(), 'dist', 'server-bundle.mjs');
+    return import(pathToFileURL(bundlePath).href);
+  }
+  // Development: use workspace package directly
+  return import('@ieom/server/desktop-entry');
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -118,13 +134,16 @@ export function getAdminToken(): string | undefined {
  */
 export async function startServer(): Promise<void> {
   // Resolve paths
-  const userData = app.getPath('userData');
-  const dbPath = path.join(userData, 'ieom.db');
-
   // Assets directory at the project root (or bundled location)
   const appRoot = app.isPackaged
     ? path.join(process.resourcesPath, 'app')
     : path.resolve(app.getAppPath(), '..', '..');
+
+  // In dev mode use the same DB as `pnpm dev` (project root data/ieom-dev.db)
+  // so settings are shared between the two run modes.
+  const dbPath = app.isPackaged
+    ? path.join(app.getPath('userData'), 'ieom.db')
+    : path.join(appRoot, 'data', 'ieom-dev.db');
 
   const assetsDir = path.join(appRoot, 'assets');
   const overlayDir = app.isPackaged
@@ -137,6 +156,7 @@ export async function startServer(): Promise<void> {
   try {
     // Create and start the server with a timeout
     const startPromise = (async () => {
+      const { createDesktopServer } = await importServerEntry();
       server = await createDesktopServer({
         dbPath,
         port: SERVER_PORT,
