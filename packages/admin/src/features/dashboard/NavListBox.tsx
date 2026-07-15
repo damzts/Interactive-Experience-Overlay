@@ -148,15 +148,6 @@ function CaptureSidebarRow({
               />
               <span className="text-[11px] text-zinc-400">Capture audio</span>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={source.autoStart}
-                onChange={(e) => onUpdate({ ...source, autoStart: e.target.checked })}
-                className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-cyan-400"
-              />
-              <span className="text-[11px] text-zinc-400">Auto-start on open</span>
-            </label>
           </div>
 
           {/* start / stop */}
@@ -237,7 +228,7 @@ function CaptureSourcesSection() {
       id: crypto.randomUUID(),
       name: `Source ${sources.length + 1}`,
       audio: false,
-      autoStart: false,
+      autoStart: true,
     }
     void persist([...sources, next])
     setExpandedId(next.id)

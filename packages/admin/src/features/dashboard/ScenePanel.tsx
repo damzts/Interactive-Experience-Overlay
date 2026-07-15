@@ -151,7 +151,7 @@ function RendererRow({
               {meta.fields.map((field) => {
                 const val = cfg[field.key]
 
-                // screen-share: widgetId → capture source picker
+                // screen-share: widgetId → capture source picker (must be first, before type checks)
                 if (rt === 'screen-share' && field.key === 'widgetId') return (
                   <div key={field.key}>
                     <div className="text-[10px] text-zinc-600 mb-0.5">Capture Source</div>

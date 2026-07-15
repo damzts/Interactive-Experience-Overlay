@@ -44,14 +44,6 @@ function SourceRow({
           />
           Capture audio
         </label>
-        <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-primary)] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={source.autoStart}
-            onChange={(e) => onUpdate({ ...source, autoStart: e.target.checked })}
-          />
-          Auto-start on panel open
-        </label>
       </div>
 
       <div className="flex items-center gap-2">
@@ -110,7 +102,7 @@ export function CaptureSourcesPanel() {
       id: crypto.randomUUID(),
       name: `Source ${storeCaptureSources.length + 1}`,
       audio: false,
-      autoStart: false,
+      autoStart: true,
     }
     void persist([...storeCaptureSources, next])
   }
