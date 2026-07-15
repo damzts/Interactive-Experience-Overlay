@@ -22,12 +22,14 @@ const ICE_SERVERS: RTCIceServer[] = [
 
 /**
  * Target video bitrate for the screen-share sender (bits/sec).
- * 8 Mbps is comfortable for 1080p30 screen content (slides, UI, games).
+ * 14 Mbps for 1080p60 fast-motion content (gameplay) — screen content like
+ * slides/UI can get away with less, but full-motion games need more bits per
+ * frame at 60fps to avoid visible compression stutter/blockiness.
  * Loopback/localhost connections have essentially infinite bandwidth — the
  * WebRTC congestion controller's default slow-start ramp is the bottleneck,
  * not the link; forcing a high initial bitrate bypasses that.
  */
-const VIDEO_MAX_BITRATE_BPS = 8_000_000
+const VIDEO_MAX_BITRATE_BPS = 14_000_000
 
 /**
  * Prefer H.264 hardware encoding when available (Electron / Chrome on Windows
@@ -67,7 +69,7 @@ async function applyVideoEncoderParams(pc: RTCPeerConnection, widgetId: string):
     if (params.encodings.length === 0) params.encodings.push({})
     for (const enc of params.encodings) {
       enc.maxBitrate    = VIDEO_MAX_BITRATE_BPS
-      enc.maxFramerate  = 30
+      enc.maxFramerate  = 60
       // Priority hint: Chrome uses this for internal scheduling.
       enc.priority      = 'high'
       enc.networkPriority = 'high'
@@ -285,9 +287,11 @@ class ScreenSharePublisherRegistry {
         video: {
           width:     { ideal: 1920 },
           height:    { ideal: 1080 },
-          // ideal sets the target; max caps it to avoid Chrome silently
-          // downgrading to a lower refresh when the system is under load.
-          frameRate: { ideal: 30, max: 60 },
+          // ideal == max: target 60fps outright so Chrome doesn't settle for
+          // a lower capture rate under load — the encoder-side cap below was
+          // the actual bottleneck (see enc.maxFramerate), but this keeps the
+          // capture side from silently downgrading too.
+          frameRate: { ideal: 60, max: 60 },
         },
         audio,
       })
