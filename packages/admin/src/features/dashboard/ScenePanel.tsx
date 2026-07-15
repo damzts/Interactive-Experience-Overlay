@@ -9,6 +9,7 @@ import { DesktopThemeEditor } from './DesktopThemePanel'
 import { fetchSequences } from '../../api/sequencesApi'
 import { StepListEditor } from '../sequences/StepListEditor'
 import { socket } from '../../socket/client'
+import { CameraDeviceField } from '../media-library/SchemaForm'
 
 type ScenePanelDraft = {
   label:           string
@@ -205,6 +206,11 @@ function RendererRow({
                     <input type="color" value={String(val ?? '#000000')}
                       onChange={(e) => updateField(field.key, e.target.value)}
                       className="h-6 w-10 cursor-pointer rounded border-0 bg-transparent p-0" />
+                  </div>
+                )
+                if (field.type === 'camera-device') return (
+                  <div key={field.key}>
+                    <CameraDeviceField value={val} onChange={(v) => updateField(field.key, v)} />
                   </div>
                 )
                 return (

@@ -580,6 +580,23 @@ export const RENDERER_CATALOG: RendererCatalogEntry[] = [
       { key: 'brightness', label: 'Brightness', type: 'number', min: 0, max: 1, step: 0.05 },
     ],
   },
+  // ── Camera renderer ──────────────────────────────────────────────
+  {
+    id: 'camera', label: 'Camera', icon: '📷', category: 'media', defaultTier: 'content',
+    desc: 'Live camera feed via getUserMedia — physical or virtual device (e.g. NVIDIA Broadcast, OBS Virtual Camera)',
+    defaultConfig: { deviceLabel: '', mirror: true, shape: 'rectangle', brightness: 1, contrast: 1, saturation: 1, opacity: 1, objectFit: 'cover' },
+    fields: [
+      { key: 'deviceLabel', label: 'Camera Device', type: 'camera-device' },
+      { key: 'mirror',      label: 'Mirror',       type: 'boolean' },
+      { key: 'shape',       label: 'Shape',        type: 'select', options: ['rectangle', 'circle', 'rounded'] },
+      { key: 'brightness',  label: 'Brightness',   type: 'number', min: 0, max: 2, step: 0.05 },
+      { key: 'contrast',    label: 'Contrast',     type: 'number', min: 0, max: 2, step: 0.05 },
+      { key: 'saturation',  label: 'Saturation',   type: 'number', min: 0, max: 2, step: 0.05 },
+      { key: 'opacity',     label: 'Opacity',      type: 'number', min: 0, max: 1, step: 0.05 },
+      { key: 'objectFit',   label: 'Fit',          type: 'select', options: ['cover', 'contain'] },
+    ],
+    defaultPosition: { x: 0, y: 0, width: 400, height: 300 },
+  },
   // ── Screen share renderer ────────────────────────────────────────
   {
     id: 'screen-share', label: 'Screen Share', icon: '🖥️', category: 'media', defaultTier: 'content',

@@ -21,6 +21,65 @@ const ICE_SERVERS: RTCIceServer[] = [
 ]
 
 /**
+ * Target video bitrate for the screen-share sender (bits/sec).
+ * 8 Mbps is comfortable for 1080p30 screen content (slides, UI, games).
+ * Loopback/localhost connections have essentially infinite bandwidth — the
+ * WebRTC congestion controller's default slow-start ramp is the bottleneck,
+ * not the link; forcing a high initial bitrate bypasses that.
+ */
+const VIDEO_MAX_BITRATE_BPS = 8_000_000
+
+/**
+ * Prefer H.264 hardware encoding when available (Electron / Chrome on Windows
+ * and macOS). Falls back to VP9 → VP8 if H.264 isn't offered in the codec
+ * list. Hardware encoding is ~5× more CPU-efficient than software VP8 and
+ * produces better quality at the same bitrate for screen content.
+ */
+function preferredVideoCodecs(pc: RTCPeerConnection): RTCRtpCodec[] | null {
+  try {
+    const caps = RTCRtpSender.getCapabilities('video')
+    if (!caps) return null
+    const order = ['video/H264', 'video/VP9', 'video/VP8']
+    return [
+      ...order
+        .flatMap((mime) =>
+          caps.codecs.filter((c) => c.mimeType.toLowerCase() === mime.toLowerCase()),
+        ),
+      ...caps.codecs.filter(
+        (c) => !order.some((m) => m.toLowerCase() === c.mimeType.toLowerCase()),
+      ),
+    ]
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Apply high-bitrate encoding parameters to the video sender.
+ * Must be called after setLocalDescription() so the sender/transceiver is
+ * fully initialized.
+ */
+async function applyVideoEncoderParams(pc: RTCPeerConnection, widgetId: string): Promise<void> {
+  const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+  if (!sender) return
+  try {
+    const params = sender.getParameters()
+    if (params.encodings.length === 0) params.encodings.push({})
+    for (const enc of params.encodings) {
+      enc.maxBitrate    = VIDEO_MAX_BITRATE_BPS
+      enc.maxFramerate  = 30
+      // Priority hint: Chrome uses this for internal scheduling.
+      enc.priority      = 'high'
+      enc.networkPriority = 'high'
+    }
+    await sender.setParameters(params)
+  } catch (err) {
+    // Non-fatal — encoding params are best-effort; the share will still work.
+    console.warn('[screen-share] setParameters failed for', widgetId, err)
+  }
+}
+
+/**
  * Module-level registry of active screen-share publishers.
  *
  * Registry key semantics
@@ -135,6 +194,19 @@ class ScreenSharePublisherRegistry {
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
+      // Prefer H.264 hardware encoding for re-offers as well.
+      const videoTransceiver = pc.getTransceivers().find((t) => t.sender.track?.kind === 'video')
+      if (videoTransceiver) {
+        const codecs = preferredVideoCodecs(pc)
+        if (codecs) {
+          try {
+            videoTransceiver.setCodecPreferences(codecs)
+          } catch {
+            // Non-fatal.
+          }
+        }
+      }
+
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const candidate = event.candidate.toJSON()
@@ -154,6 +226,8 @@ class ScreenSharePublisherRegistry {
       try {
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
+        // Apply high-bitrate encoding after setLocalDescription.
+        await applyVideoEncoderParams(pc, payload.widgetId)
         console.log('[screen-share] new offer created and sent for', payload.widgetId)
         socket.emit('screen-share:offer', { widgetId: payload.widgetId, sdp: offer.sdp ?? '' })
       } catch (err) {
@@ -208,7 +282,13 @@ class ScreenSharePublisherRegistry {
 
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        video: {
+          width:     { ideal: 1920 },
+          height:    { ideal: 1080 },
+          // ideal sets the target; max caps it to avoid Chrome silently
+          // downgrading to a lower refresh when the system is under load.
+          frameRate: { ideal: 30, max: 60 },
+        },
         audio,
       })
 
@@ -237,6 +317,21 @@ class ScreenSharePublisherRegistry {
         track.addEventListener('ended', () => this.stop(widgetId))
       })
 
+      // Prefer H.264 hardware encoding → VP9 → VP8. Must be set on the
+      // transceiver before createOffer() so codec preference is reflected in
+      // the SDP. Falls back gracefully if the API isn't available.
+      const videoTransceiver = pc.getTransceivers().find((t) => t.sender.track?.kind === 'video')
+      if (videoTransceiver) {
+        const codecs = preferredVideoCodecs(pc)
+        if (codecs) {
+          try {
+            videoTransceiver.setCodecPreferences(codecs)
+          } catch {
+            // Non-fatal — older browsers may not support setCodecPreferences.
+          }
+        }
+      }
+
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const candidate = event.candidate.toJSON()
@@ -254,6 +349,9 @@ class ScreenSharePublisherRegistry {
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
+      // Apply high-bitrate encoding after setLocalDescription — the sender is
+      // not fully initialized until after the offer is set.
+      await applyVideoEncoderParams(pc, widgetId)
       socket.emit('screen-share:offer', { widgetId, sdp: offer.sdp ?? '' })
       this.notify(widgetId)
     } catch (err) {

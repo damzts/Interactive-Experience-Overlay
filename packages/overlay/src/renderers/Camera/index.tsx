@@ -36,7 +36,6 @@ function shouldBlockCameraCapture() {
  *                  Usa "default" para tomar el primer dispositivo disponible.
  *   mirror       — Espeja horizontalmente (útil para webcam frontal). Default: true.
  *   shape        — 'rectangle' | 'circle' | 'rounded'. Default: 'rectangle'.
- *   frameUrl     — URL de un PNG con transparencia para poner de marco encima del video.
  *   brightness   — 0.0–2.0, default 1.
  *   contrast     — 0.0–2.0, default 1.
  *   saturation   — 0.0–2.0, default 1.
@@ -47,7 +46,6 @@ export function CameraRenderer({ config }: import('../registry').RendererProps) 
   const deviceLabel = String(config.deviceLabel ?? 'default')
   const mirror      = config.mirror !== false
   const shape       = String(config.shape ?? 'rectangle')
-  const frameUrl    = String(config.frameUrl ?? '')
   const brightness  = Number(config.brightness ?? 1)
   const contrast    = Number(config.contrast ?? 1)
   const saturation  = Number(config.saturation ?? 1)
@@ -154,22 +152,6 @@ export function CameraRenderer({ config }: import('../registry').RendererProps) 
         }}
       />
 
-      {/* Marco PNG opcional encima del video */}
-      {frameUrl && (
-        <img
-          src={frameUrl}
-          alt=""
-          draggable={false}
-          style={{
-            position:      'absolute',
-            inset:         0,
-            width:         '100%',
-            height:        '100%',
-            objectFit:     'fill',
-            pointerEvents: 'none',
-          }}
-        />
-      )}
     </div>
   )
 }

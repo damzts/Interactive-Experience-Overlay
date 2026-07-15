@@ -5,8 +5,14 @@ import { findRendererCatalogEntry, RENDERER_CATALOG, type RendererCatalogEntry a
 import { Btn, ConfigCard, ConfigNotice, ConfigSectionPanel, HexColorInput, OverlayCanvas } from '../../shared/ui'
 import { LibraryItemBtn } from './mediaLibraryUi'
 import { MediaSearchInput } from './MediaLibraryPanel'
+import { CameraDeviceField } from './SchemaForm'
 
 export function SourceField({ field, value, onChange }: { field: FieldDef; value: unknown; onChange: (value: unknown) => void }) {
+  // camera-device has its own label + button row — render full-width, no outer label wrapper
+  if (field.type === 'camera-device') {
+    return <CameraDeviceField value={value} onChange={onChange} />
+  }
+
   return (
     <div className="flex items-center gap-2">
       <label className="w-16 shrink-0 text-[10px] text-zinc-500">{field.label}</label>
