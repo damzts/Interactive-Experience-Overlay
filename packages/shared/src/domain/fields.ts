@@ -57,10 +57,11 @@ export type FieldType =
   | 'color'
   | 'boolean'
   | 'select'
-  | 'text-list'   // string[] — edited one entry per line
-  | 'color-list'  // string[] of colors — edited one hex per line
-  | 'media'       // asset path/URL with media library picker
-  | 'ref'         // cross-entity reference id with admin entity picker
+  | 'text-list'      // string[] — edited one entry per line
+  | 'color-list'     // string[] of colors — edited one hex per line
+  | 'media'          // asset path/URL with media library picker
+  | 'ref'            // cross-entity reference id with admin entity picker
+  | 'camera-device'  // video input device label — enumerates getUserMedia devices
 
 /** Entity kinds a 'ref' field can point at. The admin resolves each to a
  *  live picker (scenes/widgets/layouts from config, presets/sequences via

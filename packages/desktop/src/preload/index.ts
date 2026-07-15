@@ -130,6 +130,18 @@ const api = {
       return () => { ipcRenderer.removeListener('room:status', listener); };
     },
   },
+
+  capture: {
+    /**
+     * List available screen and window sources from the Electron main process.
+     * Returns an array of { id, name, thumbnail } where thumbnail is a
+     * 64×36 PNG data-URL for a quick visual preview.
+     * Only available in the desktop (Electron) shell.
+     */
+    getSources(): Promise<{ id: string; name: string; thumbnail: string }[]> {
+      return ipcRenderer.invoke('capture:get-sources');
+    },
+  },
 } as const;
 
 contextBridge.exposeInMainWorld('ieom', api);

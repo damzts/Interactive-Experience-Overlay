@@ -92,7 +92,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function TileGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14 gap-1">
+    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-14 gap-1 content-start overflow-hidden min-h-0">
       {children}
     </div>
   );
@@ -179,9 +179,9 @@ export function DashboardOverview({
   ];
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="h-full flex flex-col gap-2 overflow-hidden">
       {/* ─── Scenes ─── */}
-      <section aria-label="Scenes">
+      <section aria-label="Scenes" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Scenes</SectionHeader>
         {scenes.length === 0 ? (
           <CompactEmpty label="No scenes configured" />
@@ -201,7 +201,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Widgets ─── */}
-      <section aria-label="Widgets">
+      <section aria-label="Widgets" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Widgets</SectionHeader>
         {applications.length === 0 ? (
           <CompactEmpty label="No widgets configured" />
@@ -222,7 +222,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Widget Layouts ─── */}
-      <section aria-label="Widget layouts">
+      <section aria-label="Widget layouts" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Widget Layouts</SectionHeader>
         {widgetLayouts.length === 0 ? (
           <CompactEmpty label="No widget layouts configured" />
@@ -241,7 +241,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Effects ─── */}
-      <section aria-label="Effects">
+      <section aria-label="Effects" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Effects</SectionHeader>
         {events.length === 0 ? (
           <CompactEmpty label="No saved effects" />
@@ -288,7 +288,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Sequences ─── */}
-      <section aria-label="Sequences">
+      <section aria-label="Sequences" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Sequences</SectionHeader>
         {sequences.length === 0 ? (
           <CompactEmpty label="No sequences configured" />
@@ -307,7 +307,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Shows ─── */}
-      <section aria-label="Shows">
+      <section aria-label="Shows" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Shows</SectionHeader>
         {shows.length === 0 ? (
           <CompactEmpty label="No shows configured" />
@@ -327,7 +327,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Presets ─── */}
-      <section aria-label="Presets">
+      <section aria-label="Presets" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Presets</SectionHeader>
         {presets.length === 0 ? (
           <CompactEmpty label="No presets saved" />
@@ -346,7 +346,7 @@ export function DashboardOverview({
       </section>
 
       {/* ─── Manager toggles ─── */}
-      <section aria-label="Manager toggles">
+      <section aria-label="Manager toggles" className="flex flex-col overflow-hidden min-h-0 flex-1">
         <SectionHeader>Managers</SectionHeader>
         <TileGrid>
           {managers.map((m) => (

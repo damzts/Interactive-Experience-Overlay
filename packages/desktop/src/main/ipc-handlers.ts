@@ -7,7 +7,7 @@
  * Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 5.2, 5.7
  */
 
-import { ipcMain, app, BrowserWindow } from 'electron';
+import { ipcMain, app, BrowserWindow, desktopCapturer } from 'electron';
 import { getLicenseTier, validateLicense, type LicenseTier } from './license.js';
 import { getAdminToken } from './server.js';
 import { clearToken } from './token-storage.js';
@@ -199,5 +199,24 @@ export function registerIpcHandlers(): void {
   // -------------------------------------------------------------------------
   ipcMain.handle('room:status', () => {
     return getRoomStatus();
+  });
+
+  // -------------------------------------------------------------------------
+  // Capture: list available screen/window sources
+  // Returns an array of { id, name, thumbnail } for use in the Capture
+  // Sources panel so the operator can pick a specific monitor or window
+  // by name rather than always defaulting to the primary screen.
+  // thumbnail is a 64×36 data-URL (PNG) for a quick visual preview.
+  // -------------------------------------------------------------------------
+  ipcMain.handle('capture:get-sources', async () => {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 64, height: 36 },
+    });
+    return sources.map((s) => ({
+      id:        s.id,
+      name:      s.name,
+      thumbnail: s.thumbnail.toDataURL(),
+    }));
   });
 }
